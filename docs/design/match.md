@@ -101,3 +101,95 @@ int main()
 
 Can be compiled with Clang too but the memset return value might be different.
 Also, GCC 6 or later required for the attribute `scalar_storage_order`.
+
+## Implementing the match
+
+In the following we consider _Solution C_ for header representation.
+Below the figure show the concept of the header matching.
+The editing very similar.
+
+```
+                                Header structure filled with
+                                 values used for match/edit
+
+                             ┌────────────────┬───┬─┬────────────┐
+             struct vlan_hdr │      TPID      │PCP│ │    VID     │
+                             ├────────────────┼───┼─┼────────────┤
+                       hdr:  │0000000000000000│000│0│000101000111│
+                             └────────────────┴─┬─┴─┴────────────┘
+                                                │
+                                                ▼           ┌────────────────┬───┬─┬────────────┐
+                                           ┌─┬─┬─┬─┐        │      TPID      │PCP│ │    VID     │
+         Field access mask for match/edit: │0│0│0│1├──────► ├────────────────┼───┼─┼────────────┤
+                                           └─┴─┴─┴─┘        │xxxxxxxxxxxxxxxx│xxx│x│000101000111│
+                                                ▲           └────────────────┴───┴─┴────────────┘
+                                                │
+                             ┌────────────────┬─┴─┬─┬────────────┐                 │            │
+(struct vlan_hdr *)pkt+off   │      TPID      │PCP│ │    VID     │                 └─────┬──────┘
+                 ────────────┼────────────────┼───┼─┼────────────┼──────────             │
+          pkt:   ...100101110│0000000001100100│110│0│000100000111│1100100...             │
+                 ────────────┴────────────────┴───┴─┴────────────┴──────────             │
+                             ▲                                                 match: hdr.vid == pkt.vid
+                    off ─────┘                                                 edit:  pkt.vid = hdr.vid
+
+
+                                           ┌─┬─┬─┬─┐
+                                           │0│0│0│1│
+                                           └┬┴┬┴┬┴┬┘
+                                            │ │ │ │
+                                      TPID ─┘ │ │ │
+                                        PCP  ─┘ │ │
+                                          DEI  ─┘ │
+                                            VID  ─┘
+```
+
+There is a match object, which contains a pre-filled header.
+This pre-filled header contains the fields we interested in, other fields can be undefined.
+The match object also contains an "access mask" or "selector bits".
+The purpose of this is simple: 0 - that field not relevant for the match.
+1 - the field relevant and should match.
+The access mask created by the config parser and each header type define its field bits.
+
+## Example
+
+Just to present the operation of the match, consider the following small example.
+There we have a packet payload (`pkt`) assumed as VLAN header (told us by the config).
+We seek to the index where the VLAN header starts: `&pkt[hdrs[1].offset]`.
+The match object contains the pre-filled VLAN header (`struct vlan_hdr key`) as well as the access mask (`select`).
+The matching itself done by the `vlan_match` function.
+
+```C
+struct vlan_hdr {
+	uint16_t tpid : 16;
+	uint16_t pcp : 3;
+	uint16_t dei : 1;
+	uint16_t vid : 12;
+} __attribute__((packed, scalar_storage_order("big-endian")));
+
+enum vlan_access_mask {
+        TPID = 0x1,
+        PCP = 0x2,
+        DEI = 0x4,
+        VID = 0x8,
+}
+
+struct match {
+        vlan_hdr key;
+        unsigned select;
+};
+
+bool vlan_match(const match *m, const char *pkt)
+{
+        bool matcing = true;
+        const vlan_hdr *workitem = pkt;
+        if(m->select & TPID)
+                matching &= (m->key.tpid == workitem.tpid);
+        if(m->select & PCP)
+                matching &= (m->key.pcp == workitem.pcp);
+        if(m->select & DEI)
+                matching &= (m->key.dei== workitem.dei);
+        if(m->select & VID)
+                matching &= (m->key.vid == workitem.vid);
+        return matcing;
+}
+```
