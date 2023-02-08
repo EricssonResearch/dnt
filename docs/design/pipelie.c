@@ -71,6 +71,7 @@ void action_replicate(struct packet *p)
 
 int main()
 {
+	// hopefully everything here done by the config parser and dynamically allocated
 	struct action foo = { .execute = action_foo, .name = "foo" };
 	struct action bar = { .execute = action_bar, .name = "bar" };
 	struct action alma = { .execute = action_alma, .name = "alma" };
@@ -90,7 +91,7 @@ int main()
 	p_start->action = &foo;
 	p_start->next->action = &bar;
 	p_start->next->next->action = &replicate;
-	struct action_replicate_state state = {.num_pipelines = 2, .pipes[0] = p_repl1, .pipes[1] = p_repl2};
+	struct action_replicate_state state = {.num_pipelines = 3, .pipes[0] = p_repl1, .pipes[1] = p_repl2, .pipes[2] = p_repl1};
 	p_start->next->next->action->state = &state;
 	p_repl1->action = &bar;
 	p_repl1->next->action = &alma;
@@ -98,7 +99,7 @@ int main()
 	p_repl2->next->action = &alma;
 
 
-	struct packet pkt;
-	pkt.iter = p_start;
-	pkt.iter->action->execute(&pkt);
+	struct packet pkt; //fresh packet received on some iface
+	pkt.iter = p_start; // iter = match(pkt)
+	execute(&pkt);
 }
