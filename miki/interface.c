@@ -7,7 +7,7 @@
 void fini_interface(struct Interface *iface)
 {
     if (iface->del)
-        iface->del(iface->iface_private);
+        iface->del(iface);
     free(iface->name);
     free(iface->ifname);
 }

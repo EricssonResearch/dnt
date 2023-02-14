@@ -10,7 +10,7 @@ struct Packet;
 struct Pipeline {
     struct Action *actions; // array of actions
     unsigned action_count;
-    unsigned iterator_count; // count live iterators for debugging
+    unsigned reference_count;
 };
 
 struct PipelineIterator {
@@ -19,9 +19,16 @@ struct PipelineIterator {
     unsigned pos; // index of current action
 };
 
+// creates a new pipeline
+// doesn't automatically reference it!
 struct Pipeline *new_pipeline(struct Action *actions, unsigned action_count);
 
-struct Pipeline *delete_pipeline(struct Pipeline *pipe);
+// add a reference to the pipeline
+void pipeline_ref(struct Pipeline *pipe);
+
+// remove a reference from the pipeline
+// when all references are removed the pipeline deletes itself
+void pipeline_unref(struct Pipeline *pipe);
 
 // the iterator will own the packet
 struct PipelineIterator *new_pipe_iterator(struct Pipeline *pipe, struct Packet *p);

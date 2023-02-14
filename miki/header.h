@@ -4,6 +4,13 @@
 
 struct Packet;
 
+//TODO header index or start pointer?
+//  index:
+//      constant for all packets of the stream
+//      we heed the whole Packet to read the field (Action has it...)
+//  pointer:
+//      we have to adjust it to the current packet
+//      we can't have HeaderField* in Action constructors
 struct HeaderField {
     unsigned header_idx;
     unsigned bitoffset;

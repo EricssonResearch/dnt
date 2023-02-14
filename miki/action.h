@@ -41,6 +41,13 @@ struct Action {
     char *text; // textual representation (as it was in the config)
 };
 
+//TODO move this struct to another header?
+struct PipelineList {
+    struct Pipeline *pipe;
+    const char *text;
+    struct PipelineList *next;
+};
+
 
 // this just adds the header, the fields will be set with an edit action
 void create_action_add(struct Action *a, unsigned idx, int type, size_t len, const char *text);
@@ -62,11 +69,6 @@ void create_action_elim(struct Action *a, struct HeaderField *sequence, const ch
 //TODO receive a pof object
 void create_action_pof(struct Action *a, struct HeaderField *sequence, const char *text);
 
-//TODO this is not a good place for this struct
-struct PipelineList {
-    struct Pipeline *pipe;
-    struct PipelineList *next;
-};
 void create_action_repl(struct Action *a, struct PipelineList *list, const char *text);
 
 void create_action_send(struct Action *a, struct Interface *iface, const char *text);

@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <sys/types.h>
+#include <time.h>
 
 //TODO move the defines in a central location?
 #define PACKET_BUF_LEN 10000
@@ -32,6 +33,7 @@ struct Packet {
     unsigned header_count;
 
     struct Interface *from;
+    struct timespec arrival_time;
 };
 
 struct Packet *new_packet(struct Interface *from);

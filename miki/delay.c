@@ -7,15 +7,16 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#include <errno.h>
 #include <pthread.h>
 #include <semaphore.h>
 
-struct DelayBuffer {
+struct DelayQueue {
     //TODO keep a list of PipelineIterator objects (priority queue)
     //      a background thread will get them from the queue and pipe_iterator_run()
 };
 
-static struct DelayBuffer *delay_buffer = NULL;
+static struct DelayQueue *delay_queue = NULL;
 static pthread_t delay_tid;
 static sem_t delay_sem;
 
@@ -27,7 +28,10 @@ static void *delay_thread(void *arg)
 
     while (1) {
         sem_wait(&delay_sem);
-        //TODO now we have some packets in the buffer
+        //TODO now we have some packets in the queue
+
+        //TODO when we get a PipelineIterator from the queue the current action is the delay
+        //      we need to step to the next action before pipe_iterator_run()
     }
 
     return NULL;
@@ -40,14 +44,23 @@ bool init_delay(void)
         return false;
     }
 
-    delay_buffer = calloc_struct(DelayBuffer);
+    delay_queue = calloc_struct(DelayQueue);
 
     pthread_attr_t attr;
-    pthread_attr_init(&attr);
-    pthread_attr_setschedpolicy(&attr, SCHED_FIFO);
+    if ((errno = pthread_attr_init(&attr)) != 0) {
+        perror("delay thread pthread_attr_init");
+        return false;
+    }
+    if ((errno = pthread_attr_setschedpolicy(&attr, SCHED_FIFO)) != 0) {
+        perror("delay thread pthread_attr_setschedpolicy");
+        return false;
+    }
     struct sched_param param;
     param.sched_priority = 97;
-    pthread_attr_setschedparam(&attr, &param);
+    if ((errno = pthread_attr_setschedparam(&attr, &param)) != 0) {
+        perror("delay thread pthread_attr_setschedparam");
+        return false;
+    }
     if (pthread_create(&delay_tid, &attr, &delay_thread, NULL) != 0) {
         fprintf(stderr, "could not create delay thread\n");
         return false;
@@ -58,7 +71,7 @@ bool init_delay(void)
 
 void fini_delay(void)
 {
-    pthread_cancel(delay_tid);
+    pthread_cancel(delay_tid); //TODO flush the queue first
     pthread_join(delay_tid, NULL);
 }
 
@@ -67,7 +80,7 @@ void delay_insert(struct PipelineIterator *pi, unsigned delay)
     (void)pi;
     (void)delay;
 
-    //TODO insert_into_delay_buffer()
+    //TODO insert_into_delay_queue()
     //TODO sem_post(&delay_sem);
 }
 

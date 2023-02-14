@@ -157,18 +157,17 @@ static enum ActionResult action_repl_execute(struct Action *a, struct PipelineIt
 {
     struct PipelineList *list = a->action_private;
 
-    bool first = true;
     while (list) {
         struct Packet *p;
-        if (first) {
-            p = pi->packet;
-            first = false;
-        } else {
+        if (list->next) {
             p = copy_packet(pi->packet);
+        } else {
+            p = pi->packet;
         }
 
         struct PipelineIterator *newpi = new_pipe_iterator(list->pipe, p);
         pipe_iterator_run(newpi);
+        list = list->next;
     }
     return ACR_DONE;
 }
@@ -179,7 +178,7 @@ static void action_repl_del(void *action_private)
     while (list) {
         struct PipelineList *del = list;
         list = list->next;
-        delete_pipeline(del->pipe);
+        pipeline_unref(del->pipe);
         free(del);
     }
 }

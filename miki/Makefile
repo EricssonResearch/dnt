@@ -9,8 +9,12 @@ CFLAGS += -Werror
 #TODO gnu libc doesn't need this
 LFLAGS += -lpthread
 
-OBJECTS = main.o action.o delay.o header.o if_eth.o interface.o packet.o parsetree.o pipeline.o utils.o
-HEADERS = action.h delay.h header.h if_eth.h interface.h packet.h parsetree.h pipeline.h utils.h
+OBJECTS = main.o action.o delay.o header.o interface.o packet.o parsetree.o pipeline.o protocol.o utils.o
+OBJECTS += if_eth.o
+OBJECTS += conf_actions.o conf_packet.o conf_utils.o
+HEADERS = action.h delay.h header.h interface.h packet.h parsetree.h pipeline.h protocol.h utils.h
+HEADERS += if_eth.h
+HEADERS += conf_actions.h conf_packet.h conf_utils.h
 
 default: r2dthree
 

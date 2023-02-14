@@ -72,7 +72,7 @@ static bool eth_recv(struct Interface *iface, struct Packet *p)
     return true;
 }
 
-static void eth_send(struct Interface *iface, struct Packet *p)
+static bool eth_send(struct Interface *iface, struct Packet *p)
 {
     struct EthIfData *eid = iface->iface_private;
     (void)p;
@@ -81,11 +81,13 @@ static void eth_send(struct Interface *iface, struct Packet *p)
     //      if it has a svlan or cvlan after the eth, read the pcp from it
     //      otherwise pcp = 0
     //TODO sendmsg() on eid->sockfg[pcp]
+
+    return true;
 }
 
-static bool eth_del(void *iface_private)
+static bool eth_del(struct Interface *iface)
 {
-    struct EthIfData *eid = iface_private;
+    struct EthIfData *eid = iface->iface_private;
     for (unsigned i=0; i<8; i++) {
         if (eid->pcp_used[i]) {
             close(eid->sockfd[i]);
