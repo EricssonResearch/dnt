@@ -71,6 +71,7 @@ static bool process_token(char *token, void *userdata)
     struct StageState *stst = userdata;
 
     if (stst->headers->name) {
+        //TODO parse_assignment() in conf_utils.h ?
         char *eq = strchr(token, '=');
         if (eq) {
             char *key = token;
@@ -90,12 +91,7 @@ static bool process_token(char *token, void *userdata)
         }
     } else {
         stst->headers->name = strdup(token);
-        char *under = strchr(token, '_');
-        if (under) {
-            stst->headers->type = strndup(token, under-token);
-        } else {
-            stst->headers->type = strdup(token);
-        }
+        stst->headers->type = header_type_from_name(token);
         stst->headers->id = protocol_id_from_type(stst->headers->type);
         if (stst->headers->id < 0) {
             //TODO throw exception: unknown protocol
@@ -133,5 +129,39 @@ struct ConfHeader *process_packet(const char *stream, char *line)
     stst.headers = reverse_header_list(stst.headers);
 
     return stst.headers;
+}
+
+//TODO struct ConfHeader *delete_header_list(struct ConfHeader *headers) {}
+
+struct ConfHeader *header_list_find_name(struct ConfHeader *headers, const char *name)
+{
+    struct ConfHeader *h = headers;
+    while (h) {
+        if (strcmp(h->name, name) == 0)
+            return h;
+        h = h->next;
+    }
+    return NULL;
+}
+
+struct ConfHeader *header_list_find_typeid(struct ConfHeader *headers, int id)
+{
+    struct ConfHeader *h = headers;
+    while (h) {
+        if (h->id == id)
+            return h;
+        h = h->next;
+    }
+    return NULL;
+}
+
+char *header_type_from_name(const char *name)
+{
+    char *under = strchr(name, '_');
+    if (under) {
+        return strndup(name, under-name);
+    } else {
+        return strdup(name);
+    }
 }
 
