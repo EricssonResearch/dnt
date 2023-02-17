@@ -12,11 +12,13 @@ LFLAGS += -lpthread
 
 OBJECTS = main.o action.o delay.o header.o interface.o packet.o parsetree.o pipeline.o protocol.o utils.o
 OBJECTS += if_eth.o
+OBJECTS += seq_gen.o
 OBJECTS += conf_actions.o conf_packet.o conf_utils.o
 OBJECTS += inifile/hashmap.o inifile/inifile.o
 
 HEADERS = action.h delay.h header.h interface.h packet.h parsetree.h pipeline.h protocol.h utils.h
 HEADERS += if_eth.h
+HEADERS += seq_gen.h
 HEADERS += conf_actions.h conf_packet.h conf_utils.h
 HEADERS += inifile/hashmap.h inifile/inifile.h inifile/iniutils.h
 

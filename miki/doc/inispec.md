@@ -21,6 +21,7 @@ List of interfaces where we can send/receive packets. The keys of the items are 
 TODO parameters specific for the interface `type`: udp port and peer ip, eth priority etc.
 
 A `virtual` interface is a special hardware interface that can be used in decapsulating scenarios: the last action sends the decapsulated packet to a virtual interface, where it will be parsed&processed again.
+TODO should `virtual` be the type or the name of the interface?
 
 ## streams
 
@@ -35,7 +36,6 @@ This line lists the interfaces the stream can come from, separated by space. Opt
 This line specifies the expected header structure of the packet, and the values of the header fields that are used to identify the stream. The header list is separated by semicolons (;).
 
 Known header types are: eth, svlan, cvlan, rtag, ttag, ipv4, ipv6, arp, mpls, dcw_seq, dcw_ts TODO what else?
-TODO stag, ctag?
 
 The actions that manipulate the packet refer to the headers by their type names. If the packet contains multiple headers of the same type, an alphanumeric suffix in the form of `headertype_identifier` can be used to distinguish them, the name of the header becomes the whole expression. The identifiers are arbitrary. This distinguishing identifier can be omitted, if the duplicate headers are not referenced any action.
 
@@ -72,11 +72,9 @@ When the parameter of an action is time, it needs to have one of these suffixes:
 
 When the action pipeline is finished, the memory used for the packet is automatically reclaimed, there is no need to explicitely drop it.
 
-TODO the source of values in `add`, `edit` can be properties of an interface, like destination IP or MAC
+TODO the source of values in `add`, `edit` can be properties of an interface, like IP or MAC address
 
-TODO do we want to use a header field as the source of a value?
-
-TODO do we allow adding a header with a name that already exists (e.g. `add svlan` when we already have an svlan)? If the existing or the new one has a custom name then this problem doesn't arise.
+TODO do we allow adding a header with a name that already exists (e.g. `add svlan` when we already have an svlan)? If the existing or the new one has a custom name then this problem doesn't arise. -> No, don't allow this.
 
 ## objects
 

@@ -18,8 +18,7 @@ enum ConfActionType {
     CA_DROP,
     CA_EDIT,
     CA_ELIM,
-    CA_OBJ,
-    //CA_POF,
+    CA_POF,
     CA_REPL,
     CA_SEND,
 };
@@ -56,19 +55,24 @@ struct ConfAction {
             struct StringList *replacements;
         } call;
         struct {
-            struct ConfHeader *del;
+            struct ConfHeader *hdr;
         } del;
         struct {
             //TODO timestamp field
             //TODO delay value
         } delay;
         struct {
-            struct ConfHeader *edit;
+            struct ConfHeader *hdr;
             struct StringList *assignments;
         } edit;
         struct {
-            struct StringList *parameters;
-        } obj;
+            //TODO recovery object
+            //TODO seq field
+        } elim;
+        struct {
+            //TODO pof object
+            //TODO seq field
+        } pof;
         struct {
             char *name;
             struct StringList *pipelines;
@@ -76,7 +80,7 @@ struct ConfAction {
         struct {
             char *ifname; //TODO pointer to the interface
         } send;
-    } data;
+    } d;
 };
 
 struct StageState {
@@ -95,46 +99,47 @@ static bool process_token(char *token, void *userdata)
         // here we remember the parameters for the action in the struct
         switch (stst->actions->type) {
             case CA_ADD:
-                if (stst->actions->data.add.beforeafter == 0) {
+                if (stst->actions->d.add.beforeafter == 0) {
                     if (strcmp(token, "before") == 0)
-                        stst->actions->data.add.beforeafter = 1;
+                        stst->actions->d.add.beforeafter = 1;
                     else if (strcmp(token, "after") == 0)
-                        stst->actions->data.add.beforeafter = 2;
+                        stst->actions->d.add.beforeafter = 2;
                     else {
                         //TODO throw exception: invalid location designator
                     }
-                } else if (stst->actions->data.add.pos == NULL) {
+                } else if (stst->actions->d.add.pos == NULL) {
                     struct ConfHeader *pos = header_list_find_name(stst->headers, token);
                     if (pos == NULL) {
                         //TODO throw exception: no such header in the packet
                     }
-                    stst->actions->data.add.pos = pos;
-                } else if (stst->actions->data.add.newname == NULL) {
-                    stst->actions->data.add.newname = strdup(token);
+                    stst->actions->d.add.pos = pos;
+                    //TODO convert "before header" to "after previousheader" ?
+                } else if (stst->actions->d.add.newname == NULL) {
+                    stst->actions->d.add.newname = strdup(token);
                     char *type = header_type_from_name(token);
-                    stst->actions->data.add.id = protocol_id_from_type(type);
-                    if (stst->actions->data.add.id < 0) {
+                    stst->actions->d.add.id = protocol_id_from_type(type);
+                    if (stst->actions->d.add.id < 0) {
                         //TODO throw exception: type is invalid for new header
                     }
-                    stst->actions->data.add.newtype = type;
+                    stst->actions->d.add.newtype = type;
                 } else {
-                    stringlist_push(&stst->actions->data.add.assignments, strdup(token));
+                    stringlist_push(&stst->actions->d.add.assignments, strdup(token));
                 }
                 break;
             case CA_CALL:
-                if (stst->actions->data.call.pipename == NULL) {
-                    stst->actions->data.call.pipename = strdup(token);
+                if (stst->actions->d.call.pipename == NULL) {
+                    stst->actions->d.call.pipename = strdup(token);
                 } else {
-                    stringlist_push(&stst->actions->data.call.replacements, strdup(token));
+                    stringlist_push(&stst->actions->d.call.replacements, strdup(token));
                 }
                 break;
             case CA_DEL:
-                if (stst->actions->data.del.del) {
+                if (stst->actions->d.del.hdr) {
                     //TODO throw exception: delete action takes only 1 parameter
                 } else {
                     struct ConfHeader *del = header_list_find_name(stst->headers, token);
                     if (del) {
-                        stst->actions->data.del.del = del;
+                        stst->actions->d.del.hdr = del;
                     } else {
                         //TODO throw exception: invalid header name
                     }
@@ -148,35 +153,35 @@ static bool process_token(char *token, void *userdata)
                 //TODO no parameter expected -> throw exception
                 break;
             case CA_EDIT:
-                if (stst->actions->data.edit.edit == NULL) {
+                if (stst->actions->d.edit.hdr == NULL) {
                     struct ConfHeader *edit = header_list_find_name(stst->headers, token);
                     if (edit) {
-                        stst->actions->data.edit.edit = edit;
+                        stst->actions->d.edit.hdr = edit;
                     } else {
                         //TODO throw exception: invalid header name
                     }
                 } else {
                     //TODO process the assignment here?
-                    stringlist_push(&stst->actions->data.edit.assignments, strdup(token));
+                    stringlist_push(&stst->actions->d.edit.assignments, strdup(token));
                 }
                 break;
             case CA_ELIM:
-                //TODO should this be an object like pof?
-                //TODO first argument is sequence field
-                //TODO second argument is a recovery object
+                //TODO first argument is a recovery object
+                //TODO second argument is sequence field
                 break;
-            case CA_OBJ:
-                stringlist_push(&stst->actions->data.obj.parameters, strdup(token));
+            case CA_POF:
+                //TODO first arguments is pof object
+                //TODO second argument is sequence field
                 break;
             case CA_REPL:
-                stringlist_push(&stst->actions->data.repl.pipelines, strdup(token));
+                stringlist_push(&stst->actions->d.repl.pipelines, strdup(token));
                 break;
             case CA_SEND:
                 //TODO find interface by name
-                if (stst->actions->data.send.ifname) {
+                if (stst->actions->d.send.ifname) {
                     //TODO throw exception
                 } else {
-                    stst->actions->data.send.ifname = strdup(token);
+                    stst->actions->d.send.ifname = strdup(token);
                 }
                 break;
         }
@@ -195,16 +200,18 @@ static bool process_token(char *token, void *userdata)
             stst->actions->type = CA_EDIT;
         } else if (strcmp(token, "eliminate") == 0) {
             stst->actions->type = CA_ELIM;
+        } else if (strcmp(token, "pof") == 0) {
+            stst->actions->type = CA_POF;
         } else if (strcmp(token, "replicate") == 0) {
             stst->actions->type = CA_REPL;
         } else if (strcmp(token, "send") == 0) {
             stst->actions->type = CA_SEND;
         } else {
-            //TODO see if token is one of the objects
+            //TODO see if token is the name of one of the objects
             //TODO if not, throw exception: unknown action
             //TODO if yes,
-            //  stst->actions->type = CA_OBJ;
-            //  stst->actions->data.obj.name = strdup(token);
+            //  stst->actions->type = from the object;
+            //  stst->actions->d.pof.obj = object
         }
     }
 
@@ -215,20 +222,20 @@ static void process_action(struct StageState *stst)
 {
     switch (stst->actions->type) {
         case CA_ADD:
-            if (stst->actions->data.add.newname == NULL) {
+            if (stst->actions->d.add.newname == NULL) {
                 //TODO throw exception: no new header name
             }
-            if (stst->actions->data.add.pos == NULL) {
+            if (stst->actions->d.add.pos == NULL) {
                 //TODO throw exception: no existing header
             }
-            if (stst->actions->data.add.beforeafter == 0) {
+            if (stst->actions->d.add.beforeafter == 0) {
                 //TODO throw exception: no header position
             }
             // add the newly created header to the header list
             struct ConfHeader *newheader = calloc_struct(ConfHeader);
-            newheader->type = stst->actions->data.add.newtype;
-            newheader->name = stst->actions->data.add.newname;
-            newheader->id = stst->actions->data.add.id;
+            newheader->type = stst->actions->d.add.newtype;
+            newheader->name = stst->actions->d.add.newname;
+            newheader->id = stst->actions->d.add.id;
             newheader->state = CH_NEW;
             //TODO add newheader to stst->headers at the designated position
 
@@ -236,14 +243,14 @@ static void process_action(struct StageState *stst)
             struct ConfAction *edit = calloc_struct(ConfAction);
             edit->type = CA_EDIT;
             edit->text = stst->actions->text; //TODO is this okay?
-            edit->data.edit.edit = newheader;
-            edit->data.edit.assignments = stst->actions->data.add.assignments;
+            edit->d.edit.hdr = newheader;
+            edit->d.edit.assignments = stst->actions->d.add.assignments;
             edit->next = stst->actions;
             stst->actions = edit;
             process_action(stst); // now edit is the newest action
             break;
         case CA_CALL:
-            if (stst->actions->data.call.pipename == NULL) {
+            if (stst->actions->d.call.pipename == NULL) {
                 //TODO throw exception: no actionlist
             }
             //TODO get the key value from the config section
@@ -252,13 +259,13 @@ static void process_action(struct StageState *stst)
             //TODO insert the returned action chain in place of this one
             break;
         case CA_DEL:
-            if (stst->actions->data.del.del == NULL) {
+            if (stst->actions->d.del.hdr == NULL) {
                 //TODO throw exception: no header to delete
             }
-            if (stst->actions->data.del.del->state == CH_DEL) {
+            if (stst->actions->d.del.hdr->state == CH_DEL) {
                 //TODO throw exception: already deleted
             }
-            stst->actions->data.del.del->state = CH_DEL;
+            stst->actions->d.del.hdr->state = CH_DEL;
             break;
         case CA_DELAY:
             //TODO check that first param was a valid timestamp field
@@ -268,12 +275,12 @@ static void process_action(struct StageState *stst)
             // nothing to do here
             break;
         case CA_EDIT:
-            if (stst->actions->data.edit.edit) {
+            if (stst->actions->d.edit.hdr) {
                 // find the index of the header that we edit
                 unsigned idx = 0;
                 struct ConfHeader *h = stst->headers;
                 while (h) {
-                    if (h == stst->actions->data.edit.edit) {
+                    if (h == stst->actions->d.edit.hdr) {
                         break;
                     }
                     if (h->state != CH_DEL) idx++;
@@ -288,7 +295,7 @@ static void process_action(struct StageState *stst)
         case CA_ELIM:
             //TODO
             break;
-        case CA_OBJ:
+        case CA_POF:
             //TODO
             break;
         case CA_REPL:
@@ -297,7 +304,7 @@ static void process_action(struct StageState *stst)
             break;
         case CA_SEND:
             //TODO this will be a pointer to the interface
-            if (stst->actions->data.send.ifname == NULL) {
+            if (stst->actions->d.send.ifname == NULL) {
                 //TODO throw exception: no interface name
             }
             break;

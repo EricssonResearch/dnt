@@ -8,6 +8,7 @@
 #include <stdio.h>
 
 #include <unistd.h> /* close() */
+#include <time.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 
@@ -24,9 +25,6 @@ static bool eth_recv(struct Interface *iface, struct Packet *p)
     struct EthIfData *eid = iface->iface_private;
     (void)eid;
 
-    //TODO all of this stuff was copied from detcloud/recv.c
-
-    //char data[9100];
     char control[1000]
         __attribute__ ((aligned(__alignof__(struct cmsghdr))));
     struct msghdr msg;
@@ -34,8 +32,8 @@ static bool eth_recv(struct Interface *iface, struct Packet *p)
     struct sockaddr_in from_addr;
     memset(&msg, 0, sizeof(msg));
     msg.msg_name = &from_addr;
-    iov.iov_base = p->buf + p->start;//data;
-    iov.iov_len = PACKET_BUF_LEN - p->start;//sizeof(data);
+    iov.iov_base = p->buf + p->start;
+    iov.iov_len = PACKET_BUF_LEN - p->start;
     msg.msg_iov = &iov;
     msg.msg_iovlen = 1;
     msg.msg_control = control;
@@ -48,14 +46,17 @@ static bool eth_recv(struct Interface *iface, struct Packet *p)
         return false;
     }
 
+    //TODO ask for kernel RX timestamping and use that
+    //  ask for both HW and SW, if HW==0 use SW
+    clock_gettime(CLOCK_REALTIME, &p->arrival_time);
+
     if (res > 0) {
         p->len = res;
         //TODO what else?
     }
 
-    //TODO process the cmsg to get the vlan header info
-    //TODO if we have vlan, restore it in the packet
-    //  packet_add_header(p, 1, vlan), set vlan_tci
+    // process the cmsg to get the vlan header info
+    // if we have vlan, restore it in the packet
     for (struct cmsghdr *cmsg=CMSG_FIRSTHDR(&msg); cmsg; cmsg=CMSG_NXTHDR(&msg, cmsg)) {
         switch (cmsg->cmsg_level) {
             case SOL_PACKET:
@@ -64,6 +65,13 @@ static bool eth_recv(struct Interface *iface, struct Packet *p)
                     //TODO when is TP_STATUS_VLAN_VALID?
                     printf("AUX 0x%.08x len %u VLAN 0x%.04x EtherType 0x%.04x ",
                             aux->tp_status, aux->tp_len, aux->tp_vlan_tci, aux->tp_vlan_tpid);
+
+                    // restore the vlan header in the packet
+                    memmove(p->buf + p->start - 4, p->buf + p->start, 2*6);
+                    p->start -= 4;
+                    uint16_t *vlan = (uint16_t*)(p->buf + p->start + 2*6);
+                    vlan[0] = htons(aux->tp_vlan_tpid);
+                    vlan[1] = htons(aux->tp_vlan_tci);
                 }
                 break;
         }
@@ -80,7 +88,7 @@ static bool eth_send(struct Interface *iface, struct Packet *p)
     //TODO the packet contains a full header structure description
     //      if it has a svlan or cvlan after the eth, read the pcp from it
     //      otherwise pcp = 0
-    //TODO sendmsg() on eid->sockfg[pcp]
+    //TODO sendmsg() on eid->sockfd[pcp]
 
     return true;
 }

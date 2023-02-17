@@ -31,3 +31,26 @@ field_assign *get_assign_function(const struct HeaderField *field)
     return NULL;
 }
 
+static void read_bytes(struct Packet *p, struct HeaderField *target, field_assign *assign, void *state)
+{
+    struct HeaderField *source = state;
+    uint8_t buf[64];
+    struct HeaderValue val = {buf, source->bitcount};
+
+    uint8_t *src = p->headers[source->header_idx].start + source->bitoffset/8;
+    unsigned len = source->bitcount / 8;
+    //TODO check that len < 64;
+    memcpy(buf, src, len);
+    assign(p, target, &val);
+}
+
+value_generator *get_read_function(const struct HeaderField *field)
+{
+    if ((field->bitoffset % 8) == 0 && (field->bitcount % 8) == 0) {
+        return read_bytes;
+    }
+
+    //TODO more variations
+
+    return NULL;
+}

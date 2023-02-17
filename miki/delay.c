@@ -61,6 +61,11 @@ bool init_delay(void)
         perror("delay thread pthread_attr_setschedparam");
         return false;
     }
+    if ((errno = pthread_attr_setinheritsched(&attr, PTHREAD_EXPLICIT_SCHED)) != 0) {
+        perror("pthread_attr_setinheritsched");
+        return -1;
+    }
+
     if (pthread_create(&delay_tid, &attr, &delay_thread, NULL) != 0) {
         fprintf(stderr, "could not create delay thread\n");
         return false;

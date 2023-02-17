@@ -44,9 +44,10 @@ The value for a field assignment can be
 * Constant (can be simple number, mac address, ip address, time with suffix), we store all of these in network byte order
 * Header field in this form: `header.field`
 * Interface property e.g. if3.mac (TODO what if the interface name is a valid protocol name? use a heuristic)
+* Packet property: packet.timestamp, packet.sequence
 * Value generator object's name (seq gen, timestamp etc.), validated against the list of defined objects
 
-In header description we only accept constants.
+In header description we only accept constants for the matching.
 
 ### Parsing substitution
 
@@ -114,22 +115,32 @@ This can have multiple assignments to the same header.
 
 ### eliminate
 
-Syntax: `eliminate sequence_field recovery_object`
+Syntax: `eliminate recovery_object sequence_field`
 
 The `sequence_field` is in the form of `header.field` just like in value assignment.
 
-The `eliminator_object` refers to an object by name.
+The `recovery_object` refers to a sequence recovery object by name.
 
-TODO this should be an object action like pof (?)
+The `eliminate` command can be omitted, the object name is enough to deduce the action type.
 
 ### object
 
 Syntax: `objectname [object-specific parameters]`
 
-Some objects instantiated in the *objects* section must be used as actions. Such objects are:
+Some objects instantiated in the *objects* section can be used as actions without specifying the action type. Such objects are:
 
-* pof
-* sequence recovery as *eliminate*
+* pof object as *pof*
+* sequence recovery object as *eliminate*
+
+### pof
+
+Syntax: `pof pof_object sequence_field`
+
+The `sequence_field` is in the form of `header.field` just like in value assignment.
+
+The `pof_object` refers to a pof object by name.
+
+The `pof` command can be omitted, the object name is enough to deduce the action type.
 
 ### replicate
 
