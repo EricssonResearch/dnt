@@ -12,6 +12,6 @@ struct SequenceGenerator *new_seq_gen(bool use_reset_flag, bool use_init_flag, u
 
 void seq_generator(struct Packet *p, struct HeaderField *target, field_assign *assign, void *state);
 
-
+//TODO provide an example struct HeaderValue to show the config compiler what we will generate
 
 #endif // R2_SEQ_GEN_H

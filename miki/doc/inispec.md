@@ -61,6 +61,8 @@ The elementary actions are the following:
 * `pofobject sequence_field` puts the packet in a reorder buffer, continues the actions when the ordering is okay
 * `delay timestamp_field delay` puts the packet in a delay buffer, continues the actions when the time is right
 * `call pipeline` process the packet with the specified action pipeline and continue with this pipeline, useful for breaking up long pipelines or reuse operations for multiple streams (TODO why not use a macro? This is the macro substitution! We don't need the [macros] section!) (TODO parameters? we can do substitutions for fieldvalue) (TODO these calls will be inlined at compile time)
+* `readseq fieldname`
+* `readtstamp fieldname`
 
 In these actions `header` refers to any header in the *packet* list by name, using the number suffix if necessary. The `newheader` in `add` can also have a number suffix.
 

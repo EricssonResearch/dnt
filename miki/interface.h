@@ -17,9 +17,9 @@ enum IfaceType {
 };
 
 // receive a packet on @fd
-// puts the received data into the @packet
-// @returns false if the packet reception failed
-typedef bool iface_recv(struct Interface *iface, struct Packet *p);
+// blocks if no packet is in the rx queue!
+// @returns the receivec packet or NULL if reception failed
+typedef struct Packet *iface_recv(struct Interface *iface);
 
 // sends the packet on the interface
 // @returns false if the packet sending failed
@@ -37,8 +37,10 @@ struct Interface {
     int recvfd;
     iface_recv *recv;
     iface_send *send;
-    iface_del *del;
+    iface_del *del_;
     void *iface_private;
+    unsigned reference_count;
+    bool shutdown;
 
     struct ParseTree *parsetree;
 
@@ -52,7 +54,18 @@ struct Interface {
     //      if iface is marked for deletion (but still having ref) stops receiving packets
 };
 
-// finishes the interface but doesn't free the given pointer (iface is in an array!)
-void fini_interface(struct Interface *iface);
+// no global init(), each interface type has its own
+
+// closes the interface but doesn't free the given pointer (iface is in an array!)
+// this just sets the shutdown state so it won't receive packets
+// the interface will really close when no pipeline references it
+void close_interface(struct Interface *iface);
+
+// add a reference to the interface
+void iface_ref(struct Interface *iface);
+
+// remove a reference from the interface
+// the interface closes when shutdown=true AND refcount=0
+void iface_unref(struct Interface *iface);
 
 #endif // R2_INTERFACE_H

@@ -73,6 +73,13 @@ void create_action_repl(struct Action *a, struct PipelineList *list, const char 
 
 void create_action_send(struct Action *a, struct Interface *iface, const char *text);
 
+// send action returns its interface
+struct Interface *action_send_get_iface(struct Action *a);
+
+// replicate action returns its pipelines
+struct PipelineList *action_repl_get_piplinelist(struct Action *a);
+
+// frees the dynamic memory used by the action, but not the action itself (they are in an array)
 struct Action *delete_action(struct Action *a);
 
 #endif // R2_ACTION_H

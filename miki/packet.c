@@ -43,15 +43,14 @@ struct Packet *copy_packet(const struct Packet *p)
 {
     struct Packet *newp = calloc_struct(Packet);
     *newp = *p;
-    // note: the newly allocated buf is aligned the same was as the old one
+#if 0
     newp->buf = memdup(p->buf, PACKET_BUF_LEN);
-
-    // adjust the start pointers in the header array to point to the new buffer
-    for (unsigned i=0; i<p->header_count; i++) {
-        ptrdiff_t diff = p->headers[i].start - p->buf;
-        newp->headers[i].start = newp->buf + diff;
-    }
-
+#else
+    // optimization: only copy the packet and the scratch
+    newp->buf = malloc(PACKET_BUF_LEN);
+    // we need to keep the unallocated scratch space zeroed
+    memcpy(newp->buf, p->buf, p->start+p->len);
+#endif
     return newp;
 }
 
@@ -63,12 +62,10 @@ bool packet_dummy(const struct Packet *p)
 //TODO implement this
 void packet_identify_header(struct Packet *p, int type, off_t offset, size_t len);
 
-// returns NULL if we are out of scratch space
-//TODO the config compiler can check that scratch allocations are fine
-static unsigned char *scratch_alloc(struct Packet *p, size_t len)
+static off_t scratch_alloc(struct Packet *p, size_t len)
 {
-    unsigned char *ret = p->buf + p->scratch_len;
-    if (p->scratch_len + len >= PACKET_START_OFFSET) return NULL;
+    if (p->scratch_len + len >= PACKET_START_OFFSET) return -1;
+    off_t ret = p->scratch_len;
     p->scratch_len += len;
     return ret;
 }
@@ -77,10 +74,16 @@ static unsigned char *scratch_alloc(struct Packet *p, size_t len)
 
 void packet_add_header(struct Packet *p, unsigned idx, int type, size_t len)
 {
-    unsigned char *start = scratch_alloc(p, len);
-    //TODO if (start == NULL) error
-    //TODO if (p->header_count == PACKET_MAX_HEADER_NUM) error
-    //TODO if (idx > p->header_count) error
+    if (p->header_count == PACKET_MAX_HEADER_NUM) {
+        //TODO error (can we prevent this in the config compiler?)
+    }
+    if (idx > p->header_count) {
+        //TODO error (this should never happen though)
+    }
+    off_t start = scratch_alloc(p, len);
+    if (start < 0) {
+        //TODO error: out of scratch space TODO how to handle this??
+    }
 
     if (idx < p->header_count)
         memmove(p->headers+idx+1, p->headers+idx,
@@ -93,7 +96,9 @@ void packet_add_header(struct Packet *p, unsigned idx, int type, size_t len)
 
 void packet_del_header(struct Packet *p, unsigned idx)
 {
-    //TODO if (idx >= p->header_count) error
+    if (idx >= p->header_count) {
+        //TODO error (this should never happen though)
+    }
 
     if (idx < p->header_count)
         memmove(p->headers+idx, p->headers+idx+1,

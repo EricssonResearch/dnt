@@ -17,13 +17,13 @@ struct Interface;
 
 struct PacketHeader {
     int type;
-    unsigned char *start;
+    off_t start; // from beginning of buf
     size_t len;
 };
 
 struct Packet {
     unsigned char *buf;
-    off_t start; //TODO pointer?
+    off_t start; // from beginning of buf
     size_t len;
 
     // scratch space starts at offset 0
@@ -34,10 +34,15 @@ struct Packet {
 
     struct Interface *from;
     struct timespec arrival_time;
+
+    // metadata we can read from the packet
+    unsigned timestamp;
+    unsigned sequence;
 };
 
 struct Packet *new_packet(struct Interface *from);
 
+// always returns NULL
 struct Packet *delete_packet(struct Packet *p);
 
 // returns a deep copy of the packet

@@ -39,7 +39,7 @@ static void step_seq(struct SequenceGenerator *gen)
 void seq_generator(struct Packet *p, struct HeaderField *target, field_assign *assign, void *state)
 {
     uint32_t seqn = 0;
-    struct HeaderValue val = {&seqn, 32};
+    struct HeaderValue val = {&seqn, 0, 32};
     struct SequenceGenerator *gen = state;
     step_seq(gen);
 

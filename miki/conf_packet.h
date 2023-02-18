@@ -21,6 +21,7 @@ struct ConfHeader {
     int id; // protocol type id
     enum ConfHeaderFlag state;
     struct ConfHeaderMatch *matches; //TODO hash table instead of linked list?
+    //TODO indicate somehow if this is payload? name=NULL?
     struct ConfHeader *next;
 };
 

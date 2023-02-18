@@ -3,6 +3,7 @@
 #define R2_PROTOCOL_H
 
 #include <stdbool.h>
+#include <stdint.h>
 
 struct ProtocolField {
     const char *name;
@@ -10,21 +11,20 @@ struct ProtocolField {
     unsigned bitcount;
 };
 
-//TODO parameter?
-//  number: we don't need a header to call this function
-//  pointer to the header: this function can get the nexthdr value
-typedef int id_from_nexthdr(void);
+// @nexthdr is in network byte order
+typedef int id_from_nexthdr(uint16_t nexthdr);
 
-//TODO this just returns a number? how will we set the header field?
-typedef unsigned nexthdr_from_id(int id);
+// @returns a number in network byte order
+typedef uint16_t nexthdr_from_id(int id);
 
 struct Protocol {
     const char *name;
     struct ProtocolField *header_fields;
     unsigned header_field_count;
-    //TODO functions for handling the nextheader-type fields
-    //      we need 2way translate: internalid->nexthdr, nexthdr->internalid
-
+    unsigned bytelength;
+    const char *nexthdr;
+    id_from_nexthdr *get_id;
+    nexthdr_from_id *get_nexthdr;
 };
 
 

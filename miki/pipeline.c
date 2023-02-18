@@ -1,17 +1,49 @@
 
 #include "pipeline.h"
 #include "action.h"
+#include "interface.h"
 #include "packet.h"
 #include "utils.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 
+static void ref_send_interfaces(struct Pipeline *pipe)
+{
+    for (unsigned i=0; i<pipe->action_count; i++) {
+        if (pipe->actions[i].type == ACT_SEND) {
+            iface_ref(action_send_get_iface(pipe->actions+i));
+        } else if (pipe->actions[i].type == ACT_REPL) {
+            struct PipelineList *plist = action_repl_get_piplinelist(pipe->actions+i);
+            while (plist) {
+                ref_send_interfaces(plist->pipe);
+                plist = plist->next;
+            }
+        }
+    }
+}
+
+static void unref_send_interfaces(struct Pipeline *pipe)
+{
+    for (unsigned i=0; i<pipe->action_count; i++) {
+        if (pipe->actions[i].type == ACT_SEND) {
+            iface_unref(action_send_get_iface(pipe->actions+i));
+        } else if (pipe->actions[i].type == ACT_REPL) {
+            struct PipelineList *plist = action_repl_get_piplinelist(pipe->actions+i);
+            while (plist) {
+                unref_send_interfaces(plist->pipe);
+                plist = plist->next;
+            }
+        }
+    }
+}
+
 struct Pipeline *new_pipeline(struct Action *actions, unsigned action_count)
 {
     struct Pipeline *ret = calloc_struct(Pipeline);
     ret->actions = actions;
     ret->action_count = action_count;
+    ref_send_interfaces(ret);
     return ret;
 }
 
@@ -22,15 +54,10 @@ void pipeline_ref(struct Pipeline *pipe)
 
 void pipeline_unref(struct Pipeline *pipe)
 {
-    //TODO we also need to refcount the interfaces
-    //      pipeline should hold a ref to the interfaces it sends on
-    //      iface doesn't destroy itself while we may want to send packet on it
-    //      when main closes the interface it stops receiving but still allows sending
-    //      this way we can flush the packets still in the system
-    //      DynConf: it creates a new iface array, the old one goes away when no longer needed
     pipe->reference_count--;
 
     if (pipe->reference_count == 0) {
+        unref_send_interfaces(pipe);
         for (unsigned i=0; i<pipe->action_count; i++) {
             delete_action(pipe->actions+i);
         }

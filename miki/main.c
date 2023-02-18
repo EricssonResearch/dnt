@@ -41,22 +41,16 @@ static void recv_loop(struct Interface *ifaces, unsigned iface_count)
 
         for (int n=0; n<nfds; n++) {
             struct Interface *recvif = events[n].data.ptr;
-            struct Packet *p = new_packet(recvif);
-            recvif->recv(recvif, p);
-            if (packet_dummy(p)) {
-                fprintf(stderr, "packet overflow, received on interface %s\n", recvif->name);
+            struct Packet *p = recvif->recv(recvif);
+            struct Pipeline *pipe = parsetree_process(recvif->parsetree, p);
+            if (pipe == NULL) {
+                fprintf(stderr, "no pipeline found for packet on %s, unknown stream\n", recvif->name);
                 delete_packet(p);
             } else {
-                struct Pipeline *pipe = parsetree_process(recvif->parsetree, p);
-                if (pipe == NULL) {
-                    fprintf(stderr, "no pipeline found for packet on %s, unknown stream\n", recvif->name);
-                    delete_packet(p);
-                } else {
-                    // the iterator owns the packet
-                    struct PipelineIterator *pi = new_pipe_iterator(pipe, p);
-                    // the iterator deletes itself when it's done
-                    pipe_iterator_run(pi);
-                }
+                // the iterator owns the packet
+                struct PipelineIterator *pi = new_pipe_iterator(pipe, p);
+                // the iterator deletes itself when it's done
+                pipe_iterator_run(pi);
             }
         }
     }

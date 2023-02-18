@@ -3,12 +3,16 @@
 #include "conf_packet.h"
 #include "conf_utils.h"
 #include "action.h"
+#include "interface.h"
 #include "protocol.h"
 #include "utils.h"
 
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
+
+#include <arpa/inet.h> /* htons() */
 
 enum ConfActionType {
     CA_ADD = 1,
@@ -21,6 +25,12 @@ enum ConfActionType {
     CA_POF,
     CA_REPL,
     CA_SEND,
+};
+
+enum BeforeAfter {
+    ADD_UNKNOWN,
+    ADD_BEFORE,
+    ADD_AFTER,
 };
 
 struct StringList {
@@ -47,7 +57,7 @@ struct ConfAction {
             char *newtype;
             int id;
             struct ConfHeader *pos; // relative to this header
-            int beforeafter; // 1: before, 2: after
+            enum BeforeAfter beforeafter;
             struct StringList *assignments;
         } add;
         struct {
@@ -78,7 +88,7 @@ struct ConfAction {
             struct StringList *pipelines;
         } repl;
         struct {
-            char *ifname; //TODO pointer to the interface
+            struct Interface *iface;
         } send;
     } d;
 };
@@ -87,6 +97,8 @@ struct StageState {
     const char *stream;
     struct ConfAction *actions;
     struct ConfHeader *headers;
+    struct Interface *ifaces;
+    unsigned ifcount;
     //TODO more stuff that process_actions() receives
 };
 
@@ -99,11 +111,11 @@ static bool process_token(char *token, void *userdata)
         // here we remember the parameters for the action in the struct
         switch (stst->actions->type) {
             case CA_ADD:
-                if (stst->actions->d.add.beforeafter == 0) {
+                if (stst->actions->d.add.beforeafter == ADD_UNKNOWN) {
                     if (strcmp(token, "before") == 0)
-                        stst->actions->d.add.beforeafter = 1;
+                        stst->actions->d.add.beforeafter = ADD_BEFORE;
                     else if (strcmp(token, "after") == 0)
-                        stst->actions->d.add.beforeafter = 2;
+                        stst->actions->d.add.beforeafter = ADD_AFTER;
                     else {
                         //TODO throw exception: invalid location designator
                     }
@@ -147,7 +159,7 @@ static bool process_token(char *token, void *userdata)
                 break;
             case CA_DELAY:
                 //TODO first argument is timestamp field
-                //TODO second argument is a delay value
+                //TODO second argument is a delay value (time)
                 break;
             case CA_DROP:
                 //TODO no parameter expected -> throw exception
@@ -177,11 +189,18 @@ static bool process_token(char *token, void *userdata)
                 stringlist_push(&stst->actions->d.repl.pipelines, strdup(token));
                 break;
             case CA_SEND:
-                //TODO find interface by name
-                if (stst->actions->d.send.ifname) {
-                    //TODO throw exception
+                if (stst->actions->d.send.iface) {
+                    //TODO throw exception: can only send on one interface
                 } else {
-                    stst->actions->d.send.ifname = strdup(token);
+                    struct Interface *iface = NULL;
+                    for (unsigned i=0; i<stst->ifcount; i++) {
+                        if (strcmp(stst->ifaces[i].name, token) == 0)
+                            iface = stst->ifaces + i;
+                    }
+                    if (iface == NULL) {
+                        //TODO throw exception: unknown interface
+                    }
+                    stst->actions->d.send.iface = iface;
                 }
                 break;
         }
@@ -228,7 +247,7 @@ static void process_action(struct StageState *stst)
             if (stst->actions->d.add.pos == NULL) {
                 //TODO throw exception: no existing header
             }
-            if (stst->actions->d.add.beforeafter == 0) {
+            if (stst->actions->d.add.beforeafter == ADD_UNKNOWN) {
                 //TODO throw exception: no header position
             }
             // add the newly created header to the header list
@@ -237,17 +256,66 @@ static void process_action(struct StageState *stst)
             newheader->name = stst->actions->d.add.newname;
             newheader->id = stst->actions->d.add.id;
             newheader->state = CH_NEW;
-            //TODO add newheader to stst->headers at the designated position
+            // add newheader to stst->headers at the designated position
+            struct ConfHeader *prevheader, *nextheader;
+            if (stst->actions->d.add.beforeafter == ADD_BEFORE) {
+                nextheader = stst->actions->d.add.pos;
+                if (nextheader == stst->headers) {
+                    prevheader = NULL;
+                } else {
+                    prevheader = stst->headers;
+                    while (prevheader->next != stst->actions->d.add.pos)
+                        prevheader = prevheader->next;
+                }
+            } else {
+                prevheader = stst->actions->d.add.pos;
+                nextheader = stst->actions->d.add.pos->next;
+            }
+            newheader->next = nextheader;
+            if (prevheader) {
+                prevheader->next = newheader;
+            } else {
+                stst->headers = newheader;
+            }
 
             // split off the header assignments into a new edit action
             struct ConfAction *edit = calloc_struct(ConfAction);
             edit->type = CA_EDIT;
-            edit->text = stst->actions->text; //TODO is this okay?
+            edit->text = strdup(stst->actions->text); //TODO is this okay?
             edit->d.edit.hdr = newheader;
             edit->d.edit.assignments = stst->actions->d.add.assignments;
             edit->next = stst->actions;
             stst->actions = edit;
             process_action(stst); // now edit is the newest action
+
+            // set nexthdr for newheader
+            edit = calloc_struct(ConfAction);
+            edit->type = CA_EDIT;
+            edit->text = strdup("add sets nexthdr"); //TODO more informative
+            edit->d.edit.hdr = newheader;
+            const char *nexthdrfield = protocol_list[newheader->id].nexthdr;
+            uint16_t nexthdrnum = ntohs(protocol_list[newheader->id].get_nexthdr(nextheader->id));
+            char editbuf[64];
+            snprintf(editbuf, 64, "%s=%d", nexthdrfield, nexthdrnum);
+            stringlist_push(&edit->d.edit.assignments, strdup(editbuf));
+            edit->next = stst->actions;
+            stst->actions = edit;
+            process_action(stst); // now edit is the newest action
+
+            // set nexthdr for prevheader
+            if (prevheader) {
+                edit = calloc_struct(ConfAction);
+                edit->type = CA_EDIT;
+                edit->text = strdup("add sets nexthdr"); //TODO more informative
+                edit->d.edit.hdr = prevheader;
+                nexthdrfield = protocol_list[prevheader->id].nexthdr;
+                nexthdrnum = ntohs(protocol_list[prevheader->id].get_nexthdr(newheader->id));
+                snprintf(editbuf, 64, "%s=%d", nexthdrfield, nexthdrnum);
+                stringlist_push(&edit->d.edit.assignments, strdup(editbuf));
+                edit->next = stst->actions;
+                stst->actions = edit;
+                process_action(stst); // now edit is the newest action
+            }
             break;
         case CA_CALL:
             if (stst->actions->d.call.pipename == NULL) {
@@ -303,9 +371,8 @@ static void process_action(struct StageState *stst)
             //TODO process all strings with foreach_stages(), remember the resulting linked lists
             break;
         case CA_SEND:
-            //TODO this will be a pointer to the interface
-            if (stst->actions->d.send.ifname == NULL) {
-                //TODO throw exception: no interface name
+            if (stst->actions->d.send.iface == NULL) {
+                //TODO throw exception: no interface to send on
             }
             break;
     }
@@ -331,11 +398,15 @@ static bool process_stage(char *stage, void *userdata)
     return true;
 }
 
-struct Action *process_actions(const char *stream, char *line, struct ConfHeader *headers, unsigned *action_count)
+struct Action *process_actions(const char *stream, char *line, struct ConfHeader *headers,
+        struct Interface *ifaces, unsigned ifcount,
+        unsigned *action_count)
 {
     struct StageState stst = {0};
     stst.stream = stream;
     stst.headers = headers;
+    stst.ifaces = ifaces;
+    stst.ifcount = ifcount;
     foreach_stages(line, process_stage, &stst);
 
     //TODO now we should have a linked list of processed actions in stst

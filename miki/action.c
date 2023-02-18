@@ -122,7 +122,7 @@ static enum ActionResult action_edit_execute(struct Action *a, struct PipelineIt
             ed->assigns[i].generator(pi->packet, &ed->assigns[i].target,
                     ed->assigns[i].assign, ed->assigns[i].generator_state);
         } else {
-            ed->assigns[i].assign(pi->packet, &ed->assigns[i].target, &ed->assigns[i].source);
+            ed->assigns[i].assign(pi->packet, &ed->assigns[i].target, &ed->assigns[i].constant);
         }
     }
     return ACR_CONTINUE;
@@ -199,6 +199,15 @@ void create_action_repl(struct Action *a, struct PipelineList *list, const char 
     a->action_private = list;
 }
 
+struct PipelineList *action_repl_get_piplinelist(struct Action *a)
+{
+    if (a->type == ACT_REPL) {
+        struct PipelineList *list = a->action_private;
+        return list;
+    }
+    return NULL;
+}
+
 /////////////////////////////////////////////////////////////////////
 
 struct SendData {
@@ -224,6 +233,16 @@ void create_action_send(struct Action *a, struct Interface *iface, const char *t
     a->action_private = sd;
 }
 
+struct Interface *action_send_get_iface(struct Action *a)
+{
+    if (a->type == ACT_SEND) {
+        struct SendData *sd = a->action_private;
+        return sd->iface;
+    } else {
+        return NULL;
+    }
+}
+
 /////////////////////////////////////////////////////////////////////
 
 struct Action *delete_action(struct Action *a)
@@ -231,9 +250,9 @@ struct Action *delete_action(struct Action *a)
     if (!a) return NULL;
     if (a->del)
         a->del(a->action_private);
-    free(a->action_private);
+    //free(a->action_private); //TODO do this in a->del
     free(a->text);
-    free(a);
+    //free(a); TODO actins are in an array
     return NULL;
 }
 

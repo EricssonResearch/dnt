@@ -18,6 +18,7 @@ These are the actions the C code can perform on the packet.
 * POF reorders the packets to fix sequence number ordering, uses its own packet buffer
 * REPL makes copies of the packet and executes the given pipelines on the copies (the last pipeline gets the original instance)
 * SEND sends the packet on the given interface
+* TODO something for `readseq` and `readtstamp`
 
 This is not 1:1 correspondence to the config commands.
 

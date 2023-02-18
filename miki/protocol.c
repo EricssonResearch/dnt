@@ -4,6 +4,43 @@
 
 #include <string.h>
 
+#include <arpa/inet.h> /* htons() */
+#include <linux/if_ether.h> /* ETH_P_* */
+
+//TODO writing these conversion functions is a pain, we need a script to generate them
+static int id_from_ethertype(uint16_t nexthdr)
+{
+    switch (ntohs(nexthdr)) {
+        case ETH_P_8021Q:
+            return 2;
+        case ETH_P_8021AD:
+            return 1;
+        case 0xf1c1: // FRER
+            return 3;
+        //TODO more
+    }
+    return -1;
+}
+
+static uint16_t ethertype_from_id(int id)
+{
+    uint16_t ret = 0;
+    switch (id) {
+        case 1:
+            ret = ETH_P_8021AD;
+            break;
+        case 2:
+            ret = ETH_P_8021Q;
+            break;
+        case 3:
+        case 4:
+            ret = 0xf1c1;
+            break;
+        //TODO more
+    }
+    return htons(ret);
+}
+
 static struct ProtocolField eth_fields[] = {
     {"dmac",         0, 6*8},
     {"smac",       6*8, 6*8},
@@ -18,19 +55,22 @@ static struct ProtocolField vlan_fields[] = {
 };
 
 static struct ProtocolField rttag_fields[] = {
-    {"rtflag",  0,  1}, //TODO is this position okay? the old code uses the 5th bit
-    {"resv",    0, 16},
-    {"seq",    16, 16},
-    {"tstamp", 11, 21},
-    {"tpid",   32, 16},
+    {"rt_flag",       5,  1}, // rtag-ttag indicator
+    {"reset_flag",    6,  1},
+    {"initseq_flag",  7,  1},
+    {"resv",          0, 16}, // reserved
+    {"seqnum",       16, 16}, // just the sequence number
+    {"seq",           0, 32}, // sequence and the flags in reserve
+    {"tstamp",       11, 21}, // timestamp (in ttag)
+    {"tpid",         32, 16}, // next protocol id (ethertype)
 };
 
 struct Protocol protocol_list[] = {
-    {"eth", eth_fields, ARRAY_SIZE(eth_fields)},
-    {"svlan", vlan_fields, ARRAY_SIZE(vlan_fields)},
-    {"cvlan", vlan_fields, ARRAY_SIZE(vlan_fields)},
-    {"rtag", rttag_fields, ARRAY_SIZE(rttag_fields)},
-    {"ttag", rttag_fields, ARRAY_SIZE(rttag_fields)},
+    {"eth", eth_fields, ARRAY_SIZE(eth_fields), 6+6+2, "ethertype", id_from_ethertype, ethertype_from_id},
+    {"svlan", vlan_fields, ARRAY_SIZE(vlan_fields), 4, "tpid", id_from_ethertype, ethertype_from_id},
+    {"cvlan", vlan_fields, ARRAY_SIZE(vlan_fields), 4, "tpid", id_from_ethertype, ethertype_from_id},
+    {"rtag", rttag_fields, ARRAY_SIZE(rttag_fields), 6, "tpid", id_from_ethertype, ethertype_from_id},
+    {"ttag", rttag_fields, ARRAY_SIZE(rttag_fields), 6, "tpid", id_from_ethertype, ethertype_from_id},
 };
 
 unsigned protocol_count = ARRAY_SIZE(protocol_list);

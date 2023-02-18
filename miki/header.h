@@ -13,6 +13,7 @@ struct HeaderField {
 // the value must be stored in network byte order
 struct HeaderValue {
     void *value;
+    unsigned bitoffset;
     unsigned bitcount;
 };
 
@@ -26,14 +27,15 @@ struct HeaderFieldAssign {
     struct HeaderField target;
     value_generator *generator;
     void *generator_state;
-    struct HeaderValue source;
+    struct HeaderValue constant;
     const char *text;
 };
 
-// returns a suitable function for writing to @field
+// @returns a suitable function for writing to @field from @source
+// the decision is based on the offsets and the lengths
 // the @header_idx is ignored
 //TODO the config compiler will use this
-field_assign *get_assign_function(const struct HeaderField *field);
+field_assign *get_assign_function(const struct HeaderField *field, struct HeaderValue *source);
 
 // returns a suitable function for reading this @field
 // the @header_idx is ignored

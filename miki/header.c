@@ -9,15 +9,19 @@
 static void assign_bytes(struct Packet *p, struct HeaderField *field, struct HeaderValue *value)
 {
     uint8_t *src = value->value;
-    uint8_t *dst = p->headers[field->header_idx].start + field->bitoffset/8;
+    uint8_t *dst = p->buf + p->headers[field->header_idx].start + field->bitoffset/8;
     unsigned len = field->bitcount / 8;
     memcpy(dst, src, len);
 }
 
 
-field_assign *get_assign_function(const struct HeaderField *field)
+field_assign *get_assign_function(const struct HeaderField *field, struct HeaderValue *source)
 {
-    if ((field->bitoffset % 8) == 0 && (field->bitcount % 8) == 0) {
+    if (source->bitcount > field->bitcount) {
+        //TODO error
+        return NULL;
+    }
+    if ((field->bitoffset % 8) == 0 && (field->bitcount % 8) == 0 && (source->bitoffset % 8) == 0) {
         return assign_bytes;
     }
 
@@ -35,9 +39,9 @@ static void read_bytes(struct Packet *p, struct HeaderField *target, field_assig
 {
     struct HeaderField *source = state;
     uint8_t buf[64];
-    struct HeaderValue val = {buf, source->bitcount};
+    struct HeaderValue val = {buf, source->bitoffset, source->bitcount};
 
-    uint8_t *src = p->headers[source->header_idx].start + source->bitoffset/8;
+    uint8_t *src = p->buf + p->headers[source->header_idx].start + source->bitoffset/8;
     unsigned len = source->bitcount / 8;
     //TODO check that len < 64;
     memcpy(buf, src, len);

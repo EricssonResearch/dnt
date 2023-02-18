@@ -20,10 +20,12 @@ struct EthIfData {
     int mtu;
 };
 
-static bool eth_recv(struct Interface *iface, struct Packet *p)
+static struct Packet *eth_recv(struct Interface *iface)
 {
     struct EthIfData *eid = iface->iface_private;
     (void)eid;
+
+    struct Packet *p = new_packet(iface);
 
     char control[1000]
         __attribute__ ((aligned(__alignof__(struct cmsghdr))));
@@ -43,7 +45,15 @@ static bool eth_recv(struct Interface *iface, struct Packet *p)
     //printf("recvmsg %d controllen %zu\n", res, msg.msg_controllen);
     if (res < 0) {
         perror("recvmsg");
-        return false;
+        return NULL;
+    }
+
+    if (packet_dummy(p)) {
+        fprintf(stderr, "packet overflow, received on interface %s\n", iface->name);
+        return delete_packet(p);
+    }
+    if (iface->shutdown) {
+        return delete_packet(p);
     }
 
     //TODO ask for kernel RX timestamping and use that
@@ -77,7 +87,7 @@ static bool eth_recv(struct Interface *iface, struct Packet *p)
         }
     }
 
-    return true;
+    return p;
 }
 
 static bool eth_send(struct Interface *iface, struct Packet *p)
@@ -114,7 +124,7 @@ bool init_eth_interface(struct Interface *iface, const char *name, const char *i
     iface->type = IF_ETH;
     iface->recv = eth_recv;
     iface->send = eth_send;
-    iface->del = eth_del;
+    iface->del_ = eth_del;
 
     struct EthIfData *eid = calloc_struct(EthIfData);
     //TODO open sockets etc.
