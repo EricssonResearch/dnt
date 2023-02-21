@@ -20,7 +20,7 @@ struct header {
 
 struct packet {
 	struct header hdrs[10];
-	size_t hdrs_len;
+	size_t hdrs_num;
 	char buff[2000]; //recvd on the interface
 	char *scratch; //for new headers
 	char *data; //starting of the valid data (might by unnecessary)
@@ -40,28 +40,28 @@ void add_header(int type, struct packet *pkt, int idx)
 		return;
 
 	struct header new_hdr = {type, pkt->scratch};
-	if(idx == pkt->hdrs_len) //after last header
+	if(idx == pkt->hdrs_num) //after last header
 		pkt->hdrs[idx] = new_hdr;
 	else {
-		memmove(&pkt->hdrs[idx+1], &pkt->hdrs[idx], (pkt->hdrs_len - idx) * sizeof(struct header));
+		memmove(&pkt->hdrs[idx+1], &pkt->hdrs[idx], (pkt->hdrs_num - idx) * sizeof(struct header));
 		pkt->hdrs[idx] = new_hdr;
 	}
-	pkt->hdrs_len += 1;
+	pkt->hdrs_num += 1;
 	pkt->scratch += hdrsize[type];
 	//handle next/prev header type if any
 }
 
 void del_header(int type, struct packet *pkt, int idx)
 {
-	if(idx < 0 || idx > pkt->hdrs_len - 1)
+	if(idx < 0 || idx > pkt->hdrs_num - 1)
 		return;
 
-	if(idx == pkt->hdrs_len - 1) //removal of the last header
+	if(idx == pkt->hdrs_num - 1) //removal of the last header
 		; //just forget about the last header
 	else {
-		memmove(&pkt->hdrs[idx-1], &pkt->hdrs[idx], (pkt->hdrs_len - idx) * sizeof(struct header));
+		memmove(&pkt->hdrs[idx-1], &pkt->hdrs[idx], (pkt->hdrs_num - idx) * sizeof(struct header));
 	}
-	pkt->hdrs_len -= 1;
+	pkt->hdrs_num -= 1;
 	//handle next/prev header types if any
 }
 
@@ -79,7 +79,7 @@ int main()
 	pkt->data = data; //normally thats done by the interface recv
 
 	/* "Parse the headers" lets say thats done by the parser */
-	pkt->hdrs_len = 4;
+	pkt->hdrs_num = 4;
 	pkt->hdrs[0].type = ETH;
 	pkt->hdrs[0].data = pkt->data;
 	pkt->hdrs[1].type = CVLAN;

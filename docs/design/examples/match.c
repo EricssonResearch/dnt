@@ -10,11 +10,6 @@ enum proto_types {
 	IPV4,
 };
 
-// Header operation helper
-struct hdr_op_helper {
-	uint16_t select; //field selector in header
-	char hdr_data[40]; //header values, pre-filled
-};
 
 enum eth_fields {
 	ETH_DMAC = 0x1,
@@ -90,21 +85,43 @@ size_t header_size(int proto)
 	return ret;
 }
 
-struct packet {
+struct header {
+	struct protocol *proto;
 	char *data;
 };
 
+struct packet;
+
 struct protocol {
 	bool (*match)(struct packet *p);
+	void (*edit)(struct packet *p);
+	void (*push)(struct packet *p, size_t index);
+	void (*pop)(struct packet *p, size_t index);
+	enum proto_types (*get_next_type)(struct packet *p, size_t index);
+	void (*set_next_type)(struct packet *p, enum proto_types proto);
 };
 
-struct eth
 
-struct match {
+struct fields_values {
 	off_t offset;
-	struct hdr_op_helper op;
+	uint16_t select;
+	char hdr_data[40];
 	struct protocol *proto;
 };
+
+bool eth_match(struct packet *p)
+{
+	bool match = true;
+};
+
+struct packet {
+	struct header hdrs[10];
+	size_t num_of_hdrs;
+	char *data;
+	char *scratch;
+	char buff[2000];
+};
+
 
 int main()
 {
