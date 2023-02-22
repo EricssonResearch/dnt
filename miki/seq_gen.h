@@ -17,6 +17,6 @@ struct SequenceGenerator *delete_seq_gen(struct SequenceGenerator *gen);
 // @state is struct SequenceGenerator
 void seq_generator(void *state, value_consumer *consumer, void *consumer_state, struct Packet *p);
 
-//TODO provide an example struct HeaderValue to show the config compiler what we will generate
+//TODO provide an example struct Value to show the config compiler what we will generate
 
 #endif // R2_SEQ_GEN_H

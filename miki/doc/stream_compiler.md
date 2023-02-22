@@ -84,9 +84,9 @@ This action is split into an add header and an edit header action.
 
 Syntax: `call pipelinename [substitutions]`
 
-This finds a key in the *streams* section with the name `pipelinename`, interprets its value as an action list, and inlines that list into the current action list. No `CALL` action in the final Action list!
+This finds a key in the *streams* section with the name `pipelinename`, interprets its value as an action list, and inlines that list into the current action list. No `CALL` action is allowed in the final Action list!
 
-In the referenced action list a value substitution is made, where the value is in the form of `%name%`, using the substitution list in the call command.
+Additional arguments are substitutions in the form of `key=value`. After the refrenced pipeline is loaded from the config, but before its processing, there is a string substitution phase. The "{key}" placeholders in the string are replaced by the corresponting value from the substitution list. An error is generated if no substitution is found for *key*.
 
 ### del
 

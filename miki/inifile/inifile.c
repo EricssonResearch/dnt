@@ -76,7 +76,7 @@ void inisection_remove(struct IniSection *sec, const char *key)
     hashmap_remove(sec->contents, key);
 }
 
-const char *inisection_get(struct IniSection *sec, const char *key)
+char *inisection_get(struct IniSection *sec, const char *key)
 {
     if (!sec) return NULL;
     return hashmap_find(sec->contents, key);

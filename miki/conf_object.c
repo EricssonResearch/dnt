@@ -141,11 +141,11 @@ static void delete_cb(const char *key, void *value, void *userdata)
     free(obj);
 }
 
-struct HashMap *process_objects(struct IniSection *object_section)
+struct HashMap *process_objects(struct IniSection *objects_section)
 {
     struct HashMap *ret = new_hashmap(13, delete_cb, NULL);
 
-    hashmap_foreach(object_section->contents, object_cb, ret);
+    hashmap_foreach(objects_section->contents, object_cb, ret);
 
     return ret;
 }

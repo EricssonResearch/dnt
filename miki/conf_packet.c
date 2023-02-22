@@ -118,9 +118,12 @@ static bool process_stage(char *stage, void *userdata)
 
 struct ConfHeader *process_packet(const char *stream, char *line)
 {
-    struct StageState stst = {0};
-    stst.stream = stream;
+    struct StageState stst = {
+        .stream = stream,
+        .headers = NULL
+    };
     foreach_stages(line, process_stage, &stst);
+    //TODO what if we have no headers? is that legal?
 
     stst.headers = reverse_header_list(stst.headers);
 

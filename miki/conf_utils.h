@@ -19,8 +19,14 @@ void foreach_tokens(char *stage, foreach_callback *cb, void *userdata);
 // interprets @assign as an assignment in the form of "key=val"
 // sets @key and @val to the beginning of the key and the value
 // modifies the given @assign
-// @returns false if @assign is not an assignment
+// @returns false if @assign has invalid format
 bool parse_assignment(char *assign, char **key, char **val);
+
+// interprets @field as a field name in the form of "headername.fieldname"
+// sets @headername and fieldname to the beginning of the names
+// modifies the given @field
+// @returns false if @field has invalid format
+bool parse_fieldname(char *field, char **headername, char **fieldname);
 
 // interprets the given string as boolean
 // true values: 1, true, yes

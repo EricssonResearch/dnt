@@ -18,7 +18,7 @@ struct ConfObject {
 };
 
 // @returns map of ConfObject keyed by their names
-struct HashMap *process_objects(struct IniSection *object_section);
+struct HashMap *process_objects(struct IniSection *objects_section);
 
 #endif // R2_CONF_OBJECT_H
 

@@ -1,6 +1,8 @@
 
 # Specification for the new config file format
 
+TODO update this document for the current agreed-upon specification
+
 Initially use a simple INI format. When we feel the need for array values or nested sections we can switch to [TOML](https://toml.io/en/). Note that TOML is not fully compatible with INI, the key differences are: identifiers are case-sensitive, string values must be placed in "double quotes".
 
 The INI format is not formally specified, and variations in syntax exist in the parsers. We expect the most basic variant: single-line key=value elements, any number of whitespace around the = sign, section headers with the [name] syntax, and we assume no ordering of the keys within a section.
@@ -60,7 +62,7 @@ The elementary actions are the following:
 * `eliminate seq_rec sequence_field` conditional drop, uses the given sequence recovery object and the field that contains the sequence number of the packet
 * `pofobject sequence_field` puts the packet in a reorder buffer, continues the actions when the ordering is okay
 * `delay timestamp_field delay` puts the packet in a delay buffer, continues the actions when the time is right
-* `call pipeline` process the packet with the specified action pipeline and continue with this pipeline, useful for breaking up long pipelines or reuse operations for multiple streams (TODO why not use a macro? This is the macro substitution! We don't need the [macros] section!) (TODO parameters? we can do substitutions for fieldvalue) (TODO these calls will be inlined at compile time)
+* `call pipeline` process the packet with the specified action pipeline and continue with this pipeline, useful for breaking up long pipelines or reuse operations for multiple streams; additional parameters are string substitutions for the specified pipeline
 * `readseq fieldname`
 * `readtstamp fieldname`
 
@@ -93,18 +95,6 @@ TODO how to use these objects: `gen` and `rec` are parameters to certain actions
 TODO they have completely different interfaces
 
 TODO timestamp generator?
-
-## macros
-
-TODO no need for this section, we'll use the `call` action instead
-
-Macros are composite actions built from elementary actions and/or other macros. The format of a macro is the same as an action list for a stream. Macros are referenced by their names in the action pipelines, and they get expanded while the config is processed.
-
-Macros can receive parameters in the form of `parameter=value` just like the elementary actions. These parameter names can appear in the actions of the macro, and they are substituted with the given values during macro expansion.
-
-There are several built-in macros shipped with *r2dthree*, the `macros` section is only necessary in the config when defining new macros.
-
-TODO what are the built-in macros?
 
 ## Fatal errors
 

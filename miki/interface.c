@@ -6,8 +6,7 @@
 static void try_delete_interface(struct Interface *iface)
 {
     if (iface->shutdown == true && iface->reference_count == 0) {
-        if (iface->del_)
-            iface->del_(iface);
+        iface->close_(iface);
         free(iface->name);
         free(iface->ifname);
         //TODO somehow we need to signal the main thread that we are done
@@ -19,8 +18,11 @@ void close_interface(struct Interface *iface)
 {
     iface->shutdown = true;
     //TODO unref the parsetree
-    //      that will unref the action pipelines
-    //      the action pipelines will unref us
+    //      when the parsetree is done processing stuff
+    //          it will unref its action pipelines
+    //      when the action pipelines have no more iterators
+    //          they will unref us
+    //      finally we are free to close
     try_delete_interface(iface);
 }
 

@@ -1,9 +1,11 @@
 
 #include "conf_actions.h"
+#include "conf_object.h"
 #include "conf_packet.h"
 #include "conf_utils.h"
 #include "action.h"
 #include "interface.h"
+#include "inifile.h"
 #include "protocol.h"
 #include "utils.h"
 
@@ -64,7 +66,7 @@ struct ConfAction {
         } add;
         struct {
             char *pipename;
-            struct StringList *replacements;
+            struct HashMap *replacements;
         } call;
         struct {
             struct ConfHeader *hdr;
@@ -77,16 +79,13 @@ struct ConfAction {
         struct {
             struct ConfHeader *hdr;
             struct StringList *assignments;
-            //TODO no, process @assignments into intermediate storage, complie it into HeaderFieldAssign later
-            //struct HeaderFieldAssign *assigns;
-            //unsigned assign_count;
         } edit;
         struct {
-            //TODO recovery object
+            struct ConfObject *rec;
             //TODO seq field
         } elim;
         struct {
-            //TODO pof object
+            struct ConfObject *pof;
             //TODO seq field
         } pof;
         struct {
@@ -105,7 +104,8 @@ struct StageState {
     struct ConfHeader *headers;
     struct Interface *ifaces;
     unsigned ifcount;
-    //TODO more stuff that process_actions() receives
+    struct HashMap *objects;
+    struct IniSection *streams_sec;
 };
 
 
@@ -114,7 +114,7 @@ static bool process_token(char *token, void *userdata)
     struct StageState *stst = userdata;
 
     if (stst->actions->type) {
-        // here we remember the parameters for the action in the struct
+        // here we validate and remember the parameters for the action
         switch (stst->actions->type) {
             case CA_ADD:
                 if (stst->actions->d.add.beforeafter == ADD_UNKNOWN) {
@@ -151,7 +151,14 @@ static bool process_token(char *token, void *userdata)
                 if (stst->actions->d.call.pipename == NULL) {
                     stst->actions->d.call.pipename = strdup(token);
                 } else {
-                    stringlist_push(&stst->actions->d.call.replacements, strdup(token));
+                    if (stst->actions->d.call.replacements == NULL)
+                        stst->actions->d.call.replacements = new_hashmap(13, NULL, NULL);
+                    char *key, *val;
+                    if (parse_assignment(token, &key, &val)) {
+                        hashmap_insert(stst->actions->d.call.replacements, strdup(key), strdup(val));
+                    } else {
+                        //TODO throw exception: invalid replacement
+                    }
                 }
                 break;
             case CA_DEL:
@@ -168,6 +175,8 @@ static bool process_token(char *token, void *userdata)
                 break;
             case CA_DELAY:
                 //TODO first argument is timestamp field
+                //      TODO we need a parser for headername.fieldname
+                //      TODO validate headername and fieldname
                 //TODO second argument is a delay value (time)
                 break;
             case CA_DROP:
@@ -187,12 +196,36 @@ static bool process_token(char *token, void *userdata)
                 }
                 break;
             case CA_ELIM:
-                //TODO first argument is a recovery object
-                //TODO second argument is sequence field
+                if (stst->actions->d.elim.rec == NULL) {
+                    struct ConfObject *obj = hashmap_find(stst->objects, token);
+                    if (obj) {
+                        if (obj->type == CO_SEQREC) {
+                            stst->actions->d.elim.rec = obj;
+                        } else {
+                            //TODO throw exception: elim first argument must be a recovery object
+                        }
+                    } else {
+                        //TODO throw exception: elim first argument must be a recovery object
+                    }
+                } else {
+                    //TODO second argument is sequence field
+                }
                 break;
             case CA_POF:
-                //TODO first arguments is pof object
-                //TODO second argument is sequence field
+                if (stst->actions->d.pof.pof == NULL) {
+                    struct ConfObject *obj = hashmap_find(stst->objects, token);
+                    if (obj) {
+                        if (obj->type == CO_POF) {
+                            stst->actions->d.pof.pof = obj;
+                        } else {
+                            //TODO throw exception: pof first argument must be a pof object
+                        }
+                    } else {
+                        //TODO throw exception: pof first argument must be a pof object
+                    }
+                } else {
+                    //TODO second argument is sequence field
+                }
                 break;
             case CA_REPL:
                 stringlist_push(&stst->actions->d.repl.pipelines, strdup(token));
@@ -209,6 +242,7 @@ static bool process_token(char *token, void *userdata)
                     if (iface == NULL) {
                         //TODO throw exception: unknown interface
                     }
+                    //TODO dynconf: defer finalizing the iface pointer to assemble_actions()
                     stst->actions->d.send.iface = iface;
                 }
                 break;
@@ -235,11 +269,24 @@ static bool process_token(char *token, void *userdata)
         } else if (strcmp(token, "send") == 0) {
             stst->actions->type = CA_SEND;
         } else {
-            //TODO see if token is the name of one of the objects
-            //TODO if not, throw exception: unknown action
-            //TODO if yes,
-            //  stst->actions->type = from the object;
-            //  stst->actions->d.pof.obj = object
+            struct ConfObject *obj = hashmap_find(stst->objects, token);
+            if (obj) {
+                switch (obj->type) {
+                    case CO_SEQGEN:
+                        //TODO throw exception: gen cannot be used as action
+                        break;
+                    case CO_SEQREC:
+                        stst->actions->type = CA_ELIM;
+                        stst->actions->d.elim.rec = obj;
+                        break;
+                    case CO_POF:
+                        stst->actions->type = CA_POF;
+                        stst->actions->d.pof.pof = obj;
+                        break;
+                }
+            } else {
+                //TODO throw exception: action name invalid
+            }
         }
     }
 
@@ -338,10 +385,16 @@ static void process_action(struct StageState *stst)
             if (stst->actions->d.call.pipename == NULL) {
                 //TODO throw exception: no actionlist
             }
-            //TODO get the key value from the config section
-            //TODO do the %substitutions% on the value
-            //TODO call foreach_stages() on the value
-            //TODO insert the returned action chain in place of this one
+            char *pipestring = inisection_get(stst->streams_sec, stst->actions->d.call.pipename);
+            if (pipestring) {
+                //TODO do the {key} substitutions on pipestring
+                //      we must make a copy because it's const!
+                //TODO call foreach_stages() on the value
+                //TODO insert the returned action chain in place of this one
+                //      warning: the chains are in reverese order
+            } else {
+                //TODO throw exception: actionlist not found
+            }
             break;
         case CA_DEL:
             if (stst->actions->d.del.hdr == NULL) {
@@ -417,25 +470,33 @@ static bool process_stage(char *stage, void *userdata)
 }
 
 struct ConfAction *process_actions(const char *stream, char *line, struct ConfHeader *headers,
-        struct Interface *ifaces, unsigned ifcount)
+        struct Interface *ifaces, unsigned ifcount,
+        struct HashMap *objects, struct IniSection *streams_sec)
 {
-    struct StageState stst = {0};
-    stst.stream = stream;
-    stst.headers = headers;
-    stst.ifaces = ifaces;
-    stst.ifcount = ifcount;
+    struct StageState stst = {
+        .stream = stream,
+        .actions = NULL,
+        .headers = headers,
+        .ifaces = ifaces,
+        .ifcount = ifcount,
+        .objects = objects,
+        .streams_sec = streams_sec
+    };
     foreach_stages(line, process_stage, &stst);
+    if (stst.actions == NULL) {
+        //TODO error
+    }
 
-    //TODO now we should have a linked list of processed actions in stst
+    //TODO now we have a linked list of processed actions in stst
     //TODO reverse the list
     //TODO perform optimization passes
     return stst.actions;
 }
 
-struct Action *assemble_actions(struct ConfAction *ca_list, unsigned *action_count)
+struct Action *assemble_actions(const struct ConfAction *ca_list, unsigned *action_count)
 {
     unsigned count = 0;
-    for (struct ConfAction *ca = ca_list; ca; ca=ca->next) count++;
+    for (const struct ConfAction *ca = ca_list; ca; ca=ca->next) count++;
     if (count == 0) {
         *action_count = 0;
         return NULL;
@@ -444,7 +505,7 @@ struct Action *assemble_actions(struct ConfAction *ca_list, unsigned *action_cou
     struct Action *ret = calloc_struct_array(Action, count);
 
     unsigned a = 0;
-    for (struct ConfAction *ca = ca_list; ca; ca=ca->next) {
+    for (const struct ConfAction *ca = ca_list; ca; ca=ca->next) {
         switch (ca->type) {
             case CA_ADD:
                 create_action_add(ret+a, ca->d.add.pos_idx, ca->d.add.id, ca->d.add.len, ca->text);
@@ -486,9 +547,9 @@ struct Action *assemble_actions(struct ConfAction *ca_list, unsigned *action_cou
     return ret;
 }
 
-void print_actions(struct ConfAction *ca_list)
+void print_actions(const struct ConfAction *ca_list)
 {
-    for (struct ConfAction *ca = ca_list; ca; ca=ca->next) {
+    for (const struct ConfAction *ca = ca_list; ca; ca=ca->next) {
         fprintf(stderr, "ConfAction %d\n", ca->type); //TODO
     }
 }

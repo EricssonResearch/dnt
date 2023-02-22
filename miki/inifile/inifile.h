@@ -66,7 +66,7 @@ void inisection_add(struct IniSection *sec, const char *key, const char *value);
 void inisection_remove(struct IniSection *sec, const char *key);
 
 // finds the value for the given key, returns NULL if not found
-const char *inisection_get(struct IniSection *sec, const char *key);
+char *inisection_get(struct IniSection *sec, const char *key);
 
 // finds the section that has the given name
 struct IniSection *inisection_find_section(struct IniSection *sec, const char *name);

@@ -25,22 +25,28 @@ typedef struct Packet *iface_recv(struct Interface *iface);
 // @returns false if the packet sending failed
 typedef bool iface_send(struct Interface *iface, struct Packet *p);
 
-// finishes the interface
-// @fini_interface frees @name and @ifname so this callback doesn't have to
+// opens the interface
 // @returns false on error
-typedef bool iface_del(struct Interface *iface);
+typedef bool iface_open(struct Interface *iface);
+
+// closes the interface, called by @close_interface
+// @close_interface frees @name and @ifname so this callback doesn't have to
+// @returns false on error
+typedef bool iface_close(struct Interface *iface);
 
 struct Interface {
     enum IfaceType type;
     char *name;
     char *ifname;
     int recvfd;
+    // all of these callbacks are mandatory
     iface_recv *recv;
     iface_send *send;
-    iface_del *del_;
+    iface_open *open;
+    iface_close *close_; // private TODO mark all private members
     void *iface_private;
     unsigned reference_count;
-    bool shutdown;
+    bool shutdown; // stop receiving when this is set
 
     struct ParseTree *parsetree;
 

@@ -1,4 +1,5 @@
 
+#include "configfile.h"
 #include "delay.h"
 #include "interface.h"
 #include "if_eth.h"
@@ -56,26 +57,36 @@ static void recv_loop(struct Interface *ifaces, unsigned iface_count)
     }
 }
 
-int main(void)
+int main(int argc, char **argv)
 {
-    printf("R2DTWO - Reliable & Robust Deterministic Tool for netWOrking implementation version %d.%d\n",
-            VERSION_MAJOR, VERSION_MINOR);
+    printf("R2DTWO - Reliable & Robust Deterministic Tool for netWOrking implementation\n"
+            " version %d.%d\n", VERSION_MAJOR, VERSION_MINOR);
 
-    //TODO argument: config file name
+    if (argc < 2) {
+        fprintf(stderr, "usage: %s configfile\n", argv[0]);
+        return -1;
+    }
 
-    //TODO read config
-    //TODO init interfaces based on config
+    struct R2d2Config *config = read_config(argv[1]);
+    if (config == NULL) {
+        fprintf(stderr, "the config is invalid\n");
+        return -1;
+    }
+
+    //TODO build the parse trees and the action pipes here
+    //TODO add the parse trees to the interfaces
+    //TODO for i (config->ifaces) i->open
 
     //TODO replace these with the proper ones from config
-    struct Interface tmp_ifaces[3];
+    /*struct Interface tmp_ifaces[3];
     init_eth_interface(tmp_ifaces+0, "tmp0", "eth0");
     init_eth_interface(tmp_ifaces+1, "tmp1", "eth1");
-    init_eth_interface(tmp_ifaces+2, "tmp2", "eth2");
+    init_eth_interface(tmp_ifaces+2, "tmp2", "eth2");*/
     //TODO add dummy parsetrees so we can test the pipelines
 
     if (!init_delay()) return -1;
 
-    recv_loop(tmp_ifaces, 3);
+    recv_loop(config->ifaces, config->ifcount);
 
     fini_delay();
 

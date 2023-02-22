@@ -46,9 +46,28 @@ bool parse_assignment(char *assign, char **key, char **val)
 {
     char *eq = strchr(assign, '=');
     if (eq) {
+        char *eq2 = strchr(eq+1, '=');
+        if (eq2)
+            return false;
         *key = assign;
         *val = eq+1;
         *eq = 0;
+        return true;
+    } else {
+        return false;
+    }
+}
+
+bool parse_fieldname(char *field, char **headername, char **fieldname)
+{
+    char *dot = strchr(field, '.');
+    if (dot) {
+        char *dot2 = strchr(dot+1, '.');
+        if (dot2)
+            return false;
+        *headername = field;
+        *fieldname = dot+1;
+        *dot = 0;
         return true;
     } else {
         return false;

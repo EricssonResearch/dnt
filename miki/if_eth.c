@@ -103,7 +103,17 @@ static bool eth_send(struct Interface *iface, struct Packet *p)
     return true;
 }
 
-static bool eth_del(struct Interface *iface)
+static bool eth_open(struct Interface *iface)
+{
+    struct EthIfData *eid = iface->iface_private;
+    //TODO open sockets etc.
+    //  old code: open_one_socket() open eth: line 2020
+    eid->mtu = 1500; //TODO
+    iface->recvfd = eid->sockfd[0];
+    return true;
+}
+
+static bool eth_close(struct Interface *iface)
 {
     struct EthIfData *eid = iface->iface_private;
     for (unsigned i=0; i<8; i++) {
@@ -124,13 +134,11 @@ bool init_eth_interface(struct Interface *iface, const char *name, const char *i
     iface->type = IF_ETH;
     iface->recv = eth_recv;
     iface->send = eth_send;
-    iface->del_ = eth_del;
+    iface->open = eth_open;
+    iface->close_ = eth_close;
 
     struct EthIfData *eid = calloc_struct(EthIfData);
-    //TODO open sockets etc.
-    eid->mtu = 1500; //TODO
     iface->iface_private = eid;
-    iface->recvfd = eid->sockfd[0];
 
     return true;
 }
