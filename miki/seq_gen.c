@@ -30,20 +30,27 @@ struct SequenceGenerator *new_seq_gen(bool use_reset_flag, bool use_init_flag, u
     return ret;
 }
 
+struct SequenceGenerator *delete_seq_gen(struct SequenceGenerator *gen)
+{
+    free(gen);
+    return NULL;
+}
+
+
 static void step_seq(struct SequenceGenerator *gen)
 {
     gen->seq++;
     //TODO manage overflow, flags etc.
 }
 
-void seq_generator(struct Packet *p, struct HeaderField *target, field_assign *assign, void *state)
+void seq_generator(void *state, value_consumer *consumer, void *consumer_state, struct Packet *p)
 {
-    uint32_t seqn = 0;
-    struct HeaderValue val = {&seqn, 0, 32};
     struct SequenceGenerator *gen = state;
+    uint32_t seqn = 0;
+    struct Value val = {&seqn, 0, 32};
     step_seq(gen);
 
-    //TODO seq = htons(seq) | flags
+    //TODO seqn = htons(gen->seq) | gen->flags
 
-    assign(p, target, &val);
+    consumer(consumer_state, &val, p);
 }

@@ -41,3 +41,25 @@ void foreach_tokens(char *stage, foreach_callback *cb, void *userdata)
         }
     }
 }
+
+bool parse_assignment(char *assign, char **key, char **val)
+{
+    char *eq = strchr(assign, '=');
+    if (eq) {
+        *key = assign;
+        *val = eq+1;
+        *eq = 0;
+        return true;
+    } else {
+        return false;
+    }
+}
+
+int read_boolean(const char *val)
+{
+    if (strcmp(val, "1") == 0 || strcmp(val, "true") == 0 || strcmp(val, "yes") == 0)
+        return 1;
+    if (strcmp(val, "0") == 0 || strcmp(val, "false") == 0 || strcmp(val, "no") == 0)
+        return 0;
+    return -1;
+}
