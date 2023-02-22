@@ -119,10 +119,12 @@ static enum ActionResult action_edit_execute(struct Action *a, struct PipelineIt
     struct EditData *ed = a->action_private;
     for (unsigned i=0; i<ed->assign_count; i++) {
         if (ed->assigns[i].generator) {
-            ed->assigns[i].generator(pi->packet, &ed->assigns[i].target,
-                    ed->assigns[i].assign, ed->assigns[i].generator_state);
+            ed->assigns[i].generator(ed->assigns[i].generator_state,
+                    ed->assigns[i].assign, &ed->assigns[i].target,
+                    pi->packet);
         } else {
-            ed->assigns[i].assign(pi->packet, &ed->assigns[i].target, &ed->assigns[i].constant);
+            ed->assigns[i].assign(&ed->assigns[i].target,
+                    &ed->assigns[i].constant, pi->packet);
         }
     }
     return ACR_CONTINUE;

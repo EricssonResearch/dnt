@@ -6,8 +6,9 @@
 //TODO include this at more places?
 #include <inttypes.h>
 
-static void assign_bytes(struct Packet *p, struct HeaderField *field, struct HeaderValue *value)
+static void assign_bytes(void *state, struct Value *value, struct Packet *p)
 {
+    struct HeaderField *field = state;
     uint8_t *src = value->value;
     uint8_t *dst = p->buf + p->headers[field->header_idx].start + field->bitoffset/8;
     unsigned len = field->bitcount / 8;
@@ -15,13 +16,13 @@ static void assign_bytes(struct Packet *p, struct HeaderField *field, struct Hea
 }
 
 
-field_assign *get_assign_function(const struct HeaderField *field, struct HeaderValue *source)
+value_consumer *get_assign_function(const struct HeaderField *target, const struct Value *source)
 {
-    if (source->bitcount > field->bitcount) {
+    if (source->bitcount > target->bitcount) {
         //TODO error
         return NULL;
     }
-    if ((field->bitoffset % 8) == 0 && (field->bitcount % 8) == 0 && (source->bitoffset % 8) == 0) {
+    if ((target->bitoffset % 8) == 0 && (target->bitcount % 8) == 0 && (source->bitoffset % 8) == 0) {
         return assign_bytes;
     }
 
@@ -35,22 +36,21 @@ field_assign *get_assign_function(const struct HeaderField *field, struct Header
     return NULL;
 }
 
-static void read_bytes(struct Packet *p, struct HeaderField *target, field_assign *assign, void *state)
+static void read_bytes(void *state, value_consumer *consumer, void *consumer_state, struct Packet *p)
 {
     struct HeaderField *source = state;
-    uint8_t buf[64];
-    struct HeaderValue val = {buf, source->bitoffset, source->bitcount};
-
     uint8_t *src = p->buf + p->headers[source->header_idx].start + source->bitoffset/8;
-    unsigned len = source->bitcount / 8;
-    //TODO check that len < 64;
-    memcpy(buf, src, len);
-    assign(p, target, &val);
+    struct Value val = {src, source->bitoffset, source->bitcount};
+    consumer(consumer_state, &val, p);
 }
 
-value_generator *get_read_function(const struct HeaderField *field)
+value_producer *get_read_function(const struct Value *target, const struct HeaderField *source)
 {
-    if ((field->bitoffset % 8) == 0 && (field->bitcount % 8) == 0) {
+    if (source->bitcount > target->bitcount) {
+        //TODO error
+        return NULL;
+    }
+    if ((source->bitoffset % 8) == 0 && (source->bitcount % 8) == 0 && (target->bitoffset % 8) == 0) {
         return read_bytes;
     }
 

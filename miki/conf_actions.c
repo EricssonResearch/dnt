@@ -58,6 +58,8 @@ struct ConfAction {
             int id;
             struct ConfHeader *pos; // relative to this header
             enum BeforeAfter beforeafter;
+            unsigned pos_idx;
+            size_t len;
             struct StringList *assignments;
         } add;
         struct {
@@ -66,6 +68,7 @@ struct ConfAction {
         } call;
         struct {
             struct ConfHeader *hdr;
+            unsigned idx;
         } del;
         struct {
             //TODO timestamp field
@@ -74,6 +77,9 @@ struct ConfAction {
         struct {
             struct ConfHeader *hdr;
             struct StringList *assignments;
+            //TODO no, process @assignments into intermediate storage, complie it into HeaderFieldAssign later
+            //struct HeaderFieldAssign *assigns;
+            //unsigned assign_count;
         } edit;
         struct {
             //TODO recovery object
@@ -124,8 +130,10 @@ static bool process_token(char *token, void *userdata)
                     if (pos == NULL) {
                         //TODO throw exception: no such header in the packet
                     }
+                    if (pos->state == CH_DEL) {
+                        //TODO throw exception: can't set position with deleted header
+                    }
                     stst->actions->d.add.pos = pos;
-                    //TODO convert "before header" to "after previousheader" ?
                 } else if (stst->actions->d.add.newname == NULL) {
                     stst->actions->d.add.newname = strdup(token);
                     char *type = header_type_from_name(token);
@@ -134,6 +142,7 @@ static bool process_token(char *token, void *userdata)
                         //TODO throw exception: type is invalid for new header
                     }
                     stst->actions->d.add.newtype = type;
+                    stst->actions->d.add.len = protocol_list[stst->actions->d.add.id].bytelength;
                 } else {
                     stringlist_push(&stst->actions->d.add.assignments, strdup(token));
                 }
@@ -252,7 +261,7 @@ static void process_action(struct StageState *stst)
             }
             // add the newly created header to the header list
             struct ConfHeader *newheader = calloc_struct(ConfHeader);
-            newheader->type = stst->actions->d.add.newtype;
+            newheader->type = stst->actions->d.add.newtype; //TODO strdup?
             newheader->name = stst->actions->d.add.newname;
             newheader->id = stst->actions->d.add.id;
             newheader->state = CH_NEW;
@@ -278,6 +287,12 @@ static void process_action(struct StageState *stst)
                 stst->headers = newheader;
             }
 
+            unsigned pos_idx = 0;
+            for (struct ConfHeader *ch=stst->headers; ch!=stst->actions->d.add.pos; ch=ch->next)
+                if (ch->state != CH_DEL) pos_idx++;
+            if (stst->actions->d.add.beforeafter == ADD_AFTER) pos_idx++;
+            stst->actions->d.add.pos_idx = pos_idx;
+
             // split off the header assignments into a new edit action
             struct ConfAction *edit = calloc_struct(ConfAction);
             edit->type = CA_EDIT;
@@ -289,27 +304,29 @@ static void process_action(struct StageState *stst)
             process_action(stst); // now edit is the newest action
 
             // set nexthdr for newheader
-            edit = calloc_struct(ConfAction);
-            edit->type = CA_EDIT;
-            edit->text = strdup("add sets nexthdr"); //TODO more informative
-            edit->d.edit.hdr = newheader;
-            const char *nexthdrfield = protocol_list[newheader->id].nexthdr;
-            uint16_t nexthdrnum = ntohs(protocol_list[newheader->id].get_nexthdr(nextheader->id));
             char editbuf[64];
-            snprintf(editbuf, 64, "%s=%d", nexthdrfield, nexthdrnum);
-            stringlist_push(&edit->d.edit.assignments, strdup(editbuf));
-            edit->next = stst->actions;
-            stst->actions = edit;
-            process_action(stst); // now edit is the newest action
+            if (protocol_list[newheader->id].nexthdr != NULL) {
+                edit = calloc_struct(ConfAction);
+                edit->type = CA_EDIT;
+                edit->text = strdup("add sets nexthdr"); //TODO more informative
+                edit->d.edit.hdr = newheader;
+                const char *nexthdrfield = protocol_list[newheader->id].nexthdr;
+                uint16_t nexthdrnum = ntohs(protocol_list[newheader->id].get_nexthdr(nextheader->id));
+                snprintf(editbuf, 64, "%s=%d", nexthdrfield, nexthdrnum);
+                stringlist_push(&edit->d.edit.assignments, strdup(editbuf));
+                edit->next = stst->actions;
+                stst->actions = edit;
+                process_action(stst); // now edit is the newest action
+            }
 
             // set nexthdr for prevheader
-            if (prevheader) {
+            if (prevheader && protocol_list[prevheader->id].nexthdr != NULL) {
                 edit = calloc_struct(ConfAction);
                 edit->type = CA_EDIT;
                 edit->text = strdup("add sets nexthdr"); //TODO more informative
                 edit->d.edit.hdr = prevheader;
-                nexthdrfield = protocol_list[prevheader->id].nexthdr;
-                nexthdrnum = ntohs(protocol_list[prevheader->id].get_nexthdr(newheader->id));
+                const char *nexthdrfield = protocol_list[prevheader->id].nexthdr;
+                uint16_t nexthdrnum = ntohs(protocol_list[prevheader->id].get_nexthdr(newheader->id));
                 snprintf(editbuf, 64, "%s=%d", nexthdrfield, nexthdrnum);
                 stringlist_push(&edit->d.edit.assignments, strdup(editbuf));
                 edit->next = stst->actions;
@@ -333,6 +350,7 @@ static void process_action(struct StageState *stst)
             if (stst->actions->d.del.hdr->state == CH_DEL) {
                 //TODO throw exception: already deleted
             }
+            //TODO compute idx the same way as in add
             stst->actions->d.del.hdr->state = CH_DEL;
             break;
         case CA_DELAY:
@@ -354,8 +372,8 @@ static void process_action(struct StageState *stst)
                     if (h->state != CH_DEL) idx++;
                     h = h->next;
                 }
-                //TODO process the field assignments here or already in process_token()?
-                //      here, now we know the index
+                //TODO process the field assignments here: prepare constants, find source objects etc.
+                //TODO compile them into HeaderFieldAssign array? no do that in assemble_actions()
             } else {
                 //TODO throw exception: no header to edit
             }
@@ -398,9 +416,8 @@ static bool process_stage(char *stage, void *userdata)
     return true;
 }
 
-struct Action *process_actions(const char *stream, char *line, struct ConfHeader *headers,
-        struct Interface *ifaces, unsigned ifcount,
-        unsigned *action_count)
+struct ConfAction *process_actions(const char *stream, char *line, struct ConfHeader *headers,
+        struct Interface *ifaces, unsigned ifcount)
 {
     struct StageState stst = {0};
     stst.stream = stream;
@@ -411,10 +428,67 @@ struct Action *process_actions(const char *stream, char *line, struct ConfHeader
 
     //TODO now we should have a linked list of processed actions in stst
     //TODO reverse the list
-
-    //TODO compile the linked list into an Action array
-
-    *action_count = 0;
-    return NULL;
+    //TODO perform optimization passes
+    return stst.actions;
 }
 
+struct Action *assemble_actions(struct ConfAction *ca_list, unsigned *action_count)
+{
+    unsigned count = 0;
+    for (struct ConfAction *ca = ca_list; ca; ca=ca->next) count++;
+    if (count == 0) {
+        *action_count = 0;
+        return NULL;
+    }
+
+    struct Action *ret = calloc_struct_array(Action, count);
+
+    unsigned a = 0;
+    for (struct ConfAction *ca = ca_list; ca; ca=ca->next) {
+        switch (ca->type) {
+            case CA_ADD:
+                create_action_add(ret+a, ca->d.add.pos_idx, ca->d.add.id, ca->d.add.len, ca->text);
+                break;
+            case CA_CALL:
+                //TODO error, this should have been inlined
+                break;
+            case CA_DEL:
+                create_action_del(ret+a, ca->d.del.idx, ca->text);
+                break;
+            case CA_DELAY:
+                //TODO create_action_delay(ret+a, ca->d.delay.xxxx);
+                break;
+            case CA_DROP:
+                create_action_drop(ret+a, ca->text);
+                break;
+            case CA_EDIT:
+                //TODO compile the intermediate representation into HeaderFieldAssign array
+                //create_action_edit(ret+a, assigns, assign_count, ca->text);
+                break;
+            case CA_ELIM:
+                //TODO create_action_elim()
+                break;
+            case CA_POF:
+                //TODO create_action_pof()
+                break;
+            case CA_REPL:
+                //TODO we must compile the action lists into Action arrays here
+                //TODO create_action_repl()
+                break;
+            case CA_SEND:
+                create_action_send(ret+a, ca->d.send.iface, ca->text);
+                break;
+        }
+        a++;
+    }
+
+    *action_count = count;
+    return ret;
+}
+
+void print_actions(struct ConfAction *ca_list)
+{
+    for (struct ConfAction *ca = ca_list; ca; ca=ca->next) {
+        fprintf(stderr, "ConfAction %d\n", ca->type); //TODO
+    }
+}

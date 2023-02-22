@@ -10,7 +10,7 @@ static void try_delete_interface(struct Interface *iface)
             iface->del_(iface);
         free(iface->name);
         free(iface->ifname);
-        //TODO somehow we need to signal that we are done
+        //TODO somehow we need to signal the main thread that we are done
         //TODO the main thread should only exit when all interfaces gave the signal
     }
 }
@@ -18,6 +18,9 @@ static void try_delete_interface(struct Interface *iface)
 void close_interface(struct Interface *iface)
 {
     iface->shutdown = true;
+    //TODO unref the parsetree
+    //      that will unref the action pipelines
+    //      the action pipelines will unref us
     try_delete_interface(iface);
 }
 

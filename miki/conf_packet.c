@@ -71,12 +71,8 @@ static bool process_token(char *token, void *userdata)
     struct StageState *stst = userdata;
 
     if (stst->headers->name) {
-        //TODO parse_assignment() in conf_utils.h ?
-        char *eq = strchr(token, '=');
-        if (eq) {
-            char *key = token;
-            char *val = eq + 1;
-            *eq = 0;
+        char *key, *val;
+        if (parse_assignment(token, &key, &val)) {
             if (!protocol_fieldname_valid(stst->headers->id, key)) {
                 //TODO throw exception: invalid field for protocol
             }
