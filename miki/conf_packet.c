@@ -34,8 +34,8 @@ static struct ConfHeaderMatch *match_list_push(struct ConfHeaderMatch *list, str
 static struct ConfHeaderMatch *reverse_match_list(struct ConfHeaderMatch *list)
 {
     struct ConfHeaderMatch *newlist = NULL;
-    struct ConfHeaderMatch *e;
-    while ((e = match_list_pop(&list)) != NULL) {
+    while (list) {
+        struct ConfHeaderMatch *e = match_list_pop(&list);
         newlist = match_list_push(newlist, e);
     }
     return newlist;
@@ -59,8 +59,8 @@ static struct ConfHeader *header_list_push(struct ConfHeader *list, struct ConfH
 static struct ConfHeader *reverse_header_list(struct ConfHeader *list)
 {
     struct ConfHeader *newlist = NULL;
-    struct ConfHeader *e;
-    while ((e = header_list_pop(&list)) != NULL) {
+    while (list) {
+        struct ConfHeader *e = header_list_pop(&list);
         newlist = header_list_push(newlist, e);
     }
     return newlist;

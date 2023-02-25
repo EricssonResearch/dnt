@@ -61,7 +61,7 @@ static void iface_cb(const char *key, void *value, void *userdata)
     char *desc = value;
 
     struct TokenState tstate = {0};
-    foreach_tokens(desc, token_cb, userdata);
+    foreach_tokens(desc, token_cb, &tstate);
 
     if (tstate.type == NULL) {
         //TODO throw exception: interface type is unspecified

@@ -457,7 +457,7 @@ static bool process_stage(char *stage, void *userdata)
     stst->actions = newaction;
     newaction->text = strdup(stage);
 
-    foreach_tokens(stage, process_token, &stst);
+    foreach_tokens(stage, process_token, stst);
 
     if (stst->actions->type == 0) {
         //TODO throw exception: no action in stage
