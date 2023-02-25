@@ -77,7 +77,7 @@ struct PipelineIterator *new_pipe_iterator(struct Pipeline *pipe, struct Packet 
 
 static bool iterator_done(struct PipelineIterator *pi)
 {
-    return pi->pos < pi->pipe->action_count;
+    return pi->pos >= pi->pipe->action_count;
 }
 
 static void delete_iterator(struct PipelineIterator *pi)

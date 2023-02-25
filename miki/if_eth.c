@@ -77,14 +77,14 @@ static struct Packet *eth_recv(struct Interface *iface)
             case SOL_PACKET:
                 if (cmsg->cmsg_type == PACKET_AUXDATA) {
                     struct tpacket_auxdata *aux = (struct tpacket_auxdata *)CMSG_DATA(cmsg);
-                    //TODO when is TP_STATUS_VLAN_VALID?
                     printf("AUX 0x%.08x len %u VLAN 0x%.04x EtherType 0x%.04x\n",
                             aux->tp_status, aux->tp_len, aux->tp_vlan_tci, aux->tp_vlan_tpid);
 
                     if (aux->tp_status & TP_STATUS_VLAN_VALID) {
-                        // restore the vlan header in the packet
+                        printf("restoring vlan header in the packet\n");
                         memmove(p->buf + p->start - 4, p->buf + p->start, 2*6);
                         p->start -= 4;
+                        p->len += 4;
                         uint16_t *vlan = (uint16_t*)(p->buf + p->start + 2*6);
                         vlan[0] = htons(aux->tp_vlan_tpid);
                         vlan[1] = htons(aux->tp_vlan_tci);
