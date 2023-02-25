@@ -9,7 +9,7 @@ struct Packet;
 struct ParseTree;
 
 enum IfaceType {
-    IF_ETH,
+    IF_ETH = 1,
     IF_IP4,
     IP_IP6,
     IF_UDP_IN,

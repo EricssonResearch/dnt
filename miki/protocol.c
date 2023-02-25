@@ -66,6 +66,7 @@ static struct ProtocolField rttag_fields[] = {
 };
 
 struct Protocol protocol_list[] = {
+    //TODO have a dummy in the first place so eth is not 0
     {"eth", eth_fields, ARRAY_SIZE(eth_fields), 6+6+2, "ethertype", id_from_ethertype, ethertype_from_id},
     {"svlan", vlan_fields, ARRAY_SIZE(vlan_fields), 4, "tpid", id_from_ethertype, ethertype_from_id},
     {"cvlan", vlan_fields, ARRAY_SIZE(vlan_fields), 4, "tpid", id_from_ethertype, ethertype_from_id},
