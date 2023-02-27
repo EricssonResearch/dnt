@@ -6,6 +6,7 @@
 #include "action.h"
 #include "interface.h"
 #include "inifile.h"
+#include "parsetree.h"
 #include "protocol.h"
 #include "utils.h"
 
@@ -58,7 +59,7 @@ struct ConfAction {
             char *newname;
             char *newtype;
             int id;
-            struct ConfHeader *pos; // relative to this header
+            struct HeaderDescriptor *pos; // relative to this header
             enum BeforeAfter beforeafter;
             unsigned pos_idx;
             size_t len;
@@ -69,7 +70,7 @@ struct ConfAction {
             struct HashMap *replacements;
         } call;
         struct {
-            struct ConfHeader *hdr;
+            struct HeaderDescriptor *hdr;
             unsigned idx;
         } del;
         struct {
@@ -77,7 +78,7 @@ struct ConfAction {
             //TODO delay value
         } delay;
         struct {
-            struct ConfHeader *hdr;
+            struct HeaderDescriptor *hdr;
             struct StringList *assignments;
         } edit;
         struct {
@@ -101,7 +102,7 @@ struct ConfAction {
 struct StageState {
     const char *stream;
     struct ConfAction *actions;
-    struct ConfHeader *headers;
+    struct HeaderDescriptor *headers;
     struct Interface *ifaces;
     unsigned ifcount;
     struct HashMap *objects;
@@ -126,7 +127,7 @@ static bool process_token(char *token, void *userdata)
                         //TODO throw exception: invalid location designator
                     }
                 } else if (stst->actions->d.add.pos == NULL) {
-                    struct ConfHeader *pos = header_list_find_name(stst->headers, token);
+                    struct HeaderDescriptor *pos = header_list_find_by_name(stst->headers, token);
                     if (pos == NULL) {
                         //TODO throw exception: no such header in the packet
                     }
@@ -165,7 +166,7 @@ static bool process_token(char *token, void *userdata)
                 if (stst->actions->d.del.hdr) {
                     //TODO throw exception: delete action takes only 1 parameter
                 } else {
-                    struct ConfHeader *del = header_list_find_name(stst->headers, token);
+                    struct HeaderDescriptor *del = header_list_find_by_name(stst->headers, token);
                     if (del) {
                         stst->actions->d.del.hdr = del;
                     } else {
@@ -184,7 +185,7 @@ static bool process_token(char *token, void *userdata)
                 break;
             case CA_EDIT:
                 if (stst->actions->d.edit.hdr == NULL) {
-                    struct ConfHeader *edit = header_list_find_name(stst->headers, token);
+                    struct HeaderDescriptor *edit = header_list_find_by_name(stst->headers, token);
                     if (edit) {
                         stst->actions->d.edit.hdr = edit;
                     } else {
@@ -307,13 +308,13 @@ static void process_action(struct StageState *stst)
                 //TODO throw exception: no header position
             }
             // add the newly created header to the header list
-            struct ConfHeader *newheader = calloc_struct(ConfHeader);
+            struct HeaderDescriptor *newheader = calloc_struct(HeaderDescriptor);
             newheader->type = stst->actions->d.add.newtype; //TODO strdup?
             newheader->name = stst->actions->d.add.newname;
             newheader->id = stst->actions->d.add.id;
             newheader->state = CH_NEW;
             // add newheader to stst->headers at the designated position
-            struct ConfHeader *prevheader, *nextheader;
+            struct HeaderDescriptor *prevheader, *nextheader;
             if (stst->actions->d.add.beforeafter == ADD_BEFORE) {
                 nextheader = stst->actions->d.add.pos;
                 if (nextheader == stst->headers) {
@@ -335,7 +336,7 @@ static void process_action(struct StageState *stst)
             }
 
             unsigned pos_idx = 0;
-            for (struct ConfHeader *ch=stst->headers; ch!=stst->actions->d.add.pos; ch=ch->next)
+            for (struct HeaderDescriptor *ch=stst->headers; ch!=stst->actions->d.add.pos; ch=ch->next)
                 if (ch->state != CH_DEL) pos_idx++;
             if (stst->actions->d.add.beforeafter == ADD_AFTER) pos_idx++;
             stst->actions->d.add.pos_idx = pos_idx;
@@ -408,6 +409,7 @@ static void process_action(struct StageState *stst)
             break;
         case CA_DELAY:
             //TODO check that first param was a valid timestamp field
+            //      need to find the header by name
             //TODO check that second param was a valid time constant
             break;
         case CA_DROP:
@@ -416,8 +418,10 @@ static void process_action(struct StageState *stst)
         case CA_EDIT:
             if (stst->actions->d.edit.hdr) {
                 // find the index of the header that we edit
+                // TODO create a function that does that
+                //      we use it in: add, edit, delay, elim
                 unsigned idx = 0;
-                struct ConfHeader *h = stst->headers;
+                struct HeaderDescriptor *h = stst->headers;
                 while (h) {
                     if (h == stst->actions->d.edit.hdr) {
                         break;
@@ -469,7 +473,32 @@ static bool process_stage(char *stage, void *userdata)
     return true;
 }
 
-struct ConfAction *process_actions(const char *stream, char *line, struct ConfHeader *headers,
+static struct ConfAction *action_list_pop(struct ConfAction **list)
+{
+    struct ConfAction *ret = *list;
+    *list = (*list)->next;
+    ret->next = NULL;
+    return ret;
+}
+
+static struct ConfAction *action_list_push(struct ConfAction *list, struct ConfAction *a)
+{
+    a->next = list;
+    return a;
+}
+
+//TODO template <class T> reverse_list(T *list)
+static struct ConfAction *reverse_action_list(struct ConfAction *list)
+{
+    struct ConfAction *newlist = NULL;
+    while (list) {
+        struct ConfAction *a = action_list_pop(&list);
+        newlist = action_list_push(newlist, a);
+    }
+    return newlist;
+}
+
+struct ConfAction *process_actions_line(const char *stream, char *line, struct HeaderDescriptor *headers,
         struct Interface *ifaces, unsigned ifcount,
         struct HashMap *objects, struct IniSection *streams_sec)
 {
@@ -487,9 +516,36 @@ struct ConfAction *process_actions(const char *stream, char *line, struct ConfHe
         //TODO error
     }
 
-    //TODO now we have a linked list of processed actions in stst
-    //TODO reverse the list
-    //TODO perform optimization passes
+    stst.actions = reverse_action_list(stst.actions);
+
+    //TODO perform optimization passes on the action list
+    //      e.g. merge subsequent Edit actions
+
+    // restore @headers:
+    //      remove the CH_NEW elements
+    //      set CH_DEL back to CH_PACKET
+    if (headers) { //TODO is it legal to have no headers?
+        while (headers->state == CH_NEW) {
+            struct HeaderDescriptor *del = headers;
+            headers = headers->next;
+            free(del); // don't try to free the pointer members!
+        }
+        headers->state = CH_PACKET;
+        if (headers) { //TODO is it legal to have no headers?
+            struct HeaderDescriptor *h = headers;
+            while (h->next) {
+                if (h->next->state == CH_NEW) {
+                    struct HeaderDescriptor *del = h->next;
+                    h->next = del->next;
+                    free(del); // don't try to free the pointer members!
+                } else {
+                    h->next->state = CH_PACKET;
+                }
+                h = h->next;
+            }
+        }
+    }
+
     return stst.actions;
 }
 

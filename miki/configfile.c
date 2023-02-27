@@ -1,9 +1,13 @@
 
 #include "configfile.h"
+#include "conf_actions.h"
 #include "conf_interface.h"
 #include "conf_object.h"
 #include "conf_streams.h"
 #include "inifile.h"
+#include "interface.h"
+#include "parsetree.h"
+#include "pipeline.h"
 #include "utils.h"
 
 #include <stdio.h>
@@ -23,7 +27,7 @@ struct R2d2Config *read_config(const char *filename)
 
     if (interfaces_sec == NULL) {
         fprintf(stderr, "config has no interfaces\n");
-        return NULL;
+        return NULL; //TODO cleanup
     }
     if (streams_sec == NULL) {
         fprintf(stderr, "config has no streams\n");
@@ -35,7 +39,8 @@ struct R2d2Config *read_config(const char *filename)
 
     ret->ifaces = process_interfaces(interfaces_sec, &ret->ifcount);
     if (ret->ifaces == NULL) {
-        //TODO error
+        fprintf(stderr, "config interfaces invalid\n");
+        return NULL;
     }
 
     if (objects_sec) {
@@ -54,5 +59,29 @@ struct R2d2Config *read_config(const char *filename)
 
     delete_inisection(ini);
     return ret;
+}
+
+static void addstream_cb(const char *key, void *value, void *userdata)
+{
+    (void)userdata;
+    struct ConfStream *stream = value;
+
+    printf("adding stream %s to interface %s\n", key, stream->recv_iface->name);
+
+    unsigned action_count;
+    struct Action *actions = assemble_actions(stream->actions, &action_count);
+    if (!actions) {
+        //TODO error
+    }
+    struct Pipeline *pipe = new_pipeline(actions, action_count);
+    if (!pipe) {
+        //TODO error
+    }
+    parsetree_add_stream(stream->recv_iface->parsetree, stream->packet, pipe);
+}
+
+void config_add_streams_to_interfaces(struct R2d2Config *config)
+{
+    hashmap_foreach(config->streams, addstream_cb, NULL);
 }
 

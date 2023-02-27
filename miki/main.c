@@ -1,21 +1,46 @@
 
 #include "configfile.h"
 #include "delay.h"
+#include "hashmap.h"
 #include "interface.h"
 #include "if_eth.h"
 #include "packet.h"
 #include "parsetree.h"
 #include "pipeline.h"
+#include "protocol.h"
 #include "version.h"
 
 #include <stdio.h>
 #include <stdlib.h>
+
+#include <signal.h>
 #include <sys/epoll.h>
 
 #define MAX_EVENTS 10
 
+int sigint_count = 0;
+static void sigint_handler(int sig, siginfo_t *si, void *uc)
+{
+    (void)sig;
+    (void)si;
+    (void)uc;
+
+    sigint_count++;
+}
+
 static void recv_loop(struct Interface *ifaces, unsigned iface_count)
 {
+    struct sigaction sa;
+    //struct sigevent sev;
+    sa.sa_flags = SA_SIGINFO;
+    sa.sa_sigaction = sigint_handler;
+    sigemptyset(&sa.sa_mask);
+    if (sigaction(SIGINT, &sa, NULL) < 0) {
+            perror("sigaction");
+            return ;
+        }
+
+
     int epollfd = epoll_create1(0);
     if (epollfd < 0) {
         perror("epoll_create1");
@@ -33,7 +58,7 @@ static void recv_loop(struct Interface *ifaces, unsigned iface_count)
     }
 
     struct epoll_event events[MAX_EVENTS];
-    while (1) {
+    while (sigint_count == 0) {
         int nfds = epoll_wait(epollfd, events, MAX_EVENTS, -1);
         if (nfds == -1) {
             perror("epoll_wait");
@@ -43,7 +68,13 @@ static void recv_loop(struct Interface *ifaces, unsigned iface_count)
         for (int n=0; n<nfds; n++) {
             struct Interface *recvif = events[n].data.ptr;
             struct Packet *p = recvif->recv(recvif);
+            printf("received packet length %u on %s\n", p->len, recvif->name);
             struct Pipeline *pipe = parsetree_process(recvif->parsetree, p);
+            printf("parsetree identified %u headers, pipe = %p\n", p->header_count, pipe);
+            for (unsigned i=0; i<p->header_count; i++) {
+                printf("  header %u is %s at %u len %u\n", i,
+                        protocol_list[p->headers[i].type].name, p->headers[i].start, p->headers[i].len);
+            }
             if (pipe == NULL) {
                 fprintf(stderr, "no pipeline found for packet on %s, unknown stream\n", recvif->name);
                 delete_packet(p);
@@ -60,7 +91,7 @@ static void recv_loop(struct Interface *ifaces, unsigned iface_count)
 int main(int argc, char **argv)
 {
     printf("R2DTWO - Reliable & Robust Deterministic Tool for netWOrking implementation\n"
-            " version %d.%d\n", VERSION_MAJOR, VERSION_MINOR);
+            "Version %d.%d\n", VERSION_MAJOR, VERSION_MINOR);
 
     if (argc < 2) {
         fprintf(stderr, "usage: %s configfile\n", argv[0]);
@@ -73,22 +104,29 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    //TODO build the parse trees and the action pipes here
-    //TODO add the parse trees to the interfaces
-    //TODO for i (config->ifaces) i->open
 
-    //TODO replace these with the proper ones from config
-    /*struct Interface tmp_ifaces[3];
-    init_eth_interface(tmp_ifaces+0, "tmp0", "eth0");
-    init_eth_interface(tmp_ifaces+1, "tmp1", "eth1");
-    init_eth_interface(tmp_ifaces+2, "tmp2", "eth2");*/
-    //TODO add dummy parsetrees so we can test the pipelines
+    for (unsigned i=0; i<config->ifcount; i++) {
+        iface_set_parsetree(config->ifaces+i, new_parsetree(config->ifaces+i));
+    }
+
+    config_add_streams_to_interfaces(config);
+
+    for (unsigned i=0; i<config->ifcount; i++) {
+        if (!config->ifaces[i].open(config->ifaces+i)) {
+            return -1;
+        }
+    }
 
     if (!init_delay()) return -1;
 
     recv_loop(config->ifaces, config->ifcount);
+    printf("receive loop ended\n");
 
     fini_delay();
+
+    for (unsigned i=0; i<config->ifcount; i++) {
+        close_iface(config->ifaces+i);
+    }
 
     return 0;
 }

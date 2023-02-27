@@ -74,6 +74,16 @@ bool parse_fieldname(char *field, char **headername, char **fieldname)
     }
 }
 
+char *header_type_from_name(const char *name)
+{
+    char *under = strchr(name, '_');
+    if (under) {
+        return strndup(name, under-name);
+    } else {
+        return strdup(name);
+    }
+}
+
 int read_boolean(const char *val)
 {
     if (strcmp(val, "1") == 0 || strcmp(val, "true") == 0 || strcmp(val, "yes") == 0)

@@ -1,7 +1,9 @@
 
 #include "interface.h"
+#include "parsetree.h"
 
 #include <stdlib.h>
+#include <stdio.h>
 
 static void try_delete_interface(struct Interface *iface)
 {
@@ -14,7 +16,18 @@ static void try_delete_interface(struct Interface *iface)
     }
 }
 
-void close_interface(struct Interface *iface)
+void iface_set_parsetree(struct Interface *iface, struct ParseTree *pt)
+{
+    if (iface->parsetree) {
+        fprintf(stderr, "interface %s already has a parsetree\n", iface->name);
+    } else {
+        iface->parsetree = pt;
+        parsetree_ref(pt);
+    }
+}
+
+
+void close_iface(struct Interface *iface)
 {
     iface->shutdown = true;
     //TODO unref the parsetree
@@ -23,6 +36,7 @@ void close_interface(struct Interface *iface)
     //      when the action pipelines have no more iterators
     //          they will unref us
     //      finally we are free to close
+    parsetree_unref(iface->parsetree);
     try_delete_interface(iface);
 }
 
@@ -33,6 +47,7 @@ void iface_ref(struct Interface *iface)
 
 void iface_unref(struct Interface *iface)
 {
-    iface->reference_count--;
+    if (iface->reference_count > 0)
+        iface->reference_count--;
     try_delete_interface(iface);
 }

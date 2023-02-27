@@ -5,6 +5,7 @@
 #include "conf_utils.h"
 #include "inifile.h"
 #include "interface.h"
+#include "parsetree.h"
 #include "utils.h"
 
 #include <stdio.h>
@@ -30,7 +31,7 @@ static void packetline_cb(const char *key, void *value, void *userdata)
         if (strcmp(colon+1, "packet") == 0) {
             char *streamname = strndup(key, colon-key);
 
-            struct ConfHeader *headers = process_packet(streamname, packetline);
+            struct HeaderDescriptor *headers = process_packet_line(streamname, packetline);
             //TODO is it legal to have no headers?
 
             // find the matching :actions line
@@ -42,7 +43,7 @@ static void packetline_cb(const char *key, void *value, void *userdata)
                 //TODO error
             }
 
-            struct ConfAction *actions = process_actions(streamname, actionline,
+            struct ConfAction *actions = process_actions_line(streamname, actionline,
                     headers, state->ifaces, state->ifcount,
                     state->objects, state->streams_section);
             if (actions == NULL) {

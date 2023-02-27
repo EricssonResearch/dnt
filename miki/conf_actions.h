@@ -4,7 +4,7 @@
 
 struct ConfAction;
 struct Action;
-struct ConfHeader;
+struct HeaderDescriptor;
 struct HashMap;
 struct IniSection;
 struct Interface;
@@ -12,7 +12,7 @@ struct Interface;
 // parse the "*:actions" line for a stream
 // modifies the given string
 // returns a linked list of (opaque) action descriptors
-struct ConfAction *process_actions(const char *stream, char *line, struct ConfHeader *headers,
+struct ConfAction *process_actions_line(const char *stream, char *line, struct HeaderDescriptor *headers,
         struct Interface *ifaces, unsigned ifcount,
         struct HashMap *objects, struct IniSection *streams_sec);
 

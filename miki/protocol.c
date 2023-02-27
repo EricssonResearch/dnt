@@ -41,6 +41,9 @@ static uint16_t ethertype_from_id(int id)
     return htons(ret);
 }
 
+static struct ProtocolField dummy_fields[] = {
+};
+
 static struct ProtocolField eth_fields[] = {
     {"dmac",         0, 6*8},
     {"smac",       6*8, 6*8},
@@ -66,7 +69,7 @@ static struct ProtocolField rttag_fields[] = {
 };
 
 struct Protocol protocol_list[] = {
-    //TODO have a dummy in the first place so eth is not 0
+    {"dummy", dummy_fields, 0, 0, NULL, NULL, NULL}, // dummy for id=0
     {"eth", eth_fields, ARRAY_SIZE(eth_fields), 6+6+2, "ethertype", id_from_ethertype, ethertype_from_id},
     {"svlan", vlan_fields, ARRAY_SIZE(vlan_fields), 4, "tpid", id_from_ethertype, ethertype_from_id},
     {"cvlan", vlan_fields, ARRAY_SIZE(vlan_fields), 4, "tpid", id_from_ethertype, ethertype_from_id},

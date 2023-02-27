@@ -10,6 +10,33 @@
 #include <stdlib.h>
 #include <string.h>
 
+const char *action_name_from_type(enum ActionType type)
+{
+    switch (type) {
+        case ACT_ADD:
+            return "Add";
+        case ACT_DEL:
+            return "Del";
+        case ACT_DELAY:
+            return "Delay";
+        case ACT_DROP:
+            return "Drop";
+        case ACT_EDIT:
+            return "Edit";
+        case ACT_ELIM:
+            return "Eliminate";
+        case ACT_POF:
+            return "POF";
+        case ACT_REPL:
+            return "Replicate";
+        case ACT_SEND:
+            return "Send";
+    }
+    return NULL;
+}
+
+
+/////////////////////////////////////////////////////////////////////
 
 struct AddData {
     unsigned idx;

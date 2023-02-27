@@ -48,6 +48,7 @@ struct PipelineList {
     struct PipelineList *next;
 };
 
+const char *action_name_from_type(enum ActionType type);
 
 // this just adds the header, the fields will be set with an edit action
 void create_action_add(struct Action *a, unsigned idx, int type, size_t len, const char *text);

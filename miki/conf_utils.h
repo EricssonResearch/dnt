@@ -28,6 +28,10 @@ bool parse_assignment(char *assign, char **key, char **val);
 // @returns false if @field has invalid format
 bool parse_fieldname(char *field, char **headername, char **fieldname);
 
+// header name is in the form of "type[_identifier]", this extracts the type
+// @returns a new string (even if name has no identifier part)
+char *header_type_from_name(const char *name);
+
 // interprets the given string as boolean
 // true values: 1, true, yes
 // false values: 0, false, no

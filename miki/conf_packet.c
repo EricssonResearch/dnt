@@ -1,6 +1,7 @@
 
 #include "conf_packet.h"
 #include "conf_utils.h"
+#include "parsetree.h"
 #include "protocol.h"
 #include "utils.h"
 
@@ -12,55 +13,55 @@
 
 struct StageState {
     const char *stream;
-    struct ConfHeader *headers;
+    struct HeaderDescriptor *headers;
 };
 
 
-static struct ConfHeaderMatch *match_list_pop(struct ConfHeaderMatch **list)
+static struct HeaderMatch *match_list_pop(struct HeaderMatch **list)
 {
-    struct ConfHeaderMatch *ret = *list;
+    struct HeaderMatch *ret = *list;
     *list = (*list)->next;
     ret->next = NULL;
     return ret;
 }
 
-static struct ConfHeaderMatch *match_list_push(struct ConfHeaderMatch *list, struct ConfHeaderMatch *e)
+static struct HeaderMatch *match_list_push(struct HeaderMatch *list, struct HeaderMatch *e)
 {
     e->next = list;
     return e;
 }
 
 //TODO template <class T> reverse_list(T *list)
-static struct ConfHeaderMatch *reverse_match_list(struct ConfHeaderMatch *list)
+static struct HeaderMatch *reverse_match_list(struct HeaderMatch *list)
 {
-    struct ConfHeaderMatch *newlist = NULL;
+    struct HeaderMatch *newlist = NULL;
     while (list) {
-        struct ConfHeaderMatch *e = match_list_pop(&list);
+        struct HeaderMatch *e = match_list_pop(&list);
         newlist = match_list_push(newlist, e);
     }
     return newlist;
 }
 
-static struct ConfHeader *header_list_pop(struct ConfHeader **list)
+static struct HeaderDescriptor *header_list_pop(struct HeaderDescriptor **list)
 {
-    struct ConfHeader *ret = *list;
+    struct HeaderDescriptor *ret = *list;
     *list = (*list)->next;
     ret->next = NULL;
     return ret;
 }
 
-static struct ConfHeader *header_list_push(struct ConfHeader *list, struct ConfHeader *e)
+static struct HeaderDescriptor *header_list_push(struct HeaderDescriptor *list, struct HeaderDescriptor *e)
 {
     e->next = list;
     return e;
 }
 
 //TODO template <class T> reverse_list(T *list)
-static struct ConfHeader *reverse_header_list(struct ConfHeader *list)
+static struct HeaderDescriptor *reverse_header_list(struct HeaderDescriptor *list)
 {
-    struct ConfHeader *newlist = NULL;
+    struct HeaderDescriptor *newlist = NULL;
     while (list) {
-        struct ConfHeader *e = header_list_pop(&list);
+        struct HeaderDescriptor *e = header_list_pop(&list);
         newlist = header_list_push(newlist, e);
     }
     return newlist;
@@ -77,7 +78,7 @@ static bool process_token(char *token, void *userdata)
                 //TODO throw exception: invalid field for protocol
             }
 
-            struct ConfHeaderMatch *newmatch = calloc_struct(ConfHeaderMatch);
+            struct HeaderMatch *newmatch = calloc_struct(HeaderMatch);
             newmatch->fieldname = strdup(key);
             newmatch->fieldvalue = strdup(val);
             newmatch->next = stst->headers->matches;
@@ -101,7 +102,7 @@ static bool process_stage(char *stage, void *userdata)
 {
     struct StageState *stst = userdata;
 
-    struct ConfHeader *newheader = calloc_struct(ConfHeader);
+    struct HeaderDescriptor *newheader = calloc_struct(HeaderDescriptor);
     newheader->next = stst->headers;
     stst->headers = newheader;
 
@@ -116,7 +117,7 @@ static bool process_stage(char *stage, void *userdata)
     return true;
 }
 
-struct ConfHeader *process_packet(const char *stream, char *line)
+struct HeaderDescriptor *process_packet_line(const char *stream, char *line)
 {
     struct StageState stst = {
         .stream = stream,
@@ -130,37 +131,4 @@ struct ConfHeader *process_packet(const char *stream, char *line)
     return stst.headers;
 }
 
-//TODO struct ConfHeader *delete_header_list(struct ConfHeader *headers) {}
-
-struct ConfHeader *header_list_find_name(struct ConfHeader *headers, const char *name)
-{
-    struct ConfHeader *h = headers;
-    while (h) {
-        if (strcmp(h->name, name) == 0)
-            return h;
-        h = h->next;
-    }
-    return NULL;
-}
-
-struct ConfHeader *header_list_find_typeid(struct ConfHeader *headers, int id)
-{
-    struct ConfHeader *h = headers;
-    while (h) {
-        if (h->id == id)
-            return h;
-        h = h->next;
-    }
-    return NULL;
-}
-
-char *header_type_from_name(const char *name)
-{
-    char *under = strchr(name, '_');
-    if (under) {
-        return strndup(name, under-name);
-    } else {
-        return strdup(name);
-    }
-}
 

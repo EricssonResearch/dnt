@@ -1,6 +1,7 @@
 
 #include "if_eth.h"
 #include "packet.h"
+#include "protocol.h"
 #include "utils.h"
 
 #include <stdlib.h>
@@ -68,7 +69,7 @@ static struct Packet *eth_recv(struct Interface *iface)
         p->len = res;
         //TODO what else?
     }
-    printf("eth %s recv %zu\n", iface->name, p->len);
+    printf("eth %s recv %u\n", iface->name, p->len);
 
     // process the cmsg to get the vlan header info
     // if we have vlan, restore it in the packet
@@ -105,7 +106,7 @@ static bool eth_send(struct Interface *iface, struct Packet *p)
         fprintf(stderr, "eth send: packet doesn't have headers\n");
         return false;
     }
-    if (p->headers[0].type != 0) { //TODO PROTO_ID_ETH
+    if (p->headers[0].type != PROTO_ID_ETH) {
         fprintf(stderr, "eth send: first header of the packet is not eth\n");
         return false;
     }
@@ -210,7 +211,7 @@ static bool eth_open(struct Interface *iface)
             }
 
             // bind to device
-            struct sockaddr_ll socket_address;
+            struct sockaddr_ll socket_address = {0};
             socket_address.sll_family = AF_PACKET;
             socket_address.sll_protocol = htons(ETH_P_ALL);
             socket_address.sll_ifindex = if_idx.ifr_ifindex;

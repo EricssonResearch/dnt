@@ -32,6 +32,13 @@ struct Protocol {
 extern struct Protocol protocol_list[];
 extern unsigned protocol_count;
 
+//TODO autogenerate this list
+#define PROTO_ID_ETH 1
+#define PROTO_ID_SVLAN 2
+#define PROTO_ID_CVLAN 3
+#define PROTO_ID_RTAG 4
+#define PROTO_ID_TTAG 5
+
 // @returns -1 if unknown protocol type
 int protocol_id_from_type(const char *type);
 

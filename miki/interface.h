@@ -62,10 +62,12 @@ struct Interface {
 
 // no global init(), each interface type has its own
 
+void iface_set_parsetree(struct Interface *iface, struct ParseTree *pt);
+
 // closes the interface but doesn't free the given pointer (iface is in an array!)
 // this just sets the shutdown state so it won't receive packets
-// the interface will really close when no pipeline references it
-void close_interface(struct Interface *iface);
+// the interface will really close when no pipeline references it anymore
+void close_iface(struct Interface *iface);
 
 // add a reference to the interface
 void iface_ref(struct Interface *iface);

@@ -54,7 +54,8 @@ void pipeline_ref(struct Pipeline *pipe)
 
 void pipeline_unref(struct Pipeline *pipe)
 {
-    pipe->reference_count--;
+    if (pipe->reference_count > 0)
+        pipe->reference_count--;
 
     if (pipe->reference_count == 0) {
         unref_send_interfaces(pipe);
@@ -90,8 +91,10 @@ static void delete_iterator(struct PipelineIterator *pi)
 
 void pipe_iterator_run(struct PipelineIterator *pi)
 {
+    printf("pipe_iterator_run, action count %u\n", pi->pipe->action_count);
     while (!iterator_done(pi)) {
         struct Action *a = &pi->pipe->actions[pi->pos];
+        printf("pipe_iterator_run, action type %d %s\n", a->type, action_name_from_type(a->type));
         enum ActionResult res = a->execute(a, pi);
         switch (res) {
             case ACR_CONTINUE:

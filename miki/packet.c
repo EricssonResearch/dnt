@@ -3,6 +3,7 @@
 #include "utils.h"
 
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 
 static unsigned packet_count = 0;
@@ -59,10 +60,28 @@ bool packet_dummy(const struct Packet *p)
     return p->buf == dummybuf;
 }
 
-//TODO implement this
-void packet_identify_header(struct Packet *p, int type, off_t offset, size_t len);
+void packet_identify_header(struct Packet *p, int type, unsigned offset, unsigned len)
+{
+    if (p->header_count == PACKET_MAX_HEADER_NUM) {
+        fprintf(stderr, "packet_identify_header: already at maximum header count\n");
+        return;
+    }
+    if (p->header_count > 0 && p->headers[p->header_count-1].start > p->start + offset) {
+        fprintf(stderr, "packet_identify_header: new offset % is smaller than the previous %u\n",
+                offset, p->headers[p->header_count-1].start);
+        return;
+    }
+    struct PacketHeader *h = p->headers+p->header_count;
+    h->type = type;
+    h->start = p->start + offset;
+    h->len = len;
+    p->header_count++;
+    //TODO insert into the array sorted by offset
+    //unsigned hindex = 0;
 
-static off_t scratch_alloc(struct Packet *p, size_t len)
+}
+
+static off_t scratch_alloc(struct Packet *p, unsigned len)
 {
     if (p->scratch_len + len >= PACKET_START_OFFSET) return -1;
     off_t ret = p->scratch_len;
@@ -72,7 +91,7 @@ static off_t scratch_alloc(struct Packet *p, size_t len)
 
 //TODO static void scratch_free(struct Packet *p, unsigned char *start)
 
-void packet_add_header(struct Packet *p, unsigned idx, int type, size_t len)
+void packet_add_header(struct Packet *p, unsigned idx, int type, unsigned len)
 {
     if (p->header_count == PACKET_MAX_HEADER_NUM) {
         //TODO error (can we prevent this in the config compiler?)
@@ -80,7 +99,7 @@ void packet_add_header(struct Packet *p, unsigned idx, int type, size_t len)
     if (idx > p->header_count) {
         //TODO error (this should never happen though)
     }
-    off_t start = scratch_alloc(p, len);
+    int start = scratch_alloc(p, len);
     if (start < 0) {
         //TODO error: out of scratch space TODO how to handle this??
     }
