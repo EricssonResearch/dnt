@@ -4,10 +4,13 @@
 #include "conf_packet.h"
 #include "conf_utils.h"
 #include "action.h"
+#include "header.h"
 #include "interface.h"
 #include "inifile.h"
+#include "packet.h"
 #include "parsetree.h"
 #include "protocol.h"
+#include "transfer.h"
 #include "utils.h"
 
 #include <stdbool.h>
@@ -41,13 +44,60 @@ struct StringList {
     struct StringList *next;
 };
 
-static void stringlist_push(struct StringList **list, char *string)
+static void stringlist_push_string(struct StringList **list, char *string)
 {
     struct StringList *l = calloc_struct(StringList);
     l->string = string;
     l->next = *list;
     *list = l;
 }
+
+enum ConfVariableType {
+    CT_UNDEF,
+    CT_FIELD, // header field
+    CT_PACKET, // packet property
+    // the ones below are rhs-only
+    CT_CONST, // constant
+    CT_IFACE, // interface property
+    CT_GEN, // generator object
+};
+
+struct ConfVariable {
+    enum ConfVariableType type;
+    struct Value value;
+    union {
+        struct {
+            struct HeaderDescriptor *header;
+            struct HeaderField *field;
+            value_consumer *write;
+            value_producer *read;
+        } field;
+        struct {
+            char *pname;
+            enum ProtocolFieldType ptype;
+            value_consumer *write;
+            value_producer *read;
+        } packet;
+        struct {
+            struct ConfObject *obj;
+        } object;
+        struct {
+            char *iface;
+            char *property;
+        } iface;
+        struct {
+            enum ProtocolFieldType ptype;
+            struct Value *value; //TODO do we need this? just use ConfVariable::value
+        } constant;
+    } v;
+};
+
+struct ConfAssignment {
+    struct ConfVariable lhs;
+    struct ConfVariable rhs;
+    char *text;
+    struct ConfAssignment *next;
+};
 
 struct ConfAction {
     enum ConfActionType type;
@@ -62,8 +112,8 @@ struct ConfAction {
             struct HeaderDescriptor *pos; // relative to this header
             enum BeforeAfter beforeafter;
             unsigned pos_idx;
-            size_t len;
-            struct StringList *assignments;
+            unsigned len;
+            struct ConfAssignment *assignments;
         } add;
         struct {
             char *pipename;
@@ -74,20 +124,19 @@ struct ConfAction {
             unsigned idx;
         } del;
         struct {
-            //TODO timestamp field
-            //TODO delay value
+            struct ConfVariable timestamp_field;
+            struct ConfVariable delay_value;
         } delay;
         struct {
-            struct HeaderDescriptor *hdr;
-            struct StringList *assignments;
+            struct ConfAssignment *assignments;
         } edit;
         struct {
             struct ConfObject *rec;
-            //TODO seq field
+            struct ConfVariable seq_field;
         } elim;
         struct {
             struct ConfObject *pof;
-            //TODO seq field
+            struct ConfVariable seq_field;
         } pof;
         struct {
             char *name;
@@ -109,13 +158,132 @@ struct StageState {
     struct IniSection *streams_sec;
 };
 
+// @returns the position of @pos in the linked list @headers
+// @pos must be in the linked list!
+// skips the headers marked as CH_DEL
+static unsigned header_index(const struct HeaderDescriptor *headers, const struct HeaderDescriptor *pos)
+{
+    unsigned pos_idx = 0;
+    for (const struct HeaderDescriptor *h=headers; h!=pos; h=h->next) {
+        if (h->state != CH_DEL) pos_idx++;
+    }
+    return pos_idx;
+}
+
+static struct Interface *find_interface(struct StageState *stst, const char *name)
+{
+    for (unsigned i=0; i<stst->ifcount; i++) {
+        if (strcmp(stst->ifaces[i].name, name) == 0)
+            return stst->ifaces + i;
+    }
+    return NULL;
+}
+
+// @returns false on error
+static bool process_assignment_rhs(struct StageState *stst, enum ProtocolFieldType lhstype,
+        struct ConfVariable *var, char *rhs)
+{
+    //TODO in each case set var->value to describe the offset/length of the rhs value!
+    char *key, *val;
+    if (parse_fieldname(rhs, &key, &val)) {
+        //printf("rhs has a dot\n")
+        struct HeaderDescriptor *h = header_list_find_by_name(stst->headers, key);
+        if (h) {
+            struct ProtocolField *f = protocol_get_field_by_name(h->id, val);
+            if (f) {
+                //TODO rhs is a header field!
+                //TODO var->v.field.read = get_read_function()
+                return true;
+            } else {
+                //TODO throw exception: header has no such field
+            }
+        }
+
+        struct Interface *iface = find_interface(stst, key);
+        if (iface) {
+            //TODO rhs is an interface!
+            //TODO check that it has a property named @val
+        }
+
+        if (strcmp(key, "packet") == 0) {
+            printf("rhs is a packet property!\n");
+            enum ProtocolFieldType rhstype = packet_get_property_type(val);
+            if (lhstype != rhstype) {
+                //TODO throw exception
+            }
+            var->type = CT_PACKET;
+            var->v.packet.pname = strdup(val);
+            var->v.packet.ptype = rhstype;
+            var->value.bitoffset = 0;
+            var->value.bitcount = 32;
+            return true;
+        }
+
+        // if nothing matched, restore the dot
+        val[-1] = '.';
+    }
+
+    struct ConfObject *obj = hashmap_find(stst->objects, key);
+    if (obj) {
+        printf("rhs is a value generator object!\n");
+        // we only have one generator type: seqgen
+        // TODO how do we handle the timestamp generator?
+        if (obj->type != CO_SEQGEN) {
+            //TODO throw exception
+        }
+        if (lhstype != FT_TSNSEQ) {
+            //TODO throw exception
+        }
+        var->type = CT_GEN;
+        var->v.object.obj = obj;
+        var->value.bitoffset = 0;
+        var->value.bitcount = 32;
+        return true;
+    }
+
+    //TODO rhs must be a constant
+    //TODO put this into a function, reuse in process_packet_line()
+    var->type = CT_CONST;
+    switch (lhstype) {
+        case FT_UNKNOWN:
+            //TODO wtf?
+            break;
+        case FT_NUMBER: {
+            unsigned num;
+            if (sscanf(rhs, "%i%*c", &num) != 1) {
+                //TODO throw exception
+            }
+            var->v.constant.ptype = FT_NUMBER;
+            //TODO construct var->v.constant.value
+            //      TODO adjust bitoffset to match lhs
+            //      TODO check that num fits into the bitcount of lhs
+            //TODO fill var->value
+            break; }
+        case FT_MACADDRESS:
+            //TODO eth_aton()
+            break;
+        case FT_IPV4ADDRESS:
+            //TODO inet_aton()
+            break;
+        case FT_IPV6ADDRESS:
+            break;
+        case FT_TSNSEQ:
+            //TODO when do we set seq from a constant?
+            break;
+        case FT_TSNTSTAMP:
+            //TODO when do we set tstamp from a constant?
+            break;
+    }
+
+    return false;
+}
 
 static bool process_token(char *token, void *userdata)
 {
     struct StageState *stst = userdata;
 
     if (stst->actions->type) {
-        // here we validate and remember the parameters for the action
+        // here we process the parameters for the action individually
         switch (stst->actions->type) {
             case CA_ADD:
                 if (stst->actions->d.add.beforeafter == ADD_UNKNOWN) {
@@ -145,7 +313,8 @@ static bool process_token(char *token, void *userdata)
                     stst->actions->d.add.newtype = type;
                     stst->actions->d.add.len = protocol_list[stst->actions->d.add.id].bytelength;
                 } else {
-                    stringlist_push(&stst->actions->d.add.assignments, strdup(token));
+                    //TODO parse assignment using the already known header name/type/id
+                    //TODO use process_assignment_rhs()
                 }
                 break;
             case CA_CALL:
@@ -156,6 +325,7 @@ static bool process_token(char *token, void *userdata)
                         stst->actions->d.call.replacements = new_hashmap(13, NULL, NULL);
                     char *key, *val;
                     if (parse_assignment(token, &key, &val)) {
+                        //TODO val should not contain '='
                         hashmap_insert(stst->actions->d.call.replacements, strdup(key), strdup(val));
                     } else {
                         //TODO throw exception: invalid replacement
@@ -183,19 +353,68 @@ static bool process_token(char *token, void *userdata)
             case CA_DROP:
                 //TODO no parameter expected -> throw exception
                 break;
-            case CA_EDIT:
-                if (stst->actions->d.edit.hdr == NULL) {
-                    struct HeaderDescriptor *edit = header_list_find_by_name(stst->headers, token);
-                    if (edit) {
-                        stst->actions->d.edit.hdr = edit;
+            case CA_EDIT: {
+                char *lhs, *rhs;
+                struct ConfAssignment *a = calloc_struct(ConfAssignment);
+                a->next = stst->actions->d.edit.assignments;
+                stst->actions->d.edit.assignments = a;
+                a->text = strdup(token);
+                if (parse_assignment(token, &lhs, &rhs)) {
+                    // process lhs
+                    char *hdr, *field;
+                    enum ProtocolFieldType lhstype = FT_UNKNOWN;
+                    if (parse_fieldname(lhs, &hdr, &field)) {
+                        if (strcmp(hdr, "packet") == 0) {
+                            a->lhs.type = CT_PACKET;
+                            lhstype = packet_get_property_type(field);
+                            if (lhstype == FT_UNKNOWN) {
+                                //TODO throw exception: no such packet property
+                            }
+                            a->lhs.v.packet.pname = strdup(field);
+                            a->lhs.v.packet.ptype = lhstype;
+                        } else {
+                            struct HeaderDescriptor *h = header_list_find_by_name(stst->headers, hdr);
+                            if (h == NULL) {
+                                //TODO throw exception: no such header in the packet
+                            }
+                            struct ProtocolField *f = protocol_get_field_by_name(h->id, field);
+                            if (f == NULL) {
+                                //TODO throw exception: header has no such field
+                            }
+                            struct HeaderField *hf = calloc_struct(HeaderField);
+                            hf->header_idx = header_index(stst->headers, h);
+                            hf->bitoffset = f->bitoffset;
+                            hf->bitcount = f->bitcount;
+                            a->lhs.type = CT_FIELD;
+                            a->lhs.v.field.header = h;
+                            a->lhs.v.field.field = hf;
+                            lhstype = f->type;
+                        }
                     } else {
-                        //TODO throw exception: invalid header name
+                        //TODO throw exception: invalid lhs
+                    }
+
+                    // process rhs
+                    if (!process_assignment_rhs(stst, lhstype, &a->rhs, rhs)) {
+                        //TODO throw exception: invalid rhs
+                    }
+
+                    // select consumer function for lhs
+                    if (a->lhs.type == CT_PACKET) {
+                        a->lhs.v.packet.write = packet_get_property_writer(field, &a->rhs.value);
+                        if (a->lhs.v.packet.write == NULL) {
+                            //TODO throw exception: packet property cannot be written from this rhs
+                        }
+                    } else {
+                        a->lhs.v.field.write = get_assign_function(a->lhs.v.field.field, &a->rhs.value);
+                        if (a->lhs.v.field.write == NULL) {
+                            //TODO throw exception: header field cannot be written from this rhs
+                        }
                     }
                 } else {
-                    //TODO process the assignment here?
-                    stringlist_push(&stst->actions->d.edit.assignments, strdup(token));
+                    //TODO throw exception: invalid assignment
                 }
-                break;
+                break; }
             case CA_ELIM:
                 if (stst->actions->d.elim.rec == NULL) {
                     struct ConfObject *obj = hashmap_find(stst->objects, token);
@@ -229,17 +448,13 @@ static bool process_token(char *token, void *userdata)
                 }
                 break;
             case CA_REPL:
-                stringlist_push(&stst->actions->d.repl.pipelines, strdup(token));
+                stringlist_push_string(&stst->actions->d.repl.pipelines, strdup(token));
                 break;
             case CA_SEND:
                 if (stst->actions->d.send.iface) {
                     //TODO throw exception: can only send on one interface
                 } else {
-                    struct Interface *iface = NULL;
-                    for (unsigned i=0; i<stst->ifcount; i++) {
-                        if (strcmp(stst->ifaces[i].name, token) == 0)
-                            iface = stst->ifaces + i;
-                    }
+                    struct Interface *iface = find_interface(stst, token);
                     if (iface == NULL) {
                         //TODO throw exception: unknown interface
                     }
@@ -296,6 +511,7 @@ static bool process_token(char *token, void *userdata)
 
 static void process_action(struct StageState *stst)
 {
+    // here we do processing that needs all the parameters of the action
     switch (stst->actions->type) {
         case CA_ADD:
             if (stst->actions->d.add.newname == NULL) {
@@ -328,6 +544,21 @@ static void process_action(struct StageState *stst)
                 prevheader = stst->actions->d.add.pos;
                 nextheader = stst->actions->d.add.pos->next;
             }
+            //TODO if "add after last header" then nextheader=NULL
+            //      how can we handle this? we only know the payload type at runtime
+            //      newheader.tpid = get_nexthdr(get_id(prevhdr.tpid))
+            //      prevhdr.tpid = get_nexthdr(newhdr->id)
+            //      TODO how can we assemble such a code?
+            //      TODO what if prevhdr and nexthdr are both NULL? is it legal to have empty :packet line? no
+            //      TODO if (prevhdr->get_id == newhdr->get_id) we can simply copy
+            //          TODO if we cannot simply copy -> throw exception
+            //      TODO what if we can't set tpid?
+            //          e.g. when adding an ip header between vlan tags
+
+            unsigned pos_idx = header_index(stst->headers, stst->actions->d.add.pos);
+            if (stst->actions->d.add.beforeafter == ADD_AFTER) pos_idx++;
+            stst->actions->d.add.pos_idx = pos_idx;
+
             newheader->next = nextheader;
             if (prevheader) {
                 prevheader->next = newheader;
@@ -335,48 +566,54 @@ static void process_action(struct StageState *stst)
                 stst->headers = newheader;
             }
 
-            unsigned pos_idx = 0;
-            for (struct HeaderDescriptor *ch=stst->headers; ch!=stst->actions->d.add.pos; ch=ch->next)
-                if (ch->state != CH_DEL) pos_idx++;
-            if (stst->actions->d.add.beforeafter == ADD_AFTER) pos_idx++;
-            stst->actions->d.add.pos_idx = pos_idx;
+            //TODO merge these three into one edit
 
             // split off the header assignments into a new edit action
             struct ConfAction *edit = calloc_struct(ConfAction);
             edit->type = CA_EDIT;
             edit->text = strdup(stst->actions->text); //TODO is this okay?
-            edit->d.edit.hdr = newheader;
-            edit->d.edit.assignments = stst->actions->d.add.assignments;
+            //edit->d.edit.hdr = newheader;
+            //edit->d.edit.assignments = stst->actions->d.add.assignments;
             edit->next = stst->actions;
             stst->actions = edit;
             process_action(stst); // now edit is the newest action
 
             // set nexthdr for newheader
             char editbuf[64];
-            if (protocol_list[newheader->id].nexthdr != NULL) {
+            if (protocol_list[newheader->id].get_nexthdr != NULL) {
+                struct Protocol *pr = &protocol_list[newheader->id];
+                unsigned nexthdrfield = pr->nexthdr_idx;
+                uint16_t nexthdrnum;
+                if (!pr->get_nexthdr(&nexthdrnum, nextheader->id)) {
+                    //TODO throw exception
+                }
+                snprintf(editbuf, 64, "add sets %s.%s=0x%.4x",
+                        newheader->name, pr->header_fields[nexthdrfield].name, ntohs(nexthdrnum));
                 edit = calloc_struct(ConfAction);
                 edit->type = CA_EDIT;
-                edit->text = strdup("add sets nexthdr"); //TODO more informative
-                edit->d.edit.hdr = newheader;
-                const char *nexthdrfield = protocol_list[newheader->id].nexthdr;
-                uint16_t nexthdrnum = ntohs(protocol_list[newheader->id].get_nexthdr(nextheader->id));
-                snprintf(editbuf, 64, "%s=%d", nexthdrfield, nexthdrnum);
-                stringlist_push(&edit->d.edit.assignments, strdup(editbuf));
+                edit->text = strdup(editbuf);
+                //edit->d.edit.hdr = newheader;
+                //TODO stringlist_push_string(&edit->d.edit.assignments, strdup(editbuf));
                 edit->next = stst->actions;
                 stst->actions = edit;
                 process_action(stst); // now edit is the newest action
             }
 
             // set nexthdr for prevheader
-            if (prevheader && protocol_list[prevheader->id].nexthdr != NULL) {
+            if (prevheader && protocol_list[prevheader->id].get_nexthdr != NULL) {
+                struct Protocol *pr = &protocol_list[prevheader->id];
+                unsigned nexthdrfield = pr->nexthdr_idx;
+                uint16_t nexthdrnum;
+                if (!pr->get_nexthdr(&nexthdrnum, newheader->id)) {
+                    //TODO throw exception
+                }
+                snprintf(editbuf, 64, "add sets %s.%s=0x%.4x",
+                        prevheader->name, pr->header_fields[nexthdrfield].name, ntohs(nexthdrnum));
                 edit = calloc_struct(ConfAction);
                 edit->type = CA_EDIT;
-                edit->text = strdup("add sets nexthdr"); //TODO more informative
-                edit->d.edit.hdr = prevheader;
-                const char *nexthdrfield = protocol_list[prevheader->id].nexthdr;
-                uint16_t nexthdrnum = ntohs(protocol_list[prevheader->id].get_nexthdr(newheader->id));
-                snprintf(editbuf, 64, "%s=%d", nexthdrfield, nexthdrnum);
-                stringlist_push(&edit->d.edit.assignments, strdup(editbuf));
+                edit->text = strdup(editbuf);
+                //edit->d.edit.hdr = prevheader;
+                //TODO stringlist_push_string(&edit->d.edit.assignments, strdup(editbuf));
                 edit->next = stst->actions;
                 stst->actions = edit;
                 process_action(stst); // now edit is the newest action
@@ -416,23 +653,12 @@ static void process_action(struct StageState *stst)
             // nothing to do here
             break;
         case CA_EDIT:
-            if (stst->actions->d.edit.hdr) {
-                // find the index of the header that we edit
-                // TODO create a function that does that
-                //      we use it in: add, edit, delay, elim
-                unsigned idx = 0;
-                struct HeaderDescriptor *h = stst->headers;
-                while (h) {
-                    if (h == stst->actions->d.edit.hdr) {
-                        break;
-                    }
-                    if (h->state != CH_DEL) idx++;
-                    h = h->next;
-                }
-                //TODO process the field assignments here: prepare constants, find source objects etc.
+            if (stst->actions->d.edit.assignments != NULL) {
+                //TODO reverse the list
+
                 //TODO compile them into HeaderFieldAssign array? no do that in assemble_actions()
             } else {
-                //TODO throw exception: no header to edit
+                //TODO throw exception: no assignments in edit
             }
             break;
         case CA_ELIM:
@@ -603,9 +829,73 @@ struct Action *assemble_actions(const struct ConfAction *ca_list, unsigned *acti
     return ret;
 }
 
+static const char *confaction_name_from_type(enum ConfActionType type)
+{
+    switch (type) {
+        case CA_ADD:
+            return "Add";
+        case CA_CALL:
+            return "Call";
+        case CA_DEL:
+            return "Del";
+        case CA_DELAY:
+            return "Delay";
+        case CA_DROP:
+            return "Drop";
+        case CA_EDIT:
+            return "Edit";
+        case CA_ELIM:
+            return "Eliminate";
+        case CA_POF:
+            return "POF";
+        case CA_REPL:
+            return "Replicate";
+        case CA_SEND:
+            return "Send";
+    }
+    return NULL;
+}
+
 void print_actions(const struct ConfAction *ca_list)
 {
     for (const struct ConfAction *ca = ca_list; ca; ca=ca->next) {
-        fprintf(stderr, "ConfAction %d\n", ca->type); //TODO
+        fprintf(stderr, "ConfAction %d %s '%s'\n",
+                ca->type, confaction_name_from_type(ca->type), ca->text);
+        switch (ca->type) {
+        case CA_ADD:
+            printf("  new name %s type %s id %d len %u\n"
+                   "  position %s %s index %u\n",
+                    ca->d.add.newname, ca->d.add.newtype, ca->d.add.id, ca->d.add.len,
+                    (ca->d.add.beforeafter==ADD_BEFORE?"before":"after"),
+                    ca->d.add.pos->name, ca->d.add.pos_idx);
+            break;
+        case CA_CALL:
+            printf("  \n");
+            break;
+        case CA_DEL:
+            printf("  \n");
+            break;
+        case CA_DELAY:
+            printf("  \n");
+            break;
+        case CA_DROP:
+            printf("  \n");
+            break;
+        case CA_EDIT:
+            printf("  \n");
+            break;
+        case CA_ELIM:
+            printf("  \n");
+            break;
+        case CA_POF:
+            printf("  \n");
+            break;
+        case CA_REPL:
+            printf("  \n");
+            break;
+        case CA_SEND:
+            printf("  \n");
+            break;
+        }
     }
 }

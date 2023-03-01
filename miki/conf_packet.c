@@ -124,7 +124,9 @@ struct HeaderDescriptor *process_packet_line(const char *stream, char *line)
         .headers = NULL
     };
     foreach_stages(line, process_stage, &stst);
-    //TODO what if we have no headers? is that legal?
+    if (stst.headers == NULL) {
+        //TODO throw exception: no headers
+    }
 
     stst.headers = reverse_header_list(stst.headers);
 

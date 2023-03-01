@@ -41,7 +41,7 @@ const char *action_name_from_type(enum ActionType type)
 struct AddData {
     unsigned idx;
     int type;
-    size_t len;
+    unsigned len;
 };
 
 static enum ActionResult action_add_execute(struct Action *a, struct PipelineIterator *pi)
@@ -51,7 +51,7 @@ static enum ActionResult action_add_execute(struct Action *a, struct PipelineIte
     return ACR_CONTINUE;
 }
 
-void create_action_add(struct Action *a, unsigned idx, int type, size_t len, const char *text)
+void create_action_add(struct Action *a, unsigned idx, int type, unsigned len, const char *text)
 {
     bzero(a, sizeof(*a));
     a->type = ACT_ADD;

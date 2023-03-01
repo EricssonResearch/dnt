@@ -32,7 +32,9 @@ static void packetline_cb(const char *key, void *value, void *userdata)
             char *streamname = strndup(key, colon-key);
 
             struct HeaderDescriptor *headers = process_packet_line(streamname, packetline);
-            //TODO is it legal to have no headers?
+            if (headers == NULL) {
+                //TODO error
+            }
 
             // find the matching :actions line
             int achars = snprintf(NULL, 0, "%s:actions", streamname);
@@ -49,6 +51,7 @@ static void packetline_cb(const char *key, void *value, void *userdata)
             if (actions == NULL) {
                 //TODO error
             }
+            print_actions(actions);
 
             // find the matching :iface line (it's optional)
             int ichars = snprintf(NULL, 0, "%s:iface", streamname);

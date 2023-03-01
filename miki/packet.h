@@ -2,9 +2,9 @@
 #ifndef R2_PACKET_H
 #define R2_PACKET_H
 
+#include "transfer.h"
+
 #include <stdbool.h>
-#include <stddef.h>
-#include <sys/types.h>
 #include <time.h>
 
 //TODO move the defines in a central location?
@@ -35,11 +35,11 @@ struct Packet {
     unsigned header_count;
 
     struct Interface *from;
-    struct timespec arrival_time;
+    struct timespec recv_time;
 
-    // metadata we can read from the packet
-    unsigned timestamp;
-    unsigned sequence;
+    // packet properties that Edit can read-write
+    unsigned timestamp; // holds a ttag
+    unsigned sequence;  // holds a rtag
 };
 
 struct Packet *new_packet(struct Interface *from);
@@ -68,6 +68,18 @@ void packet_add_header(struct Packet *p, unsigned idx, int type, unsigned len);
 // removes a header and forgets it
 // all the headers after @idx will be shifted in the array
 void packet_del_header(struct Packet *p, unsigned idx);
+
+enum ProtocolFieldType packet_get_property_type(const char *name);
+
+// @returns a consumer function to write the given packet property
+// the size and offset of @source is checked for compatibility
+// @returns NULL if @name is invalid or @source is incompatible
+value_consumer *packet_get_property_writer(const char *name, struct Value *source);
+
+// @returns a producer function to read the given packet property
+// the size and offset of @target is checked for compatibility
+// @returns NULL if @name is invalid or @target is incompatible
+value_producer *packet_get_property_reader(const char *name, struct Value *target);
 
 
 #endif // R2_PACKET_H

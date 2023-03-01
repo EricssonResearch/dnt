@@ -3,8 +3,6 @@
 
 This document is about the processing of the `:packet` and `:actions` lines of the *streams* section in the config. For the full documentation of the config see *inispec.md*.
 
-TODO clean up this mess
-
 ## Actions in the C pipeline
 
 These are the actions the C code can perform on the packet.
@@ -26,7 +24,7 @@ This is not 1:1 correspondence to the config commands.
 
 ### Finding the packet and action lines
 
-Step one is to find a matching `packet` and `action` line. Foreach on the keys, scan for `packet`, find matching `action`. Then do the reverse. This way we can detect if one is missing. First process `packet` into a list of headers.
+Step one is to find a matching `packet` and `actions` line. Foreach on the keys, scan for `packet`, find matching `actions`. Then do the reverse. This way we can detect if either one is missing. First process `packet` into a list of headers, then supply that to the actions parser.
 
 ### Split the line into tokens
 
@@ -36,31 +34,11 @@ First split the line by ';' to separate the stages.
 
 Then split the stage by whitespace into tokens. There can be any amount of whitespace between the tokens.
 
-### Parsing field assignment
-
-They have the syntax of `fieldname=value`. These can appear in packet header descriptions and actions (add, edit). The `fieldname` never contains header type, that is supplied in another way.
-
-The value for a field assignment can be
-
-* Constant (can be simple number, mac address, ip address, time with suffix), we store all of these in network byte order
-* Header field in this form: `header.field`
-* Interface property e.g. if3.mac (TODO what if the interface name is a valid protocol name? use a heuristic)
-* Packet property: packet.timestamp, packet.sequence
-* Value generator object's name (seq gen, timestamp etc.), validated against the list of defined objects
-
-In header description we only accept constants for the matching.
-
-### Parsing substitution
-
-This is used by the `call` action. It has the syntax of `name=value`. Name is any alphanumeric word. Value can be any valid value for a field assignment.
-
-The `call` action substitutes field values in the form of `%name%` to the corresponding value when inlining the referenced pipeline.
-
 ## Parsing a packet header description
 
 The first token is in the form of `headertype[_identifier]`. If `headertype` is unknown throw exception. If `identifier` is missing, the name of the header is `headertype`.
 
-The subsequent tokens are field assignments (`fieldname=value`). If `headertype` has no such field, throw exception. These tokens are optional, if they exist they will be used to identify the stream the packet belongs to.
+The subsequent tokens are field assignments (`fieldname=value`). If `headertype` has no such field, throw exception. The value must be a constant (see the constant types at the `edit` action). These tokens are optional, if they exist they will be used to identify the stream the packet belongs to.
 
 The result of this parsing is a linked list of header descriptors that can be fed into the parse tree builder, and the action parser also uses it.
 
@@ -76,9 +54,13 @@ The actions have action-specific arguments.
 
 Syntax: `add {before|after} headername newheadername fieldassignment [more fieldassignments]`
 
-The syntax for `newheadername` is the same as `headername`. We create the newly added headers in the original list with a `new` flag. TODO if we want to use the original header list after the action compiler we need to remove these
+The syntax for `newheadername` is the same as `headername`.
 
-This action is split into an add header and an edit header action.
+Implementation note: we create the newly added headers in the original header list with a `new` flag to track the header indexes. After all the actions have been processed these extra headers are removed from the list.
+
+The `fieldassignment` is similar to the `edit` action, but here the field *must* refer to the newly created header, so it must not contain the *headername* part. This also applies to the header matching in the *:packet* line, and in that line the value must be a constant.
+
+Implementation note: this action is split into an "add header" and an "edit header" action.
 
 ### call
 
@@ -86,7 +68,7 @@ Syntax: `call pipelinename [substitutions]`
 
 This finds a key in the *streams* section with the name `pipelinename`, interprets its value as an action list, and inlines that list into the current action list. No `CALL` action is allowed in the final Action list!
 
-Additional arguments are substitutions in the form of `key=value`. After the refrenced pipeline is loaded from the config, but before its processing, there is a string substitution phase. The "{key}" placeholders in the string are replaced by the corresponting value from the substitution list. An error is generated if no substitution is found for *key*.
+Additional arguments are substitutions in the form of `key=value`. After the referenced pipeline is loaded from the config, but before its processing, there is a string substitution phase. The "{key}" placeholders in the pipeline string are replaced by the corresponding value from the substitution list. An error is generated if no substitution is found for *key*.
 
 ### del
 
@@ -98,21 +80,47 @@ The referenced header is marked as deleted, but not really removed from the link
 
 Syntax: `delay timestamp_field delay_value`
 
-The `timestamp_field` is in the form of `header.field` just like in value assignment.
+The `timestamp_field` is in the same form as the left hand side of an `edit` assignment.
 
-The `delay_value` is a constant that has to be of type time.
+The `delay_value` is a constant that has to be of type *time*.
 
 ### drop
 
 Syntax: `drop`
 
-TODO error if this is not the last action in the pipeline
+This action must be the last action in the pipeline.
 
 ### edit
 
-Syntax: `edit headername fieldassignment [more fieldassignments]`
+Syntax: `edit assignment [more assignments]`
 
-This can have multiple assignments to the same header.
+The syntax for `assignment` is the following: `place.field=value`, where `place.field` can be:
+
+* `headername.fieldname` referring to a header field in the packet
+* `packet.propertyname` referring to a property slot in the packet descriptor; currently supported slots for writing:
+    * `seq` 32 bit, designed to hold `rtag.seq`
+    * `tstamp` 32b bit, designed to hold `ttag.tstamp`
+
+The `value` can be:
+
+* `headername.fieldname`, the bit length of this value must be the same as the left hand side
+* `interfacename.propertyname`, the valid properties depend on the type of the interface
+    * TODO document the valid properties
+* `packet.propertyname`, the bit length of this value must be the same as the left hand side; currently supported slots for reading:
+    * seq
+    * tstamp
+    * recvtime: this is a read-only property, generated by the interface upon packet reception
+* value generator object; currently supported generator types:
+    * sequence generator object, referred by its name
+    * timestamp generator, referred as `timestamp`
+* constant: constants are typed, the left-hand-side of the expression determines what format the constant needs to be (constants are stored in network byte order)
+    * number in decimal or hexadecimal format
+    * time with one of the following suffixes: *s*, *ms*, *us*, *ns*
+    * MAC address
+    * IPv4 address
+    * IPv6 address
+
+The above types are checked in the above order, so if you have an interface named *eth*, and you write `something=eth.mac` it won't work, because it will be understood as a header name, and the `eth` header has `smac` and `dmac` fields.
 
 ### eliminate
 
@@ -128,10 +136,10 @@ The `eliminate` command can be omitted, the object name is enough to deduce the 
 
 Syntax: `objectname [object-specific parameters]`
 
-Some objects instantiated in the *objects* section can be used as actions without specifying the action type. Such objects are:
+Some objects instantiated in the *objects* section can be used as actions, and they infer the appropriate action type. Such objects are:
 
-* pof object as *pof*
-* sequence recovery object as *eliminate*
+* pof object as *pof* action
+* sequence recovery object as *eliminate* action
 
 ### pof
 
@@ -147,9 +155,9 @@ The `pof` command can be omitted, the object name is enough to deduce the action
 
 Syntax: `replicate pipelinename [more pipelinename]`
 
-The `pipelinename` is a key in the *streams* section with the name `pipelinename`. This processes the referenced pipelines and the result is stored in the action descriptor.
+The `pipelinename` is a key in the *streams* section with the name `pipelinename`. This processes the referenced pipelines and the result is stored in the action descriptor. Unlike `call` this does not do string substitutions.
 
-TODO error if this is not the last action in the pipeline
+This action must be the last action in the pipeline.
 
 ### send
 
@@ -157,14 +165,10 @@ Syntax: `send interface`
 
 The `interface` refers to an interface defined in the *interfaces* section by name.
 
-## Validations
-
-Validation of `headername` is performed immediately, and a pointer to the corresponding header descriptor is stored.
-
 
 ## Compiling the action descriptors into Actions
 
-The result of this parsing is a linked list of action descriptors that will be compiled into an array of Action structures.
+The result of this parsing is a linked list of action descriptors that will be compiled into an array of Action structures when creating the action pipeline..
 
 ## Additional comments
 
@@ -178,10 +182,10 @@ seqgen1 = gen reset=1
 
 [sreams]
 s1:packet = eth; svlan; cvlan
-s1:actions = edit svlan vid=10; add after svlan rtag seq=seqgen1; send if3
+s1:actions = edit svlan.vid=10; add after svlan rtag seq=seqgen1; send if3
 s2:packet = eth; cvlan
 s2:actions = add after eth svlan vid=20; add after svlan rtag seq=seqgen1; replicate s2path1 s2path2
-s2path1 = edit eth dmac=X:Y:Z; send if3
+s2path1 = edit eth.dmac=X:Y:Z cvlan.vid=20; send if3
 s2path2 = send if4
 ```
 

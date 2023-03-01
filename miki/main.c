@@ -25,6 +25,7 @@ static void sigint_handler(int sig, siginfo_t *si, void *uc)
     (void)si;
     (void)uc;
 
+    printf("SIGINT caught\n");
     sigint_count++;
 }
 

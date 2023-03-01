@@ -38,10 +38,10 @@ def start_network():
     na.cmd("ip a a 10.0.4.1/24 dev ethAD")
 
 
-    na.cmd("ip l a link ethAB name ethAB.r2tunnel type vlan id 100")
+    na.cmd("ip l a link ethAB name ethAB.r2tunnel type vlan id 1000")
     na.cmd("ip a a 192.168.1.1/24 dev ethAB.r2tunnel")
     na.cmd("ip l set up dev ethAB.r2tunnel")
-    nc.cmd("ip l a link ethCB name ethCB.r2tunnel type vlan id 100")
+    nc.cmd("ip l a link ethCB name ethCB.r2tunnel type vlan id 1000")
     nc.cmd("ip a a 192.168.1.3/24 dev ethCB.r2tunnel")
     nc.cmd("ip l set up dev ethCB.r2tunnel")
 

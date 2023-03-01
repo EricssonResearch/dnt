@@ -62,8 +62,8 @@ static struct Packet *eth_recv(struct Interface *iface)
     }
 
     //TODO ask for kernel RX timestamping and use that
-    //  ask for both HW and SW, if HW==0 use SW
-    clock_gettime(CLOCK_REALTIME, &p->arrival_time);
+    //  ask for both HW and SW, if HW==0 use SW (?)
+    clock_gettime(CLOCK_REALTIME, &p->recv_time);
 
     if (res > 0) {
         p->len = res;
@@ -241,11 +241,11 @@ static bool eth_open(struct Interface *iface)
                 perror("setsockopt SO_RCVBUF");
                 return false;
             }
-            if (getsockopt(sock, SOL_SOCKET, SO_RCVBUF, &recvbuf_len, &sl) < 0) {
+            /*if (getsockopt(sock, SOL_SOCKET, SO_RCVBUF, &recvbuf_len, &sl) < 0) {
                 perror("getsockopt SO_RCVBUF");
                 return false;
             }
-            printf("eth %s %s sock %u recvbuf_len %d\n", iface->name, iface->ifname, i, recvbuf_len);
+            printf("eth %s %s sock %u recvbuf_len %d\n", iface->name, iface->ifname, i, recvbuf_len);*/
         }
         eid->sockfd[i] = sock;
         eid->pcp_used[i] = 1;

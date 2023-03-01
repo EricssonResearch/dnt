@@ -2,8 +2,6 @@
 #ifndef R2_ACTION_H
 #define R2_ACTION_H
 
-#include <stddef.h>
-
 enum ActionType {
     ACT_ADD = 1,
     ACT_DEL,
@@ -51,7 +49,7 @@ struct PipelineList {
 const char *action_name_from_type(enum ActionType type);
 
 // this just adds the header, the fields will be set with an edit action
-void create_action_add(struct Action *a, unsigned idx, int type, size_t len, const char *text);
+void create_action_add(struct Action *a, unsigned idx, int type, unsigned len, const char *text);
 
 void create_action_del(struct Action *a, unsigned idx, const char *text);
 

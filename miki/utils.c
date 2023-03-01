@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-void *memdup(const void *src, size_t size)
+void *memdup(const void *src, unsigned size)
 {
     void *dst = malloc(size);
     memcpy(dst, src, size);

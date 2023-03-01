@@ -55,7 +55,7 @@ The elementary actions are the following:
 
 * `add {before|after} header newheader fieldname=fieldvalue` adds a new header of type `newheader` with the given field values at the given position
 * `del header` removes the given header from the packet
-* `edit header fieldname=newvalue` changes the given field of the given header, multiple fields can be edited at once, separated by space, can edit headers created by `add`
+* `edit header.fieldname=newvalue` changes the given field of the given header, multiple fields can be edited at once, separated by space, can edit headers created by `add`, can edit multiple headers
 * `send iface` sends out the packet on the given interface from the *interfaces* list
 * `drop` unconditionally drops the packet
 * `replicate pipeline1 pipeline2` makes copies of the packet and continues processing them on the given pipelines, this can create any number of branches

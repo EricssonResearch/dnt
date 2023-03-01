@@ -7,12 +7,15 @@
 void foreach_stages(char *line, foreach_callback *cb, void *userdata)
 {
     char *l = line;
+    while (*l && isspace(*l)) l++; // skip leading whitespace
+    if (*l == 0) return;
     while (1) {
         char *sc = strchr(l, ';');
         if (sc) {
             *sc = 0;
             if (!cb(l, userdata)) return;
             l = sc + 1;
+            while (*l && isspace(*l)) l++; // skip leading whitespace
             if (*l == 0) return;
         } else {
             cb(l, userdata);
