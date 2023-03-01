@@ -24,19 +24,18 @@ def start_network():
 
     net.build()
 
-    # config addresses
-    na.cmd("ip a a 10.0.1.1/24 dev ethAB")
-    nb.cmd("ip a a 10.0.1.2/24 dev ethBA")
+    # config addresses, disable tx checksum offload
+    na.cmd("ip a a 10.0.1.1/24 dev ethAB; ethtool -K ethAB tx off")
+    nb.cmd("ip a a 10.0.1.2/24 dev ethBA; ethtool -K ethBA tx off")
 
-    nb.cmd("ip a a 10.0.2.2/24 dev ethBC")
-    nc.cmd("ip a a 10.0.2.3/24 dev ethCB")
+    nb.cmd("ip a a 10.0.2.2/24 dev ethBC; ethtool -K ethBC tx off")
+    nc.cmd("ip a a 10.0.2.3/24 dev ethCB; ethtool -K ethCB tx off")
 
-    nc.cmd("ip a a 10.0.3.3/24 dev ethCD")
-    nd.cmd("ip a a 10.0.3.4/24 dev ethDC")
+    nc.cmd("ip a a 10.0.3.3/24 dev ethCD; ethtool -K ethCD tx off")
+    nd.cmd("ip a a 10.0.3.4/24 dev ethDC; ethtool -K ethDC tx off")
 
-    nd.cmd("ip a a 10.0.4.4/24 dev ethDA")
-    na.cmd("ip a a 10.0.4.1/24 dev ethAD")
-
+    nd.cmd("ip a a 10.0.4.4/24 dev ethDA; ethtool -K ethDA tx off")
+    na.cmd("ip a a 10.0.4.1/24 dev ethAD; ethtool -K ethAD tx off")
 
     na.cmd("ip l a link ethAB name ethAB.r2tunnel type vlan id 1000")
     na.cmd("ip a a 192.168.1.1/24 dev ethAB.r2tunnel")
