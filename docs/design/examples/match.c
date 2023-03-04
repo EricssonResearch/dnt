@@ -66,7 +66,7 @@ struct ip_hdr {
 } __attribute__((packed, scalar_storage_order("big-endian")));
 
 
-size_t header_size(int proto)
+size_t get_header_size(int proto)
 {
 	size_t ret = 0;
 	switch (proto) {	
@@ -155,17 +155,27 @@ bool eth_match(const char *p, const struct value *v)
 	const struct eth_hdr *eh = (struct eth_hdr *) p;
 	const struct eth_hdr *ehv = (struct eth_hdr *) v->hdr_data;
 	if(v->select & ETH_DMAC)
-		match &= (eh->dmac == ehv->dmac);
+		match &= !memcmp(eh->dmac, ehv->dmac, sizeof(eh->dmac));
 	if(v->select & ETH_SMAC)
-		match &= (eh->smac == ehv->smac);
+		match &= !memcmp(eh->smac, ehv->smac, sizeof(eh->smac));
 	return match;
+};
+
+void eth_edit(const char *p, const struct value *v)
+{
+	struct eth_hdr *eh = (struct eth_hdr *) p;
+	const struct eth_hdr *ehv = (struct eth_hdr *) v->hdr_data;
+	if(v->select & ETH_DMAC)
+		memcpy(eh->dmac, ehv->dmac, sizeof(eh->dmac));
+	if(v->select & ETH_SMAC)
+		memcpy(eh->smac, ehv->smac, sizeof(eh->smac));
 };
 
 void eth_print(const char *h)
 {
 	const struct eth_hdr *eh = (struct eth_hdr *)h;
-	printf("smac=%hhx:%hhx:%hhx:%hhx:%hhx:%hhx ", eh->smac[0], eh->smac[1], eh->smac[2], eh->smac[3],eh->smac[4], eh->smac[5]);
-	printf("dmac=%hhx:%hhx:%hhx:%hhx:%hhx:%hhx ", eh->dmac[0], eh->dmac[1], eh->dmac[2], eh->dmac[3],eh->dmac[4], eh->dmac[5]);
+	printf("dmac=%02x:%02x:%02x:%02x:%02x:%02x ", eh->dmac[0], eh->dmac[1], eh->dmac[2], eh->dmac[3],eh->dmac[4], eh->dmac[5]);
+	printf("smac=%02x:%02x:%02x:%02x:%02x:%02x ", eh->smac[0], eh->smac[1], eh->smac[2], eh->smac[3],eh->smac[4], eh->smac[5]);
 	printf("type: %x\n", eh->type);
 }
 
@@ -195,6 +205,17 @@ void packet_print(const struct packet *p)
 	}
 }
 
+void packet_hex(const struct packet *p)
+{
+	for (int i = 0; i < p->num_hdrs; ++i) {
+		const struct header *h = &p->hdrs[i];
+		size_t len = get_header_size(h->proto_type);
+		for (size_t j = h->off; j < h->off + len; ++j)
+			printf("%02x ", 255 & p->buff[j]);
+		printf("|");
+	}
+	printf("\n");
+}
 
 int main()
 {
@@ -211,8 +232,18 @@ int main()
 	pkt.hdrs[0].proto = &eth_proto;
 
 	packet_print(&pkt);
+	packet_hex(&pkt);
 
 	struct value *my_eth = eth_val_from_str("dmac=00:00:00:00:00:ee smac=00:00:00:00:00:cc");
+	struct value *my_eth_same = eth_val_from_str("dmac=00:00:00:00:00:0a smac=00:00:00:00:00:0b");
 	eth_print(my_eth->hdr_data);
+	printf("pkt.eth_hdr == value.eth_hdr: %s\n", eth_match(data, my_eth) ? "true" : "false");
+	printf("pkt.eth_hdr == value.eth_hdr: %s\n", eth_match(data, my_eth_same) ? "true" : "false");
+	printf("Edit packet ---\n");
+	eth_edit(data, my_eth);
+	printf("pkt.eth_hdr == value.eth_hdr: %s\n", eth_match(data, my_eth) ? "true" : "false");
+	printf("pkt.eth_hdr == value.eth_hdr: %s\n", eth_match(data, my_eth_same) ? "true" : "false");
+	packet_print(&pkt);
+	packet_hex(&pkt);
 }
 
