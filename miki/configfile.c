@@ -49,7 +49,7 @@ struct R2d2Config *read_config(const char *filename)
             //TODO error
         }
     } else {
-        ret->objects = new_hashmap(3, NULL, NULL);
+        ret->objects = new_hashmap(1, NULL, NULL);
     }
 
     ret->streams = parse_streams(streams_sec, ret->ifaces, ret->ifcount, ret->objects);

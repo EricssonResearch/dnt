@@ -132,6 +132,8 @@ enum ProtocolFieldType packet_get_property_type(const char *name)
         return FT_TSNSEQ;
     } else if (strcmp(name, "tstamp") == 0) {
         return FT_TSNTSTAMP;
+    } else if (strcmp(name, "recvtime") == 0) {
+        return FT_TSNTSTAMP;
     } else {
         return FT_UNKNOWN;
     }
@@ -181,6 +183,9 @@ static void read_tstamp(void *state, value_consumer *consumer, void *consumer_st
 static void read_recvtime(void *state, value_consumer *consumer, void *consumer_state, struct Packet *p)
 {
     (void)state;
+    //TODO ez nem jó, egyrészt 20 bit másrészt htonl harmadrészt utilba kéne rakni
+    //      util vagy conf_util?
+    //      hol kell még használni?
     unsigned time = ((p->recv_time.tv_sec % 2) << 16) + p->recv_time.tv_nsec / 1000;
     struct Value v = {.value=&time, .bitoffset = 0, .bitcount = 32};
     consumer(consumer_state, &v, p);

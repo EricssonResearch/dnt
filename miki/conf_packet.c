@@ -7,99 +7,63 @@
 
 #include <stdbool.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
-
-//TODO throw exceptions with longjump
 
 struct StageState {
     const char *stream;
     struct HeaderDescriptor *headers;
+    bool error;
 };
-
-
-static struct HeaderMatch *match_list_pop(struct HeaderMatch **list)
-{
-    struct HeaderMatch *ret = *list;
-    *list = (*list)->next;
-    ret->next = NULL;
-    return ret;
-}
-
-static struct HeaderMatch *match_list_push(struct HeaderMatch *list, struct HeaderMatch *e)
-{
-    e->next = list;
-    return e;
-}
-
-//TODO template <class T> reverse_list(T *list)
-static struct HeaderMatch *reverse_match_list(struct HeaderMatch *list)
-{
-    struct HeaderMatch *newlist = NULL;
-    while (list) {
-        struct HeaderMatch *e = match_list_pop(&list);
-        newlist = match_list_push(newlist, e);
-    }
-    return newlist;
-}
-
-static struct HeaderDescriptor *header_list_pop(struct HeaderDescriptor **list)
-{
-    struct HeaderDescriptor *ret = *list;
-    *list = (*list)->next;
-    ret->next = NULL;
-    return ret;
-}
-
-static struct HeaderDescriptor *header_list_push(struct HeaderDescriptor *list, struct HeaderDescriptor *e)
-{
-    e->next = list;
-    return e;
-}
-
-//TODO template <class T> reverse_list(T *list)
-static struct HeaderDescriptor *reverse_header_list(struct HeaderDescriptor *list)
-{
-    struct HeaderDescriptor *newlist = NULL;
-    while (list) {
-        struct HeaderDescriptor *e = header_list_pop(&list);
-        newlist = header_list_push(newlist, e);
-    }
-    return newlist;
-}
 
 static bool process_token(char *token, void *userdata)
 {
+#define THROW(msg, ...)                                             \
+    do {                                                            \
+        fprintf(stderr, "stream %s header %s: " msg "\n",           \
+                stst->stream, stst->headers->name, ##__VA_ARGS__);  \
+        stst->error = true;                                         \
+        return false;                                               \
+    } while (0)
+
     struct StageState *stst = userdata;
 
     if (stst->headers->name) {
         char *key, *val;
         if (parse_assignment(token, &key, &val)) {
-            if (!protocol_fieldname_valid(stst->headers->id, key)) {
-                //TODO throw exception: invalid field for protocol
+            struct ProtocolField *f =  protocol_get_field_by_name(stst->headers->id, key);
+            if (f == NULL) {
+                THROW("invalid field %s", key);
             }
 
             struct HeaderMatch *newmatch = calloc_struct(HeaderMatch);
-            newmatch->fieldname = strdup(key);
-            newmatch->fieldvalue = strdup(val);
             newmatch->next = stst->headers->matches;
             stst->headers->matches = newmatch;
+            newmatch->field = f;
+            newmatch->value.bitoffset = f->bitoffset;
+            newmatch->value.bitcount = f->bitcount;
+            if (!read_constant(&newmatch->value, f->type, val)) {
+                THROW("value '%s' doesn't fit into field '%s'", val, key);
+            }
         } else {
-            //TODO throw exception: 'token' is not a valid header field match
+            THROW("'%s' is not a valid header field match", token);
         }
     } else {
         stst->headers->name = strdup(token);
         stst->headers->type = header_type_from_name(token);
         stst->headers->id = protocol_id_from_type(stst->headers->type);
         if (stst->headers->id < 0) {
-            //TODO throw exception: unknown protocol
+            THROW("unknown protocol '%s'", stst->headers->type);
         }
     }
 
     return true;
+#undef THROW
 }
 
 static bool process_stage(char *stage, void *userdata)
 {
+    //TODO define THROW
     struct StageState *stst = userdata;
 
     struct HeaderDescriptor *newheader = calloc_struct(HeaderDescriptor);
@@ -111,24 +75,32 @@ static bool process_stage(char *stage, void *userdata)
     if (stst->headers->name == NULL) {
         //TODO throw exception: no header type in stage
     }
+    if (stst->error) {
+        //TODO throw exception
+    }
 
-    stst->headers->matches = reverse_match_list(stst->headers->matches);
+    REVERSE_LIST(stst->headers->matches);
 
     return true;
 }
 
 struct HeaderDescriptor *process_packet_line(const char *stream, char *line)
 {
+    //TODO define THROW
     struct StageState stst = {
         .stream = stream,
-        .headers = NULL
+        .headers = NULL,
+        .error = false
     };
     foreach_stages(line, process_stage, &stst);
     if (stst.headers == NULL) {
         //TODO throw exception: no headers
     }
+    if (stst.error) {
+        //TODO throw exception
+    }
 
-    stst.headers = reverse_header_list(stst.headers);
+    REVERSE_LIST(stst.headers);
 
     return stst.headers;
 }

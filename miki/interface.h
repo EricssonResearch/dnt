@@ -2,6 +2,9 @@
 #ifndef R2_INTERFACE_H
 #define R2_INTERFACE_H
 
+#include "protocol.h"
+#include "transfer.h"
+
 #include <stdbool.h>
 
 struct Interface;
@@ -34,6 +37,11 @@ typedef bool iface_open(struct Interface *iface);
 // @returns false on error
 typedef bool iface_close(struct Interface *iface);
 
+// @return a function that can read @property of the interface
+// @type is the type the consumer wants
+// the bitoffset and bitlength of the property should be set in @value
+typedef value_producer *iface_get_property_reader(const struct Interface *iface, const char *property, enum ProtocolFieldType type, struct Value *value);
+
 struct Interface {
     enum IfaceType type;
     char *name;
@@ -44,6 +52,7 @@ struct Interface {
     iface_send *send;
     iface_open *open;
     iface_close *close_; // private TODO mark all private members
+    iface_get_property_reader *get_property_reader;
     void *iface_private;
     unsigned reference_count;
     bool shutdown; // stop receiving when this is set
@@ -62,6 +71,8 @@ struct Interface {
 
 // no global init(), each interface type has its own
 
+// TODO we should keep the interfaces in a hash, not an array
+
 void iface_set_parsetree(struct Interface *iface, struct ParseTree *pt);
 
 // closes the interface but doesn't free the given pointer (iface is in an array!)
@@ -75,5 +86,6 @@ void iface_ref(struct Interface *iface);
 // remove a reference from the interface
 // the interface closes when shutdown=true AND refcount=0
 void iface_unref(struct Interface *iface);
+
 
 #endif // R2_INTERFACE_H

@@ -69,15 +69,18 @@ void packet_add_header(struct Packet *p, unsigned idx, int type, unsigned len);
 // all the headers after @idx will be shifted in the array
 void packet_del_header(struct Packet *p, unsigned idx);
 
+// @returns FT_UNKNOWN for invalid property name
 enum ProtocolFieldType packet_get_property_type(const char *name);
 
 // @returns a consumer function to write the given packet property
 // the size and offset of @source is checked for compatibility
+// the consumer has no state other than the packet
 // @returns NULL if @name is invalid or @source is incompatible
 value_consumer *packet_get_property_writer(const char *name, struct Value *source);
 
 // @returns a producer function to read the given packet property
 // the size and offset of @target is checked for compatibility
+// the producer has no state other than the packet
 // @returns NULL if @name is invalid or @target is incompatible
 value_producer *packet_get_property_reader(const char *name, struct Value *target);
 

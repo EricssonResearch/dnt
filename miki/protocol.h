@@ -51,6 +51,7 @@ extern struct Protocol protocol_list[];
 extern unsigned protocol_count;
 
 //TODO autogenerate this list (and turn it into an enum)
+#define PROTO_ID_PAYLOAD 0
 #define PROTO_ID_ETH 1
 #define PROTO_ID_SVLAN 2
 #define PROTO_ID_CVLAN 3

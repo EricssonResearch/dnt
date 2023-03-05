@@ -149,3 +149,17 @@ struct HashMap *process_objects(struct IniSection *objects_section)
 
     return ret;
 }
+
+const char *confobject_name_from_type(enum ConfObjectType type)
+{
+    switch (type) {
+        case CO_SEQGEN:
+            return "SeqGen";
+        case CO_SEQREC:
+            return "SeqRec";
+        case CO_POF:
+            return "POF";
+    }
+    return NULL;
+}
+

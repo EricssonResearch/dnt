@@ -51,7 +51,7 @@ static bool ethertype_from_id(uint16_t *nexthdr, int id)
     return true;
 }
 
-static struct ProtocolField dummy_fields[] = {
+static struct ProtocolField payload_fields[] = {
 };
 
 static struct ProtocolField eth_fields[] = {
@@ -82,7 +82,7 @@ static struct ProtocolField rttag_fields[] = {
 
 //TODO autogenerate this list
 struct Protocol protocol_list[] = {
-    {"dummy", dummy_fields, 0, 0, 0, NULL, NULL}, // dummy for id=0
+    {"payload", payload_fields, 0, 0, 0, NULL, NULL},
     {"eth", eth_fields, ARRAY_SIZE(eth_fields), 6+6+2, 2, id_from_ethertype, ethertype_from_id},
     {"svlan", vlan_fields, ARRAY_SIZE(vlan_fields), 4, 3, id_from_ethertype, ethertype_from_id},
     {"cvlan", vlan_fields, ARRAY_SIZE(vlan_fields), 4, 3, id_from_ethertype, ethertype_from_id},

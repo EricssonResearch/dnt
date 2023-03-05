@@ -1,60 +1,134 @@
 
 #include "header.h"
 #include "packet.h"
+#include "utils.h"
 
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-//TODO include this at more places?
 #include <inttypes.h>
 
-static void assign_bytes(void *state, struct Value *value, struct Packet *p)
+struct HeaderField *new_headerfield(unsigned header_idx, unsigned bitoffset, unsigned bitcount)
+{
+    struct HeaderField *ret = calloc_struct(HeaderField);
+    ret->header_idx = header_idx;
+    ret->bitoffset = bitoffset;
+    ret->bitcount = bitcount;
+    return ret;
+}
+
+
+// only full bytes, no loose bits at the beginning or the end
+static void write_bytes(void *state, struct Value *value, struct Packet *p)
 {
     struct HeaderField *field = state;
-    uint8_t *src = value->value;
+    uint8_t *src = value->value + value->bitoffset/8;
     uint8_t *dst = p->buf + p->headers[field->header_idx].start + field->bitoffset/8;
-    unsigned len = field->bitcount / 8;
+    unsigned len = value->bitcount / 8;
     memcpy(dst, src, len);
 }
 
-
-value_consumer *get_assign_function(const struct HeaderField *target, const struct Value *source)
+// set bits in a single byte
+static void write_bits(void *state, struct Value *value, struct Packet *p)
 {
-    if (source->bitcount > target->bitcount) {
-        //TODO error
-        return NULL;
-    }
-    if ((target->bitoffset % 8) == 0 && (target->bitcount % 8) == 0 && (source->bitoffset % 8) == 0) {
-        return assign_bytes;
-    }
+    struct HeaderField *field = state;
+    uint8_t *src = value->value + value->bitoffset/8;
+    uint8_t *dst = p->buf + p->headers[field->header_idx].start + field->bitoffset/8;
 
-    //TODO more variations:
-    //      assign_bits for non-octet-based stuff
-    //      special optimized cases may be useful for
-    //          3bit  (priority)
-    //          12bit (vlan id)
-    //          20bit (mpls label)
-
-    return NULL;
+    unsigned bitoffset = field->bitoffset % 8;
+    unsigned bitcount = field->bitcount;
+    unsigned shift = 8 - bitoffset - bitcount;
+    unsigned char mask = 1 << bitcount; // we know bitcount < 8
+    mask -= 1;
+    mask <<= shift;
+    dst[0] &= ~mask;
+    dst[0] |= src[0] & mask;
 }
 
+// generic writer of any number of bits over any number of bytes
+static void write_generic(void *state, struct Value *value, struct Packet *p)
+{
+    struct HeaderField *field = state;
+    uint8_t *src = value->value + value->bitoffset/8;
+    uint8_t *dst = p->buf + p->headers[field->header_idx].start + field->bitoffset/8;
+
+    unsigned bitoffset = field->bitoffset % 8;
+    unsigned bitcount = field->bitcount; // total bits to write
+    unsigned bitcount1 = MIN(bitcount, 8 - bitoffset); // bits in first byte
+    unsigned shift = 8 - bitoffset - bitcount1;
+    unsigned char mask = 1 << bitcount1;
+    mask -= 1;
+    mask <<= shift;
+    dst[0] &= ~mask;
+    dst[0] |= src[0] & mask;
+    unsigned remaining_bits = bitcount - bitcount1;
+    unsigned remaining_bytes = remaining_bits / 8;
+    unsigned byteoffset = 1;
+
+    if (remaining_bytes) {
+        memcpy(dst+1, src+1, remaining_bytes);
+        remaining_bits -= remaining_bytes * 8;
+        byteoffset += remaining_bytes;
+    }
+
+    if (remaining_bits) {
+        shift = 8 - remaining_bits;
+        mask = 1 << remaining_bits;
+        mask -= 1;
+        mask <<= shift;
+        dst[byteoffset] &= ~mask;
+        dst[byteoffset] |= src[byteoffset] & mask;
+    }
+}
+
+value_consumer *header_get_field_writer(const struct HeaderField *target, const struct Value *source)
+{
+    if (source->bitcount != target->bitcount) {
+        fprintf(stderr, "field writer: source and target has different bit count %u %u\n",
+                source->bitcount, target->bitcount);
+        return NULL;
+    }
+    if ((source->bitoffset % 8) != (target->bitoffset % 8)) {
+        fprintf(stderr, "field writer: source and target has different bit offset %u %u\n",
+                (source->bitoffset % 8), (target->bitoffset % 8));
+        return NULL;
+    }
+
+    // octet-based assignment
+    if ((target->bitoffset % 8) == 0 && (target->bitcount % 8) == 0 &&
+            (source->bitoffset % 8) == 0 && (source->bitcount % 8) == 0)
+        return write_bytes;
+
+    // some bits within a single byte
+    if (target->bitoffset % 8 + target->bitcount <= 8)
+        return write_bits;
+
+    // anything else
+    return write_generic;
+}
+
+// points to the first byte of the field
 static void read_bytes(void *state, value_consumer *consumer, void *consumer_state, struct Packet *p)
 {
     struct HeaderField *source = state;
     uint8_t *src = p->buf + p->headers[source->header_idx].start + source->bitoffset/8;
-    struct Value val = {src, source->bitoffset, source->bitcount};
+    struct Value val = {src, source->bitoffset%8, source->bitcount};
     consumer(consumer_state, &val, p);
 }
 
-value_producer *get_read_function(const struct Value *target, const struct HeaderField *source)
+value_producer *header_get_field_reader(const struct Value *target, const struct HeaderField *source)
 {
-    if (source->bitcount > target->bitcount) {
-        //TODO error
+    if (source->bitcount != target->bitcount) {
+        fprintf(stderr, "field reader: source and target has different bit count %u %u\n",
+                source->bitcount, target->bitcount);
         return NULL;
     }
-    if ((source->bitoffset % 8) == 0 && (source->bitcount % 8) == 0 && (target->bitoffset % 8) == 0) {
-        return read_bytes;
+    if ((source->bitoffset % 8) != (target->bitoffset % 8)) {
+        fprintf(stderr, "field reader: source and target has different bit offset %u %u\n",
+                (source->bitoffset % 8), (target->bitoffset % 8));
+        return NULL;
     }
 
-    //TODO more variations
-
-    return NULL;
+    // this should be good for all cases
+    return read_bytes;
 }

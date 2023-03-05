@@ -79,7 +79,21 @@ struct Pipeline *parsetree_process(struct ParseTree *pt, struct Packet *p)
 }
 
 
-//TODO struct HeaderDescriptor *delete_header_list(struct HeaderDescriptor *headers) {}
+struct HeaderDescriptor *delete_header_list(struct HeaderDescriptor *headers)
+{
+    struct HeaderDescriptor *h = headers;
+    while (h) {
+        struct HeaderDescriptor *d = h;
+        h = h->next;
+        free(d->type);
+        free(d->name);
+        if (d->matches) {
+            //TODO free_match_list()
+        }
+        free(d);
+    }
+    return NULL;
+}
 
 struct HeaderDescriptor *header_list_find_by_name(struct HeaderDescriptor *headers, const char *name)
 {

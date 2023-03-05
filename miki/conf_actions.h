@@ -10,10 +10,11 @@ struct IniSection;
 struct Interface;
 
 // parse the "*:actions" line for a stream
-// modifies the given string
+// modifies the given @line
 // returns a linked list of (opaque) action descriptors
-struct ConfAction *process_actions_line(const char *stream, char *line, struct HeaderDescriptor *headers,
-        struct Interface *ifaces, unsigned ifcount,
+struct ConfAction *process_actions_line(const char *stream, char *line,
+        const struct HeaderDescriptor *headers,
+        struct Interface *ifaces, unsigned ifcount, //TODO all pointers const
         struct HashMap *objects, struct IniSection *streams_sec);
 
 // creates an Action array from the action descriptor list

@@ -18,6 +18,6 @@ typedef void value_consumer(void *state, struct Value *value, struct Packet *p);
 // prototype for a Producer function
 typedef void value_producer(void *state, value_consumer *consumer, void *consumer_state, struct Packet *p);
 
-
+//TODO value_compare?
 
 #endif // R2_TRANSFER_H

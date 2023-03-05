@@ -51,6 +51,7 @@ static void packetline_cb(const char *key, void *value, void *userdata)
             if (actions == NULL) {
                 //TODO error
             }
+            printf("Stream %s actions:\n", streamname);
             print_actions(actions);
 
             // find the matching :iface line (it's optional)

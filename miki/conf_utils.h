@@ -2,7 +2,12 @@
 #ifndef R2_CONF_UTILS_H
 #define R2_CONF_UTILS_H
 
+#include "protocol.h"
+
 #include <stdbool.h>
+#include <stdint.h>
+
+struct Value;
 
 typedef bool foreach_callback(char *str, void *userdata);
 
@@ -32,11 +37,28 @@ bool parse_fieldname(char *field, char **headername, char **fieldname);
 // @returns a new string (even if name has no identifier part)
 char *header_type_from_name(const char *name);
 
-// interprets the given string as boolean
+// interprets the given @string as boolean
 // true values: 1, true, yes
 // false values: 0, false, no
 // @returns -1 if not a valid value
 // TODO case-insensitive?
-int read_boolean(const char *val);
+int read_boolean(const char *string);
+
+// puts the number @num into the value @val
+// the target space is specified by val->bitoffset and val->bitcount
+// allocates buffer in val->value for the result
+// the result is in network byte order
+// @returns false if the number doesn't fit into the space
+bool prepare_constant_number(struct Value *val, uint64_t num);
+
+// interprets @string as a value of @type
+// uses @bitoffset and @bitcount of @val to position the result
+// if the result is shorter than @bitcount, it will be padded
+//   with 0 bits on the left
+// allocates new buffer in @val->value for the result
+// @returns false if the conversion cannot be done
+//      @string is not valid for @type
+//      the number doesn't fit @bitcount
+bool read_constant(struct Value *val, enum ProtocolFieldType type, const char *string);
 
 #endif // R2_CONF_UTILS_H
