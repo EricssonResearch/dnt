@@ -145,12 +145,20 @@ static int addstream_cb(const char *key, void *value, void *userdata)
     return 1;
 }
 
+static int delete_cb(const char *key, void *value, void *userdata)
+{
+    (void)value;
+    (void)userdata;
+    free((char*)key);
+    return 1;
+}
+
 bool config_add_streams_to_interfaces(struct R2d2Config *config)
 {
     struct AddstreamState state = {
         .ifaces = config->ifaces,
         .iface_count = config->ifcount,
-        .pipelines = new_hashmap(29, NULL, NULL), //TODO delete callback
+        .pipelines = new_hashmap(29, delete_cb, NULL),
     };
     if (!hashmap_foreach(config->iface_streams, addstream_cb, &state)) {
         fprintf(stderr, "failed to add streams to interfaces\n");
