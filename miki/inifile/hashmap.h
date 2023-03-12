@@ -46,7 +46,7 @@
 
 struct HashMap;
 
-typedef void hashmap_cb(const char *key, void *value, void *userdata);
+typedef int hashmap_cb(const char *key, void *value, void *userdata);
 
 // create a hash map with @bucketcount buckets
 // the callback will be called when an element gets removed from the hash
@@ -55,7 +55,8 @@ struct HashMap *new_hashmap(unsigned bucketcount, hashmap_cb *item_delete_cb, vo
 
 // deletes the entire hash map, including all the stored elements
 // calls the callback for each removed element
-void delete_hashmap(struct HashMap *hash);
+// always returns NULL
+struct HashMap *delete_hashmap(struct HashMap *hash);
 
 // add (key, value) pair to the hash map
 // if this key already exists in the hash this overrides that value
@@ -86,12 +87,15 @@ unsigned hashmap_usedbuckets(const struct HashMap *hash);
 // calls @cb for each element in the hash
 // the elements are not ordered by their keys
 // @userdata is passed to the callback
+// stops and returns false if the callback returns false
+// returns true on success
 //TODO is it safe to remove stuff in foreach?
-void hashmap_foreach(const struct HashMap *hash, hashmap_cb *cb, void *userdata);
+int hashmap_foreach(const struct HashMap *hash, hashmap_cb *cb, void *userdata);
 
 // calls @cb for each element in the hash
 // the elements are ordered by their keys
 // @userdata is passed to the callback
-void hashmap_foreach_sorted(const struct HashMap *hash, hashmap_cb *cb, void *userdata);
+// stops and returns false if the callback returns false
+int hashmap_foreach_sorted(const struct HashMap *hash, hashmap_cb *cb, void *userdata);
 
 #endif // HASHMAP_H

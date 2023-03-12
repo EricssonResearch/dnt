@@ -230,12 +230,13 @@ struct IniSection *read_inifile(const char *filename)
     return ret;
 }
 
-static void write_one_elem(const char *key, void *value, void *userdata)
+static int write_one_elem(const char *key, void *value, void *userdata)
 {
     char *val = (char *)value;
     FILE *f = (FILE *)userdata;
 
     fprintf(f, "%s = %s\n", key, val);
+    return 1;
 }
 
 int write_inifile(const char *filename, const struct IniSection *sec)

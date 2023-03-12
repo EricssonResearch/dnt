@@ -35,7 +35,7 @@ struct KeyValue {
     const char *value;
 };
 
-static void section_verify_cb(const char *key, void *value, void *userdata)
+static int section_verify_cb(const char *key, void *value, void *userdata)
 {
     char *val = (char *)value;
     struct KeyValue *good = (struct KeyValue *)userdata;
@@ -44,11 +44,12 @@ static void section_verify_cb(const char *key, void *value, void *userdata)
         if (strcmp(good->key, key) == 0) {
             OK(strcmp(good->value, val) == 0, "for key '%s' expected value '%s' got value '%s'",
                     key, good->value, val);
-            return;
+            return 1;
         }
         good++;
     }
     FAIL("unexpected key '%s'", key);
+    return 1;
 }
 
 static void test_read(void)

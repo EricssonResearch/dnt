@@ -53,11 +53,12 @@ static unsigned djb2_hash(const char *str)
     return hash;
 }
 
-static void default_item_remove_cb(const char *key, void *value, void *userdata)
+static int default_item_remove_cb(const char *key, void *value, void *userdata)
 {
     free((char*)key); //XXX ugly
     free(value);
     (void)userdata;
+    return 1;
 }
 
 struct HashMap *new_hashmap(unsigned bucketcount, hashmap_cb *item_delete_cb, void *userdata)
@@ -80,8 +81,10 @@ struct HashMap *new_hashmap(unsigned bucketcount, hashmap_cb *item_delete_cb, vo
     return ret;
 }
 
-void delete_hashmap(struct HashMap *hash)
+struct HashMap *delete_hashmap(struct HashMap *hash)
 {
+    if (!hash) return NULL;
+
     for (unsigned i=0; i<hash->bucketcount; i++) {
         if (hash->buckets[i].key) {
             hash->item_delete_cb(hash->buckets[i].key, hash->buckets[i].value, hash->userdata);
@@ -96,6 +99,7 @@ void delete_hashmap(struct HashMap *hash)
     }
     free(hash->buckets);
     free(hash);
+    return NULL;
 }
 
 void hashmap_insert(struct HashMap *hash, char *key, void *value)
@@ -233,6 +237,7 @@ unsigned hashmap_bucketcount(const struct HashMap *hash)
 
 unsigned hashmap_usedbuckets(const struct HashMap *hash)
 {
+    if (!hash) return 0;
     unsigned count = 0;
     for (unsigned i=0; i<hash->bucketcount; i++) {
         if (hash->buckets[i].key) {
@@ -242,18 +247,19 @@ unsigned hashmap_usedbuckets(const struct HashMap *hash)
     return count;
 }
 
-void hashmap_foreach(const struct HashMap *hash, hashmap_cb *cb, void *userdata)
+int hashmap_foreach(const struct HashMap *hash, hashmap_cb *cb, void *userdata)
 {
-    if (!hash) return;
-    if (!cb) return;
+    if (!hash) return 0;
+    if (!cb) return 0;
 
     for (unsigned i=0; i<hash->bucketcount; i++) {
         if (hash->buckets[i].key) {
             for (struct HashBucket *b=hash->buckets+i; b; b=b->next) {
-                cb(b->key, b->value, userdata);
+                if (!cb(b->key, b->value, userdata)) return 0;
             }
         }
     }
+    return 1;
 }
 
 static int hash_key_cmp(const void *p1, const void *p2)
@@ -263,10 +269,10 @@ static int hash_key_cmp(const void *p1, const void *p2)
     return strcmp((*b1)->key, (*b2)->key);
 }
 
-void hashmap_foreach_sorted(const struct HashMap *hash, hashmap_cb *cb, void *userdata)
+int hashmap_foreach_sorted(const struct HashMap *hash, hashmap_cb *cb, void *userdata)
 {
-    if (!hash) return;
-    if (!cb) return;
+    if (!hash) return 0;
+    if (!cb) return 0;
 
     struct HashBucket **buckets = malloc(hash->elemcount*sizeof(struct HashBucket *));
     unsigned j = 0;
@@ -279,7 +285,11 @@ void hashmap_foreach_sorted(const struct HashMap *hash, hashmap_cb *cb, void *us
     }
     qsort(buckets, hash->elemcount, sizeof(struct HashBucket *), hash_key_cmp);
     for (unsigned i=0; i<hash->elemcount; i++) {
-        cb(buckets[i]->key, buckets[i]->value, userdata);
+        if (!cb(buckets[i]->key, buckets[i]->value, userdata)) {
+            free(buckets);
+            return 0;
+        }
     }
     free(buckets);
+    return 1;
 }

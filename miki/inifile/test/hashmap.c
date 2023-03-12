@@ -30,23 +30,25 @@
 
 TEST_INIT("Hash Map");
 
-static void nofree_cb(const char *key, void *value, void *userdata)
+static int nofree_cb(const char *key, void *value, void *userdata)
 {
     (void)key;
     (void)value;
     (void)userdata;
+    return 1;
 }
 
-static void abcverify_cb(const char *key, void *value, void *userdata)
+static int abcverify_cb(const char *key, void *value, void *userdata)
 {
     int *abcverify = userdata;
     OK(key == value, "key==value");
     int v = *key - 'a';
     *abcverify |= 1<<v;
     //printf("key '%s' value '%s'\n", key, (char*)value);
+    return 1;
 }
 
-static void abcverify_order_cb(const char *key, void *value, void *userdata)
+static int abcverify_order_cb(const char *key, void *value, void *userdata)
 {
     int *abcverify = userdata;
     OK(key == value, "key==value");
@@ -54,6 +56,32 @@ static void abcverify_order_cb(const char *key, void *value, void *userdata)
     OK(v > *abcverify, "next char");
     *abcverify = v;
     //printf("key '%s' value '%s'\n", key, (char*)value);
+    return 1;
+}
+
+static int abcverify_interrupt_cb(const char *key, void *value, void *userdata)
+{
+    int *abcverify = userdata;
+    OK(key == value, "key==value");
+    int v = *key - 'a';
+    *abcverify |= 1<<v;
+    if (v == 10)
+        return 0;
+    else
+        return 1;
+}
+
+static int abcverify_order_interrupt_cb(const char *key, void *value, void *userdata)
+{
+    int *abcverify = userdata;
+    OK(key == value, "key==value");
+    int v = *key - 'a';
+    OK(v > *abcverify, "next char");
+    *abcverify = v;
+    if (v == 10)
+        return 0;
+    else
+        return 1;
 }
 
 static void test_insert(void)
@@ -71,6 +99,7 @@ static void test_insert(void)
     OK(hashmap_find(hash, "some key") == NULL, "find in empty");
     OK(hashmap_contains(hash, "some key") == 0, "empty doesn't contain");
 
+    // test foreach
     char abc[lettercount+1];
     for (unsigned i=0; i<lettercount; i++) {
         abc[i] = 'a' + i;
@@ -84,12 +113,28 @@ static void test_insert(void)
     OK(hashmap_count(hash) == lettercount, "elemcount");
     OK(hashmap_usedbuckets(hash) == bucketcount, "all buckets should be in use");
     int abcverify = 0;
-    hashmap_foreach(hash, abcverify_cb, &abcverify);
+    OK(hashmap_foreach(hash, abcverify_cb, &abcverify) == 1, "foreach successful");
     OK(abcverify == 0x3ffffff, "abcverify 0x%x", abcverify);
 
     abcverify = -1;
-    hashmap_foreach_sorted(hash, abcverify_order_cb, &abcverify);
-    OK(abcverify == 25, "elem count %d %d", abcverify, lettercount);
+    OK(hashmap_foreach_sorted(hash, abcverify_order_cb, &abcverify) == 1, "foreach successful");
+    OK(abcverify == lettercount-1, "elem count %d %d", abcverify, lettercount);
+
+    OK(hashmap_foreach(NULL, NULL, NULL) == 0, "foreach null");
+    OK(hashmap_foreach(hash, NULL, NULL) == 0, "foreach null");
+    OK(hashmap_foreach(NULL, abcverify_cb, NULL) == 0, "foreach null");
+    OK(hashmap_foreach_sorted(NULL, NULL, NULL) == 0, "foreach null");
+    OK(hashmap_foreach_sorted(hash, NULL, NULL) == 0, "foreach null");
+    OK(hashmap_foreach_sorted(NULL, abcverify_order_cb, NULL) == 0, "foreach null");
+
+    // test interrupting foreach
+    abcverify = 0;
+    hashmap_foreach(hash, abcverify_interrupt_cb, &abcverify);
+    OK(abcverify < 0x3ffffff, "abcverify 0x%x", abcverify);
+
+    abcverify = -1;
+    hashmap_foreach_sorted(hash, abcverify_order_interrupt_cb, &abcverify);
+    OK(abcverify == 10, "elem count %d %d", abcverify, lettercount);
 
     // these literals have different address than the keys
     OK(hashmap_contains(hash, "qrstuvwxyz"), "contains");
@@ -98,7 +143,10 @@ static void test_insert(void)
     OK(hashmap_find(hash, "fghijklmnopqrstuvwxyz") == abc+5, "find");
     OK(hashmap_find(hash, "fghijklmnopqrstuvwxyza") == NULL, "not find");
 
-    delete_hashmap(hash);
+    OK(delete_hashmap(hash) == NULL, "delete");
+    OK(delete_hashmap(NULL) == NULL, "delete null");
+
+    OK(new_hashmap(0, NULL, NULL) == NULL, "no buckets");
 }
 
 static void test_change(void)
@@ -132,12 +180,13 @@ static void test_change(void)
     OK(hashmap_usedbuckets(hash) == 1, "one bucket"); // we know hash contains 1 item now
     hashmap_remove(hash, "another key");
     OK(hashmap_count(hash) == 0, "empty");
-    delete_hashmap(hash);
+    OK(delete_hashmap(hash) == NULL, "delete");
 
     // massive add-remove test
     unsigned m = 20;
     unsigned n = 200;
     hash = new_hashmap(bucketcount, NULL, NULL);
+    OK_FATAL(hash != NULL, "create hash");
     char buf[16];
     for (unsigned i=0; i<m; i++) {
         for (unsigned j=0; j<n; j++) {
@@ -159,7 +208,7 @@ static void test_change(void)
         }
         OK(hashmap_count(hash) == i+1, "almost empty %u", hashmap_count(hash));
     }
-    delete_hashmap(hash);
+    OK(delete_hashmap(hash) == NULL, "delete");
 }
 
 
