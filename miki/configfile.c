@@ -12,13 +12,22 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 struct R2d2Config *read_config(const char *filename)
 {
+#define THROW(msg, ...)                                             \
+    do {                                                            \
+        fprintf(stderr, "config '%s' error: " msg "\n",             \
+                 filename, ##__VA_ARGS__);                          \
+        delete_inisection(ini);                                     \
+        return delete_config(ret);                                  \
+    } while (0)
+
+    struct R2d2Config *ret = calloc_struct(R2d2Config);
     struct IniSection *ini = read_inifile(filename);
     if (ini == NULL) {
-        fprintf(stderr, "failed to read config\n");
-        return NULL;
+        THROW("failed to read the ini file");
     }
 
     struct IniSection *interfaces_sec = inisection_find_section(ini, "interfaces");
@@ -26,62 +35,129 @@ struct R2d2Config *read_config(const char *filename)
     struct IniSection *streams_sec = inisection_find_section(ini, "streams");
 
     if (interfaces_sec == NULL) {
-        fprintf(stderr, "config has no interfaces\n");
-        return NULL; //TODO cleanup
+        THROW("no interfaces");
     }
     if (streams_sec == NULL) {
-        fprintf(stderr, "config has no streams\n");
-        return NULL;
+        THROW("no streams");
     }
     // objects are optional
 
-    struct R2d2Config *ret = calloc_struct(R2d2Config);
-
-    ret->ifaces = process_interfaces(interfaces_sec, &ret->ifcount);
+    ret->ifaces = parse_interfaces(interfaces_sec, &ret->ifcount);
     if (ret->ifaces == NULL) {
-        fprintf(stderr, "config interfaces invalid\n");
-        return NULL;
+        THROW("interfaces are invalid");
     }
 
     if (objects_sec) {
-        ret->objects = process_objects(objects_sec);
+        ret->objects = parse_objects(objects_sec);
         if (ret->objects == NULL) {
-            //TODO error
+            THROW("objects are invalid");
         }
     } else {
+        // the other stuff expects an existing hash here
         ret->objects = new_hashmap(1, NULL, NULL);
     }
 
     ret->streams = parse_streams(streams_sec, ret->ifaces, ret->ifcount, ret->objects);
     if (ret->streams == NULL) {
-        //TODO error
+        THROW("streams are invalid");
+    }
+
+    ret->iface_streams = parse_interface_streams(interfaces_sec, ret->ifaces, ret->ifcount, ret->streams);
+    if (ret->iface_streams == NULL) {
+        THROW("interface stream lists are invalid");
     }
 
     delete_inisection(ini);
     return ret;
 }
 
-static void addstream_cb(const char *key, void *value, void *userdata)
+struct R2d2Config *delete_config(struct R2d2Config *config)
 {
-    (void)userdata;
-    struct ConfStream *stream = value;
+    if (!config) return NULL;
 
-    printf("adding stream %s to interface %s\n", key, stream->recv_iface->name);
+    delete_hashmap(config->streams);
+    delete_hashmap(config->objects);
+    delete_hashmap(config->iface_streams);
 
-    unsigned action_count;
-    struct Action *actions = assemble_actions(stream->actions, &action_count);
-    if (!actions) {
-        //TODO error
+    if (config->ifaces) {
+        for (unsigned i=0; i<config->ifcount; i++) {
+            close_iface(&config->ifaces[i]);
+        }
     }
-    struct Pipeline *pipe = new_pipeline(actions, action_count);
-    if (!pipe) {
-        //TODO error
-    }
-    parsetree_add_stream(stream->recv_iface->parsetree, stream->packet, pipe);
+    free(config->ifaces);
+
+    free(config);
+
+    return NULL;
 }
 
-void config_add_streams_to_interfaces(struct R2d2Config *config)
+struct AddstreamState {
+    struct Interface *ifaces;
+    unsigned iface_count;
+    struct HashMap *pipelines;
+};
+
+static int addstream_cb(const char *key, void *value, void *userdata)
 {
-    hashmap_foreach(config->streams, addstream_cb, NULL);
+    struct AddstreamState *state = userdata;
+    struct ConfStreamList *streamlist = value;
+
+    struct Interface *iface = NULL;
+    for (unsigned i=0; i<state->iface_count; i++) {
+        if (strcmp(state->ifaces[i].name, key) == 0) {
+            iface = &state->ifaces[i];
+            break;
+        }
+    }
+    if (iface == NULL) {
+        fprintf(stderr, "adding streams to interfaces: unknown interface '%s'\n", key);
+        return 0;
+    }
+
+    for (struct ConfStreamList *s=streamlist; s; s=s->next) {
+        printf("adding stream %s to interface %s\n", s->stream_name, key);
+
+        struct Pipeline *pipe = hashmap_find(state->pipelines, s->stream_name);
+        if (pipe) {
+            printf("  reusing already compiled pipeline\n");
+        } else {
+            printf("  compiling new pipeline\n");
+            unsigned action_count;
+            struct Action *actions = assemble_actions(s->stream->actions, &action_count);
+            if (!actions) {
+                fprintf(stderr, "failed to assemble actions for stream %s\n", s->stream_name);
+                return 0;
+            }
+            pipe = new_pipeline(actions, action_count);
+            if (!pipe) {
+                fprintf(stderr, "failed to create action pipeline for stream %s\n", s->stream_name);
+                return 0;
+            }
+            hashmap_insert(state->pipelines, strdup(s->stream_name), pipe);
+            if (!parsetree_add_stream(iface->parsetree, s->stream->packet, pipe)) {
+                fprintf(stderr, "failed to add stream %s to the parsetree of interface %s\n",
+                        s->stream_name, key);
+                return 0;
+            }
+        }
+    }
+
+    return 1;
+}
+
+bool config_add_streams_to_interfaces(struct R2d2Config *config)
+{
+    struct AddstreamState state = {
+        .ifaces = config->ifaces,
+        .iface_count = config->ifcount,
+        .pipelines = new_hashmap(29, NULL, NULL), //TODO delete callback
+    };
+    if (!hashmap_foreach(config->iface_streams, addstream_cb, &state)) {
+        fprintf(stderr, "failed to add streams to interfaces\n");
+        delete_hashmap(state.pipelines);
+        return false;
+    }
+    delete_hashmap(state.pipelines);
+    return true;
 }
 

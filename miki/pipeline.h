@@ -7,11 +7,7 @@
 struct Action;
 struct Packet;
 
-struct Pipeline {
-    struct Action *actions; // array of actions
-    unsigned action_count;
-    unsigned reference_count;
-};
+struct Pipeline;
 
 struct PipelineIterator {
     struct Packet *packet;

@@ -35,6 +35,7 @@ typedef bool iface_open(struct Interface *iface);
 // closes the interface, called by @close_interface
 // @close_interface frees @name and @ifname so this callback doesn't have to
 // @returns false on error
+//TODO do we want to reopen after close? now this also destroys
 typedef bool iface_close(struct Interface *iface);
 
 // @return a function that can read @property of the interface

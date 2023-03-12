@@ -13,13 +13,17 @@ typedef bool foreach_callback(char *str, void *userdata);
 
 // split the line into stages by ';', call @cb for all of them
 // modifies the given @line
-// stops if @cb returns false
-void foreach_stages(char *line, foreach_callback *cb, void *userdata);
+// stops and returns false if @cb returns false
+// empty line is not an error
+// @returns true on success
+bool foreach_stages(char *line, foreach_callback *cb, void *userdata);
 
 // split the stage into tokens by whitespace, call @cb for all of them
 // modifies the given @stage
-// stops if @cb returns false
-void foreach_tokens(char *stage, foreach_callback *cb, void *userdata);
+// stops and returns false if @cb returns false
+// empty stage is not an error
+// @returns true on success
+bool foreach_tokens(char *stage, foreach_callback *cb, void *userdata);
 
 // interprets @assign as an assignment in the form of "key=val"
 // sets @key and @val to the beginning of the key and the value

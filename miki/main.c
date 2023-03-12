@@ -105,15 +105,16 @@ int main(int argc, char **argv)
         return -1;
     }
 
-
+    //TODO do this in read_config()?
     for (unsigned i=0; i<config->ifcount; i++) {
-        iface_set_parsetree(config->ifaces+i, new_parsetree(config->ifaces+i));
+        iface_set_parsetree(&config->ifaces[i], new_parsetree(&config->ifaces[i]));
     }
 
     config_add_streams_to_interfaces(config);
 
     for (unsigned i=0; i<config->ifcount; i++) {
-        if (!config->ifaces[i].open(config->ifaces+i)) {
+        if (!config->ifaces[i].open(&config->ifaces[i])) {
+            fprintf(stderr, "could not open interface %s\n", config->ifaces[i].name);
             return -1;
         }
     }
@@ -125,9 +126,7 @@ int main(int argc, char **argv)
 
     fini_delay();
 
-    for (unsigned i=0; i<config->ifcount; i++) {
-        close_iface(config->ifaces+i);
-    }
+    delete_config(config);
 
     return 0;
 }

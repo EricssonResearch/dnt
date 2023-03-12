@@ -39,7 +39,7 @@ struct Action {
     char *text; // textual representation (as it was in the config)
 };
 
-//TODO move this struct to another header?
+// this is the state of Replicate
 struct PipelineList {
     struct Pipeline *pipe;
     const char *text;

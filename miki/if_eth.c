@@ -263,7 +263,7 @@ static bool eth_close(struct Interface *iface)
             close(eid->sockfd[i]);
         }
     }
-
+    free(eid);
     return true;
 }
 

@@ -8,6 +8,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+struct Pipeline {
+    struct Action *actions; // array of actions
+    unsigned action_count;
+    unsigned reference_count;
+};
+
+// add reference to the outgoing interfaces so they know they are in use
 static void ref_send_interfaces(struct Pipeline *pipe)
 {
     for (unsigned i=0; i<pipe->action_count; i++) {
@@ -23,6 +30,8 @@ static void ref_send_interfaces(struct Pipeline *pipe)
     }
 }
 
+// release the outgoing interfaces
+//TODO merge this code with ref_send_interfaces()
 static void unref_send_interfaces(struct Pipeline *pipe)
 {
     for (unsigned i=0; i<pipe->action_count; i++) {

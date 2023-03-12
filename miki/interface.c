@@ -36,7 +36,8 @@ void close_iface(struct Interface *iface)
     //      when the action pipelines have no more iterators
     //          they will unref us
     //      finally we are free to close
-    parsetree_unref(iface->parsetree);
+    if (iface->parsetree)
+        parsetree_unref(iface->parsetree);
     try_delete_interface(iface);
 }
 

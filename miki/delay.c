@@ -78,7 +78,8 @@ void fini_delay(void)
 {
     pthread_cancel(delay_tid); //TODO flush the queue first
     pthread_join(delay_tid, NULL);
-    //TODO free(delay_queue);
+
+    free(delay_queue);
 }
 
 void delay_insert(struct PipelineIterator *pi, unsigned delay)

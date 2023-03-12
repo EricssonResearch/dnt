@@ -11,43 +11,43 @@
 #include <arpa/inet.h>
 #include <netinet/ether.h>
 
-void foreach_stages(char *line, foreach_callback *cb, void *userdata)
+bool foreach_stages(char *line, foreach_callback *cb, void *userdata)
 {
     char *l = line;
     while (*l && isspace(*l)) l++; // skip leading whitespace
-    if (*l == 0) return;
+    if (*l == 0) return true;
     while (1) {
         char *sc = strchr(l, ';');
         if (sc) {
             *sc = 0;
-            if (!cb(l, userdata)) return;
+            if (!cb(l, userdata)) return false;
             l = sc + 1;
             while (*l && isspace(*l)) l++; // skip leading whitespace
-            if (*l == 0) return;
+            if (*l == 0) return true;
         } else {
-            cb(l, userdata);
-            return;
+            if (!cb(l, userdata)) return false;
+            return true;
         }
     }
 }
 
-void foreach_tokens(char *stage, foreach_callback *cb, void *userdata)
+bool foreach_tokens(char *stage, foreach_callback *cb, void *userdata)
 {
     char *t = stage;
     while (*t && isspace(*t)) t++; // skip leading whitespace
-    if (*t == 0) return;
+    if (*t == 0) return true;
     while (1) {
         char *sp = t;
         while (*sp && !isspace(*sp)) sp++;
         if (*sp) {
             *sp = 0;
-            if (!cb(t, userdata)) return;
+            if (!cb(t, userdata)) return false;
             t = sp + 1;
             while (*t && isspace(*t)) t++; // skip leading whitespace
-            if (*t == 0) return;
+            if (*t == 0) return true;
         } else {
-            cb(t, userdata);
-            return;
+            if (!cb(t, userdata)) return false;
+            return true;
         }
     }
 }

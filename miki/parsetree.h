@@ -18,7 +18,7 @@ struct HeaderMatch {
 };
 
 struct HeaderDescriptor {
-    char *type;
+    char *type; //TODO we can get this from the @id
     char *name; // type[_identifier]
     int id; // protocol type id
     struct HeaderMatch *matches; //TODO hash table instead of linked list?
@@ -47,6 +47,9 @@ bool parsetree_add_stream(struct ParseTree *pt, struct HeaderDescriptor *headers
 //      - match header field values against known streams
 // @returns an action pipeline to process the packet or NULL if unknown stream
 struct Pipeline *parsetree_process(struct ParseTree *pt, struct Packet *p);
+
+// always returns NULL
+struct HeaderMatch *delete_match_list(struct HeaderMatch *matches);
 
 // always returns NULL
 struct HeaderDescriptor *delete_header_list(struct HeaderDescriptor *headers);

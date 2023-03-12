@@ -38,7 +38,9 @@ void parsetree_unref(struct ParseTree *pt)
         pt->reference_count--;
 
     if (pt->reference_count == 0) {
-        pipeline_unref(pt->pipe);
+        if (pt->pipe) {
+            pipeline_unref(pt->pipe);
+        }
         free(pt);
     }
 }
@@ -78,6 +80,17 @@ struct Pipeline *parsetree_process(struct ParseTree *pt, struct Packet *p)
     return pt->pipe;
 }
 
+struct HeaderMatch *delete_match_list(struct HeaderMatch *matches)
+{
+    struct HeaderMatch *m = matches;
+    while (m) {
+        struct HeaderMatch *d = m;
+        m = m->next;
+        free(d->value.value);
+        free(d);
+    }
+    return NULL;
+}
 
 struct HeaderDescriptor *delete_header_list(struct HeaderDescriptor *headers)
 {
@@ -87,9 +100,7 @@ struct HeaderDescriptor *delete_header_list(struct HeaderDescriptor *headers)
         h = h->next;
         free(d->type);
         free(d->name);
-        if (d->matches) {
-            //TODO free_match_list()
-        }
+        delete_match_list(d->matches);
         free(d);
     }
     return NULL;

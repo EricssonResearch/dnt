@@ -22,7 +22,7 @@
 
 enum ConfActionType {
     CA_ADD = 1,
-    CA_CALL,
+    CA_CALL, //TODO update this: "jump" that doesn't return
     CA_DEL,
     CA_DELAY,
     CA_DROP,
@@ -143,7 +143,6 @@ struct StageState {
     unsigned ifcount;
     struct HashMap *objects;
     struct IniSection *streams_sec;
-    bool error;
 };
 
 
@@ -420,20 +419,19 @@ static bool process_assignment_rhs(struct StageState *stst, const struct ConfVar
 #undef THROW
 }
 
+// here we process the parameters for the action individually
 static bool process_token(char *token, void *userdata)
 {
 #define THROW(msg, ...)                                             \
     do {                                                            \
         fprintf(stderr, "stream %s action %s: " msg "\n",           \
                 stst->stream, stst->actions->text, ##__VA_ARGS__);  \
-        stst->error = true;                                         \
         return false;                                               \
     } while (0)
 
     struct StageState *stst = userdata;
 
     if (stst->actions->type) {
-        // here we process the parameters for the action individually
         switch (stst->actions->type) {
             case CA_ADD:
                 if (stst->actions->d.add.beforeafter == ADD_UNKNOWN) {
@@ -528,6 +526,7 @@ static bool process_token(char *token, void *userdata)
                 break;
             case CA_DELAY:
                 //TODO first argument is timestamp field
+                //  TODO feri: we should always use the timestamp metadata
                 //TODO second argument is a delay value (time)
                 break;
             case CA_DROP:
@@ -586,6 +585,7 @@ static bool process_token(char *token, void *userdata)
                         THROW("first argument of eliminate must be a recovery object");
                     }
                 } else {
+                    //TODO feri: we should always use the seq metadata
                     char *hdr, *field;
                     if (parse_fieldname(token, &hdr, &field)) {
                         //TODO this was mostly copied from process_assignment_lhs(), unify them
@@ -624,6 +624,7 @@ static bool process_token(char *token, void *userdata)
                 } else {
                     //TODO second argument is sequence field
                     //TODO exactly the same as in CA_ELIM
+                    //TODO feri: we should always use the seq metadata
                 }
                 break;
             case CA_REPL:
@@ -681,6 +682,7 @@ static bool process_token(char *token, void *userdata)
                         break;
                 }
             } else {
+                //TODO balázs: see if token is a pipeline name, do a "jump" action
                 THROW("action name invalid");
             }
         }
@@ -690,6 +692,7 @@ static bool process_token(char *token, void *userdata)
 #undef THROW
 }
 
+// here we do processing that needs all the parameters of the action
 static bool process_action(struct StageState *stst)
 {
 #define THROW(msg, ...)                                             \
@@ -699,7 +702,6 @@ static bool process_action(struct StageState *stst)
         return false;                                               \
     } while (0)
 
-    // here we do processing that needs all the parameters of the action
     char editbuf[64];
     switch (stst->actions->type) {
         case CA_ADD:
@@ -757,6 +759,7 @@ static bool process_action(struct StageState *stst)
             edit->type = CA_EDIT;
             edit->text = strdup(stst->actions->text);
             edit->d.edit.assignments = stst->actions->d.add.assignments;
+            stst->actions->d.add.assignments = NULL;
             edit->next = stst->actions;
             stst->actions = edit;
 
@@ -773,7 +776,7 @@ static bool process_action(struct StageState *stst)
                                 newheader->type, nextheader->type);
                     }
 
-                    // create an assignment: nexthdr field = nexthdrnum constant
+                    // create an assignment: newheader.nexthdr = nexthdrnum constant
                     nexthdrnum = ntohs(nexthdrnum); // we need it in host order
                     a = calloc_struct(ConfAssignment);
                     a->next = edit->d.edit.assignments;
@@ -781,7 +784,6 @@ static bool process_action(struct StageState *stst)
                     snprintf(editbuf, 64, "add sets %s.%s=0x%.4x",
                             newheader->name, f->name, nexthdrnum);
                     a->text = strdup(editbuf);
-                   // f->type should be FT_NUMBER
                     init_confvariable(&a->lhs, CVT_FIELD, f->type, f->bitoffset, f->bitcount);
                     init_confvariable(&a->rhs, CVT_CONST, f->type, f->bitoffset, f->bitcount);
                     prepare_constant_number(&a->rhs.value, nexthdrnum);
@@ -797,7 +799,7 @@ static bool process_action(struct StageState *stst)
                         THROW("can't copy nexthdr type from previous header");
                     }
 
-                    // create a copy assignment: nexthdr field = prevheader's field
+                    // create a copy assignment: newheader.nexthdr = prevheader.nexthdr
                     a = calloc_struct(ConfAssignment);
                     a->next = edit->d.edit.assignments;
                     edit->d.edit.assignments = a;
@@ -806,18 +808,14 @@ static bool process_action(struct StageState *stst)
                     a->text = strdup(editbuf);
                     init_confvariable(&a->lhs, CVT_FIELD, f->type, f->bitoffset, f->bitcount);
                     init_confvariable(&a->rhs, CVT_FIELD, pf->type, pf->bitoffset, pf->bitcount);
-                    //TODO index is pos_idx-1
-                    struct HeaderField *phf = new_headerfield(header_index(stst->headers, prevheader),
-                            pf->bitoffset, pf->bitcount);
+                    struct HeaderField *phf = new_headerfield(pos_idx-1, pf->bitoffset, pf->bitcount);
                     a->rhs.v.field.field = phf;
                     a->rhs.read = header_get_field_reader(&a->lhs.value, phf);
                     if (a->rhs.read == NULL) {
                         THROW("can't copy nexthdr type from previous header");
                     }
                 }
-                //TODO index is pos_idx
-                struct HeaderField *nhf = new_headerfield(header_index(stst->headers, newheader),
-                   f->bitoffset, f->bitcount);
+                struct HeaderField *nhf = new_headerfield(pos_idx, f->bitoffset, f->bitcount);
                 a->lhs.v.field.field = nhf;
                 a->lhs.write = header_get_field_writer(nhf, &a->rhs.value);
                 if (a->lhs.write == NULL) {
@@ -844,13 +842,10 @@ static bool process_action(struct StageState *stst)
                 snprintf(editbuf, 64, "add sets %s.%s=0x%.4x",
                         prevheader->name, pf->name, nexthdrnum);
                 a->text = strdup(editbuf);
-                // f->type should be FT_NUMBER
                 init_confvariable(&a->lhs, CVT_FIELD, pf->type, pf->bitoffset, pf->bitcount);
                 init_confvariable(&a->rhs, CVT_CONST, pf->type, pf->bitoffset, pf->bitcount);
                 prepare_constant_number(&a->rhs.value, nexthdrnum);
-                //TODO index is pos_idx-1
-                struct HeaderField *phf = new_headerfield(header_index(stst->headers, prevheader),
-                        pf->bitoffset, pf->bitcount);
+                struct HeaderField *phf = new_headerfield(pos_idx-1, pf->bitoffset, pf->bitcount);
                 a->lhs.v.field.field = phf;
                 a->lhs.write = header_get_field_writer(phf, &a->rhs.value);
                 if (a->lhs.write == NULL) {
@@ -877,6 +872,7 @@ static bool process_action(struct StageState *stst)
                 //      call = stst->actions;
                 //      delete(call)
                 //      stst->actions = newchain_beginning
+                //TODO balázs: instead of "call" it should be "jump" that doesn't return
             } else {
                 THROW("action list '%s' not found", stst->actions->d.call.pipename);
             }
@@ -936,18 +932,14 @@ static bool process_action(struct StageState *stst)
                         a->text = strdup(editbuf);
                         init_confvariable(&a->lhs, CVT_FIELD, pf->type, pf->bitoffset, pf->bitcount);
                         init_confvariable(&a->rhs, CVT_FIELD, df->type, df->bitoffset, df->bitcount);
-                        //TODO index is idx
-                        struct HeaderField *dhf = new_headerfield(header_index(stst->headers, del),
-                                df->bitoffset, df->bitcount);
+                        struct HeaderField *dhf = new_headerfield(idx, df->bitoffset, df->bitcount);
                         a->rhs.v.field.field = dhf;
                         a->rhs.read = header_get_field_reader(&a->lhs.value, dhf);
                         if (a->rhs.read == NULL) {
                             THROW("can't copy nexthdr type from deleted to previous header");
                         }
                     }
-                    //TODO index is idx-1
-                    struct HeaderField *phf = new_headerfield(header_index(stst->headers, prev),
-                            pf->bitoffset, pf->bitcount);
+                    struct HeaderField *phf = new_headerfield(idx-1, pf->bitoffset, pf->bitcount);
                     a->lhs.v.field.field = phf;
                     a->lhs.write = header_get_field_writer(phf, &a->rhs.value);
                     if (a->lhs.write == NULL) {
@@ -980,6 +972,7 @@ static bool process_action(struct StageState *stst)
         case CA_DELAY:
             //TODO check that first param was a valid timestamp field
             //      need to find the header by name
+            //  TODO feri: we should always use the timestamp metadata
             //TODO check that second param was a valid time constant
             break;
         case CA_DROP:
@@ -1022,30 +1015,26 @@ static bool process_stage(char *stage, void *userdata)
     stst->actions = newaction;
     newaction->text = strdup(stage);
 
-    foreach_tokens(stage, process_token, stst);
-
-    if (stst->error) {
-        fprintf(stderr, "failed to process action tokens '%s'\n", newaction->text);
+    if (!foreach_tokens(stage, process_token, stst)) {
+        fprintf(stderr, "failed to process action parameters '%s'\n", newaction->text);
         return false;
     }
 
     if (stst->actions->type == 0) {
         fprintf(stderr, "no action in '%s'\n", newaction->text);
-        stst->error = true;
         return false;
     }
 
     // now we have all arguments for the action, let's process it properly
     if (!process_action(stst)) {
         fprintf(stderr, "failed to process action '%s'\n", newaction->text);
-        stst->error = true;
         return false;
     }
 
     return true;
 }
 
-struct ConfAction *process_actions_line(const char *stream, char *line,
+struct ConfAction *parse_actions_line(const char *stream, char *line,
         const struct HeaderDescriptor *headers,
         struct Interface *ifaces, unsigned ifcount,
         struct HashMap *objects, struct IniSection *streams_sec)
@@ -1058,11 +1047,8 @@ struct ConfAction *process_actions_line(const char *stream, char *line,
         .ifcount = ifcount,
         .objects = objects,
         .streams_sec = streams_sec,
-        .error = false,
     };
-    foreach_stages(line, process_stage, &stst);
-
-    if (stst.error) {
+    if (!foreach_stages(line, process_stage, &stst)) {
         fprintf(stderr, "failed to process actions line for stream '%s'\n", stream);
         //TODO free_confaction_list()
         return NULL;
@@ -1081,6 +1067,59 @@ struct ConfAction *process_actions_line(const char *stream, char *line,
     delete_header_list(stst.headers);
 
     return stst.actions;
+}
+
+static void delete_confassignments(struct ConfAssignment *assignments)
+{
+    while (assignments) {
+        struct ConfAssignment *del = assignments;
+        assignments = assignments->next;
+        free(del->text);
+        free(del->rhs.value.value);
+        if (del->lhs.type == CVT_FIELD)
+            free(del->lhs.v.field.field);
+        if (del->rhs.type == CVT_FIELD)
+            free(del->rhs.v.field.field);
+        free(del);
+    }
+}
+
+struct ConfAction *delete_confaction_list(struct ConfAction *ca_list)
+{
+    while (ca_list) {
+        struct ConfAction *del = ca_list;
+        ca_list = ca_list->next;
+        free(del->text);
+        switch (del->type) {
+            case CA_ADD:
+                free(del->d.add.newname);
+                free(del->d.add.newtype);
+                delete_confassignments(del->d.add.assignments);
+                break;
+            case CA_CALL:
+                break;
+            case CA_DEL:
+                break;
+            case CA_DELAY:
+                break;
+            case CA_DROP:
+                break;
+            case CA_EDIT:
+                delete_confassignments(del->d.edit.assignments);
+                break;
+            case CA_ELIM:
+                break;
+            case CA_POF:
+                break;
+            case CA_REPL:
+                break;
+            case CA_SEND:
+                break;
+        }
+        free(del);
+    }
+
+    return NULL;
 }
 
 static struct HeaderFieldAssign *assemble_fieldassigns(struct ConfAssignment *list, unsigned *assigncount)
@@ -1191,70 +1230,70 @@ struct Action *assemble_actions(const struct ConfAction *ca_list, unsigned *acti
     return ret;
 }
 
-void print_actions(const struct ConfAction *ca_list)
+void confactions_print(const struct ConfAction *ca_list)
 {
     for (const struct ConfAction *ca = ca_list; ca; ca=ca->next) {
         fprintf(stderr, "ConfAction %s '%s'\n",
                 confaction_name_from_type(ca->type), ca->text);
         switch (ca->type) {
-        case CA_ADD:
-            printf("  new name %s type %s id %d len %u index %u\n",
-                    ca->d.add.newname, ca->d.add.newtype, ca->d.add.id, ca->d.add.len,
-                    ca->d.add.pos_idx);
-            break;
-        case CA_CALL:
-            printf("  \n");
-            break;
-        case CA_DEL:
-            printf("  index %u\n", ca->d.del.idx);
-            break;
-        case CA_DELAY:
-            printf("  \n");
-            break;
-        case CA_DROP:
-            printf("  \n");
-            break;
-        case CA_EDIT:
-            for (struct ConfAssignment *a=ca->d.edit.assignments; a; a=a->next) {
-                printf("  %s\n", a->text);
-                printf("    lhs type %s valuetype %s bitoffset %u bitcount %u\n",
-                        variabletype_name_from_type(a->lhs.type),
-                        fieldtype_name_from_type(a->lhs.value_type),
-                        a->lhs.value.bitoffset, a->lhs.value.bitcount);
-                printf("      lhs read %p write %p\n", a->lhs.read, a->lhs.write);
-                if (a->lhs.type == CVT_FIELD) {
-                    printf("      index %u\n", a->lhs.v.field.field->header_idx);
-                }
-                printf("    rhs type %s valuetype %s bitoffset %u bitcount %u\n",
-                        variabletype_name_from_type(a->rhs.type),
-                        fieldtype_name_from_type(a->rhs.value_type),
-                        a->rhs.value.bitoffset, a->rhs.value.bitcount);
-                printf("      rhs read %p write %p\n", a->rhs.read, a->rhs.write);
-                if (a->rhs.type == CVT_FIELD) {
-                    printf("      index %u\n", a->rhs.v.field.field->header_idx);
-                } else if (a->rhs.type == CVT_CONST) {
-                    printf("      constant:");
-                    unsigned bytes = DIVCEIL(a->rhs.value.bitoffset + a->rhs.value.bitcount, 8);
-                    unsigned char *cst = a->rhs.value.value;
-                    for (unsigned i=0; i<bytes; i++) {
-                        printf(" 0x%.2x", cst[i]);
+            case CA_ADD:
+                printf("  new name %s type %s id %d len %u index %u\n",
+                        ca->d.add.newname, ca->d.add.newtype, ca->d.add.id, ca->d.add.len,
+                        ca->d.add.pos_idx);
+                break;
+            case CA_CALL:
+                printf("  \n");
+                break;
+            case CA_DEL:
+                printf("  index %u\n", ca->d.del.idx);
+                break;
+            case CA_DELAY:
+                printf("  \n");
+                break;
+            case CA_DROP:
+                printf("  \n");
+                break;
+            case CA_EDIT:
+                for (struct ConfAssignment *a=ca->d.edit.assignments; a; a=a->next) {
+                    printf("  %s\n", a->text);
+                    printf("    lhs type %s valuetype %s bitoffset %u bitcount %u\n",
+                            variabletype_name_from_type(a->lhs.type),
+                            fieldtype_name_from_type(a->lhs.value_type),
+                            a->lhs.value.bitoffset, a->lhs.value.bitcount);
+                    printf("      lhs read %p write %p\n", a->lhs.read, a->lhs.write);
+                    if (a->lhs.type == CVT_FIELD) {
+                        printf("      index %u\n", a->lhs.v.field.field->header_idx);
                     }
-                    printf("\n");
+                    printf("    rhs type %s valuetype %s bitoffset %u bitcount %u\n",
+                            variabletype_name_from_type(a->rhs.type),
+                            fieldtype_name_from_type(a->rhs.value_type),
+                            a->rhs.value.bitoffset, a->rhs.value.bitcount);
+                    printf("      rhs read %p write %p\n", a->rhs.read, a->rhs.write);
+                    if (a->rhs.type == CVT_FIELD) {
+                        printf("      index %u\n", a->rhs.v.field.field->header_idx);
+                    } else if (a->rhs.type == CVT_CONST) {
+                        printf("      constant:");
+                        unsigned bytes = DIVCEIL(a->rhs.value.bitoffset + a->rhs.value.bitcount, 8);
+                        unsigned char *cst = a->rhs.value.value;
+                        for (unsigned i=0; i<bytes; i++) {
+                            printf(" 0x%.2x", cst[i]);
+                        }
+                        printf("\n");
+                    }
                 }
-            }
-            break;
-        case CA_ELIM:
-            printf("  \n");
-            break;
-        case CA_POF:
-            printf("  \n");
-            break;
-        case CA_REPL:
-            printf("  \n");
-            break;
-        case CA_SEND:
-            printf("  \n");
-            break;
+                break;
+            case CA_ELIM:
+                printf("  \n");
+                break;
+            case CA_POF:
+                printf("  \n");
+                break;
+            case CA_REPL:
+                printf("  \n");
+                break;
+            case CA_SEND:
+                printf("  iface %s\n", ca->d.send.iface ? ca->d.send.iface->name : "UNKNOWN");
+                break;
         }
     }
 }

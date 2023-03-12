@@ -10,7 +10,12 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+struct ForeachState {
+    struct HashMap *objects;
+};
+
 struct ObjectInfo {
+    const char *name;
     enum ConfObjectType type;
     union {
         struct {
@@ -35,6 +40,13 @@ struct ObjectInfo {
 
 static bool token_cb(char *str, void *userdata)
 {
+#define THROW(msg, ...)                                             \
+    do {                                                            \
+        fprintf(stderr, "object %s error: " msg "\n",               \
+                info->name, ##__VA_ARGS__);                         \
+        return false;                                               \
+    } while (0)
+
     struct ObjectInfo *info = userdata;
 
     if (info->type) {
@@ -45,84 +57,130 @@ static bool token_cb(char *str, void *userdata)
                     if (strcmp(key, "use_reset_flag") == 0) {
                         int reset = read_boolean(val);
                         if (reset < 0) {
-                            //TODO throw exception: invalid reset flag
+                            THROW("invalid reset flag");
                         }
                         info->p.gen.use_reset_flag = reset;
                     } else if (strcmp(key, "use_init_flag") == 0) {
                         int init = read_boolean(val);
                         if (init < 0) {
-                            //TODO throw exception: invalid init flag
+                            THROW("invalid init flag");
                         }
                         info->p.gen.use_init_flag = init;
                     } else if (strcmp(key, "init_seq") == 0) {
                         unsigned seq;
-                        if (sscanf(val, "%i", &seq) != 1) {
-                            //TODO throw exception: invalid init seq
+                        char err;
+                        if (sscanf(val, "%i%c", &seq, &err) != 1) {
+                            THROW("invalid init sequence number '%s'", val);
                         }
                         info->p.gen.init_seq = seq;
                     } else {
-                        //TODO throw exception: invalid parameter for gen
+                        THROW("invalid parameter '%s' for sequence generator", key);
                     }
                     break;
                 case CO_SEQREC:
-                    //TODO
+                    if (strcmp(key, "use_reset_flag") == 0) {
+                        int reset = read_boolean(val);
+                        if (reset < 0) {
+                            THROW("invalid reset flag");
+                        }
+                        info->p.rec.use_reset_flag = reset;
+                    } else if (strcmp(key, "use_init_flag") == 0) {
+                        int init = read_boolean(val);
+                        if (init < 0) {
+                            THROW("invalid init flag");
+                        }
+                        info->p.rec.use_init_flag = init;
+                    } else if (strcmp(key, "history_length") == 0) {
+                        unsigned hlen;
+                        char err;
+                        if (sscanf(val, "%i%c", &hlen, &err) != 1) {
+                            THROW("invalid history length '%s'", val);
+                        }
+                        info->p.rec.history_length = hlen;
+                    } else if (strcmp(key, "reset_msec") == 0) {
+                        unsigned msec;
+                        char err;
+                        if (sscanf(val, "%i%c", &msec, &err) != 1) {
+                            THROW("invalid reset msec '%s'", val);
+                        }
+                        info->p.rec.reset_msec = msec;
+                    } else if (strcmp(key, "latent_error_paths") == 0) {
+                        unsigned path;
+                        char err;
+                        if (sscanf(val, "%i%c", &path, &err) != 1) {
+                            THROW("invalid latent error paths '%s'", val);
+                        }
+                        info->p.rec.latent_error_paths = path;
+                    } else {
+                        THROW("invalid parameter '%s' for sequence recovery", key);
+                    }
                     break;
                 case CO_POF:
                     //TODO
                     break;
             }
         } else {
-            //TODO throw exception: invalid object parameter format
+            THROW("object parameter '%s' has invalid format", str);
         }
     } else {
-        if (strcmp(str, "gen") == 0) {
+        if (strcmp(str, "seq_gen") == 0) {
             info->type = CO_SEQGEN;
-        } else if (strcmp(str, "rec") == 0) {
+        } else if (strcmp(str, "seq_rcvy") == 0) {
             info->type = CO_SEQREC;
         } else if (strcmp(str, "pof") == 0) {
             info->type = CO_POF;
         } else {
-            //TODO throw exception: invalid object type
+            THROW("invalid type '%s'", str);
         }
     }
 
     return true;
+#undef THROW
 }
 
-static void object_cb(const char *key, void *value, void *userdata)
+static int object_cb(const char *key, void *value, void *userdata)
 {
     char *desc = value;
-    struct HashMap *ret = userdata;
+    struct ForeachState *state = userdata;
+    struct ObjectInfo info = {0};
+    info.name = key;
 
-    struct ObjectInfo *info = calloc_struct(ObjectInfo);
-
-    foreach_tokens(desc, token_cb, info);
+    if (!foreach_tokens(desc, token_cb, &info)) {
+        fprintf(stderr, "error parsing parameters for object '%s'\n", key);
+        return 0;
+    }
 
     struct ConfObject *obj = calloc_struct(ConfObject);
-    obj->type = info->type;
+    obj->type = info.type;
 
-    switch (info->type) {
+    switch (info.type) {
         case CO_SEQGEN:
-            obj->object = new_seq_gen(info->p.gen.use_reset_flag,
-                    info->p.gen.use_init_flag,
-                    info->p.gen.init_seq);
+            obj->object = new_seq_gen(info.p.gen.use_reset_flag,
+                    info.p.gen.use_init_flag,
+                    info.p.gen.init_seq);
             break;
         case CO_SEQREC:
-            obj->object = new_seq_rec(info->p.rec.use_reset_flag,
-                    info->p.rec.use_init_flag,
-                    info->p.rec.history_length,
-                    info->p.rec.reset_msec,
-                    info->p.rec.latent_error_paths);
+            obj->object = new_seq_rec(info.p.rec.use_reset_flag,
+                    info.p.rec.use_init_flag,
+                    info.p.rec.history_length,
+                    info.p.rec.reset_msec,
+                    info.p.rec.latent_error_paths);
             break;
         case CO_POF:
-            //TODO new_pof()
+            //TODO obj->object = new_pof()
             break;
 
     }
-    hashmap_insert(ret, strdup(key), obj);
+    if (obj->object == NULL) {
+        fprintf(stderr, "error creating object '%s'\n", key);
+        return 0;
+    } else {
+        hashmap_insert(state->objects, strdup(key), obj);
+        return 1;
+    }
 }
 
-static void delete_cb(const char *key, void *value, void *userdata)
+static int delete_cb(const char *key, void *value, void *userdata)
 {
     free((char*)key);
     struct ConfObject *obj = value;
@@ -139,15 +197,21 @@ static void delete_cb(const char *key, void *value, void *userdata)
             break;
     }
     free(obj);
+    return 1;
 }
 
-struct HashMap *process_objects(struct IniSection *objects_section)
+struct HashMap *parse_objects(struct IniSection *objects_section)
 {
-    struct HashMap *ret = new_hashmap(13, delete_cb, NULL);
+    struct ForeachState state = {0};
+    state.objects = new_hashmap(13, delete_cb, NULL);
 
-    hashmap_foreach(objects_section->contents, object_cb, ret);
-
-    return ret;
+    if (!hashmap_foreach(objects_section->contents, object_cb, &state)) {
+        fprintf(stderr, "error in the objects section\n");
+        delete_hashmap(state.objects);
+        return NULL;
+    } else {
+        return state.objects;
+    }
 }
 
 const char *confobject_name_from_type(enum ConfObjectType type)

@@ -35,9 +35,9 @@ struct Packet {
     unsigned header_count;
 
     struct Interface *from;
-    struct timespec recv_time;
+    struct timespec recv_time; // read-only property for Edit action
 
-    // packet properties that Edit can read-write
+    // packet properties that Edit action can read-write
     unsigned timestamp; // holds a ttag
     unsigned sequence;  // holds a rtag
 };
