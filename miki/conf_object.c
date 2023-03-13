@@ -38,6 +38,29 @@ struct ObjectInfo {
     } p;
 };
 
+static void set_default_parameters(struct ObjectInfo *info)
+{
+    switch (info->type) {
+        case CO_SEQGEN:
+            info->p.gen.use_reset_flag = false;
+            info->p.gen.use_init_flag = false;
+            info->p.gen.init_seq = 0x8000; // based on the old code
+            break;
+        case CO_SEQREC:
+            info->p.rec.use_reset_flag = false;
+            info->p.rec.use_init_flag = false;
+            info->p.rec.history_length = 512;
+            info->p.rec.reset_msec = 2000;
+            info->p.rec.latent_error_paths = 2;
+            break;
+        case CO_POF:
+            info->p.pof.max_delay = 5;
+            info->p.pof.take_any_time = 500;
+            info->p.pof.buffer_size = 512; // = info->p.rec.history_length
+            break;
+    }
+}
+
 static bool token_cb(char *str, void *userdata)
 {
 #define THROW(msg, ...)                                             \
@@ -54,19 +77,19 @@ static bool token_cb(char *str, void *userdata)
         if (parse_assignment(str, &key, &val)) {
             switch (info->type) {
                 case CO_SEQGEN:
-                    if (strcmp(key, "use_reset_flag") == 0) {
+                    if (strcmp(key, "ResetFlag") == 0) {
                         int reset = read_boolean(val);
                         if (reset < 0) {
                             THROW("invalid reset flag");
                         }
                         info->p.gen.use_reset_flag = reset;
-                    } else if (strcmp(key, "use_init_flag") == 0) {
+                    } else if (strcmp(key, "InitSeqFlag") == 0) {
                         int init = read_boolean(val);
                         if (init < 0) {
                             THROW("invalid init flag");
                         }
                         info->p.gen.use_init_flag = init;
-                    } else if (strcmp(key, "init_seq") == 0) {
+                    } else if (strcmp(key, "InitSeqStart") == 0) {
                         unsigned seq;
                         char err;
                         if (sscanf(val, "%i%c", &seq, &err) != 1) {
@@ -78,39 +101,40 @@ static bool token_cb(char *str, void *userdata)
                     }
                     break;
                 case CO_SEQREC:
-                    if (strcmp(key, "use_reset_flag") == 0) {
+                    if (strcmp(key, "ResetFlag") == 0) {
                         int reset = read_boolean(val);
                         if (reset < 0) {
                             THROW("invalid reset flag");
                         }
                         info->p.rec.use_reset_flag = reset;
-                    } else if (strcmp(key, "use_init_flag") == 0) {
+                    } else if (strcmp(key, "InitSeqFlag") == 0) {
                         int init = read_boolean(val);
                         if (init < 0) {
                             THROW("invalid init flag");
                         }
                         info->p.rec.use_init_flag = init;
-                    } else if (strcmp(key, "history_length") == 0) {
+                    } else if (strcmp(key, "RcvyHistoryLength") == 0) {
                         unsigned hlen;
                         char err;
                         if (sscanf(val, "%i%c", &hlen, &err) != 1) {
                             THROW("invalid history length '%s'", val);
                         }
                         info->p.rec.history_length = hlen;
-                    } else if (strcmp(key, "reset_msec") == 0) {
+                    } else if (strcmp(key, "RcvyResetMsec") == 0) {
                         unsigned msec;
                         char err;
                         if (sscanf(val, "%i%c", &msec, &err) != 1) {
                             THROW("invalid reset msec '%s'", val);
                         }
                         info->p.rec.reset_msec = msec;
-                    } else if (strcmp(key, "latent_error_paths") == 0) {
+                    } else if (strcmp(key, "LatentErrorPaths") == 0) {
                         unsigned path;
                         char err;
                         if (sscanf(val, "%i%c", &path, &err) != 1) {
                             THROW("invalid latent error paths '%s'", val);
                         }
                         info->p.rec.latent_error_paths = path;
+                        //TODO RcvyAlgorithm Vector (or Match or SeamlessVector)
                     } else {
                         THROW("invalid parameter '%s' for sequence recovery", key);
                     }
@@ -123,15 +147,16 @@ static bool token_cb(char *str, void *userdata)
             THROW("object parameter '%s' has invalid format", str);
         }
     } else {
-        if (strcmp(str, "seq_gen") == 0) {
+        if (strcmp(str, "SeqGen") == 0) {
             info->type = CO_SEQGEN;
-        } else if (strcmp(str, "seq_rcvy") == 0) {
+        } else if (strcmp(str, "SeqRcvy") == 0) {
             info->type = CO_SEQREC;
-        } else if (strcmp(str, "pof") == 0) {
+        } else if (strcmp(str, "Pof") == 0) {
             info->type = CO_POF;
         } else {
             THROW("invalid type '%s'", str);
         }
+        set_default_parameters(info);
     }
 
     return true;
@@ -220,9 +245,9 @@ const char *confobject_name_from_type(enum ConfObjectType type)
         case CO_SEQGEN:
             return "SeqGen";
         case CO_SEQREC:
-            return "SeqRec";
+            return "SeqRcvy";
         case CO_POF:
-            return "POF";
+            return "Pof";
     }
     return NULL;
 }

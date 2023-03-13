@@ -20,7 +20,7 @@ struct HeaderFieldAssign {
     value_producer *generator;
     void *generator_state;
     struct Value constant;
-    const char *text;
+    char *text;
 };
 
 struct HeaderField *new_headerfield(unsigned header_idx, unsigned bitoffset, unsigned bitcount);

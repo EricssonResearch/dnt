@@ -51,11 +51,18 @@ static enum ActionResult action_add_execute(struct Action *a, struct PipelineIte
     return ACR_CONTINUE;
 }
 
+static void action_add_del(void *action_private)
+{
+    struct AddData *ad = action_private;
+    free(ad);
+}
+
 void create_action_add(struct Action *a, unsigned idx, int type, unsigned len, const char *text)
 {
     bzero(a, sizeof(*a));
     a->type = ACT_ADD;
     a->execute = action_add_execute;
+    a->del = action_add_del;
     a->text = strdup(text);
 
     struct AddData *ad = calloc_struct(AddData);
@@ -78,11 +85,18 @@ static enum ActionResult action_del_execute(struct Action *a, struct PipelineIte
     return ACR_CONTINUE;
 }
 
+static void action_del_del(void *action_private)
+{
+    struct DelData *dd = action_private;
+    free(dd);
+}
+
 void create_action_del(struct Action *a, unsigned idx, const char *text)
 {
     bzero(a, sizeof(*a));
     a->type = ACT_DEL;
     a->execute = action_del_execute;
+    a->del = action_del_del;
     a->text = strdup(text);
 
     struct DelData *dd = calloc_struct(DelData);
@@ -104,11 +118,18 @@ static enum ActionResult action_delay_execute(struct Action *a, struct PipelineI
     return ACR_HOLD;
 }
 
+static void action_delay_del(void *action_private)
+{
+    struct DelayData *dd = action_private;
+    free(dd);
+}
+
 void create_action_delay(struct Action *a, unsigned delay_ms, struct HeaderField *timestamp, const char *text)
 {
     bzero(a, sizeof(*a));
     a->type = ACT_DELAY;
     a->execute = action_delay_execute;
+    a->del = action_delay_del;
     a->text = strdup(text);
 
     struct DelayData *dd = calloc_struct(DelayData);
@@ -160,7 +181,12 @@ static enum ActionResult action_edit_execute(struct Action *a, struct PipelineIt
 static void action_edit_del(void *action_private)
 {
     struct EditData *ed = action_private;
-    free(ed->assigns); //TODO HeaderFieldAssign needs a destructor...
+    for (unsigned i=0; i<ed->assign_count; i++) {
+        free(ed->assigns[i].text);
+        free(ed->assigns[i].constant.value);
+    }
+    free(ed->assigns);
+    free(ed);
 }
 
 void create_action_edit(struct Action *a, struct HeaderFieldAssign *assigns, unsigned assign_count, const char *text)
@@ -250,11 +276,18 @@ static enum ActionResult action_send_execute(struct Action *a, struct PipelineIt
     return ACR_CONTINUE;
 }
 
+static void action_send_del(void *action_private)
+{
+    struct SendData *sd = action_private;
+    free(sd);
+}
+
 void create_action_send(struct Action *a, struct Interface *iface, const char *text)
 {
     bzero(a, sizeof(*a));
     a->type = ACT_SEND;
     a->execute = action_send_execute;
+    a->del = action_send_del;
     a->text = strdup(text);
 
     struct SendData *sd = calloc_struct(SendData);

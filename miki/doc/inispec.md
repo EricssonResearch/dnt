@@ -34,7 +34,7 @@ This section lists the packet streams, each stream is defined with three lines: 
 
 ### packet
 
-This line specifies the expected header structure of the packet, and the values of the header fields that are used to identify the stream. The header list is separated by semicolons (;).
+This line specifies the expected header structure of the packet, and the values of the header fields that are used to identify the stream. The header list is separated by commas (,).
 
 Known header types are: eth, svlan, cvlan, rtag, ttag, ipv4, ipv6, arp, mpls, dcw_seq, dcw_ts
 TODO what else do we need?
@@ -47,7 +47,7 @@ Anything after the last specified header is considered `payload`. If the last he
 
 Separate from the packet structure definition there is a line that specifies which header field values identify the stream.
 
-Value matching for header fields is done with the following syntax: `headername fieldname=fieldvalue [fieldname=fieldvalue]`. It is possible to match multiple fields of the same header, separated by space. The header names used in this line refer to the names assigned in the `packet` line. Match specifications for different headers are separated by semicolons (;).
+Value matching for header fields is done with the following syntax: `headername fieldname=fieldvalue [fieldname=fieldvalue]`. It is possible to match multiple fields of the same header, separated by space. The header names used in this line refer to the names assigned in the `packet` line. Match specifications for different headers are separated by commas (,).
 
 The matches for a stream are processed in the order they are given.
 TODO or in the order of the protocol stack?
@@ -56,11 +56,11 @@ If there is no matching stream for an incoming packet, the action is `drop`.
 
 ### actions
 
-This line specifies the processing actions that must be run on the received packet that matches the corresponding *packet* line. The actions in the list are separated by semicolons (;).
+This line specifies the processing actions that must be run on the received packet that matches the corresponding *packet* line. The actions in the list are separated by commas (,).
 
 The actions are the following:
 
-* `add {before|after} header newheader fieldname=fieldvalue` adds a new header of type `newheader` with the given field values at the given position
+* `{before|after} header add newheader fieldname=fieldvalue` adds a new header of type `newheader` with the given field values at the given position
 * `del header` removes the given header from the packet
 * `edit header.fieldname=newvalue` changes the given field of the given header, multiple fields can be edited at once, separated by space, can edit headers created by `add`, can edit multiple headers TODO lhs=rhs
 * `send iface` sends out the packet on the given interface from the *interfaces* list
@@ -78,6 +78,8 @@ It is possible to define action pipelines in the *streams* section that are not 
 When the parameter of an action is a header field, it is given in this form: `headername.fieldname`
 
 When the parameter of an action is time, it needs to have one of these suffixes: 'us', 'ms', 's'
+
+For some actions the type of the action is determined by their first argument. In these cases the action name can be omitted. Such actions are: eliminate, pof, jump.
 
 When the action pipeline is finished, the memory used for the packet is automatically reclaimed, there is no need to explicitly drop it with the `drop` action.
 

@@ -10,6 +10,12 @@
 static unsigned packet_count = 0;
 static unsigned char *dummybuf = NULL;
 
+static void free_dummybuf(void) __attribute__((destructor));
+static void free_dummybuf(void)
+{
+    free(dummybuf);
+}
+
 struct Packet *new_packet(struct Interface *from)
 {
     //TODO global constructor function?

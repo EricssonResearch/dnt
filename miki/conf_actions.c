@@ -101,6 +101,7 @@ struct ConfAction {
             unsigned pos_idx;
             unsigned len;
             struct ConfAssignment *assignments;
+            bool was_add;
         } add;
         struct {
             char *pipename;
@@ -434,20 +435,18 @@ static bool process_token(char *token, void *userdata)
     if (stst->actions->type) {
         switch (stst->actions->type) {
             case CA_ADD:
-                if (stst->actions->d.add.beforeafter == ADD_UNKNOWN) {
-                    if (strcmp(token, "before") == 0)
-                        stst->actions->d.add.beforeafter = ADD_BEFORE;
-                    else if (strcmp(token, "after") == 0)
-                        stst->actions->d.add.beforeafter = ADD_AFTER;
-                    else {
-                        THROW("invalid location designator '%s'", token);
-                    }
-                } else if (stst->actions->d.add.pos == NULL) {
+                if (stst->actions->d.add.pos == NULL) {
                     struct HeaderDescriptor *pos = header_list_find_by_name(stst->headers, token);
                     if (pos == NULL) {
                         THROW("no header named '%s' in the packet", token);
                     }
                     stst->actions->d.add.pos = pos;
+                } else if (stst->actions->d.add.was_add == false) {
+                    if (strcmp(token, "add") == 0) {
+                        stst->actions->d.add.was_add = true;
+                    } else {
+                        THROW("the 'add' keyword is mising");
+                    }
                 } else if (stst->actions->d.add.newname == NULL) {
                     stst->actions->d.add.newname = strdup(token);
                     char *type = header_type_from_name(token);
@@ -645,9 +644,13 @@ static bool process_token(char *token, void *userdata)
                 break;
         }
     } else {
-        if        (strcmp(token, "add") == 0) {
+        if        (strcmp(token, "after") == 0) {
             stst->actions->type = CA_ADD;
-        } else if (strcmp(token, "call") == 0) {
+            stst->actions->d.add.beforeafter = ADD_AFTER;
+        } else if (strcmp(token, "before") == 0) {
+            stst->actions->type = CA_ADD;
+            stst->actions->d.add.beforeafter = ADD_BEFORE;
+        } else if (strcmp(token, "call") == 0) { //TODO jump
             stst->actions->type = CA_CALL;
         } else if (strcmp(token, "del") == 0) {
             stst->actions->type = CA_DEL;
@@ -1050,12 +1053,14 @@ struct ConfAction *parse_actions_line(const char *stream, char *line,
     };
     if (!foreach_stages(line, process_stage, &stst)) {
         fprintf(stderr, "failed to process actions line for stream '%s'\n", stream);
-        //TODO free_confaction_list()
+        delete_header_list(stst.headers);
+        delete_confaction_list(stst.actions);
         return NULL;
     }
 
     if (stst.actions == NULL) {
         fprintf(stderr, "no actions in actions line for stream '%s'\n", stream);
+        delete_header_list(stst.headers);
         return NULL;
     }
 

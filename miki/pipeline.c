@@ -71,6 +71,7 @@ void pipeline_unref(struct Pipeline *pipe)
         for (unsigned i=0; i<pipe->action_count; i++) {
             delete_action(pipe->actions+i);
         }
+        free(pipe->actions);
         free(pipe);
     }
 }

@@ -14,6 +14,28 @@
 #include <stdlib.h>
 #include <string.h>
 
+static int remove_comment(const char *key, void *value, void *userdata)
+{
+    (void)key;
+    (void)userdata;
+    char *v = value;
+    char *cstart;
+    cstart = strchr(v, ';');
+    if (cstart) *cstart = 0;
+    cstart = strchr(v, '#');
+    if (cstart) *cstart = 0;
+    return 1;
+}
+
+static void remove_comments_from_values(struct IniSection *ini)
+{
+    struct IniSection *i = ini;
+    while (i) {
+        hashmap_foreach(i->contents, remove_comment, NULL);
+        i = i->next;
+    }
+}
+
 struct R2d2Config *read_config(const char *filename)
 {
 #define THROW(msg, ...)                                             \
@@ -29,6 +51,7 @@ struct R2d2Config *read_config(const char *filename)
     if (ini == NULL) {
         THROW("failed to read the ini file");
     }
+    remove_comments_from_values(ini);
 
     struct IniSection *interfaces_sec = inisection_find_section(ini, "interfaces");
     struct IniSection *objects_sec = inisection_find_section(ini, "objects");
