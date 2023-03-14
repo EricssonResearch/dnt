@@ -39,9 +39,10 @@ typedef bool iface_open(struct Interface *iface);
 typedef bool iface_close(struct Interface *iface);
 
 // @return a function that can read @property of the interface
-// @type is the type the consumer wants
-// the bitoffset and bitlength of the property should be set in @value
-typedef value_producer *iface_get_property_reader(const struct Interface *iface, const char *property, enum ProtocolFieldType type, struct Value *value);
+// @type is the type the consumer wants, it is checked against the property
+// the bitoffset and bitlength in @target is checked against the property
+typedef value_producer *iface_get_property_reader(const struct Interface *iface, const char *property,
+        enum ProtocolFieldType target_type, const struct Value *target);
 
 struct Interface {
     enum IfaceType type;

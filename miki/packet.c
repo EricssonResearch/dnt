@@ -59,6 +59,7 @@ struct Packet *copy_packet(const struct Packet *p)
     // we need to keep the unallocated scratch space zeroed
     memcpy(newp->buf, p->buf, p->start+p->len);
 #endif
+    packet_count++;
     return newp;
 }
 
@@ -157,7 +158,7 @@ static void write_tstamp(void *state, struct Value *value, struct Packet *p)
     memcpy(&p->timestamp, value->value, 4);
 }
 
-value_consumer *packet_get_property_writer(const char *name, struct Value *source)
+value_consumer *packet_get_property_writer(const char *name, const struct Value *source)
 {
     if (source->bitoffset >0 || source->bitcount != 32) {
         return NULL;
@@ -197,7 +198,7 @@ static void read_recvtime(void *state, value_consumer *consumer, void *consumer_
     consumer(consumer_state, &v, p);
 }
 
-value_producer *packet_get_property_reader(const char *name, struct Value *target)
+value_producer *packet_get_property_reader(const char *name, const struct Value *target)
 {
     if (target->bitoffset >0 || target->bitcount != 32) {
         return NULL;

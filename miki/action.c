@@ -5,10 +5,12 @@
 #include "interface.h"
 #include "packet.h"
 #include "pipeline.h"
+#include "seq_recov.h"
 #include "utils.h"
 
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 const char *action_name_from_type(enum ActionType type)
 {
@@ -205,7 +207,43 @@ void create_action_edit(struct Action *a, struct HeaderFieldAssign *assigns, uns
 
 /////////////////////////////////////////////////////////////////////
 
-//TODO elim
+struct ElimData {
+    struct SequenceRecovery *rcvy;
+    value_producer *get_seq;
+    void *get_seq_state;
+};
+
+static enum ActionResult action_elim_execute(struct Action *a, struct PipelineIterator *pi)
+{
+    struct ElimData *ed = a->action_private;
+    if (seq_recovery(ed->rcvy, ed->get_seq, ed->get_seq_state, pi->packet)) {
+        return ACR_CONTINUE;
+    } else {
+        return ACR_DONE;
+    }
+}
+
+
+static void action_elim_del(void *action_private)
+{
+    struct ElimData *ed = action_private;
+    free(ed);
+}
+
+void create_action_elim(struct Action *a, struct SequenceRecovery *rcvy, value_producer *get_seq, void *get_seq_state, const char *text)
+{
+    bzero(a, sizeof(*a));
+    a->type = ACT_ELIM;
+    a->execute = action_elim_execute;
+    a->del = action_elim_del;
+    a->text = strdup(text);
+
+    struct ElimData *ed = calloc_struct(ElimData);
+    ed->rcvy = rcvy;
+    ed->get_seq = get_seq;
+    ed->get_seq_state = get_seq_state;
+    a->action_private = ed;
+}
 
 /////////////////////////////////////////////////////////////////////
 
@@ -217,12 +255,16 @@ static enum ActionResult action_repl_execute(struct Action *a, struct PipelineIt
 {
     struct PipelineList *list = a->action_private;
 
+    // extract the packet from our iterator
+    struct Packet *iterpacket = pi->packet;
+    pi->packet = NULL;
+
     while (list) {
         struct Packet *p;
         if (list->next) {
-            p = copy_packet(pi->packet);
+            p = copy_packet(iterpacket);
         } else {
-            p = pi->packet;
+            p = iterpacket;
         }
 
         struct PipelineIterator *newpi = new_pipe_iterator(list->pipe, p);
@@ -312,9 +354,8 @@ struct Action *delete_action(struct Action *a)
     if (!a) return NULL;
     if (a->del)
         a->del(a->action_private);
-    //free(a->action_private); //TODO do this in a->del
     free(a->text);
-    //free(a); TODO actins are in an array
+    //free(a); actions are in an array
     return NULL;
 }
 

@@ -16,6 +16,6 @@ struct SequenceRecovery *new_seq_rec(bool use_reset_flag, bool use_init_flag,
 struct SequenceRecovery *delete_seq_rec(struct SequenceRecovery *rec);
 
 // @returns true if the packet is not a duplicate
-bool seq_recovery(struct SequenceRecovery *rec, struct Packet *p, value_producer *read_seq, struct HeaderField *seq);
+bool seq_recovery(struct SequenceRecovery *rec, value_producer *read_seq, void *producer_state, struct Packet *p);
 
 #endif // R2_SEQ_RECOV_H

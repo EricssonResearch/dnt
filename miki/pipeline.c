@@ -20,29 +20,16 @@ static void ref_send_interfaces(struct Pipeline *pipe)
     for (unsigned i=0; i<pipe->action_count; i++) {
         if (pipe->actions[i].type == ACT_SEND) {
             iface_ref(action_send_get_iface(pipe->actions+i));
-        } else if (pipe->actions[i].type == ACT_REPL) {
-            struct PipelineList *plist = action_repl_get_piplinelist(pipe->actions+i);
-            while (plist) {
-                ref_send_interfaces(plist->pipe);
-                plist = plist->next;
-            }
         }
     }
 }
 
 // release the outgoing interfaces
-//TODO merge this code with ref_send_interfaces()
 static void unref_send_interfaces(struct Pipeline *pipe)
 {
     for (unsigned i=0; i<pipe->action_count; i++) {
         if (pipe->actions[i].type == ACT_SEND) {
             iface_unref(action_send_get_iface(pipe->actions+i));
-        } else if (pipe->actions[i].type == ACT_REPL) {
-            struct PipelineList *plist = action_repl_get_piplinelist(pipe->actions+i);
-            while (plist) {
-                unref_send_interfaces(plist->pipe);
-                plist = plist->next;
-            }
         }
     }
 }
@@ -104,7 +91,7 @@ void pipe_iterator_run(struct PipelineIterator *pi)
     printf("pipe_iterator_run, action count %u\n", pi->pipe->action_count);
     while (!iterator_done(pi)) {
         struct Action *a = &pi->pipe->actions[pi->pos];
-        printf("pipe_iterator_run, action type %d %s\n", a->type, action_name_from_type(a->type));
+        printf("  action type %d %s\n", a->type, action_name_from_type(a->type));
         enum ActionResult res = a->execute(a, pi);
         switch (res) {
             case ACR_CONTINUE:

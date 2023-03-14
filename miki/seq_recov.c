@@ -4,9 +4,13 @@
 
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
+
+#include <arpa/inet.h> /* ntohl() */
 
 struct SequenceRecovery {
     //TODO all the things
+    unsigned last_seq;
 };
 
 struct SequenceRecovery *new_seq_rec(bool use_reset_flag, bool use_init_flag,
@@ -29,20 +33,20 @@ struct SequenceRecovery *delete_seq_rec(struct SequenceRecovery *rec)
     return NULL;
 }
 
-static void get_seq(void *state, struct Value *value, struct Packet *p)
+static void get_seq_num(void *state, struct Value *value, struct Packet *p)
 {
-    uint32_t *packet_seq = state;
-    memcpy(packet_seq, value->value, sizeof(uint32_t));
     (void)p;
+    uint32_t *seq_num = state;
+    memcpy(seq_num, value->value, sizeof(uint32_t));
 }
 
-bool seq_recovery(struct SequenceRecovery *rec, struct Packet *p, value_producer *read_seq, struct HeaderField *seq)
+bool seq_recovery(struct SequenceRecovery *rec, value_producer *read_seq, void *producer_state, struct Packet *p)
 {
-    uint32_t packet_seq;
-    read_seq(seq, get_seq, &packet_seq, p);
-
-    //TODO check recovery state: we need to import the recover() functions from the old code
-    (void)rec;
-
-    return true;
+    uint32_t seq_num;
+    read_seq(producer_state, get_seq_num, &seq_num, p);
+    uint32_t seq = ntohl(seq_num) & 0xffff;
+    bool ret = seq > rec->last_seq; //TODO this is the simplest recovery
+    printf("seq recovery: 0x%.8x %u %u -> %s\n", seq_num, seq, rec->last_seq, ret ? "new" : "duplicate");
+    rec->last_seq = seq;
+    return ret;
 }

@@ -76,13 +76,13 @@ enum ProtocolFieldType packet_get_property_type(const char *name);
 // the size and offset of @source is checked for compatibility
 // the consumer has no state other than the packet
 // @returns NULL if @name is invalid or @source is incompatible
-value_consumer *packet_get_property_writer(const char *name, struct Value *source);
+value_consumer *packet_get_property_writer(const char *name, const struct Value *source);
 
 // @returns a producer function to read the given packet property
 // the size and offset of @target is checked for compatibility
 // the producer has no state other than the packet
 // @returns NULL if @name is invalid or @target is incompatible
-value_producer *packet_get_property_reader(const char *name, struct Value *target);
+value_producer *packet_get_property_reader(const char *name, const struct Value *target);
 
 
 #endif // R2_PACKET_H

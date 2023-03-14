@@ -4,6 +4,7 @@
 #include "conf_interface.h"
 #include "conf_object.h"
 #include "conf_streams.h"
+#include "action.h"
 #include "inifile.h"
 #include "interface.h"
 #include "parsetree.h"
@@ -152,16 +153,21 @@ static int addstream_cb(const char *key, void *value, void *userdata)
                 return 0;
             }
             pipe = new_pipeline(actions, action_count);
-            if (!pipe) {
+            if (!pipe) { //TODO this never happens
                 fprintf(stderr, "failed to create action pipeline for stream %s\n", s->stream_name);
+                for (unsigned i=0; i<action_count; i++) {
+                    delete_action(actions+i);
+                }
+                free(actions);
                 return 0;
             }
-            hashmap_insert(state->pipelines, strdup(s->stream_name), pipe);
             if (!parsetree_add_stream(iface->parsetree, s->stream->packet, pipe)) {
                 fprintf(stderr, "failed to add stream %s to the parsetree of interface %s\n",
                         s->stream_name, key);
+                pipeline_unref(pipe); //TODO verify the refcounting scheme, including the error path
                 return 0;
             }
+            hashmap_insert(state->pipelines, strdup(s->stream_name), pipe);
         }
     }
 

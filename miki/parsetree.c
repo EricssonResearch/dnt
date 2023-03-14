@@ -74,8 +74,7 @@ struct Pipeline *parsetree_process(struct ParseTree *pt, struct Packet *p)
         offset += proto->bytelength;
         h = h->next;
     }
-    //TODO mark the rest as payload somehow, simply using type=0 is not okay
-    packet_identify_header(p, 0, offset, p->len-offset);
+    packet_identify_header(p, PROTO_ID_PAYLOAD, offset, p->len-offset);
 
     return pt->pipe;
 }

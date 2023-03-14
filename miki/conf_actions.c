@@ -9,7 +9,9 @@
 #include "inifile.h"
 #include "packet.h"
 #include "parsetree.h"
+#include "pipeline.h"
 #include "protocol.h"
+#include "seq_gen.h"
 #include "transfer.h"
 #include "utils.h"
 
@@ -20,14 +22,15 @@
 
 #include <arpa/inet.h> /* ntohs() */
 
+//TODO more actions: readseq, writeseq, readtstamp, writetstamp
 enum ConfActionType {
     CA_ADD = 1,
-    CA_CALL, //TODO update this: "jump" that doesn't return
     CA_DEL,
     CA_DELAY,
     CA_DROP,
     CA_EDIT,
     CA_ELIM,
+    CA_JUMP,
     CA_POF,
     CA_REPL,
     CA_SEND,
@@ -80,9 +83,10 @@ struct ConfAssignment {
     struct ConfAssignment *next;
 };
 
-struct StringList {
+struct ReplicateList {
     char *string;
-    struct StringList *next;
+    struct ConfAction *actions;
+    struct ReplicateList *next;
 };
 
 // compiler-internal representation of an action
@@ -104,10 +108,6 @@ struct ConfAction {
             bool was_add;
         } add;
         struct {
-            char *pipename;
-            struct HashMap *replacements;
-        } call;
-        struct {
             struct HeaderDescriptor *hdr;
             unsigned idx;
         } del;
@@ -119,16 +119,19 @@ struct ConfAction {
             struct ConfAssignment *assignments;
         } edit;
         struct {
-            struct ConfObject *rec;
-            struct HeaderField seq_field;
+            struct SequenceRecovery *rec;
+            value_producer *seq_producer;
+            void *seq_producer_state;
         } elim;
         struct {
-            struct ConfObject *pof;
-            struct HeaderField seq_field;
+            char *pipename;
+        } jump;
+        struct {
+            struct ConfObject *pof; //TODO struct Pof
+            //struct HeaderField seq_field;
         } pof;
         struct {
-            char *name;
-            struct StringList *pipelines;
+            struct ReplicateList *pipelines;
         } repl;
         struct {
             struct Interface *iface;
@@ -144,12 +147,13 @@ struct StageState {
     unsigned ifcount;
     struct HashMap *objects;
     struct IniSection *streams_sec;
+    bool had_final;
 };
 
 
-static void stringlist_push_string(struct StringList **list, char *string)
+static void replicatelist_push_string(struct ReplicateList **list, char *string)
 {
-    struct StringList *l = calloc_struct(StringList);
+    struct ReplicateList *l = calloc_struct(ReplicateList);
     l->string = string;
     l->next = *list;
     *list = l;
@@ -203,8 +207,6 @@ static const char *confaction_name_from_type(enum ConfActionType type)
     switch (type) {
         case CA_ADD:
             return "Add";
-        case CA_CALL:
-            return "Call";
         case CA_DEL:
             return "Del";
         case CA_DELAY:
@@ -215,6 +217,8 @@ static const char *confaction_name_from_type(enum ConfActionType type)
             return "Edit";
         case CA_ELIM:
             return "Eliminate";
+        case CA_JUMP:
+            return "Jump";
         case CA_POF:
             return "POF";
         case CA_REPL:
@@ -358,7 +362,7 @@ static bool process_assignment_rhs(struct StageState *stst, const struct ConfVar
         if (iface) {
             printf("rhs is an interface!\n");
             if (iface->get_property_reader) {
-                rhs->read = iface->get_property_reader(iface, val, lhs->value_type, &rhs->value);
+                rhs->read = iface->get_property_reader(iface, val, lhs->value_type, &lhs->value);
                 if (rhs->read == NULL) {
                     THROW("interface %s has no property named '%s'", iface->name, val);
                 }
@@ -381,6 +385,10 @@ static bool process_assignment_rhs(struct StageState *stst, const struct ConfVar
             if (lhs->value_type != rhstype) {
                 THROW("cannot read packet meta '%s' into the left-hand-side expression", val);
             }
+            rhs->read = packet_get_property_reader(val, &lhs->value);
+            if (rhs->read == NULL) {
+                THROW("can't read metadata '%s' into the given target", val);
+            }
             init_confvariable(rhs, CVT_PACKET, rhstype, 0, 32);
             rhs->v.meta.name = strdup(val);
             return true;
@@ -402,8 +410,9 @@ static bool process_assignment_rhs(struct StageState *stst, const struct ConfVar
             THROW("type of left-hand-side expression '%s' is invalid for TSN sequence generator",
                     fieldtype_name_from_type(lhs->value_type));
         }
+        rhs->read = seq_generator;
         init_confvariable(rhs, CVT_GEN, FT_TSNSEQ, 0, 32);
-        rhs->v.object.obj = obj;
+        rhs->v.object.obj = obj->object;
         return true;
     }
 
@@ -496,21 +505,6 @@ static bool process_token(char *token, void *userdata)
                     }
                 }
                 break;
-            case CA_CALL:
-                if (stst->actions->d.call.pipename == NULL) {
-                    stst->actions->d.call.pipename = strdup(token);
-                } else {
-                    if (stst->actions->d.call.replacements == NULL)
-                        stst->actions->d.call.replacements = new_hashmap(13, NULL, NULL);
-                    char *key, *val;
-                    if (parse_assignment(token, &key, &val)) {
-                        //TODO val should not contain '='
-                        hashmap_insert(stst->actions->d.call.replacements, strdup(key), strdup(val));
-                    } else {
-                        THROW("replacement '%s' doesn't contain '='", token);
-                    }
-                }
-                break;
             case CA_DEL:
                 if (stst->actions->d.del.hdr) {
                     THROW("delete action takes only 1 parameter");
@@ -532,6 +526,7 @@ static bool process_token(char *token, void *userdata)
                 THROW("drop action doesn't take parameters");
                 break;
             case CA_EDIT: {
+                printf("edit token '%s'\n", token);
                 char *lhs, *rhs;
                 struct ConfAssignment *a = calloc_struct(ConfAssignment);
                 a->next = stst->actions->d.edit.assignments;
@@ -576,7 +571,7 @@ static bool process_token(char *token, void *userdata)
                     struct ConfObject *obj = hashmap_find(stst->objects, token);
                     if (obj) {
                         if (obj->type == CO_SEQREC) {
-                            stst->actions->d.elim.rec = obj;
+                            stst->actions->d.elim.rec = obj->object;
                         } else {
                             THROW("first argument of eliminate must be a recovery object");
                         }
@@ -584,28 +579,16 @@ static bool process_token(char *token, void *userdata)
                         THROW("first argument of eliminate must be a recovery object");
                     }
                 } else {
+                    THROW("the only argument of eliminate is the recovery object");
                     //TODO feri: we should always use the seq metadata
-                    char *hdr, *field;
-                    if (parse_fieldname(token, &hdr, &field)) {
-                        //TODO this was mostly copied from process_assignment_lhs(), unify them
-                        struct HeaderDescriptor *h = header_list_find_by_name(stst->headers, hdr);
-                        if (h == NULL) {
-                            THROW("second argument of eliminate must be a sequence field");
-                        }
-                        struct ProtocolField *f = protocol_get_field_by_name(h->id, field);
-                        if (f == NULL) {
-                            THROW("second argument of eliminate must be a sequence field");
-                        }
-                        if (f->type != FT_TSNSEQ) {
-                            THROW("second argument of eliminate must be a sequence field");
-                        }
-                        struct HeaderField *hf = &stst->actions->d.elim.seq_field;
-                        hf->header_idx = header_index(stst->headers, h);
-                        hf->bitoffset = f->bitoffset;
-                        hf->bitcount = f->bitcount;
-                    } else {
-                        THROW("second argument of eliminate must be a sequence field");
-                    }
+                    //TODO miki: we could have any rhs here but fine whatever
+                }
+                break;
+            case CA_JUMP:
+                if (stst->actions->d.jump.pipename == NULL) {
+                    stst->actions->d.jump.pipename = strdup(token);
+                } else {
+                    THROW("the only argument is the name of an action pipeline");
                 }
                 break;
             case CA_POF:
@@ -627,7 +610,7 @@ static bool process_token(char *token, void *userdata)
                 }
                 break;
             case CA_REPL:
-                stringlist_push_string(&stst->actions->d.repl.pipelines, strdup(token));
+                replicatelist_push_string(&stst->actions->d.repl.pipelines, strdup(token));
                 break;
             case CA_SEND:
                 if (stst->actions->d.send.iface) {
@@ -650,8 +633,6 @@ static bool process_token(char *token, void *userdata)
         } else if (strcmp(token, "before") == 0) {
             stst->actions->type = CA_ADD;
             stst->actions->d.add.beforeafter = ADD_BEFORE;
-        } else if (strcmp(token, "call") == 0) { //TODO jump
-            stst->actions->type = CA_CALL;
         } else if (strcmp(token, "del") == 0) {
             stst->actions->type = CA_DEL;
         } else if (strcmp(token, "delay") == 0) {
@@ -662,6 +643,8 @@ static bool process_token(char *token, void *userdata)
             stst->actions->type = CA_EDIT;
         } else if (strcmp(token, "eliminate") == 0) {
             stst->actions->type = CA_ELIM;
+        } else if (strcmp(token, "jump") == 0) {
+            stst->actions->type = CA_JUMP;
         } else if (strcmp(token, "pof") == 0) {
             stst->actions->type = CA_POF;
         } else if (strcmp(token, "replicate") == 0) {
@@ -673,11 +656,11 @@ static bool process_token(char *token, void *userdata)
             if (obj) {
                 switch (obj->type) {
                     case CO_SEQGEN:
-                        THROW("seq generator cannot be used as action");
+                        THROW("sequence generator cannot be used as action");
                         break;
                     case CO_SEQREC:
                         stst->actions->type = CA_ELIM;
-                        stst->actions->d.elim.rec = obj;
+                        stst->actions->d.elim.rec = obj->object;
                         break;
                     case CO_POF:
                         stst->actions->type = CA_POF;
@@ -685,8 +668,13 @@ static bool process_token(char *token, void *userdata)
                         break;
                 }
             } else {
-                //TODO balázs: see if token is a pipeline name, do a "jump" action
-                THROW("action name invalid");
+                char *pstring = inisection_get(stst->streams_sec, token);
+                if (pstring) {
+                    stst->actions->type = CA_JUMP;
+                    stst->actions->d.jump.pipename = strdup(token);
+                } else {
+                    THROW("action name invalid");
+                }
             }
         }
     }
@@ -694,6 +682,8 @@ static bool process_token(char *token, void *userdata)
     return true;
 #undef THROW
 }
+
+static bool process_stage(char *stage, void *userdata);
 
 // here we do processing that needs all the parameters of the action
 static bool process_action(struct StageState *stst)
@@ -765,6 +755,11 @@ static bool process_action(struct StageState *stst)
             stst->actions->d.add.assignments = NULL;
             edit->next = stst->actions;
             stst->actions = edit;
+
+            //TODO if the new header has a FT_TSNSEQ field, automatically create
+            //      edit newheader.seq=meta.seq
+            //TODO if the new header has a FT_TSNTSTAMP field, automatically create
+            //      edit newheader.tstamp=meta.tstamp
 
             // set the nexthdr field of newheader
             if (protocol_list[newheader->id].get_nexthdr != NULL) {
@@ -857,28 +852,6 @@ static bool process_action(struct StageState *stst)
             }
 
             process_action(stst); // now edit is the newest action
-            break;
-        case CA_CALL:
-            if (stst->actions->d.call.pipename == NULL) {
-                THROW("no action list");
-            }
-            char *pipestring = inisection_get(stst->streams_sec, stst->actions->d.call.pipename);
-            if (pipestring) {
-                if (stst->actions->d.call.replacements) {
-                    //TODO do the {key} substitutions on pipestring
-                }
-                //TODO call foreach_stages() on the value
-                //      TODO it modifies the packet list!
-                //      TODO limit recursion depth with a counter in stst
-                //TODO insert the returned action chain in place of this one
-                //      newchain_end->next = stst->actions->next;
-                //      call = stst->actions;
-                //      delete(call)
-                //      stst->actions = newchain_beginning
-                //TODO balázs: instead of "call" it should be "jump" that doesn't return
-            } else {
-                THROW("action list '%s' not found", stst->actions->d.call.pipename);
-            }
             break;
         case CA_DEL:
             if (stst->actions->d.del.hdr == NULL) {
@@ -979,7 +952,7 @@ static bool process_action(struct StageState *stst)
             //TODO check that second param was a valid time constant
             break;
         case CA_DROP:
-            // nothing to do here
+            stst->had_final = true;
             break;
         case CA_EDIT:
             printf("CA_EDIT: %s\n", stst->actions->text);
@@ -990,19 +963,83 @@ static bool process_action(struct StageState *stst)
             }
             break;
         case CA_ELIM:
-            //TODO
+            if (stst->actions->d.elim.rec == NULL) {
+                THROW("eliminate needs a sequence recovery object");
+            }
+            //TODO we could have any rhs here
+            struct Value val = {NULL, 0, 32};
+            stst->actions->d.elim.seq_producer = packet_get_property_reader("seq", &val);
+            stst->actions->d.elim.seq_producer_state = NULL;
+            break;
+        case CA_JUMP:
+            printf("CA_JUMP: %s\n", stst->actions->text);
+            if (stst->actions->d.jump.pipename == NULL) {
+                THROW("no action pipeline to jump to");
+            }
+            char *pipestring = inisection_get(stst->streams_sec, stst->actions->d.jump.pipename);
+            if (pipestring) {
+                struct StageState jstst = *stst;
+                jstst.stream = stst->actions->d.jump.pipename;
+                jstst.actions = NULL;
+                //TODO limit recursion depth with a counter in stst
+                if (!foreach_stages(pipestring, process_stage, &jstst)) {
+                    THROW("failed to process pipeline '%s'", stst->actions->d.jump.pipename);
+                }
+                if (jstst.actions == NULL) {
+                    THROW("no actions in pipeline '%s'", stst->actions->d.jump.pipename);
+                }
+
+                // replace jump with the newly read action list
+                struct ConfAction *newend = jstst.actions;
+                while (newend->next) newend = newend->next;
+                newend->next = stst->actions->next;
+                struct ConfAction *jump = stst->actions;
+                jump->next = NULL;
+                stst->actions = jstst.actions;
+                delete_confaction_list(jump);
+            } else {
+                THROW("action pipeline '%s' not found", stst->actions->d.jump.pipename);
+            }
+            stst->had_final = true;
             break;
         case CA_POF:
             //TODO
             break;
         case CA_REPL:
-            //TODO arguments are action pipeline names, find them in the streams section
-            //TODO process all strings with foreach_stages(), remember the resulting linked lists
-            //TODO each branch needs its own copy of the header list
+            printf("CA_REPL: %s\n", stst->actions->text);
+            if (stst->actions->d.repl.pipelines == NULL) {
+                THROW("no pipelines specified");
+            }
+            struct ReplicateList *p = stst->actions->d.repl.pipelines;
+            while (p) {
+                printf(" branch '%s'\n", p->string);
+                char *pstring = inisection_get(stst->streams_sec, p->string);
+                if (pstring == NULL) {
+                    THROW("pipeline '%s' not found", p->string);
+                }
+                struct StageState pstst = *stst;
+                pstst.stream = p->string;
+                pstst.headers = copy_header_list(stst->headers);
+                pstst.actions = NULL;
+                if (!foreach_stages(pstring, process_stage, &pstst)) {
+                    delete_header_list(pstst.headers);
+                    THROW("failed to process pipeline '%s'", p->string);
+                }
+                if (pstst.actions == NULL) {
+                    delete_header_list(pstst.headers);
+                    THROW("no actions in pipeline '%s'", p->string);
+                }
+                delete_header_list(pstst.headers);
+                p->actions = pstst.actions;
+                REVERSE_LIST(p->actions);
+                p = p->next;
+            }
+            REVERSE_LIST(stst->actions->d.repl.pipelines);
+            stst->had_final = true;
             break;
         case CA_SEND:
             if (stst->actions->d.send.iface == NULL) {
-                //TODO throw exception: no interface to send on
+                THROW("no send interface specified");
             }
             break;
     }
@@ -1013,6 +1050,13 @@ static bool process_action(struct StageState *stst)
 static bool process_stage(char *stage, void *userdata)
 {
     struct StageState *stst = userdata;
+
+    if (stst->had_final) {
+        fprintf(stderr, "can't have more actions after %s\n",
+                confaction_name_from_type(stst->actions->type));
+        return false;
+    }
+
     struct ConfAction *newaction = calloc_struct(ConfAction);
     newaction->next = stst->actions;
     stst->actions = newaction;
@@ -1050,6 +1094,7 @@ struct ConfAction *parse_actions_line(const char *stream, char *line,
         .ifcount = ifcount,
         .objects = objects,
         .streams_sec = streams_sec,
+        .had_final = false,
     };
     if (!foreach_stages(line, process_stage, &stst)) {
         fprintf(stderr, "failed to process actions line for stream '%s'\n", stream);
@@ -1085,6 +1130,21 @@ static void delete_confassignments(struct ConfAssignment *assignments)
             free(del->lhs.v.field.field);
         if (del->rhs.type == CVT_FIELD)
             free(del->rhs.v.field.field);
+        if (del->lhs.type == CVT_PACKET)
+            free(del->lhs.v.meta.name);
+        if (del->rhs.type == CVT_PACKET)
+            free(del->rhs.v.meta.name);
+        free(del);
+    }
+}
+
+static void delete_replicatelist(struct ReplicateList *pipelines)
+{
+    while (pipelines) {
+        struct ReplicateList *del = pipelines;
+        pipelines = pipelines->next;
+        free(del->string);
+        delete_confaction_list(del->actions);
         free(del);
     }
 }
@@ -1101,8 +1161,6 @@ struct ConfAction *delete_confaction_list(struct ConfAction *ca_list)
                 free(del->d.add.newtype);
                 delete_confassignments(del->d.add.assignments);
                 break;
-            case CA_CALL:
-                break;
             case CA_DEL:
                 break;
             case CA_DELAY:
@@ -1114,9 +1172,13 @@ struct ConfAction *delete_confaction_list(struct ConfAction *ca_list)
                 break;
             case CA_ELIM:
                 break;
+            case CA_JUMP:
+                free(del->d.jump.pipename);
+                break;
             case CA_POF:
                 break;
             case CA_REPL:
+                delete_replicatelist(del->d.repl.pipelines);
                 break;
             case CA_SEND:
                 break;
@@ -1177,6 +1239,7 @@ static struct HeaderFieldAssign *assemble_fieldassigns(struct ConfAssignment *li
 
 struct Action *assemble_actions(const struct ConfAction *ca_list, unsigned *action_count)
 {
+    //TODO define THROW
     unsigned count = 0;
     for (const struct ConfAction *ca = ca_list; ca; ca=ca->next) count++;
     if (count == 0) {
@@ -1191,9 +1254,6 @@ struct Action *assemble_actions(const struct ConfAction *ca_list, unsigned *acti
         switch (ca->type) {
             case CA_ADD:
                 create_action_add(ret+a, ca->d.add.pos_idx, ca->d.add.id, ca->d.add.len, ca->text);
-                break;
-            case CA_CALL:
-                //TODO error, this should have been inlined
                 break;
             case CA_DEL:
                 create_action_del(ret+a, ca->d.del.idx, ca->text);
@@ -1215,15 +1275,40 @@ struct Action *assemble_actions(const struct ConfAction *ca_list, unsigned *acti
                 create_action_edit(ret+a, assigns, acount, ca->text);
                 break; }
             case CA_ELIM:
-                //TODO create_action_elim()
+                create_action_elim(ret+a, ca->d.elim.rec,
+                        ca->d.elim.seq_producer, ca->d.elim.seq_producer_state, ca->text);
                 break;
+            case CA_JUMP:
+                fprintf(stderr, "assemble_actions() jump should have been inlined\n");
+                //TODO cleanup on error
+                return NULL;
             case CA_POF:
                 //TODO create_action_pof()
                 break;
-            case CA_REPL:
-                //TODO we must compile the action lists into Action arrays here
-                //TODO create_action_repl()
-                break;
+            case CA_REPL: {
+                struct PipelineList *pipes = NULL;
+                for (struct ReplicateList *r=ca->d.repl.pipelines; r; r=r->next) {
+                    unsigned r_action_count;
+                    struct Action *r_actions = assemble_actions(r->actions, &r_action_count);
+                    if (!r_actions) {
+                        fprintf(stderr, "failed to assemble actions for stream %s\n", r->string);
+                        //TODO cleanup on error
+                        return NULL;
+                    }
+                    struct Pipeline *pipe = new_pipeline(r_actions, r_action_count);
+                    if (!pipe) { //TODO this never happens
+                    }
+                    pipeline_ref(pipe);
+
+                    struct PipelineList *p = calloc_struct(PipelineList);
+                    p->pipe = pipe;
+                    p->text = r->string;
+                    p->next = pipes;
+                    pipes = p;
+                }
+                REVERSE_LIST(pipes);
+                create_action_repl(ret+a, pipes, ca->text);
+                break; }
             case CA_SEND:
                 create_action_send(ret+a, ca->d.send.iface, ca->text);
                 break;
@@ -1245,9 +1330,6 @@ void confactions_print(const struct ConfAction *ca_list)
                 printf("  new name %s type %s id %d len %u index %u\n",
                         ca->d.add.newname, ca->d.add.newtype, ca->d.add.id, ca->d.add.len,
                         ca->d.add.pos_idx);
-                break;
-            case CA_CALL:
-                printf("  \n");
                 break;
             case CA_DEL:
                 printf("  index %u\n", ca->d.del.idx);
@@ -1290,11 +1372,18 @@ void confactions_print(const struct ConfAction *ca_list)
             case CA_ELIM:
                 printf("  \n");
                 break;
+            case CA_JUMP:
+                printf("  %s\n", ca->d.jump.pipename);
+                break;
             case CA_POF:
                 printf("  \n");
                 break;
             case CA_REPL:
-                printf("  \n");
+                for (struct ReplicateList *p=ca->d.repl.pipelines; p; p=p->next) {
+                    printf("  vvvvvvvv %s vvvvvvvv\n", p->string);
+                    confactions_print(p->actions);
+                    printf("  ^^^^^^^^ %s ^^^^^^^^\n", p->string);
+                }
                 break;
             case CA_SEND:
                 printf("  iface %s\n", ca->d.send.iface ? ca->d.send.iface->name : "UNKNOWN");

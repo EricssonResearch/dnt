@@ -2,6 +2,8 @@
 #ifndef R2_ACTION_H
 #define R2_ACTION_H
 
+#include "transfer.h"
+
 enum ActionType {
     ACT_ADD = 1,
     ACT_DEL,
@@ -26,6 +28,7 @@ struct HeaderFieldAssign;
 struct Interface;
 struct Packet;
 struct PipelineIterator;
+struct SequenceRecovery;
 
 typedef enum ActionResult action_execute(struct Action *a, struct PipelineIterator *pi);
 
@@ -46,6 +49,18 @@ struct PipelineList {
     struct PipelineList *next;
 };
 
+// this is the state of Edit TODO switch over from HeaderFieldAssign
+// if @read is NULL then it is a constant value
+struct EditAssign {
+    value_consumer *write;
+    void *write_state;
+    value_producer *read;
+    void *read_state;
+    struct Value constant;
+    char *text;
+};
+
+
 const char *action_name_from_type(enum ActionType type);
 
 // this just adds the header, the fields will be set with an edit action
@@ -60,13 +75,13 @@ void create_action_drop(struct Action *a, const char *text);
 
 // receives an array of assignments, the action will do them all
 // can edit multiple different headers at once
+// TODO use struct EditAssign
 void create_action_edit(struct Action *a, struct HeaderFieldAssign *assigns, unsigned assign_count, const char *text);
 
-//TODO receive a sequence recovery object
-void create_action_elim(struct Action *a, struct HeaderField *sequence, const char *text);
+void create_action_elim(struct Action *a, struct SequenceRecovery *rcvy, value_producer *get_seq, void *get_seq_state, const char *text);
 
 //TODO receive a pof object
-void create_action_pof(struct Action *a, struct HeaderField *sequence, const char *text);
+//void create_action_pof(struct Action *a, struct HeaderField *sequence, const char *text);
 
 void create_action_repl(struct Action *a, struct PipelineList *list, const char *text);
 

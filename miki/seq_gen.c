@@ -4,6 +4,9 @@
 
 #include <stdlib.h>
 #include <stdint.h>
+#include <stdio.h>
+
+#include <arpa/inet.h> /* htonl() */
 
 struct SequenceGenerator {
     bool use_reset_flag;
@@ -48,9 +51,10 @@ void seq_generator(void *state, value_consumer *consumer, void *consumer_state, 
     struct SequenceGenerator *gen = state;
     uint32_t seqn = 0;
     struct Value val = {&seqn, 0, 32};
-    step_seq(gen);
 
-    //TODO seqn = htons(gen->seq) | gen->flags
-
+    //printf("seq gen %u 0x%x\n", gen->seq, gen->seq);
+    seqn = htonl(gen->seq); //TODO add gen->flags
     consumer(consumer_state, &val, p);
+
+    step_seq(gen);
 }
