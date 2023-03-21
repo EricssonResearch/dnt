@@ -13,11 +13,13 @@ struct SequenceRecovery {
     unsigned last_seq;
 };
 
-struct SequenceRecovery *new_seq_rec(bool use_reset_flag, bool use_init_flag,
+struct SequenceRecovery *new_seq_rec(enum SequenceRecoveryAlgorithm algo,
+        bool use_reset_flag, bool use_init_flag,
         unsigned history_length, unsigned reset_msec, unsigned latent_error_paths)
 {
     struct SequenceRecovery *ret = calloc_struct(SequenceRecovery);
 
+    (void)algo;
     (void)use_reset_flag;
     (void)use_init_flag;
     (void)history_length;

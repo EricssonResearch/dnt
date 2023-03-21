@@ -68,6 +68,9 @@ static struct ProtocolField vlan_fields[] = {
     {"vlan",  0, 16, FT_NUMBER,}, // the whole header at once
 };
 
+//TODO it's better if we separate the rtag and ttag format
+//      don't have FT_TSNSEQ and FT_TSNTSTAMP in the same header
+//      what should id_from_ethertype return? rtag, because that is the standard one
 static struct ProtocolField rttag_fields[] = {
     {"rt_flag",       5,  1, FT_NUMBER,}, // rtag-ttag indicator
     {"reset_flag",    6,  1, FT_NUMBER,},

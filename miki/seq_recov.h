@@ -9,7 +9,14 @@
 
 struct SequenceRecovery;
 
-struct SequenceRecovery *new_seq_rec(bool use_reset_flag, bool use_init_flag,
+enum SequenceRecoveryAlgorithm {
+    RCVY_Match = 1,
+    RCVY_Vector,
+    RCVY_SeamlessVector,
+};
+
+struct SequenceRecovery *new_seq_rec(enum SequenceRecoveryAlgorithm algo,
+        bool use_reset_flag, bool use_init_flag,
         unsigned history_length, unsigned reset_msec, unsigned latent_error_paths);
 
 // always returns NULL

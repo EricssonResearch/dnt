@@ -303,6 +303,9 @@ static bool process_assignment_lhs(struct HeaderDescriptor *headers, struct Conf
             if (h == NULL) {
                 THROW("no header named '%s' in the packet", hdr);
             }
+            if (header_list_find_by_name(h->next, hdr)) {
+                THROW("header name '%s' is ambiguous", hdr);
+            }
             struct ProtocolField *f = protocol_get_field_by_name(h->id, field);
             if (f == NULL) {
                 THROW("header '%s' has no field named '%s'", hdr, field);
@@ -335,6 +338,9 @@ static bool process_assignment_rhs(struct StageState *stst, const struct ConfVar
         printf("rhs has a dot '%s' . '%s'\n", key, val);
         struct HeaderDescriptor *h = header_list_find_by_name(stst->headers, key);
         if (h) {
+            if (header_list_find_by_name(h->next, key)) {
+                THROW("header name '%s' is ambiguous", key);
+            }
             struct ProtocolField *f = protocol_get_field_by_name(h->id, val);
             if (f) {
                 printf("rhs is a header field!\n");
@@ -449,6 +455,9 @@ static bool process_token(char *token, void *userdata)
                     if (pos == NULL) {
                         THROW("no header named '%s' in the packet", token);
                     }
+                    if (header_list_find_by_name(pos->next, token)) {
+                        THROW("header name '%s' is ambiguous", token);
+                    }
                     stst->actions->d.add.pos = pos;
                 } else if (stst->actions->d.add.was_add == false) {
                     if (strcmp(token, "add") == 0) {
@@ -511,6 +520,9 @@ static bool process_token(char *token, void *userdata)
                 } else {
                     struct HeaderDescriptor *del = header_list_find_by_name(stst->headers, token);
                     if (del) {
+                        if (header_list_find_by_name(del->next, token)) {
+                            THROW("header name '%s' is ambiguous", token);
+                        }
                         stst->actions->d.del.hdr = del;
                     } else {
                         THROW("invalid header '%s' to delete", token);
@@ -758,8 +770,10 @@ static bool process_action(struct StageState *stst)
 
             //TODO if the new header has a FT_TSNSEQ field, automatically create
             //      edit newheader.seq=meta.seq
+            //      TODO unless stst->actions->d.add.assignments already has an assignment for it
             //TODO if the new header has a FT_TSNTSTAMP field, automatically create
             //      edit newheader.tstamp=meta.tstamp
+            //      TODO unless stst->actions->d.add.assignments already has an assignment for it
 
             // set the nexthdr field of newheader
             if (protocol_list[newheader->id].get_nexthdr != NULL) {

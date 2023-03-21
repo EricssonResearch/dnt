@@ -29,6 +29,7 @@ struct ObjectInfo {
             unsigned history_length;
             unsigned reset_msec;
             unsigned latent_error_paths;
+            enum SequenceRecoveryAlgorithm algo;
         } rec;
         struct {
             unsigned max_delay; //TODO ms?
@@ -52,6 +53,7 @@ static void set_default_parameters(struct ObjectInfo *info)
             info->p.rec.history_length = 512;
             info->p.rec.reset_msec = 2000;
             info->p.rec.latent_error_paths = 2;
+            info->p.rec.algo = RCVY_Vector;
             break;
         case CO_POF:
             info->p.pof.max_delay = 5;
@@ -113,28 +115,37 @@ static bool token_cb(char *str, void *userdata)
                             THROW("invalid init flag");
                         }
                         info->p.rec.use_init_flag = init;
-                    } else if (strcmp(key, "RcvyHistoryLength") == 0) {
+                    } else if (strcmp(key, "frerSeqRcvyHistoryLength") == 0) {
                         unsigned hlen;
                         char err;
                         if (sscanf(val, "%i%c", &hlen, &err) != 1) {
                             THROW("invalid history length '%s'", val);
                         }
                         info->p.rec.history_length = hlen;
-                    } else if (strcmp(key, "RcvyResetMsec") == 0) {
+                    } else if (strcmp(key, "frerSeqRcvyResetMsec") == 0) {
                         unsigned msec;
                         char err;
                         if (sscanf(val, "%i%c", &msec, &err) != 1) {
                             THROW("invalid reset msec '%s'", val);
                         }
                         info->p.rec.reset_msec = msec;
-                    } else if (strcmp(key, "LatentErrorPaths") == 0) {
+                    } else if (strcmp(key, "frerSeqRcvyLatentErrorPaths") == 0) {
                         unsigned path;
                         char err;
                         if (sscanf(val, "%i%c", &path, &err) != 1) {
                             THROW("invalid latent error paths '%s'", val);
                         }
                         info->p.rec.latent_error_paths = path;
-                        //TODO RcvyAlgorithm Vector (or Match or SeamlessVector)
+                    } else if (strcmp(key, "frerSeqRcvyAlgorithm") == 0) {
+                        if (strcmp(val, "Vector") == 0) {
+                            info->p.rec.algo = RCVY_Vector;
+                        } else if (strcmp(val, "SeamlessVector") == 0) {
+                            info->p.rec.algo = RCVY_SeamlessVector;
+                        } else if (strcmp(val, "Match") == 0) {
+                            info->p.rec.algo = RCVY_Match;
+                        } else {
+                            THROW("invalid recovery algorithm '%s'", val);
+                        }
                     } else {
                         THROW("invalid parameter '%s' for sequence recovery", key);
                     }
@@ -185,7 +196,8 @@ static int object_cb(const char *key, void *value, void *userdata)
                     info.p.gen.init_seq);
             break;
         case CO_SEQREC:
-            obj->object = new_seq_rec(info.p.rec.use_reset_flag,
+            obj->object = new_seq_rec(info.p.rec.algo,
+                    info.p.rec.use_reset_flag,
                     info.p.rec.use_init_flag,
                     info.p.rec.history_length,
                     info.p.rec.reset_msec,

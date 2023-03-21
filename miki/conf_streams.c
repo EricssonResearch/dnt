@@ -107,10 +107,11 @@ static int checkline_cb(const char *key, void *value, void *userdata)
     if (colon) {
         char *streamname = strndup(key, colon-key);
         if (strcmp(colon+1, "actions") == 0) {
+            /* TODO we agreed that we don't need this restriction
             if (!hashmap_contains(state->streams, streamname)) {
                 fprintf(stderr, "stream '%s' has actions line but no packet line\n", streamname);
                 return 0;
-            }
+            }*/
         } else if (strcmp(colon+1, "match") == 0) {
             if (!hashmap_contains(state->streams, streamname)) {
                 fprintf(stderr, "stream '%s' has match line but no packet line\n", streamname);
