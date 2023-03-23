@@ -6,6 +6,7 @@
 
 // describes the value passed from the Producer to the Consumer
 // the value must be stored in network byte order
+#include <stdbool.h>
 struct Value {
     void *value;
     unsigned bitoffset;
@@ -36,6 +37,7 @@ typedef void value_consumer(void *state, struct Value *value, struct Packet *p);
 // prototype for a Producer function
 typedef void value_producer(void *state, value_consumer *consumer, void *consumer_state, struct Packet *p);
 
-//TODO value_compare?
+// prototype for a Comparator function
+typedef bool value_comparator(void *state, const struct Value *value, const struct Packet *p);
 
 #endif // R2_TRANSFER_H

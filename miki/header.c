@@ -21,11 +21,22 @@ struct HeaderField *new_headerfield(unsigned header_idx, struct ProtocolField *p
 // only full bytes, no loose bits at the beginning or the end
 static void write_bytes(void *state, struct Value *value, struct Packet *p)
 {
+    //TODO: its from match, not from state!
     struct HeaderField *field = state;
     uint8_t *src = value->value + value->bitoffset/8;
     uint8_t *dst = p->buf + p->headers[field->header_idx].start + field->bitoffset/8;
     unsigned len = value->bitcount / 8;
     memcpy(dst, src, len);
+}
+
+// return true if data in the header and match equal
+static bool compare_bytes(void *state, const struct Value *value, const struct Packet *p)
+{
+    struct HeaderField *field = state;
+    uint8_t *match_data = value->value + value->bitoffset/8;
+    uint8_t *hdr_data = p->buf + p->headers[field->header_idx].start + field->bitoffset/8;
+    unsigned len = value->bitcount / 8;
+    return !memcmp(hdr_data, match_data, len);
 }
 
 // set bits in a single byte
@@ -43,6 +54,24 @@ static void write_bits(void *state, struct Value *value, struct Packet *p)
     mask <<= shift;
     dst[0] &= ~mask;
     dst[0] |= src[0] & mask;
+}
+
+// return true if bits in a single byte at the header equal with a given value
+static bool compare_bits(void *state, const struct Value *value, const struct Packet *p)
+{
+    //TODO: from match, no from state
+    struct HeaderField *field = state;
+    uint8_t *match_data = value->value + value->bitoffset/8;
+    uint8_t *hdr_data = p->buf + p->headers[field->header_idx].start + field->bitoffset/8;
+
+    unsigned bitoffset = field->bitoffset % 8;
+    unsigned bitcount = field->bitcount;
+    unsigned shift = 8 - bitoffset - bitcount;
+    unsigned char mask = 1 << bitcount; // we know bitcount < 8
+    mask -= 1;
+    mask <<= shift;
+    return (hdr_data[0] & mask) == (match_data[0] & mask);
+
 }
 
 // generic writer of any number of bits over any number of bytes
@@ -105,6 +134,33 @@ value_consumer *header_get_field_writer(const struct HeaderField *target, const 
 
     // anything else
     return write_generic;
+}
+
+value_comparator *header_get_field_comprator(const struct HeaderField *target, const struct Value *match)
+{
+    if (match->bitcount != target->bitcount) {
+        fprintf(stderr, "field writer: source and target has different bit count %u %u\n",
+                match->bitcount, target->bitcount);
+        return NULL;
+    }
+    if ((match->bitoffset % 8) != (target->bitoffset % 8)) {
+        fprintf(stderr, "field writer: source and target has different bit offset %u %u\n",
+                (match->bitoffset % 8), (target->bitoffset % 8));
+        return NULL;
+    }
+
+    // octet-based assignment
+    if ((target->bitoffset % 8) == 0 && (target->bitcount % 8) == 0 &&
+            (match->bitoffset % 8) == 0 && (match->bitcount % 8) == 0)
+        return compare_bytes;
+
+    // some bits within a single byte
+    if (target->bitoffset % 8 + target->bitcount <= 8)
+        return compare_bits;
+
+    // anything else
+    // TODO:this is FATAL ERROR if generic comare required (so far not)
+    return NULL;
 }
 
 // points to the first byte of the field

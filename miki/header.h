@@ -38,6 +38,8 @@ value_consumer *header_get_field_writer(const struct HeaderField *target, const 
 //TODO how can the header matching use the returned function?
 value_producer *header_get_field_reader(const struct Value *target, const struct HeaderField *source);
 
-//TODO header_get_field_compare() for the parsetree matching
+// @returns a suitable function for compare @target field of the header with @match vlaue
+// the decision is based on the offsets and the lengths
+value_comparator *header_get_field_comprator(const struct HeaderField *target, const struct Value *match);
 
 #endif // R2_HEADER_H
