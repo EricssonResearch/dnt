@@ -57,6 +57,7 @@ extern unsigned protocol_count;
 #define PROTO_ID_CVLAN 3
 #define PROTO_ID_RTAG 4
 #define PROTO_ID_TTAG 5
+#define PROTO_ID_MPLS 6
 
 // @returns -1 if unknown protocol type
 int protocol_id_from_type(const char *type);
