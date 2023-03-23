@@ -14,13 +14,16 @@ static bool id_from_ethertype(int *id, uint16_t nexthdr)
 {
     switch (ntohs(nexthdr)) {
         case ETH_P_8021Q:
-            *id = 3;
+            *id = PROTO_ID_CVLAN;
             break;
         case ETH_P_8021AD:
-            *id = 2;
+            *id = PROTO_ID_SVLAN;
             break;
         case ETH_P_FRER:
-            *id = 4;
+            *id = PROTO_ID_RTAG;
+            break;
+        case ETH_P_MPLS_UC:
+            *id = PROTO_ID_MPLS;
             break;
         //TODO more
         default:
@@ -33,15 +36,18 @@ static bool ethertype_from_id(uint16_t *nexthdr, int id)
 {
     uint16_t ret = 0;
     switch (id) {
-        case 2:
+        case PROTO_ID_SVLAN:
             ret = ETH_P_8021AD;
             break;
-        case 3:
+        case PROTO_ID_CVLAN:
             ret = ETH_P_8021Q;
             break;
-        case 4:
-        case 5:
+        case PROTO_ID_RTAG:
+        case PROTO_ID_TTAG:
             ret = ETH_P_FRER;
+            break;
+        case PROTO_ID_MPLS:
+            ret = ETH_P_MPLS_UC;
             break;
         //TODO more
         default:
@@ -83,6 +89,13 @@ static struct ProtocolField rttag_fields[] = {
     {"tstamp",        0, 32, FT_TSNTSTAMP,}, // timestamp and the flags in reserved
 };
 
+static struct ProtocolField mpls_fields[] = {
+    {"label",  0, 20, FT_NUMBER},
+    {"class", 20,  3, FT_NUMBER},
+    {"bos",   23,  1, FT_NUMBER},
+    {"ttl",   24,  8, FT_NUMBER},
+};
+
 //TODO autogenerate this list
 struct Protocol protocol_list[] = {
     {"payload", payload_fields, 0, 0, 0, NULL, NULL},
@@ -93,6 +106,7 @@ struct Protocol protocol_list[] = {
     //       ACT_DELAY and ACT_ELIM must check the rt_flag
     {"rtag", rttag_fields, ARRAY_SIZE(rttag_fields), 6, 6, id_from_ethertype, ethertype_from_id},
     {"ttag", rttag_fields, ARRAY_SIZE(rttag_fields), 6, 6, id_from_ethertype, ethertype_from_id},
+    {"mpls", mpls_fields, ARRAY_SIZE(mpls_fields), 4, 0, NULL, NULL},
 };
 
 unsigned protocol_count = ARRAY_SIZE(protocol_list);
