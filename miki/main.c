@@ -69,6 +69,8 @@ static void recv_loop(struct Interface *ifaces, unsigned iface_count)
         for (int n=0; n<nfds; n++) {
             struct Interface *recvif = events[n].data.ptr;
             struct Packet *p = recvif->recv(recvif);
+            if (p == NULL)
+                continue;
             printf("received packet length %u on %s\n", p->len, recvif->name);
             struct Pipeline *pipe = parsetree_process(recvif->parsetree, p);
             printf("parsetree identified %u headers, pipe = %p\n", p->header_count, pipe);
