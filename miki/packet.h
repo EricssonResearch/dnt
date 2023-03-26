@@ -15,8 +15,6 @@
 
 struct Interface;
 
-//TODO how can we mark something as payload?
-//  use type=0? no, we need typed payload
 struct PacketHeader {
     int type;
     unsigned start; // from beginning of buf
@@ -37,7 +35,7 @@ struct Packet {
     struct Interface *from;
     struct timespec recv_time; // read-only property for Edit action
 
-    // packet properties that Edit action can read-write
+    // packet properties that can be accessed via dedicated read/write actions
     unsigned timestamp; // holds a ttag
     unsigned sequence;  // holds a rtag
 };
@@ -68,21 +66,5 @@ void packet_add_header(struct Packet *p, unsigned idx, int type, unsigned len);
 // removes a header and forgets it
 // all the headers after @idx will be shifted in the array
 void packet_del_header(struct Packet *p, unsigned idx);
-
-// @returns FT_UNKNOWN for invalid property name
-enum ProtocolFieldType packet_get_property_type(const char *name);
-
-// @returns a consumer function to write the given packet property
-// the size and offset of @source is checked for compatibility
-// the consumer has no state other than the packet
-// @returns NULL if @name is invalid or @source is incompatible
-value_consumer *packet_get_property_writer(const char *name, const struct Value *source);
-
-// @returns a producer function to read the given packet property
-// the size and offset of @target is checked for compatibility
-// the producer has no state other than the packet
-// @returns NULL if @name is invalid or @target is incompatible
-value_producer *packet_get_property_reader(const char *name, const struct Value *target);
-
 
 #endif // R2_PACKET_H

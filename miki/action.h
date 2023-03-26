@@ -12,8 +12,13 @@ enum ActionType {
     ACT_EDIT,
     ACT_ELIM,
     ACT_POF,
+    ACT_READSEQ,
+    ACT_READTSTAMP,
     ACT_REPL,
     ACT_SEND,
+    ACT_SEQGEN,
+    ACT_WRITESEQ,
+    ACT_WRITETSTAMP,
 };
 
 enum ActionResult {
@@ -28,6 +33,7 @@ struct HeaderFieldAssign;
 struct Interface;
 struct Packet;
 struct PipelineIterator;
+struct SequenceGenerator;
 struct SequenceRecovery;
 
 typedef enum ActionResult action_execute(struct Action *a, struct PipelineIterator *pi);
@@ -69,7 +75,7 @@ void create_action_add(struct Action *a, unsigned idx, int type, unsigned len, c
 void create_action_del(struct Action *a, unsigned idx, const char *text);
 
 //TODO some upper bits of the timestamp are flags!
-void create_action_delay(struct Action *a, unsigned delay_ms, struct HeaderField *timestamp, const char *text);
+void create_action_delay(struct Action *a, unsigned delay_ms, struct HeaderField timestamp, const char *text);
 
 void create_action_drop(struct Action *a, const char *text);
 
@@ -78,14 +84,25 @@ void create_action_drop(struct Action *a, const char *text);
 // TODO use struct EditAssign
 void create_action_edit(struct Action *a, struct HeaderFieldAssign *assigns, unsigned assign_count, const char *text);
 
-void create_action_elim(struct Action *a, struct SequenceRecovery *rcvy, value_producer *get_seq, void *get_seq_state, const char *text);
+void create_action_elim(struct Action *a, struct SequenceRecovery *rcvy, const char *text);
 
 //TODO receive a pof object
 //void create_action_pof(struct Action *a, struct HeaderField *sequence, const char *text);
 
+void create_action_readseq(struct Action *a, struct HeaderField seqfield, const char *text);
+
+void create_action_readtstamp(struct Action *a, struct HeaderField tsfield, const char *text);
+
 void create_action_repl(struct Action *a, struct PipelineList *list, const char *text);
 
 void create_action_send(struct Action *a, struct Interface *iface, const char *text);
+
+void create_action_seqgen(struct Action *a, struct SequenceGenerator *gen, const char *text);
+
+void create_action_writeseq(struct Action *a, struct HeaderField seqfield, const char *text);
+
+void create_action_writetstamp(struct Action *a, struct HeaderField tsfield, const char *text);
+
 
 // send action returns its interface
 struct Interface *action_send_get_iface(struct Action *a);

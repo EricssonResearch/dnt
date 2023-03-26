@@ -5,6 +5,7 @@
 #include "interface.h"
 #include "packet.h"
 #include "pipeline.h"
+#include "seq_gen.h"
 #include "seq_recov.h"
 #include "utils.h"
 
@@ -29,10 +30,20 @@ const char *action_name_from_type(enum ActionType type)
             return "Eliminate";
         case ACT_POF:
             return "POF";
+        case ACT_READSEQ:
+            return "ReadSeq";
+        case ACT_READTSTAMP:
+            return "ReadTstamp";
         case ACT_REPL:
             return "Replicate";
         case ACT_SEND:
             return "Send";
+        case ACT_SEQGEN:
+            return "SeqGen";
+        case ACT_WRITESEQ:
+            return "WriteSeq";
+        case ACT_WRITETSTAMP:
+            return "WriteTstamp";
     }
     return NULL;
 }
@@ -126,7 +137,7 @@ static void action_delay_del(void *action_private)
     free(dd);
 }
 
-void create_action_delay(struct Action *a, unsigned delay_ms, struct HeaderField *timestamp, const char *text)
+void create_action_delay(struct Action *a, unsigned delay_ms, struct HeaderField timestamp, const char *text)
 {
     bzero(a, sizeof(*a));
     a->type = ACT_DELAY;
@@ -136,7 +147,7 @@ void create_action_delay(struct Action *a, unsigned delay_ms, struct HeaderField
 
     struct DelayData *dd = calloc_struct(DelayData);
     dd->delay_ms = delay_ms;
-    dd->timestamp = *timestamp;
+    dd->timestamp = timestamp;
     a->action_private = dd;
 }
 
@@ -209,14 +220,12 @@ void create_action_edit(struct Action *a, struct HeaderFieldAssign *assigns, uns
 
 struct ElimData {
     struct SequenceRecovery *rcvy;
-    value_producer *get_seq;
-    void *get_seq_state;
 };
 
 static enum ActionResult action_elim_execute(struct Action *a, struct PipelineIterator *pi)
 {
     struct ElimData *ed = a->action_private;
-    if (seq_recovery(ed->rcvy, ed->get_seq, ed->get_seq_state, pi->packet)) {
+    if (seq_recovery(ed->rcvy, pi->packet)) {
         return ACR_CONTINUE;
     } else {
         return ACR_DONE;
@@ -230,7 +239,7 @@ static void action_elim_del(void *action_private)
     free(ed);
 }
 
-void create_action_elim(struct Action *a, struct SequenceRecovery *rcvy, value_producer *get_seq, void *get_seq_state, const char *text)
+void create_action_elim(struct Action *a, struct SequenceRecovery *rcvy, const char *text)
 {
     bzero(a, sizeof(*a));
     a->type = ACT_ELIM;
@@ -240,14 +249,70 @@ void create_action_elim(struct Action *a, struct SequenceRecovery *rcvy, value_p
 
     struct ElimData *ed = calloc_struct(ElimData);
     ed->rcvy = rcvy;
-    ed->get_seq = get_seq;
-    ed->get_seq_state = get_seq_state;
     a->action_private = ed;
 }
 
 /////////////////////////////////////////////////////////////////////
 
 //TODO pof
+
+/////////////////////////////////////////////////////////////////////
+
+struct MetaData {
+    struct HeaderField field;
+};
+
+static void action_meta_del(void *action_private)
+{
+    struct MetaData *md = action_private;
+    free(md);
+}
+
+static enum ActionResult action_readseq_execute(struct Action *a, struct PipelineIterator *pi)
+{
+    struct MetaData *md = a->action_private;
+    struct Packet *p = pi->packet;
+    uint8_t *src = p->buf + p->headers[md->field.header_idx].start + md->field.bitoffset/8;
+    unsigned len = md->field.bitcount/8; //TODO this is always 4
+    memcpy(&p->sequence, src, len);
+    return ACR_CONTINUE;
+}
+
+void create_action_readseq(struct Action *a, struct HeaderField seqfield, const char *text)
+{
+    bzero(a, sizeof(*a));
+    a->type = ACT_READSEQ;
+    a->execute = action_readseq_execute;
+    a->del = action_meta_del;
+    a->text = strdup(text);
+
+    struct MetaData *md = calloc_struct(MetaData);
+    md->field = seqfield;
+    a->action_private = md;
+}
+
+static enum ActionResult action_readtstamp_execute(struct Action *a, struct PipelineIterator *pi)
+{
+    struct MetaData *md = a->action_private;
+    struct Packet *p = pi->packet;
+    uint8_t *src = p->buf + p->headers[md->field.header_idx].start + md->field.bitoffset/8;
+    unsigned len = md->field.bitcount/8; //TODO this is always 4
+    memcpy(&p->timestamp, src, len);
+    return ACR_CONTINUE;
+}
+
+void create_action_readtstamp(struct Action *a, struct HeaderField tsfield, const char *text)
+{
+    bzero(a, sizeof(*a));
+    a->type = ACT_READTSTAMP;
+    a->execute = action_readtstamp_execute;
+    a->del = action_meta_del;
+    a->text = strdup(text);
+
+    struct MetaData *md = calloc_struct(MetaData);
+    md->field = tsfield;
+    a->action_private = md;
+}
 
 /////////////////////////////////////////////////////////////////////
 
@@ -345,6 +410,86 @@ struct Interface *action_send_get_iface(struct Action *a)
     } else {
         return NULL;
     }
+}
+
+/////////////////////////////////////////////////////////////////////
+
+struct SeqgenData {
+    struct SequenceGenerator *gen;
+};
+
+static enum ActionResult action_seqgen_execute(struct Action *a, struct PipelineIterator *pi)
+{
+    struct SeqgenData *sd = a->action_private;
+    seq_generator(sd->gen, pi->packet);
+    return ACR_CONTINUE;
+}
+
+static void action_seqgen_del(void *action_private)
+{
+    struct SeqgenData *sd = action_private;
+    free(sd);
+}
+
+void create_action_seqgen(struct Action *a, struct SequenceGenerator *gen, const char *text)
+{
+    bzero(a, sizeof(*a));
+    a->type = ACT_SEQGEN;
+    a->execute = action_seqgen_execute;
+    a->del = action_seqgen_del;
+    a->text = strdup(text);
+
+    struct SeqgenData *sd = calloc_struct(SeqgenData);
+    sd->gen = gen;
+    a->action_private = sd;
+}
+
+/////////////////////////////////////////////////////////////////////
+
+static enum ActionResult action_writeseq_execute(struct Action *a, struct PipelineIterator *pi)
+{
+    struct MetaData *md = a->action_private;
+    struct Packet *p = pi->packet;
+    uint8_t *dst = p->buf + p->headers[md->field.header_idx].start + md->field.bitoffset/8;
+    unsigned len = md->field.bitcount/8; //TODO this is always 4
+    memcpy(dst, &p->sequence, len);
+    return ACR_CONTINUE;
+}
+
+void create_action_writeseq(struct Action *a, struct HeaderField seqfield, const char *text)
+{
+    bzero(a, sizeof(*a));
+    a->type = ACT_WRITESEQ;
+    a->execute = action_writeseq_execute;
+    a->del = action_meta_del;
+    a->text = strdup(text);
+
+    struct MetaData *md = calloc_struct(MetaData);
+    md->field = seqfield;
+    a->action_private = md;
+}
+
+static enum ActionResult action_writetstamp_execute(struct Action *a, struct PipelineIterator *pi)
+{
+    struct MetaData *md = a->action_private;
+    struct Packet *p = pi->packet;
+    uint8_t *dst = p->buf + p->headers[md->field.header_idx].start + md->field.bitoffset/8;
+    unsigned len = md->field.bitcount/8; //TODO this is always 4
+    memcpy(dst, &p->timestamp, len);
+    return ACR_CONTINUE;
+}
+
+void create_action_writetstamp(struct Action *a, struct HeaderField tsfield, const char *text)
+{
+    bzero(a, sizeof(*a));
+    a->type = ACT_WRITETSTAMP;
+    a->execute = action_writetstamp_execute;
+    a->del = action_meta_del;
+    a->text = strdup(text);
+
+    struct MetaData *md = calloc_struct(MetaData);
+    md->field = tsfield;
+    a->action_private = md;
 }
 
 /////////////////////////////////////////////////////////////////////

@@ -1,5 +1,6 @@
 
 #include "seq_recov.h"
+#include "packet.h"
 #include "utils.h"
 
 #include <string.h>
@@ -35,20 +36,11 @@ struct SequenceRecovery *delete_seq_rec(struct SequenceRecovery *rec)
     return NULL;
 }
 
-static void get_seq_num(void *state, struct Value *value, struct Packet *p)
+bool seq_recovery(struct SequenceRecovery *rec, struct Packet *p)
 {
-    (void)p;
-    uint32_t *seq_num = state;
-    memcpy(seq_num, value->value, sizeof(uint32_t));
-}
-
-bool seq_recovery(struct SequenceRecovery *rec, value_producer *read_seq, void *producer_state, struct Packet *p)
-{
-    uint32_t seq_num;
-    read_seq(producer_state, get_seq_num, &seq_num, p);
-    uint32_t seq = ntohl(seq_num) & 0xffff;
+    uint32_t seq = ntohl(p->sequence) & 0xffff;
     bool ret = seq > rec->last_seq; //TODO this is the simplest recovery
-    printf("seq recovery: 0x%.8x %u %u -> %s\n", seq_num, seq, rec->last_seq, ret ? "new" : "duplicate");
+    printf("seq recovery: 0x%.8x %u %u -> %s\n", p->sequence, seq, rec->last_seq, ret ? "new" : "duplicate");
     rec->last_seq = seq;
     return ret;
 }

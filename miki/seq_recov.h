@@ -23,6 +23,6 @@ struct SequenceRecovery *new_seq_rec(enum SequenceRecoveryAlgorithm algo,
 struct SequenceRecovery *delete_seq_rec(struct SequenceRecovery *rec);
 
 // @returns true if the packet is not a duplicate
-bool seq_recovery(struct SequenceRecovery *rec, value_producer *read_seq, void *producer_state, struct Packet *p);
+bool seq_recovery(struct SequenceRecovery *rec, struct Packet *p);
 
 #endif // R2_SEQ_RECOV_H
