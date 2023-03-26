@@ -372,8 +372,7 @@ static bool process_assignment_rhs(struct StageState *stst, const struct ConfVar
             } else {
                 THROW("interface %s has no queryable property", iface->name);
             }
-            // note: bitoffset, bitcount were already set by get_property_reader()
-            init_confvariable(rhs, CVT_IFACE, lhs->value_type, rhs->value.bitoffset, rhs->value.bitcount);
+            init_confvariable(rhs, CVT_IFACE, lhs->value_type, lhs->value.bitoffset%8, lhs->value.bitcount);
             rhs->v.iface.iface = iface;
             rhs->v.iface.property = strdup(val);
             return true;
@@ -459,10 +458,12 @@ static bool process_token(char *token, void *userdata)
 
                         // CVT_CONST already checked these, the other rhs types didn't
                         if ((a->lhs.value.bitoffset % 8) != (a->rhs.value.bitoffset % 8)) {
-                            THROW("assignment has incompatible offsets");
+                            THROW("assignment has incompatible offsets %u %u",
+                                    a->lhs.value.bitoffset, a->rhs.value.bitoffset);
                         }
                         if (a->lhs.value.bitcount != a->rhs.value.bitcount) {
-                            THROW("assignment has incompatible bit counts");
+                            THROW("assignment has incompatible bit counts %u %u",
+                                    a->lhs.value.bitcount, a->rhs.value.bitcount);
                         }
 
                         // select consumer function for lhs
@@ -514,10 +515,12 @@ static bool process_token(char *token, void *userdata)
 
                     // CVT_CONST already checked these, the other rhs types didn't
                     if ((a->lhs.value.bitoffset % 8) != (a->rhs.value.bitoffset % 8)) {
-                        THROW("assignment has incompatible offsets");
+                        THROW("assignment has incompatible offsets %u %u",
+                                a->lhs.value.bitoffset, a->rhs.value.bitoffset);
                     }
                     if (a->lhs.value.bitcount != a->rhs.value.bitcount) {
-                        THROW("assignment has incompatible bit counts");
+                        THROW("assignment has incompatible bit counts %u %u",
+                                a->lhs.value.bitcount, a->rhs.value.bitcount);
                     }
 
                     // select consumer function for lhs
@@ -1193,6 +1196,8 @@ static void delete_confassignments(struct ConfAssignment *assignments)
             free(del->lhs.v.field.field);
         if (del->rhs.type == CVT_FIELD)
             free(del->rhs.v.field.field);
+        if (del->rhs.type == CVT_IFACE)
+            free(del->rhs.v.iface.property);
         free(del);
     }
 }

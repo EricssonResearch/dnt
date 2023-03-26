@@ -14,6 +14,7 @@
 #include <sys/ioctl.h>
 #include <netinet/in.h>
 #include <net/if.h> /* struct ifreq */
+#include <net/ethernet.h> /* struct ether_addr */
 
 #include <linux/if_ether.h> /* ETH_P_ALL */
 #include <linux/if_packet.h> /* struct sockaddr_ll, PACKET_AUXDATA TODO netpacket/packet.h? */
@@ -26,6 +27,7 @@ struct EthIfData {
     int sockfd[8];
     bool pcp_used[8]; // indicate whether we have a socket open for this priority
     int mtu;
+    struct ether_addr mac;
 };
 
 // copied from the code of the other TSN project
@@ -273,7 +275,7 @@ static bool eth_open(struct Interface *iface)
             }
             eid->mtu = if_mtu.ifr_mtu;
             eid->ifindex = if_idx.ifr_ifindex;
-            //TODO struct ether_addr src_mac = *((struct ether_addr *)&if_mac.ifr_hwaddr.sa_data);
+            eid->mac = *((struct ether_addr *)&if_mac.ifr_hwaddr.sa_data);
             //      store this in an interface property
 
             int enable = 1;
@@ -354,6 +356,38 @@ static bool eth_close(struct Interface *iface)
     return true;
 }
 
+static void eth_mac_producer(void *state, value_consumer *consumer, void *consumer_state, struct Packet *p)
+{
+    struct Interface *iface = state;
+    struct EthIfData *eid = iface->iface_private;
+    struct Value val = {&eid->mac, 0, 6*8};
+    consumer(consumer_state, &val, p);
+}
+
+
+static value_producer *eth_get_property_reader(const struct Interface *iface, const char *property,
+        enum ProtocolFieldType target_type, const struct Value *target)
+{
+    if (iface->type != IF_ETH) {
+        fprintf(stderr, "eth_get_property_reader type error %d\n", iface->type);
+        return NULL;
+    }
+    // eth only has one property
+    if (strcmp(property, "mac") != 0) {
+        fprintf(stderr, "eth_get_property_reader unknown property '%s'\n", property);
+        return NULL;
+    }
+    if (target_type != FT_MACADDRESS) {
+        fprintf(stderr, "eth_get_property_reader target type %d is not mac address\n", target_type);
+        return NULL;
+    }
+    if ((target->bitoffset % 8) || (target->bitcount != 6*8)) {
+        fprintf(stderr, "eth_get_property_reader target position %u %u invalid\n",
+                target->bitoffset, target->bitcount);
+        return NULL;
+    }
+    return eth_mac_producer;
+}
 
 bool init_eth_interface(struct Interface *iface, const char *name, const char *ifname)
 {
@@ -366,6 +400,7 @@ bool init_eth_interface(struct Interface *iface, const char *name, const char *i
     iface->send = eth_send;
     iface->open = eth_open;
     iface->close_ = eth_close;
+    iface->get_property_reader = eth_get_property_reader;
 
     struct EthIfData *eid = calloc_struct(EthIfData);
     iface->iface_private = eid;
