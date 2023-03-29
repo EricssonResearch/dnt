@@ -15,6 +15,7 @@ struct HeaderMatch {
     struct HeaderField *field;
     struct Value value;
     struct HeaderMatch *next;
+    value_comparator *comparator;
 };
 
 struct HeaderDescriptor {
@@ -57,6 +58,5 @@ struct HeaderDescriptor *delete_header_list(struct HeaderDescriptor *headers);
 struct HeaderDescriptor *header_list_find_by_name(struct HeaderDescriptor *headers, const char *name);
 
 struct HeaderDescriptor *header_list_find_by_typeid(struct HeaderDescriptor *headers, int id);
-
 
 #endif // R2_PARSETREE_H

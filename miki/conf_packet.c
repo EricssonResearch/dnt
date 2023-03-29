@@ -103,6 +103,7 @@ static bool process_match_token(char *token, void *userdata)
             if (!read_constant(&newmatch->value, f->type, val)) {
                 THROW("value '%s' doesn't fit into field '%s'", val, key);
             }
+            newmatch->comparator = header_get_field_comprator(f, &newmatch->value);
         } else {
             THROW("'%s' is not a valid header field match", token);
         }

@@ -136,7 +136,7 @@ value_consumer *header_get_field_writer(const struct HeaderField *target, const 
     return write_generic;
 }
 
-value_comparator *header_get_field_comprator(const struct HeaderField *target, const struct Value *match)
+value_comparator *header_get_field_comprator(const struct ProtocolField *target, const struct Value *match)
 {
     if (match->bitcount != target->bitcount) {
         fprintf(stderr, "field writer: source and target has different bit count %u %u\n",

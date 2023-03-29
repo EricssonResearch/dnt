@@ -54,6 +54,17 @@ bool parsetree_add_stream(struct ParseTree *pt, struct HeaderDescriptor *headers
     return true;
 }
 
+static bool parsetree_match_header(const struct HeaderMatch *fields)
+{
+    const struct HeaderMatch *f = fields;
+    bool matched = true;
+    while (f) {
+         matched &= f->comparator(NULL, NULL, NULL);
+        f = f->next;
+    }
+    return matched;
+}
+
 struct Pipeline *parsetree_process(struct ParseTree *pt, struct Packet *p)
 {
     if (p->from != pt->iface) {
@@ -65,17 +76,19 @@ struct Pipeline *parsetree_process(struct ParseTree *pt, struct Packet *p)
         return NULL;
     }
 
-    //TODO check that these headers really exist in the packet :)
+    // TODO: check that these headers really exist in the packet :)
     struct HeaderDescriptor *h = pt->headers;
     unsigned offset = 0;
     while (h) {
         struct Protocol *proto = &protocol_list[h->id];
+//        struct HeaderMatch *matches = h->matches;
         packet_identify_header(p, h->id, offset, proto->bytelength);
         offset += proto->bytelength;
         h = h->next;
     }
     packet_identify_header(p, PROTO_ID_PAYLOAD, offset, p->len-offset);
 
+    parsetree_match_header(h->matches);
     return pt->pipe;
 }
 
