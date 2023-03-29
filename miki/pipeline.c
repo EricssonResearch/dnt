@@ -91,7 +91,7 @@ void pipe_iterator_run(struct PipelineIterator *pi)
     printf("pipe_iterator_run, action count %u\n", pi->pipe->action_count);
     while (!iterator_done(pi)) {
         struct Action *a = &pi->pipe->actions[pi->pos];
-        printf("  action type %d %s\n", a->type, action_name_from_type(a->type));
+        printf("  action type %d %s '%s'\n", a->type, action_name_from_type(a->type), a->text);
         enum ActionResult res = a->execute(a, pi);
         switch (res) {
             case ACR_CONTINUE:

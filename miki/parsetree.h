@@ -12,7 +12,7 @@ struct Packet;
 struct Pipeline;
 
 struct HeaderMatch {
-    struct ProtocolField *field;
+    struct HeaderField *field;
     struct Value value;
     struct HeaderMatch *next;
 };

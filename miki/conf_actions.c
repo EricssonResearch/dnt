@@ -63,7 +63,7 @@ struct ConfVariable {
     union {
         struct {
             struct HeaderField *field; // state for read/write
-        } field;
+        } header;
         struct {
             struct Interface *iface; // state for read
             char *property;
@@ -160,6 +160,7 @@ static void replicatelist_push_string(struct ReplicateList **list, char *string)
     *list = l;
 }
 
+// shallow copy, we are not interested in the match lists
 static struct HeaderDescriptor *copy_header_list(const struct HeaderDescriptor *headers)
 {
     struct HeaderDescriptor *ret = NULL;
@@ -275,17 +276,23 @@ static const char *variabletype_name_from_type(enum ConfVariableType type)
     return NULL;
 }
 
-static void init_confvariable(struct ConfVariable *v,
+static void init_confvariable_full(struct ConfVariable *v,
         enum ConfVariableType type, enum ProtocolFieldType value_type,
-        unsigned bitoffset,
-        unsigned bitcount)
+        unsigned bitoffset, unsigned bitcount)
 {
     v->type = type;
     v->value_type = value_type;
-    v->value.bitoffset = bitoffset;
-    v->value.bitcount = bitcount;
-    v->value.value = NULL;
+    v->value = init_value(bitoffset, bitcount);
 }
+
+static void init_confvariable(struct ConfVariable *v,
+        enum ConfVariableType type, struct ProtocolField *field)
+{
+    v->type = type;
+    v->value_type = field->type;
+    v->value = init_value(field->bitoffset, field->bitcount);
+}
+
 
 // @returns false on error
 static bool process_assignment_lhs(struct HeaderDescriptor *headers, struct ConfVariable *lhs, char *string)
@@ -309,10 +316,9 @@ static bool process_assignment_lhs(struct HeaderDescriptor *headers, struct Conf
         if (f == NULL) {
             THROW("header '%s' has no field named '%s'", hdr, field);
         }
-        init_confvariable(lhs, CVT_FIELD, f->type, f->bitoffset, f->bitcount);
-        struct HeaderField *hf = new_headerfield(header_index(headers, h), f->bitoffset, f->bitcount);
-        //lhs->v.field.header = h;
-        lhs->v.field.field = hf;
+        init_confvariable(lhs, CVT_FIELD, f);
+        struct HeaderField *hf = new_headerfield(header_index(headers, h), f);
+        lhs->v.header.field = hf;
     } else {
         THROW("left-hand-side '%s' of the assignment is invalid", string);
     }
@@ -346,10 +352,9 @@ static bool process_assignment_rhs(struct StageState *stst, const struct ConfVar
                     THROW("types of left-hand-side %s and right-hand-side %s don't match",
                             fieldtype_name_from_type(lhs->value_type), fieldtype_name_from_type(f->type));
                 }
-                init_confvariable(rhs, CVT_FIELD, f->type, f->bitoffset, f->bitcount);
-                struct HeaderField *hf = new_headerfield(header_index(stst->headers, h),
-                        f->bitoffset, f->bitcount);
-                rhs->v.field.field = hf;
+                init_confvariable(rhs, CVT_FIELD, f);
+                struct HeaderField *hf = new_headerfield(header_index(stst->headers, h), f);
+                rhs->v.header.field = hf;
                 rhs->read = header_get_field_reader(&lhs->value, hf);
                 if (rhs->read == NULL) {
                     //TODO can we print the name of lhs?
@@ -372,7 +377,7 @@ static bool process_assignment_rhs(struct StageState *stst, const struct ConfVar
             } else {
                 THROW("interface %s has no queryable property", iface->name);
             }
-            init_confvariable(rhs, CVT_IFACE, lhs->value_type, lhs->value.bitoffset%8, lhs->value.bitcount);
+            init_confvariable_full(rhs, CVT_IFACE, lhs->value_type, lhs->value.bitoffset%8, lhs->value.bitcount);
             rhs->v.iface.iface = iface;
             rhs->v.iface.property = strdup(val);
             return true;
@@ -384,7 +389,7 @@ static bool process_assignment_rhs(struct StageState *stst, const struct ConfVar
 
     printf("rhs may be a constant...\n");
     // constant doesn't have a read function just a value
-    init_confvariable(rhs, CVT_CONST, FT_UNKNOWN, lhs->value.bitoffset, lhs->value.bitcount);
+    init_confvariable_full(rhs, CVT_CONST, FT_UNKNOWN, lhs->value.bitoffset, lhs->value.bitcount);
     if (read_constant(&rhs->value, lhs->value_type, string)) {
         printf("rhs is a constant!\n");
         rhs->value_type = lhs->value_type;
@@ -446,10 +451,10 @@ static bool process_token(char *token, void *userdata)
                             THROW("header %s has no field '%s'",
                                     stst->actions->d.add.newname, lhs);
                         }
-                        init_confvariable(&a->lhs, CVT_FIELD, f->type, f->bitoffset, f->bitcount);
+                        init_confvariable(&a->lhs, CVT_FIELD, f);
                         // we don't yet have a header index here, we fix it in process_action()
-                        struct HeaderField *hf = new_headerfield(0, f->bitoffset, f->bitcount);
-                        a->lhs.v.field.field = hf;
+                        struct HeaderField *hf = new_headerfield(0, f);
+                        a->lhs.v.header.field = hf;
 
                         //TODO from here the rest is the same as in edit, try to unify with a function
                         if (!process_assignment_rhs(stst, &a->lhs, &a->rhs, rhs)) {
@@ -467,7 +472,7 @@ static bool process_token(char *token, void *userdata)
                         }
 
                         // select consumer function for lhs
-                        a->lhs.write = header_get_field_writer(a->lhs.v.field.field, &a->rhs.value);
+                        a->lhs.write = header_get_field_writer(a->lhs.v.header.field, &a->rhs.value);
                         if (a->lhs.write == NULL) {
                             THROW("header field cannot be written from this rhs");
                         }
@@ -524,7 +529,7 @@ static bool process_token(char *token, void *userdata)
                     }
 
                     // select consumer function for lhs
-                    a->lhs.write = header_get_field_writer(a->lhs.v.field.field, &a->rhs.value);
+                    a->lhs.write = header_get_field_writer(a->lhs.v.header.field, &a->rhs.value);
                     if (a->lhs.write == NULL) {
                         THROW("header field cannot be written from this rhs");
                     }
@@ -744,7 +749,7 @@ static bool process_action(struct StageState *stst)
             if (stst->actions->d.add.beforeafter == ADD_AFTER) pos_idx++;
             stst->actions->d.add.pos_idx = pos_idx;
             for (struct ConfAssignment *a=stst->actions->d.add.assignments; a; a=a->next) {
-                a->lhs.v.field.field->header_idx = pos_idx;
+                a->lhs.v.header.field->header_idx = pos_idx;
             }
 
             newheader->next = nextheader;
@@ -794,8 +799,8 @@ static bool process_action(struct StageState *stst)
                     snprintf(editbuf, 64, "add sets %s.%s=0x%.4x",
                             newheader->name, f->name, nexthdrnum);
                     a->text = strdup(editbuf);
-                    init_confvariable(&a->lhs, CVT_FIELD, f->type, f->bitoffset, f->bitcount);
-                    init_confvariable(&a->rhs, CVT_CONST, f->type, f->bitoffset, f->bitcount);
+                    init_confvariable(&a->lhs, CVT_FIELD, f);
+                    init_confvariable(&a->rhs, CVT_CONST, f);
                     prepare_constant_number(&a->rhs.value, nexthdrnum);
                 } else {
                     // let's see if we can copy prevheader's field
@@ -816,17 +821,17 @@ static bool process_action(struct StageState *stst)
                     snprintf(editbuf, 64, "add sets %s.%s=%s.%s",
                             newheader->name, f->name, prevheader->name, pf->name);
                     a->text = strdup(editbuf);
-                    init_confvariable(&a->lhs, CVT_FIELD, f->type, f->bitoffset, f->bitcount);
-                    init_confvariable(&a->rhs, CVT_FIELD, pf->type, pf->bitoffset, pf->bitcount);
-                    struct HeaderField *phf = new_headerfield(pos_idx-1, pf->bitoffset, pf->bitcount);
-                    a->rhs.v.field.field = phf;
+                    init_confvariable(&a->lhs, CVT_FIELD, f);
+                    init_confvariable(&a->rhs, CVT_FIELD, pf);
+                    struct HeaderField *phf = new_headerfield(pos_idx-1, pf);
+                    a->rhs.v.header.field = phf;
                     a->rhs.read = header_get_field_reader(&a->lhs.value, phf);
                     if (a->rhs.read == NULL) {
                         THROW("can't copy nexthdr type from previous header");
                     }
                 }
-                struct HeaderField *nhf = new_headerfield(pos_idx, f->bitoffset, f->bitcount);
-                a->lhs.v.field.field = nhf;
+                struct HeaderField *nhf = new_headerfield(pos_idx, f);
+                a->lhs.v.header.field = nhf;
                 a->lhs.write = header_get_field_writer(nhf, &a->rhs.value);
                 if (a->lhs.write == NULL) {
                     THROW("can't copy nexthdr type from previous header");
@@ -852,11 +857,11 @@ static bool process_action(struct StageState *stst)
                 snprintf(editbuf, 64, "add sets %s.%s=0x%.4x",
                         prevheader->name, pf->name, nexthdrnum);
                 a->text = strdup(editbuf);
-                init_confvariable(&a->lhs, CVT_FIELD, pf->type, pf->bitoffset, pf->bitcount);
-                init_confvariable(&a->rhs, CVT_CONST, pf->type, pf->bitoffset, pf->bitcount);
+                init_confvariable(&a->lhs, CVT_FIELD, pf);
+                init_confvariable(&a->rhs, CVT_CONST, pf);
                 prepare_constant_number(&a->rhs.value, nexthdrnum);
-                struct HeaderField *phf = new_headerfield(pos_idx-1, pf->bitoffset, pf->bitcount);
-                a->lhs.v.field.field = phf;
+                struct HeaderField *phf = new_headerfield(pos_idx-1, pf);
+                a->lhs.v.header.field = phf;
                 a->lhs.write = header_get_field_writer(phf, &a->rhs.value);
                 if (a->lhs.write == NULL) {
                     THROW("can't set nexthdr type in previous header");
@@ -901,8 +906,8 @@ static bool process_action(struct StageState *stst)
                         snprintf(editbuf, 64, "del sets %s.%s=0x%.4x",
                                 prev->name, pf->name, nexthdrnum);
                         a->text = strdup(editbuf);
-                        init_confvariable(&a->lhs, CVT_FIELD, pf->type, pf->bitoffset, pf->bitcount);
-                        init_confvariable(&a->rhs, CVT_CONST, pf->type, pf->bitoffset, pf->bitcount);
+                        init_confvariable(&a->lhs, CVT_FIELD, pf);
+                        init_confvariable(&a->rhs, CVT_CONST, pf);
                         prepare_constant_number(&a->rhs.value, nexthdrnum);
                     } else {
                         // let's see if we can copy del's field
@@ -918,17 +923,17 @@ static bool process_action(struct StageState *stst)
                         snprintf(editbuf, 64, "del sets %s.%s=%s.%s",
                                 prev->name, pf->name, del->name, df->name);
                         a->text = strdup(editbuf);
-                        init_confvariable(&a->lhs, CVT_FIELD, pf->type, pf->bitoffset, pf->bitcount);
-                        init_confvariable(&a->rhs, CVT_FIELD, df->type, df->bitoffset, df->bitcount);
-                        struct HeaderField *dhf = new_headerfield(idx, df->bitoffset, df->bitcount);
-                        a->rhs.v.field.field = dhf;
+                        init_confvariable(&a->lhs, CVT_FIELD, pf);
+                        init_confvariable(&a->rhs, CVT_FIELD, df);
+                        struct HeaderField *dhf = new_headerfield(idx, df);
+                        a->rhs.v.header.field = dhf;
                         a->rhs.read = header_get_field_reader(&a->lhs.value, dhf);
                         if (a->rhs.read == NULL) {
                             THROW("can't copy nexthdr type from deleted to previous header");
                         }
                     }
-                    struct HeaderField *phf = new_headerfield(idx-1, pf->bitoffset, pf->bitcount);
-                    a->lhs.v.field.field = phf;
+                    struct HeaderField *phf = new_headerfield(idx-1, pf);
+                    a->lhs.v.header.field = phf;
                     a->lhs.write = header_get_field_writer(phf, &a->rhs.value);
                     if (a->lhs.write == NULL) {
                         THROW("can't copy nexthdr type from deleted to previous header");
@@ -1031,6 +1036,7 @@ static bool process_action(struct StageState *stst)
                 if (field_idx == -1) {
                     THROW("header '%s' doesn't have a sequence number field", stst->actions->d.meta.hdr->name);
                 }
+                //TODO new_headerfield()
                 stst->actions->d.meta.field.header_idx = header_index(stst->headers, stst->actions->d.meta.hdr);
                 stst->actions->d.meta.field.bitoffset = protocol_list[hdrtype].header_fields[field_idx].bitoffset;
                 stst->actions->d.meta.field.bitcount = protocol_list[hdrtype].header_fields[field_idx].bitcount;
@@ -1057,6 +1063,7 @@ static bool process_action(struct StageState *stst)
                 if (field_idx == -1) {
                     THROW("header '%s' doesn't have a timestamp field", stst->actions->d.meta.hdr->name);
                 }
+                //TODO new_headerfield()
                 stst->actions->d.meta.field.header_idx = header_index(stst->headers, stst->actions->d.meta.hdr);
                 stst->actions->d.meta.field.bitoffset = protocol_list[hdrtype].header_fields[field_idx].bitoffset;
                 stst->actions->d.meta.field.bitcount = protocol_list[hdrtype].header_fields[field_idx].bitcount;
@@ -1193,9 +1200,9 @@ static void delete_confassignments(struct ConfAssignment *assignments)
         free(del->text);
         free(del->rhs.value.value);
         if (del->lhs.type == CVT_FIELD)
-            free(del->lhs.v.field.field);
+            free(del->lhs.v.header.field);
         if (del->rhs.type == CVT_FIELD)
-            free(del->rhs.v.field.field);
+            free(del->rhs.v.header.field);
         if (del->rhs.type == CVT_IFACE)
             free(del->rhs.v.iface.property);
         free(del);
@@ -1279,14 +1286,14 @@ static struct HeaderFieldAssign *assemble_fieldassigns(struct ConfAssignment *li
         a->text = strdup(l->text);
         a->assign = l->lhs.write;
         if (l->lhs.type == CVT_FIELD)
-            a->target = *l->lhs.v.field.field;
+            a->target = *l->lhs.v.header.field;
         a->generator = l->rhs.read;
         switch (l->rhs.type) {
             case CVT_UNDEF:
                 fprintf(stderr, "assign '%s' source is undefined\n", l->text);
                 return NULL;
             case CVT_FIELD:
-                a->generator_state = l->rhs.v.field.field;
+                a->generator_state = l->rhs.v.header.field;
                 break;
             case CVT_CONST:
                 a->constant = l->rhs.value;
@@ -1431,7 +1438,7 @@ void confactions_print(const struct ConfAction *ca_list)
                             a->lhs.value.bitoffset, a->lhs.value.bitcount);
                     printf("      lhs read %p write %p\n", a->lhs.read, a->lhs.write);
                     if (a->lhs.type == CVT_FIELD) {
-                        printf("      index %u\n", a->lhs.v.field.field->header_idx);
+                        printf("      index %u\n", a->lhs.v.header.field->header_idx);
                     }
                     printf("    rhs type %s valuetype %s bitoffset %u bitcount %u\n",
                             variabletype_name_from_type(a->rhs.type),
@@ -1439,7 +1446,7 @@ void confactions_print(const struct ConfAction *ca_list)
                             a->rhs.value.bitoffset, a->rhs.value.bitcount);
                     printf("      rhs read %p write %p\n", a->rhs.read, a->rhs.write);
                     if (a->rhs.type == CVT_FIELD) {
-                        printf("      index %u\n", a->rhs.v.field.field->header_idx);
+                        printf("      index %u\n", a->rhs.v.header.field->header_idx);
                     } else if (a->rhs.type == CVT_CONST) {
                         printf("      constant:");
                         unsigned bytes = DIVCEIL(a->rhs.value.bitoffset + a->rhs.value.bitcount, 8);

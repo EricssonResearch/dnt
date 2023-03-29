@@ -4,6 +4,8 @@
 
 #include "transfer.h"
 
+struct ProtocolField;
+
 struct HeaderField {
     unsigned header_idx;
     unsigned bitoffset;
@@ -11,9 +13,7 @@ struct HeaderField {
 };
 
 // the Edit action has an array of these
-// TODO re-think the namings and all the stuff in this struct
-//      e.g. the consumer can be packet metadata too
-// if @generator is NULL then it is a constant value
+// TODO switch to using EditAssign
 struct HeaderFieldAssign {
     value_consumer *assign;
     struct HeaderField target; // state of assign
@@ -23,7 +23,7 @@ struct HeaderFieldAssign {
     char *text;
 };
 
-struct HeaderField *new_headerfield(unsigned header_idx, unsigned bitoffset, unsigned bitcount);
+struct HeaderField *new_headerfield(unsigned header_idx, struct ProtocolField *pfield);
 
 // @returns a suitable function for writing to @target field from @source
 // the decision is based on the offsets and the lengths

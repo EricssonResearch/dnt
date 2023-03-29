@@ -2,6 +2,8 @@
 #ifndef R2_TRANSFER_H
 #define R2_TRANSFER_H
 
+#include <stddef.h>
+
 // describes the value passed from the Producer to the Consumer
 // the value must be stored in network byte order
 struct Value {
@@ -11,6 +13,15 @@ struct Value {
 };
 
 struct Packet;
+
+static inline struct Value init_value(unsigned bitoffset, unsigned bitcount)
+{
+    struct Value v;
+    v.value = NULL;
+    v.bitoffset = bitoffset;
+    v.bitcount = bitcount;
+    return v;
+}
 
 //TODO what is the state of the various producer/consumer types?
 //  header field: Packet, HeaderField <- this is the only one that needs two states

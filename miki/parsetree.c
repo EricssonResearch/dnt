@@ -86,6 +86,7 @@ struct HeaderMatch *delete_match_list(struct HeaderMatch *matches)
         struct HeaderMatch *d = m;
         m = m->next;
         free(d->value.value);
+        free(d->field);
         free(d);
     }
     return NULL;

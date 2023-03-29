@@ -1,6 +1,7 @@
 
 #include "conf_packet.h"
 #include "conf_utils.h"
+#include "header.h"
 #include "parsetree.h"
 #include "protocol.h"
 #include "utils.h"
@@ -14,6 +15,7 @@ struct StageState {
     const char *stream;
     struct HeaderDescriptor *headers;
     struct HeaderDescriptor *current_header;
+    unsigned current_idx;
 };
 
 static bool process_packet_token(char *token, void *userdata)
@@ -94,7 +96,8 @@ static bool process_match_token(char *token, void *userdata)
             struct HeaderMatch *newmatch = calloc_struct(HeaderMatch);
             newmatch->next = stst->current_header->matches;
             stst->current_header->matches = newmatch;
-            newmatch->field = f;
+            struct HeaderField *hf = new_headerfield(stst->current_idx, f);
+            newmatch->field = hf;
             newmatch->value.bitoffset = f->bitoffset;
             newmatch->value.bitcount = f->bitcount;
             if (!read_constant(&newmatch->value, f->type, val)) {
@@ -105,8 +108,10 @@ static bool process_match_token(char *token, void *userdata)
         }
     } else {
         struct HeaderDescriptor *h = stst->headers;
+        unsigned idx = 0;
         while (h && strcmp(h->name, token) != 0) {
             h = h->next;
+            idx++;
         }
         if (h == NULL) {
             fprintf(stderr, "stream %s match refers to non-existing header '%s'\n",
@@ -114,6 +119,7 @@ static bool process_match_token(char *token, void *userdata)
             return false;
         }
         stst->current_header = h;
+        stst->current_idx = idx;
     }
     return true;
 #undef THROW

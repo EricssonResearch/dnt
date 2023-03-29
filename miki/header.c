@@ -1,6 +1,7 @@
 
 #include "header.h"
 #include "packet.h"
+#include "protocol.h"
 #include "utils.h"
 
 #include <stdio.h>
@@ -8,15 +9,14 @@
 #include <string.h>
 #include <inttypes.h>
 
-struct HeaderField *new_headerfield(unsigned header_idx, unsigned bitoffset, unsigned bitcount)
+struct HeaderField *new_headerfield(unsigned header_idx, struct ProtocolField *pfield)
 {
     struct HeaderField *ret = calloc_struct(HeaderField);
     ret->header_idx = header_idx;
-    ret->bitoffset = bitoffset;
-    ret->bitcount = bitcount;
+    ret->bitoffset = pfield->bitoffset;
+    ret->bitcount = pfield->bitcount;
     return ret;
 }
-
 
 // only full bytes, no loose bits at the beginning or the end
 static void write_bytes(void *state, struct Value *value, struct Packet *p)
