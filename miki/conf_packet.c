@@ -88,7 +88,7 @@ static bool process_match_token(char *token, void *userdata)
         // parse the match
         char *key, *val;
         if (parse_assignment(token, &key, &val)) {
-            struct ProtocolField *f =  protocol_get_field_by_name(stst->current_header->id, key);
+            const struct ProtocolField *f =  protocol_get_field_by_name(stst->current_header->id, key);
             if (f == NULL) {
                 THROW("invalid field %s", key);
             }
@@ -98,8 +98,7 @@ static bool process_match_token(char *token, void *userdata)
             stst->current_header->matches = newmatch;
             struct HeaderField *hf = new_headerfield(stst->current_idx, f);
             newmatch->field = hf;
-            newmatch->value.bitoffset = f->bitoffset;
-            newmatch->value.bitcount = f->bitcount;
+            newmatch->value = init_value(f->bitoffset, f->bitcount);
             if (!read_constant(&newmatch->value, f->type, val)) {
                 THROW("value '%s' doesn't fit into field '%s'", val, key);
             }

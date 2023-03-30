@@ -40,6 +40,11 @@ typedef enum ActionResult action_execute(struct Action *a, struct PipelineIterat
 
 typedef void action_del(void *action_private);
 
+// describes one action, we have an array of these in Pipeline
+// @type and @text are primarily for debug
+// actions perform their task via the @execute function
+// actions remember type-specific stuff in @action_private
+// the @action_private is deleted with the @del function
 struct Action {
     enum ActionType type;
     action_execute *execute;
@@ -55,7 +60,7 @@ struct PipelineList {
     struct PipelineList *next;
 };
 
-// this is the state of Edit TODO switch over from HeaderFieldAssign
+// this is the state of Edit
 // if @read is NULL then it is a constant value
 struct EditAssign {
     value_consumer *write;
@@ -81,8 +86,7 @@ void create_action_drop(struct Action *a, const char *text);
 
 // receives an array of assignments, the action will do them all
 // can edit multiple different headers at once
-// TODO use struct EditAssign
-void create_action_edit(struct Action *a, struct HeaderFieldAssign *assigns, unsigned assign_count, const char *text);
+void create_action_edit(struct Action *a, struct EditAssign *assigns, unsigned assign_count, const char *text);
 
 void create_action_elim(struct Action *a, struct SequenceRecovery *rcvy, const char *text);
 

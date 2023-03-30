@@ -57,47 +57,47 @@ static bool ethertype_from_id(uint16_t *nexthdr, int id)
     return true;
 }
 
-static struct ProtocolField payload_fields[] = {
+static const struct ProtocolField payload_fields[] = {
 };
 
-static struct ProtocolField eth_fields[] = {
-    {"dmac",         0, 6*8, FT_MACADDRESS,},
-    {"smac",       6*8, 6*8, FT_MACADDRESS,},
-    {"ethertype", 12*8, 2*8, FT_NUMBER,},
+static const struct ProtocolField eth_fields[] = {
+    {"dmac",         0, 6*8, FT_MACADDRESS},
+    {"smac",       6*8, 6*8, FT_MACADDRESS},
+    {"ethertype", 12*8, 2*8, FT_NUMBER},
 };
 
-static struct ProtocolField vlan_fields[] = {
-    {"pcp",   0,  3, FT_NUMBER,},
-    {"dei",   3,  1, FT_NUMBER,},
-    {"vid",   4, 12, FT_NUMBER,},
-    {"tpid", 16, 16, FT_NUMBER,},
-    {"vlan",  0, 16, FT_NUMBER,}, // the whole header at once
+static const struct ProtocolField vlan_fields[] = {
+    {"pcp",   0,  3, FT_NUMBER},
+    {"dei",   3,  1, FT_NUMBER},
+    {"vid",   4, 12, FT_NUMBER},
+    {"tpid", 16, 16, FT_NUMBER},
+    {"vlan",  0, 16, FT_NUMBER}, // the whole header at once
 };
 
 //TODO it's better if we separate the rtag and ttag format
 //      don't have FT_TSNSEQ and FT_TSNTSTAMP in the same header
 //      what should id_from_ethertype return? rtag, because that is the standard one
-static struct ProtocolField rttag_fields[] = {
-    {"rt_flag",       5,  1, FT_NUMBER,}, // rtag-ttag indicator
-    {"reset_flag",    6,  1, FT_NUMBER,},
-    {"initseq_flag",  7,  1, FT_NUMBER,},
-    {"resv",          0, 16, FT_NUMBER,}, // reserved bits
-    {"seqnum",       16, 16, FT_NUMBER,}, // just the sequence number
-    {"tstampnum",    11, 21, FT_NUMBER,}, // just the timestamp
-    {"tpid",         32, 16, FT_NUMBER,}, // next protocol id (ethertype)
-    {"seq",           0, 32, FT_TSNSEQ,}, // sequence and the flags in reserved
-    {"tstamp",        0, 32, FT_TSNTSTAMP,}, // timestamp and the flags in reserved
+static const struct ProtocolField rttag_fields[] = {
+    {"rt_flag",       5,  1, FT_NUMBER}, // rtag-ttag indicator
+    {"reset_flag",    6,  1, FT_NUMBER},
+    {"initseq_flag",  7,  1, FT_NUMBER},
+    {"resv",          0, 16, FT_NUMBER}, // reserved bits
+    {"seqnum",       16, 16, FT_NUMBER}, // just the sequence number
+    {"tstampnum",    11, 21, FT_NUMBER}, // just the timestamp
+    {"tpid",         32, 16, FT_NUMBER}, // next protocol id (ethertype)
+    {"seq",           0, 32, FT_TSNSEQ}, // sequence and the flags in reserved
+    {"tstamp",        0, 32, FT_TSNTSTAMP}, // timestamp and the flags in reserved
 };
 
-static struct ProtocolField mpls_fields[] = {
+static const struct ProtocolField mpls_fields[] = {
     {"label",  0, 20, FT_NUMBER},
     {"class", 20,  3, FT_NUMBER},
     {"bos",   23,  1, FT_NUMBER},
-    {"ttl",   24,  8, FT_NUMBER},
+    {"ttl",   24,  8, FT_NUMBER}, //TODO FT_TTL
 };
 
 //TODO autogenerate this list
-struct Protocol protocol_list[] = {
+const struct Protocol protocol_list[] = {
     {"payload", payload_fields, 0, 0, 0, NULL, NULL},
     {"eth", eth_fields, ARRAY_SIZE(eth_fields), 6+6+2, 2, id_from_ethertype, ethertype_from_id},
     {"svlan", vlan_fields, ARRAY_SIZE(vlan_fields), 4, 3, id_from_ethertype, ethertype_from_id},
@@ -111,6 +111,28 @@ struct Protocol protocol_list[] = {
 
 unsigned protocol_count = ARRAY_SIZE(protocol_list);
 
+
+const char *fieldtype_name_from_type(enum ProtocolFieldType type)
+{
+    switch (type) {
+        case FT_UNKNOWN:
+            return "Unknown";
+        case FT_NUMBER:
+            return "Number";
+        case FT_MACADDRESS:
+            return "MAC";
+        case FT_IPV4ADDRESS:
+            return "IPv4";
+        case FT_IPV6ADDRESS:
+            return "IPv6";
+        case FT_TSNSEQ:
+            return "TSNSeq";
+        case FT_TSNTSTAMP:
+            return "TSNTstamp";
+    }
+    return NULL;
+}
+
 int protocol_id_from_type(const char *type)
 {
     for (unsigned i=0; i<protocol_count; i++) {
@@ -119,7 +141,7 @@ int protocol_id_from_type(const char *type)
     return -1;
 }
 
-const char *protocol_name_from_id(int id)
+const char *protocol_type_from_id(int id)
 {
     if (id >=0 && id < (int)protocol_count) {
         return protocol_list[id].name;
@@ -127,7 +149,7 @@ const char *protocol_name_from_id(int id)
     return NULL;
 }
 
-struct ProtocolField *protocol_get_field_by_name(int id, const char *fieldname)
+const struct ProtocolField *protocol_get_field_by_name(int id, const char *fieldname)
 {
     if (id < 0 && id >= (int)protocol_count) return false;
 
@@ -140,9 +162,6 @@ struct ProtocolField *protocol_get_field_by_name(int id, const char *fieldname)
 
 bool protocol_fieldname_valid(int id, const char *fieldname)
 {
-    struct ProtocolField *f = protocol_get_field_by_name(id, fieldname);
-    if (f)
-        return true;
-    else
-        return false;
+    const struct ProtocolField *f = protocol_get_field_by_name(id, fieldname);
+    return f != NULL;
 }

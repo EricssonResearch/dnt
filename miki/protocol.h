@@ -15,6 +15,7 @@ enum ProtocolFieldType {
     FT_TSNTSTAMP,
 };
 
+// describes one field of a protocol header
 struct ProtocolField {
     const char *name;
     unsigned bitoffset;
@@ -35,9 +36,10 @@ typedef bool id_from_nexthdr(int *id, uint16_t nexthdr);
 // @returns @nexthdr in network byte order
 typedef bool nexthdr_from_id(uint16_t *nexthdr, int id);
 
+// describes one fixed-size protocol header
 struct Protocol {
     const char *name;
-    struct ProtocolField *header_fields;
+    const struct ProtocolField *header_fields;
     unsigned header_field_count;
     unsigned bytelength;
     unsigned nexthdr_idx; // index of the next header field
@@ -45,9 +47,9 @@ struct Protocol {
     nexthdr_from_id *get_nexthdr; // translates protocol id to next header field value
 };
 
-
 // the internal id of the protocols is their index in this array
-extern struct Protocol protocol_list[];
+// TODO make this array private?
+extern const struct Protocol protocol_list[];
 extern unsigned protocol_count;
 
 //TODO autogenerate this list (and turn it into an enum)
@@ -59,15 +61,21 @@ extern unsigned protocol_count;
 #define PROTO_ID_TTAG 5
 #define PROTO_ID_MPLS 6
 
+// @returns the name of the field type or NULL on unknown type
+const char *fieldtype_name_from_type(enum ProtocolFieldType type);
+
 // @returns -1 if unknown protocol type
+//TODO const struct Protocol *protocol_from_type()
 int protocol_id_from_type(const char *type);
 
+// @returns the type name of the given protocol
 // @returns NULL if unknown id
-const char *protocol_name_from_id(int id);
+// TODO enum ProtocolID id
+const char *protocol_type_from_id(int id);
 
 // @returns pointer to the field descriptor with @fieldname
 // @returns NULL if the protocol has no field with the given name
-struct ProtocolField *protocol_get_field_by_name(int id, const char *fieldname);
+const struct ProtocolField *protocol_get_field_by_name(int id, const char *fieldname);
 
 // @returns true if @fieldname is valid for this protocol
 bool protocol_fieldname_valid(int id, const char *fieldname);

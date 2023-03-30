@@ -69,7 +69,7 @@ struct Pipeline *parsetree_process(struct ParseTree *pt, struct Packet *p)
     struct HeaderDescriptor *h = pt->headers;
     unsigned offset = 0;
     while (h) {
-        struct Protocol *proto = &protocol_list[h->id];
+        const struct Protocol *proto = &protocol_list[h->id];
         packet_identify_header(p, h->id, offset, proto->bytelength);
         offset += proto->bytelength;
         h = h->next;
