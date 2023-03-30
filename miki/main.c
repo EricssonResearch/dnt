@@ -73,15 +73,15 @@ static void recv_loop(struct Interface *ifaces, unsigned iface_count)
                 continue;
             printf("received packet length %u on %s\n", p->len, recvif->name);
             struct Pipeline *pipe = parsetree_process(recvif->parsetree, p);
-            printf("parsetree identified %u headers, pipe = %p\n", p->header_count, pipe);
-            for (unsigned i=0; i<p->header_count; i++) {
-                printf("  header %u is %s at %u len %u\n", i,
-                        protocol_list[p->headers[i].type].name, p->headers[i].start, p->headers[i].len);
-            }
             if (pipe == NULL) {
                 fprintf(stderr, "no pipeline found for packet on %s, unknown stream\n", recvif->name);
                 delete_packet(p);
             } else {
+                printf("parsetree identified %u headers, pipe = %p\n", p->header_count, pipe);
+                for (unsigned i=0; i<p->header_count; i++) {
+                    printf("  header %u is %s at %u len %u\n", i,
+                            protocol_list[p->headers[i].type].name, p->headers[i].start, p->headers[i].len);
+                }
                 // the iterator owns the packet
                 struct PipelineIterator *pi = new_pipe_iterator(pipe, p);
                 // the iterator deletes itself when it's done
