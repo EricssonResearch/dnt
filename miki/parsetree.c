@@ -60,12 +60,14 @@ bool parsetree_add_stream(struct ParseTree *pt_head, struct HeaderDescriptor *he
     return true;
 }
 
-static bool parsetree_match_header(const struct HeaderMatch *fields)
+//static bool compare_bytes(const void *state, const struct Value *value, const struct Packet *p)
+//state ---> HeaderField
+static bool parsetree_match_header(const struct HeaderMatch *fields, const struct Packet *p)
 {
     const struct HeaderMatch *f = fields;
     bool matched = true;
     while (f) {
-         matched &= f->comparator(NULL, NULL, NULL);
+        matched &= f->comparator(f->field, &f->value, p);
         f = f->next;
     }
     return matched;
@@ -86,17 +88,22 @@ struct Pipeline *parsetree_process(struct ParseTree *pt_head, struct Packet *p)
         // TODO: check that these headers really exist in the packet :)
         struct HeaderDescriptor *h = pt_head->headers;
         unsigned offset = 0;
+        bool full_stream_match = true;
         while (h) {
             struct Protocol *proto = &protocol_list[h->id];
-    //        struct HeaderMatch *matches = h->matches;
+            // if a header fails to match, we dont check the next one
+            if(!parsetree_match_header(h->matches, p)) {
+                full_stream_match = false;
+                break;
+            }
             packet_identify_header(p, h->id, offset, proto->bytelength);
             offset += proto->bytelength;
             h = h->next;
         }
-        packet_identify_header(p, PROTO_ID_PAYLOAD, offset, p->len-offset);
-
-        parsetree_match_header(h->matches);
-        return pt_head->pipe;
+        if (full_stream_match) {
+            packet_identify_header(p, PROTO_ID_PAYLOAD, offset, p->len-offset);
+            return pt_head->pipe;
+        }
     }
     return NULL;
 }

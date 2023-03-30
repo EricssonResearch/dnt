@@ -2,6 +2,7 @@
 #include "header.h"
 #include "packet.h"
 #include "protocol.h"
+#include "transfer.h"
 #include "utils.h"
 
 #include <stdio.h>
@@ -30,9 +31,9 @@ static void write_bytes(void *state, struct Value *value, struct Packet *p)
 }
 
 // return true if data in the header and match equal
-static bool compare_bytes(void *state, const struct Value *value, const struct Packet *p)
+static bool compare_bytes(const void *state, const struct Value *value, const struct Packet *p)
 {
-    struct HeaderField *field = state;
+    const struct HeaderField *field = state;
     uint8_t *match_data = value->value + value->bitoffset/8;
     uint8_t *hdr_data = p->buf + p->headers[field->header_idx].start + field->bitoffset/8;
     unsigned len = value->bitcount / 8;
@@ -57,10 +58,10 @@ static void write_bits(void *state, struct Value *value, struct Packet *p)
 }
 
 // return true if bits in a single byte at the header equal with a given value
-static bool compare_bits(void *state, const struct Value *value, const struct Packet *p)
+static bool compare_bits(const void *state, const struct Value *value, const struct Packet *p)
 {
     //TODO: from match, no from state
-    struct HeaderField *field = state;
+    const struct HeaderField *field = state;
     uint8_t *match_data = value->value + value->bitoffset/8;
     uint8_t *hdr_data = p->buf + p->headers[field->header_idx].start + field->bitoffset/8;
 
@@ -110,6 +111,46 @@ static void write_generic(void *state, struct Value *value, struct Packet *p)
     }
 }
 
+// TODO: FIX the offset for all header "dst" value calcularion
+// since now the using the first byte of the buffer, not working
+// generic comparator of any number of bits over any number of bytes
+static bool compare_generic(const void *state, const struct Value *value, const struct Packet *p)
+{
+    bool match = true;
+    const struct HeaderField *field = state;
+    uint8_t *src = value->value + value->bitoffset/8;
+    uint8_t *dst = p->buf + p->start + p->headers[field->header_idx].start + field->bitoffset/8;
+
+    unsigned bitoffset = field->bitoffset % 8;
+    unsigned bitcount = field->bitcount; // total bits to compare
+    unsigned bitcount1 = MIN(bitcount, 8 - bitoffset); // bits in first byte
+    unsigned shift = 8 - bitoffset - bitcount1;
+    unsigned char mask = 1 << bitcount1;
+    mask -= 1;
+    mask <<= shift;
+    uint8_t dst1 = dst[0] & ~mask;
+    match &= (dst1 == (src[0] & mask));
+    unsigned remaining_bits = bitcount - bitcount1;
+    unsigned remaining_bytes = remaining_bits / 8;
+    unsigned byteoffset = 1;
+
+    if (remaining_bytes) {
+        match &= !memcmp(dst+1, src+1, remaining_bytes);
+        remaining_bits -= remaining_bytes * 8;
+        byteoffset += remaining_bytes;
+    }
+
+    if (remaining_bits) {
+        shift = 8 - remaining_bits;
+        mask = 1 << remaining_bits;
+        mask -= 1;
+        mask <<= shift;
+        match &= ((dst[byteoffset] & ~mask) == (src[byteoffset] & mask));
+    }
+
+    return match;
+}
+
 value_consumer *header_get_field_writer(const struct HeaderField *target, const struct Value *source)
 {
     if (source->bitcount != target->bitcount) {
@@ -149,18 +190,17 @@ value_comparator *header_get_field_comprator(const struct ProtocolField *target,
         return NULL;
     }
 
-    // octet-based assignment
+    // octet-based comparison
     if ((target->bitoffset % 8) == 0 && (target->bitcount % 8) == 0 &&
             (match->bitoffset % 8) == 0 && (match->bitcount % 8) == 0)
         return compare_bytes;
 
-    // some bits within a single byte
+    // compare some bits within a single byte
     if (target->bitoffset % 8 + target->bitcount <= 8)
         return compare_bits;
 
     // anything else
-    // TODO:this is FATAL ERROR if generic comare required (so far not)
-    return NULL;
+    return compare_generic;
 }
 
 // points to the first byte of the field

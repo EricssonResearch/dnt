@@ -38,6 +38,6 @@ typedef void value_consumer(void *state, struct Value *value, struct Packet *p);
 typedef void value_producer(void *state, value_consumer *consumer, void *consumer_state, struct Packet *p);
 
 // prototype for a Comparator function
-typedef bool value_comparator(void *state, const struct Value *value, const struct Packet *p);
+typedef bool value_comparator(const void *state, const struct Value *value, const struct Packet *p);
 
 #endif // R2_TRANSFER_H
