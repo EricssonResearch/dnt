@@ -17,6 +17,7 @@ struct ParseTree {
     struct HeaderDescriptor *headers;
     struct Pipeline *pipe;
     unsigned reference_count;
+    struct ParseTree *next; // its a list for now
 };
 
 
@@ -45,11 +46,16 @@ void parsetree_unref(struct ParseTree *pt)
     }
 }
 
-bool parsetree_add_stream(struct ParseTree *pt, struct HeaderDescriptor *headers, struct Pipeline *pipe)
+bool parsetree_add_stream(struct ParseTree *pt_head, struct HeaderDescriptor *headers, struct Pipeline *pipe)
 {
-    //TODO support more than one stream per interface :)
-    pt->headers = headers;
-    pt->pipe = pipe;
+    struct ParseTree *pt_new = pt_head;
+    while (pt_new->next) {
+        pt_new = pt_new->next;
+    }
+    // TODO: handle refereneces
+    pt_new->next = new_parsetree(pt_head->iface);
+    pt_new->headers = headers;
+    pt_new->pipe = pipe;
     pipeline_ref(pipe);
     return true;
 }
@@ -65,31 +71,34 @@ static bool parsetree_match_header(const struct HeaderMatch *fields)
     return matched;
 }
 
-struct Pipeline *parsetree_process(struct ParseTree *pt, struct Packet *p)
+struct Pipeline *parsetree_process(struct ParseTree *pt_head, struct Packet *p)
 {
-    if (p->from != pt->iface) {
-        fprintf(stderr, "wrong parsetree %s %s\n", pt->iface->name, p->from->name);
-        return NULL;
-    }
-    if (pt->headers == NULL) {
-        fprintf(stderr, "parsetree %s has no streams\n", pt->iface->name);
-        return NULL;
-    }
+    for (struct ParseTree *pt = pt_head; pt != NULL; pt = pt->next) {
+        if (p->from != pt_head->iface) {
+            fprintf(stderr, "wrong parsetree %s %s\n", pt_head->iface->name, p->from->name);
+            return NULL;
+        }
+        if (pt_head->headers == NULL) {
+            fprintf(stderr, "parsetree %s has no streams\n", pt_head->iface->name);
+            return NULL;
+        }
 
-    // TODO: check that these headers really exist in the packet :)
-    struct HeaderDescriptor *h = pt->headers;
-    unsigned offset = 0;
-    while (h) {
-        struct Protocol *proto = &protocol_list[h->id];
-//        struct HeaderMatch *matches = h->matches;
-        packet_identify_header(p, h->id, offset, proto->bytelength);
-        offset += proto->bytelength;
-        h = h->next;
-    }
-    packet_identify_header(p, PROTO_ID_PAYLOAD, offset, p->len-offset);
+        // TODO: check that these headers really exist in the packet :)
+        struct HeaderDescriptor *h = pt_head->headers;
+        unsigned offset = 0;
+        while (h) {
+            struct Protocol *proto = &protocol_list[h->id];
+    //        struct HeaderMatch *matches = h->matches;
+            packet_identify_header(p, h->id, offset, proto->bytelength);
+            offset += proto->bytelength;
+            h = h->next;
+        }
+        packet_identify_header(p, PROTO_ID_PAYLOAD, offset, p->len-offset);
 
-    parsetree_match_header(h->matches);
-    return pt->pipe;
+        parsetree_match_header(h->matches);
+        return pt_head->pipe;
+    }
+    return NULL;
 }
 
 struct HeaderMatch *delete_match_list(struct HeaderMatch *matches)
