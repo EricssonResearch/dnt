@@ -85,7 +85,6 @@ struct Pipeline *parsetree_process(struct ParseTree *pt_head, struct Packet *p)
             return NULL;
         }
 
-        // TODO: check that these headers really exist in the packet :)
         struct HeaderDescriptor *h = pt_head->headers;
         unsigned offset = 0;
         bool full_stream_match = true;

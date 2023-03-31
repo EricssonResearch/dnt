@@ -22,7 +22,6 @@ struct HeaderField *new_headerfield(unsigned header_idx, const struct ProtocolFi
 // only full bytes, no loose bits at the beginning or the end
 static void write_bytes(void *state, struct Value *value, struct Packet *p)
 {
-    //TODO: its from match, not from state!
     struct HeaderField *field = state;
     uint8_t *src = value->value + value->bitoffset/8;
     uint8_t *dst = p->buf + p->headers[field->header_idx].start + field->bitoffset/8;
@@ -35,7 +34,12 @@ static bool compare_bytes(const void *state, const struct Value *value, const st
 {
     const struct HeaderField *field = state;
     uint8_t *match_data = value->value + value->bitoffset/8;
-    uint8_t *hdr_data = p->buf + p->headers[field->header_idx].start + field->bitoffset/8;
+    off_t field_offset = field->bitoffset/8;
+    if (field->header_idx != 0) {
+        const struct PacketHeader *prev_header = &p->headers[field->header_idx - 1];
+        field_offset += prev_header->len + prev_header->start;
+    }
+    uint8_t *hdr_data = p->buf + field_offset;
     unsigned len = value->bitcount / 8;
     return !memcmp(hdr_data, match_data, len);
 }
@@ -60,10 +64,14 @@ static void write_bits(void *state, struct Value *value, struct Packet *p)
 // return true if bits in a single byte at the header equal with a given value
 static bool compare_bits(const void *state, const struct Value *value, const struct Packet *p)
 {
-    //TODO: from match, no from state
     const struct HeaderField *field = state;
     uint8_t *match_data = value->value + value->bitoffset/8;
-    uint8_t *hdr_data = p->buf + p->headers[field->header_idx].start + field->bitoffset/8;
+    off_t field_offset = field->bitoffset/8;
+    if (field->header_idx != 0) {
+        const struct PacketHeader *prev_header = &p->headers[field->header_idx - 1];
+        field_offset += prev_header->len + prev_header->start;
+    }
+    uint8_t *hdr_data = p->buf + field_offset;
 
     unsigned bitoffset = field->bitoffset % 8;
     unsigned bitcount = field->bitcount;
@@ -118,8 +126,13 @@ static bool compare_generic(const void *state, const struct Value *value, const 
 {
     bool match = true;
     const struct HeaderField *field = state;
-    uint8_t *src = value->value + value->bitoffset/8;
-    uint8_t *dst = p->buf + p->start + p->headers[field->header_idx].start + field->bitoffset/8;
+    uint8_t *match_data = value->value + value->bitoffset/8;
+    off_t field_offset = field->bitoffset/8;
+    if (field->header_idx != 0) {
+        const struct PacketHeader *prev_header = &p->headers[field->header_idx - 1];
+        field_offset += prev_header->len + prev_header->start;
+    }
+    uint8_t *hdr_data = p->buf + field_offset;
 
     unsigned bitoffset = field->bitoffset % 8;
     unsigned bitcount = field->bitcount; // total bits to compare
@@ -128,14 +141,13 @@ static bool compare_generic(const void *state, const struct Value *value, const 
     unsigned char mask = 1 << bitcount1;
     mask -= 1;
     mask <<= shift;
-    uint8_t dst1 = dst[0] & ~mask;
-    match &= (dst1 == (src[0] & mask));
+    match &= ((hdr_data[0] & mask) == (match_data[0] & mask));
     unsigned remaining_bits = bitcount - bitcount1;
     unsigned remaining_bytes = remaining_bits / 8;
     unsigned byteoffset = 1;
 
     if (remaining_bytes) {
-        match &= !memcmp(dst+1, src+1, remaining_bytes);
+        match &= !memcmp(hdr_data+1, match_data+1, remaining_bytes);
         remaining_bits -= remaining_bytes * 8;
         byteoffset += remaining_bytes;
     }
@@ -145,7 +157,7 @@ static bool compare_generic(const void *state, const struct Value *value, const 
         mask = 1 << remaining_bits;
         mask -= 1;
         mask <<= shift;
-        match &= ((dst[byteoffset] & ~mask) == (src[byteoffset] & mask));
+        match &= ((hdr_data[byteoffset] & mask) == (match_data[byteoffset] & mask));
     }
 
     return match;
