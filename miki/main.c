@@ -77,6 +77,7 @@ static void recv_loop(struct Interface *ifaces, unsigned iface_count)
                 fprintf(stderr, "no pipeline found for packet on %s, unknown stream\n", recvif->name);
                 delete_packet(p);
             } else {
+                // TODO: print the name of the matching stream
                 printf("parsetree identified %u headers, pipe = %p\n", p->header_count, pipe);
                 for (unsigned i=0; i<p->header_count; i++) {
                     printf("  header %u is %s at %u len %u\n", i,

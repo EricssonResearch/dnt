@@ -119,9 +119,6 @@ static void write_generic(void *state, struct Value *value, struct Packet *p)
     }
 }
 
-// TODO: FIX the offset for all header "dst" value calcularion
-// since now the using the first byte of the buffer, not working
-// generic comparator of any number of bits over any number of bytes
 static bool compare_generic(const void *state, const struct Value *value, const struct Packet *p)
 {
     bool match = true;

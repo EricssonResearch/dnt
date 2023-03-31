@@ -60,8 +60,6 @@ bool parsetree_add_stream(struct ParseTree *pt_head, struct HeaderDescriptor *he
     return true;
 }
 
-//static bool compare_bytes(const void *state, const struct Value *value, const struct Packet *p)
-//state ---> HeaderField
 static bool parsetree_match_header(const struct HeaderMatch *fields, const struct Packet *p)
 {
     const struct HeaderMatch *f = fields;
