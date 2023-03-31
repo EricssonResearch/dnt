@@ -240,27 +240,6 @@ static const char *confaction_name_from_type(enum ConfActionType type)
     return NULL;
 }
 
-static const char *fieldtype_name_from_type(enum ProtocolFieldType type)
-{
-    switch (type) {
-        case FT_UNKNOWN:
-            return "Unknown";
-        case FT_NUMBER:
-            return "Number";
-        case FT_MACADDRESS:
-            return "MAC";
-        case FT_IPV4ADDRESS:
-            return "IPv4";
-        case FT_IPV6ADDRESS:
-            return "IPv6";
-        case FT_TSNSEQ:
-            return "TSNSeq";
-        case FT_TSNTSTAMP:
-            return "TSNTstamp";
-    }
-    return NULL;
-}
-
 static const char *variabletype_name_from_type(enum ConfVariableType type)
 {
     switch (type) {
@@ -286,7 +265,7 @@ static void init_confvariable_full(struct ConfVariable *v,
 }
 
 static void init_confvariable(struct ConfVariable *v,
-        enum ConfVariableType type, struct ProtocolField *field)
+        enum ConfVariableType type, const struct ProtocolField *field)
 {
     v->type = type;
     v->value_type = field->type;
@@ -312,7 +291,7 @@ static bool process_assignment_lhs(struct HeaderDescriptor *headers, struct Conf
         if (header_list_find_by_name(h->next, hdr)) {
             THROW("header name '%s' is ambiguous", hdr);
         }
-        struct ProtocolField *f = protocol_get_field_by_name(h->id, field);
+        const struct ProtocolField *f = protocol_get_field_by_name(h->id, field);
         if (f == NULL) {
             THROW("header '%s' has no field named '%s'", hdr, field);
         }
@@ -345,7 +324,7 @@ static bool process_assignment_rhs(struct StageState *stst, const struct ConfVar
             if (header_list_find_by_name(h->next, key)) {
                 THROW("header name '%s' is ambiguous", key);
             }
-            struct ProtocolField *f = protocol_get_field_by_name(h->id, val);
+            const struct ProtocolField *f = protocol_get_field_by_name(h->id, val);
             if (f) {
                 printf("rhs is a header field!\n");
                 if (lhs->value_type != f->type) {
@@ -446,7 +425,7 @@ static bool process_token(char *token, void *userdata)
                     stst->actions->d.add.assignments = a;
                     a->text = strdup(token);
                     if (parse_assignment(token, &lhs, &rhs)) {
-                        struct ProtocolField *f = protocol_get_field_by_name(stst->actions->d.add.id, lhs);
+                        const struct ProtocolField *f = protocol_get_field_by_name(stst->actions->d.add.id, lhs);
                         if (f == NULL) {
                             THROW("header %s has no field '%s'",
                                     stst->actions->d.add.newname, lhs);
@@ -780,9 +759,9 @@ static bool process_action(struct StageState *stst)
             // set the nexthdr field of newheader
             //TODO make this code more readable
             if (protocol_list[newheader->id].get_nexthdr != NULL) {
-                struct Protocol *newpr = &protocol_list[newheader->id];
+                const struct Protocol *newpr = &protocol_list[newheader->id];
                 unsigned nexthdr_idx = newpr->nexthdr_idx;
-                struct ProtocolField *f = &newpr->header_fields[nexthdr_idx];
+                const struct ProtocolField *f = &newpr->header_fields[nexthdr_idx];
                 struct ConfAssignment *a = NULL;
                 if (nextheader) {
                     uint16_t nexthdrnum;
@@ -807,9 +786,9 @@ static bool process_action(struct StageState *stst)
                     if (!prevheader) {
                         THROW("need to set nexthdr but no information from previous header");
                     }
-                    struct Protocol *prevpr = &protocol_list[prevheader->id];
+                    const struct Protocol *prevpr = &protocol_list[prevheader->id];
                     unsigned prevhdr_idx = prevpr->nexthdr_idx;
-                    struct ProtocolField *pf = &prevpr->header_fields[prevhdr_idx];
+                    const struct ProtocolField *pf = &prevpr->header_fields[prevhdr_idx];
                     if (newpr->get_nexthdr != prevpr->get_nexthdr) {
                         THROW("can't copy nexthdr type from previous header");
                     }
@@ -840,9 +819,9 @@ static bool process_action(struct StageState *stst)
 
             // set nexthdr of prevheader with newheader's type
             if (prevheader && protocol_list[prevheader->id].get_nexthdr != NULL) {
-                struct Protocol *prevpr = &protocol_list[prevheader->id];
+                const struct Protocol *prevpr = &protocol_list[prevheader->id];
                 unsigned prevhdr_idx = prevpr->nexthdr_idx;
-                struct ProtocolField *pf = &prevpr->header_fields[prevhdr_idx];
+                const struct ProtocolField *pf = &prevpr->header_fields[prevhdr_idx];
                 uint16_t nexthdrnum;
                 if (!prevpr->get_nexthdr(&nexthdrnum, newheader->id)) {
                     THROW("header type %s cannot have type %s as next header",
@@ -890,9 +869,9 @@ static bool process_action(struct StageState *stst)
             // handle the nexthdr field of prev
             struct ConfAssignment *a = NULL;
             if (prev) {
-                struct Protocol *prevpr = &protocol_list[prev->id];
+                const struct Protocol *prevpr = &protocol_list[prev->id];
                 unsigned prevhdr_idx = prevpr->nexthdr_idx;
-                struct ProtocolField *pf = &prevpr->header_fields[prevhdr_idx];
+                const struct ProtocolField *pf = &prevpr->header_fields[prevhdr_idx];
                 if (prevpr->get_nexthdr) {
                     if (del->next) {
                         uint16_t nexthdrnum;
@@ -911,9 +890,9 @@ static bool process_action(struct StageState *stst)
                         prepare_constant_number(&a->rhs.value, nexthdrnum);
                     } else {
                         // let's see if we can copy del's field
-                        struct Protocol *delpr = &protocol_list[del->id];
+                        const struct Protocol *delpr = &protocol_list[del->id];
                         unsigned delhdr_idx = delpr->nexthdr_idx;
-                        struct ProtocolField *df = &delpr->header_fields[delhdr_idx];
+                        const struct ProtocolField *df = &delpr->header_fields[delhdr_idx];
                         if (prevpr->get_nexthdr != delpr->get_nexthdr) {
                             THROW("can't copy nexthdr type from deleted to previous header");
                         }
@@ -1270,7 +1249,7 @@ struct ConfAction *delete_confaction_list(struct ConfAction *ca_list)
     return NULL;
 }
 
-static struct HeaderFieldAssign *assemble_fieldassigns(struct ConfAssignment *list, unsigned *assigncount)
+static struct EditAssign *assemble_fieldassigns(struct ConfAssignment *list, unsigned *assigncount)
 {
     unsigned count = 0;
     for (struct ConfAssignment *l=list; l; l=l->next) count++;
@@ -1278,22 +1257,23 @@ static struct HeaderFieldAssign *assemble_fieldassigns(struct ConfAssignment *li
         *assigncount = 0;
         return NULL;
     }
-    struct HeaderFieldAssign *ret = calloc_struct_array(HeaderFieldAssign, count);
+    struct EditAssign *ret = calloc_struct_array(EditAssign, count);
 
     unsigned i=0;
     for (struct ConfAssignment *l=list; l; l=l->next) {
-        struct HeaderFieldAssign *a = ret+i;
+        struct EditAssign *a = ret+i;
         a->text = strdup(l->text);
-        a->assign = l->lhs.write;
+        a->write = l->lhs.write;
         if (l->lhs.type == CVT_FIELD)
-            a->target = *l->lhs.v.header.field;
-        a->generator = l->rhs.read;
+            a->write_state = l->lhs.v.header.field; //TODO memdup
+
+        a->read = l->rhs.read;
         switch (l->rhs.type) {
             case CVT_UNDEF:
                 fprintf(stderr, "assign '%s' source is undefined\n", l->text);
                 return NULL;
             case CVT_FIELD:
-                a->generator_state = l->rhs.v.header.field;
+                a->read_state = l->rhs.v.header.field; //TODO memdup
                 break;
             case CVT_CONST:
                 a->constant = l->rhs.value;
@@ -1301,7 +1281,7 @@ static struct HeaderFieldAssign *assemble_fieldassigns(struct ConfAssignment *li
                 a->constant.value = memdup(l->rhs.value.value, len);
                 break;
             case CVT_IFACE:
-                a->generator_state = l->rhs.v.iface.iface;
+                a->read_state = l->rhs.v.iface.iface;
                 break;
         }
 
@@ -1341,7 +1321,7 @@ struct Action *assemble_actions(const struct ConfAction *ca_list, unsigned *acti
                 break;
             case CA_EDIT: {
                 unsigned acount;
-                struct HeaderFieldAssign *assigns = assemble_fieldassigns(ca->d.edit.assignments, &acount);
+                struct EditAssign *assigns = assemble_fieldassigns(ca->d.edit.assignments, &acount);
                 if (assigns == NULL) {
                     //TODO cleanup on error
                     fprintf(stderr, "could not assemble the field assignments for edit action\n");

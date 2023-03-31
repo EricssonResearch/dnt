@@ -13,18 +13,7 @@ struct HeaderField {
     unsigned bitcount;
 };
 
-// the Edit action has an array of these
-// TODO switch to using EditAssign
-struct HeaderFieldAssign {
-    value_consumer *assign;
-    struct HeaderField target; // state of assign
-    value_producer *generator;
-    void *generator_state;
-    struct Value constant;
-    char *text;
-};
-
-struct HeaderField *new_headerfield(unsigned header_idx, struct ProtocolField *pfield);
+struct HeaderField *new_headerfield(unsigned header_idx, const struct ProtocolField *pfield);
 
 // @returns a suitable function for writing to @target field from @source
 // the decision is based on the offsets and the lengths

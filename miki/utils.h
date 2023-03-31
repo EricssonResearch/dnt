@@ -26,6 +26,7 @@
         list = _newlist;                \
     } while (0)
 
+// @src cannot be NULL!
 void *memdup(const void *src, unsigned size);
 
 #endif // R2_UTILS_H

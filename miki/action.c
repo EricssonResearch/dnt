@@ -171,7 +171,7 @@ void create_action_drop(struct Action *a, const char *text)
 /////////////////////////////////////////////////////////////////////
 
 struct EditData {
-    struct HeaderFieldAssign *assigns;
+    struct EditAssign *assigns;
     unsigned assign_count;
 };
 
@@ -179,12 +179,12 @@ static enum ActionResult action_edit_execute(struct Action *a, struct PipelineIt
 {
     struct EditData *ed = a->action_private;
     for (unsigned i=0; i<ed->assign_count; i++) {
-        if (ed->assigns[i].generator) {
-            ed->assigns[i].generator(ed->assigns[i].generator_state,
-                    ed->assigns[i].assign, &ed->assigns[i].target,
+        if (ed->assigns[i].read) {
+            ed->assigns[i].read(ed->assigns[i].read_state,
+                    ed->assigns[i].write, ed->assigns[i].write_state,
                     pi->packet);
         } else {
-            ed->assigns[i].assign(&ed->assigns[i].target,
+            ed->assigns[i].write(ed->assigns[i].write_state,
                     &ed->assigns[i].constant, pi->packet);
         }
     }
@@ -202,7 +202,7 @@ static void action_edit_del(void *action_private)
     free(ed);
 }
 
-void create_action_edit(struct Action *a, struct HeaderFieldAssign *assigns, unsigned assign_count, const char *text)
+void create_action_edit(struct Action *a, struct EditAssign *assigns, unsigned assign_count, const char *text)
 {
     bzero(a, sizeof(*a));
     a->type = ACT_EDIT;

@@ -10,7 +10,7 @@
 #include <string.h>
 #include <inttypes.h>
 
-struct HeaderField *new_headerfield(unsigned header_idx, struct ProtocolField *pfield)
+struct HeaderField *new_headerfield(unsigned header_idx, const struct ProtocolField *pfield)
 {
     struct HeaderField *ret = calloc_struct(HeaderField);
     ret->header_idx = header_idx;

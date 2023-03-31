@@ -90,7 +90,7 @@ struct Pipeline *parsetree_process(struct ParseTree *pt_head, struct Packet *p)
         unsigned offset = 0;
         bool full_stream_match = true;
         while (h) {
-            struct Protocol *proto = &protocol_list[h->id];
+            const struct Protocol *proto = &protocol_list[h->id];
             // if a header fails to match, we dont check the next one
             if(!parsetree_match_header(h->matches, p)) {
                 full_stream_match = false;

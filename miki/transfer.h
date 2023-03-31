@@ -2,11 +2,13 @@
 #ifndef R2_TRANSFER_H
 #define R2_TRANSFER_H
 
+//TODO rename this to value.h ?
+
 #include <stddef.h>
+#include <stdbool.h>
 
 // describes the value passed from the Producer to the Consumer
 // the value must be stored in network byte order
-#include <stdbool.h>
 struct Value {
     void *value;
     unsigned bitoffset;
@@ -15,6 +17,7 @@ struct Value {
 
 struct Packet;
 
+// this struct is typically stored by value in other structs, so no allocation here
 static inline struct Value init_value(unsigned bitoffset, unsigned bitcount)
 {
     struct Value v;
