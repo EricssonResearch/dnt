@@ -1264,6 +1264,11 @@ static struct EditAssign *assemble_fieldassigns(struct ConfAssignment *list, uns
         struct EditAssign *a = ret+i;
         a->text = strdup(l->text);
         a->write = l->lhs.write;
+        if (l->lhs.type == CVT_UNDEF) {
+            fprintf(stderr, "assign '%s' destination is undefined\n", l->text);
+            free(ret);
+            return NULL;
+        }
         if (l->lhs.type == CVT_FIELD)
             a->write_state = l->lhs.v.header.field; //TODO memdup
 
@@ -1271,6 +1276,7 @@ static struct EditAssign *assemble_fieldassigns(struct ConfAssignment *list, uns
         switch (l->rhs.type) {
             case CVT_UNDEF:
                 fprintf(stderr, "assign '%s' source is undefined\n", l->text);
+                free(ret);
                 return NULL;
             case CVT_FIELD:
                 a->read_state = l->rhs.v.header.field; //TODO memdup

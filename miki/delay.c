@@ -11,6 +11,8 @@
 #include <pthread.h>
 #include <semaphore.h>
 
+//TODO we need a thread_utils.h
+
 struct DelayQueue {
     //TODO keep a list of PipelineIterator objects (priority queue)
     //      a background thread will get them from the queue and pipe_iterator_run()
