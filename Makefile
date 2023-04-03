@@ -24,7 +24,7 @@ HEADERS += seq_gen.h seq_recov.h
 HEADERS += configfile.h conf_actions.h conf_interface.h conf_object.h conf_packet.h conf_streams.h conf_utils.h
 HEADERS += inifile/hashmap.h inifile/inifile.h inifile/iniutils.h
 
-EXE = r2dthree
+EXE = r2dtwo
 
 default: $(EXE)
 
