@@ -127,6 +127,7 @@ struct DelayData {
 static enum ActionResult action_delay_execute(struct Action *a, struct PipelineIterator *pi)
 {
     struct DelayData *dd = a->action_private;
+    //TODO we might not need to delay the packet
     delay_insert(pi, dd->delay_ms);
     return ACR_HOLD;
 }

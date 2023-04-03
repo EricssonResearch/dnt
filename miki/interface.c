@@ -30,12 +30,11 @@ void iface_set_parsetree(struct Interface *iface, struct ParseTree *pt)
 void close_iface(struct Interface *iface)
 {
     iface->shutdown = true;
-    //TODO unref the parsetree
-    //      when the parsetree is done processing stuff
-    //          it will unref its action pipelines
-    //      when the action pipelines have no more iterators
-    //          they will unref us
-    //      finally we are free to close
+    // when the parsetree is done processing stuff
+    //      it will unref its action pipelines
+    // when the action pipelines have no more iterators
+    //      they will unref their outgoing interfaces
+    // finally we are free to close
     if (iface->parsetree)
         parsetree_unref(iface->parsetree);
     try_delete_interface(iface);

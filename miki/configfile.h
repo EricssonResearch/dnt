@@ -7,6 +7,7 @@
 struct Interface;
 struct HashMap;
 
+// holds all the data we read from the config file
 struct R2d2Config {
     struct Interface *ifaces; //TODO store the interfaces in a hash table
     unsigned ifcount;

@@ -118,7 +118,7 @@ struct R2d2Config *delete_config(struct R2d2Config *config)
 struct AddstreamState {
     struct Interface *ifaces;
     unsigned iface_count;
-    struct HashMap *pipelines;
+    struct HashMap *pipe_cache;
 };
 
 static int addstream_cb(const char *key, void *value, void *userdata)
@@ -141,7 +141,7 @@ static int addstream_cb(const char *key, void *value, void *userdata)
     for (struct ConfStreamList *s=streamlist; s; s=s->next) {
         printf("adding stream %s to interface %s\n", s->stream_name, key);
 
-        struct Pipeline *pipe = hashmap_find(state->pipelines, s->stream_name);
+        struct Pipeline *pipe = hashmap_find(state->pipe_cache, s->stream_name);
         if (pipe) {
             printf("  reusing already compiled pipeline\n");
         } else {
@@ -161,20 +161,21 @@ static int addstream_cb(const char *key, void *value, void *userdata)
                 free(actions);
                 return 0;
             }
-            if (!parsetree_add_stream(iface->parsetree, s->stream->packet, pipe)) {
-                fprintf(stderr, "failed to add stream %s to the parsetree of interface %s\n",
-                        s->stream_name, key);
-                pipeline_unref(pipe); //TODO verify the refcounting scheme, including the error path
-                return 0;
-            }
-            hashmap_insert(state->pipelines, strdup(s->stream_name), pipe);
         }
+
+        if (!parsetree_add_stream(iface->parsetree, s->stream->packet, pipe)) {
+            fprintf(stderr, "failed to add stream %s to the parsetree of interface %s\n",
+                    s->stream_name, key);
+            pipeline_unref(pipe); //TODO verify the refcounting scheme, including the error path
+            return 0;
+        }
+        hashmap_insert(state->pipe_cache, strdup(s->stream_name), pipe);
     }
 
     return 1;
 }
 
-static int delete_cb(const char *key, void *value, void *userdata)
+static int pipe_cache_delete_cb(const char *key, void *value, void *userdata)
 {
     (void)value;
     (void)userdata;
@@ -187,14 +188,14 @@ bool config_add_streams_to_interfaces(struct R2d2Config *config)
     struct AddstreamState state = {
         .ifaces = config->ifaces,
         .iface_count = config->ifcount,
-        .pipelines = new_hashmap(29, delete_cb, NULL),
+        .pipe_cache = new_hashmap(29, pipe_cache_delete_cb, NULL),
     };
     if (!hashmap_foreach(config->iface_streams, addstream_cb, &state)) {
         fprintf(stderr, "failed to add streams to interfaces\n");
-        delete_hashmap(state.pipelines);
+        delete_hashmap(state.pipe_cache);
         return false;
     }
-    delete_hashmap(state.pipelines);
+    delete_hashmap(state.pipe_cache);
     return true;
 }
 

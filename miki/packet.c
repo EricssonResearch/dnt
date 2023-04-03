@@ -81,12 +81,10 @@ void packet_identify_header(struct Packet *p, int type, unsigned offset, unsigne
     }
     struct PacketHeader *h = p->headers+p->header_count;
     h->type = type;
+    //TODO check that h->start + h->len < p->start + p->len
     h->start = p->start + offset;
     h->len = len;
     p->header_count++;
-    //TODO insert into the array sorted by offset
-    //unsigned hindex = 0;
-
 }
 
 static off_t scratch_alloc(struct Packet *p, unsigned len)

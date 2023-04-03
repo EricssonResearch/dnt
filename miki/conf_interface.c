@@ -113,9 +113,6 @@ static int iface_cb(const char *key, void *value, void *userdata)
 
 struct Interface *parse_interfaces(struct IniSection *interfaces_section, unsigned *iface_count)
 {
-    //TODO read the streams line for the interface
-    //      that should be a separate function: process_interface_streams()
-
     struct ConfIfacesState state = {0};
     state.iface_count = hashmap_count(interfaces_section->contents);
     state.ifaces = calloc_struct_array(Interface, state.iface_count); //TODO this overallocates
