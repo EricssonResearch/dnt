@@ -104,7 +104,7 @@ static bool process_match_token(char *token, void *userdata)
             }
             newmatch->comparator = header_get_field_comprator(f, &newmatch->value);
             if(!newmatch->comparator) {
-                THROW("can't find comparator function for the '%s' value", val);
+                THROW("can't find comparator function for the '%s' value", key);
             }
         } else {
             THROW("'%s' is not a valid header field match", token);

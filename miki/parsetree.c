@@ -48,14 +48,14 @@ void parsetree_unref(struct ParseTree *pt)
 
 bool parsetree_add_stream(struct ParseTree *pt_head, struct HeaderDescriptor *headers, struct Pipeline *pipe)
 {
-    struct ParseTree *pt_new = pt_head;
-    while (pt_new->next) {
-        pt_new = pt_new->next;
+    struct ParseTree *pt_last = pt_head;
+    while (pt_last->next) {
+        pt_last = pt_last->next;
     }
     // TODO: handle refereneces
-    pt_new->next = new_parsetree(pt_head->iface);
-    pt_new->headers = headers;
-    pt_new->pipe = pipe;
+    pt_last->next = new_parsetree(pt_head->iface);
+    pt_last->headers = headers;
+    pt_last->pipe = pipe;
     pipeline_ref(pipe);
     return true;
 }
