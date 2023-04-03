@@ -1,5 +1,6 @@
 
 #include "seq_gen.h"
+#include "packet.h"
 #include "utils.h"
 
 #include <stdlib.h>
@@ -48,7 +49,6 @@ static void step_seq(struct SequenceGenerator *gen)
 
 void seq_generator(struct SequenceGenerator *gen, struct Packet *p)
 {
-    struct SequenceGenerator *gen = state;
     uint32_t seqn = 0;
 
     //printf("seq gen %u 0x%x\n", gen->seq, gen->seq);
