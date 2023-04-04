@@ -13,6 +13,24 @@ enum ProtocolFieldType {
     FT_IPV6ADDRESS,
     FT_TSNSEQ,
     FT_TSNTSTAMP,
+    FT_TTL,
+};
+
+// the internal id of the protocols is their index in the @protocol_list array
+//TODO autogenerate this list
+enum ProtocolID {
+    PROTO_ID_PAYLOAD,
+    PROTO_ID_ETH,
+    PROTO_ID_SVLAN,
+    PROTO_ID_CVLAN,
+    PROTO_ID_RTAG,
+    PROTO_ID_TTAG,
+    PROTO_ID_MPLS,
+    PROTO_ID_DCW,
+    PROTO_ID_TCW,
+    PROTO_ID_IPv4,
+    PROTO_ID_IPv6,
+    PROTO_ID_ARP,
 };
 
 // describes one field of a protocol header
@@ -30,11 +48,11 @@ struct ProtocolField {
 
 // @returns false on error
 // @nexthdr is in network byte order
-typedef bool id_from_nexthdr(int *id, uint16_t nexthdr);
+typedef bool id_from_nexthdr(enum ProtocolID *id, uint16_t nexthdr);
 
 // @returns false on error
 // @returns @nexthdr in network byte order
-typedef bool nexthdr_from_id(uint16_t *nexthdr, int id);
+typedef bool nexthdr_from_id(uint16_t *nexthdr, enum ProtocolID id);
 
 // describes one fixed-size protocol header
 struct Protocol {
@@ -51,15 +69,6 @@ struct Protocol {
 // TODO make this array private?
 extern const struct Protocol protocol_list[];
 extern unsigned protocol_count;
-
-//TODO autogenerate this list (and turn it into an enum)
-#define PROTO_ID_PAYLOAD 0
-#define PROTO_ID_ETH 1
-#define PROTO_ID_SVLAN 2
-#define PROTO_ID_CVLAN 3
-#define PROTO_ID_RTAG 4
-#define PROTO_ID_TTAG 5
-#define PROTO_ID_MPLS 6
 
 // @returns the name of the field type or NULL on unknown type
 const char *fieldtype_name_from_type(enum ProtocolFieldType type);

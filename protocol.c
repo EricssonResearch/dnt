@@ -10,51 +10,66 @@
 #define ETH_P_FRER 0xf1c1
 
 //TODO writing these conversion functions is a pain, we need a script to generate them
-static bool id_from_ethertype(int *id, uint16_t nexthdr)
+static bool id_from_ethertype(enum ProtocolID *id, uint16_t nexthdr)
 {
+#define SET_ID(x)       \
+    do {                \
+        *id = x;        \
+        return true;    \
+    } while (0);
+
     switch (ntohs(nexthdr)) {
         case ETH_P_8021Q:
-            *id = PROTO_ID_CVLAN;
-            break;
+            SET_ID(PROTO_ID_CVLAN);
         case ETH_P_8021AD:
-            *id = PROTO_ID_SVLAN;
-            break;
+            SET_ID(PROTO_ID_SVLAN);
         case ETH_P_FRER:
-            *id = PROTO_ID_RTAG;
-            break;
+            SET_ID(PROTO_ID_RTAG);
         case ETH_P_MPLS_UC:
-            *id = PROTO_ID_MPLS;
-            break;
-        //TODO more
-        default:
-            return false;
+            SET_ID(PROTO_ID_MPLS);
+        case ETH_P_IP:
+            SET_ID(PROTO_ID_IPv4);
+        case ETH_P_IPV6:
+            SET_ID(PROTO_ID_IPv6);
+        case ETH_P_ARP:
+            SET_ID(PROTO_ID_ARP);
     }
-    return true;
+    return false;
+#undef SET_ID
 }
 
-static bool ethertype_from_id(uint16_t *nexthdr, int id)
+static bool ethertype_from_id(uint16_t *nexthdr, enum ProtocolID id)
 {
-    uint16_t ret = 0;
+#define SET_TYPE(x)             \
+    do {                        \
+        *nexthdr = htons(x);    \
+        return true;            \
+    } while (0)
+
     switch (id) {
         case PROTO_ID_SVLAN:
-            ret = ETH_P_8021AD;
-            break;
+            SET_TYPE(ETH_P_8021AD);
         case PROTO_ID_CVLAN:
-            ret = ETH_P_8021Q;
-            break;
+            SET_TYPE(ETH_P_8021Q);
         case PROTO_ID_RTAG:
         case PROTO_ID_TTAG:
-            ret = ETH_P_FRER;
-            break;
+            SET_TYPE(ETH_P_FRER);
         case PROTO_ID_MPLS:
-            ret = ETH_P_MPLS_UC;
-            break;
-        //TODO more
-        default:
+            SET_TYPE(ETH_P_MPLS_UC);
+        case PROTO_ID_IPv4:
+            SET_TYPE(ETH_P_IP);
+        case PROTO_ID_IPv6:
+            SET_TYPE(ETH_P_IPV6);
+        case PROTO_ID_ARP:
+            SET_TYPE(ETH_P_ARP);
+        case PROTO_ID_PAYLOAD:
+        case PROTO_ID_ETH:
+        case PROTO_ID_DCW:
+        case PROTO_ID_TCW:
             return false;
     }
-    *nexthdr = htons(ret);
-    return true;
+    return false;
+#undef SET_TYPE
 }
 
 static const struct ProtocolField payload_fields[] = {
@@ -63,7 +78,7 @@ static const struct ProtocolField payload_fields[] = {
 static const struct ProtocolField eth_fields[] = {
     {"dmac",         0, 6*8, FT_MACADDRESS},
     {"smac",       6*8, 6*8, FT_MACADDRESS},
-    {"ethertype", 12*8, 2*8, FT_NUMBER},
+    {"ethertype", 12*8, 2*8, FT_NUMBER}, //TODO FT_TYPE ?
 };
 
 static const struct ProtocolField vlan_fields[] = {
@@ -74,18 +89,23 @@ static const struct ProtocolField vlan_fields[] = {
     {"vlan",  0, 16, FT_NUMBER}, // the whole header at once
 };
 
-//TODO it's better if we separate the rtag and ttag format
-//      don't have FT_TSNSEQ and FT_TSNTSTAMP in the same header
-//      what should id_from_ethertype return? rtag, because that is the standard one
-static const struct ProtocolField rttag_fields[] = {
+static const struct ProtocolField rtag_fields[] = {
     {"rt_flag",       5,  1, FT_NUMBER}, // rtag-ttag indicator
     {"reset_flag",    6,  1, FT_NUMBER},
     {"initseq_flag",  7,  1, FT_NUMBER},
     {"resv",          0, 16, FT_NUMBER}, // reserved bits
     {"seqnum",       16, 16, FT_NUMBER}, // just the sequence number
-    {"tstampnum",    11, 21, FT_NUMBER}, // just the timestamp
     {"tpid",         32, 16, FT_NUMBER}, // next protocol id (ethertype)
     {"seq",           0, 32, FT_TSNSEQ}, // sequence and the flags in reserved
+};
+
+static const struct ProtocolField ttag_fields[] = {
+    {"rt_flag",       5,  1, FT_NUMBER}, // rtag-ttag indicator
+    {"reset_flag",    6,  1, FT_NUMBER},
+    {"initseq_flag",  7,  1, FT_NUMBER},
+    {"resv",          0, 16, FT_NUMBER}, // reserved bits
+    {"tstampnum",    11, 21, FT_NUMBER}, // just the timestamp
+    {"tpid",         32, 16, FT_NUMBER}, // next protocol id (ethertype)
     {"tstamp",        0, 32, FT_TSNTSTAMP}, // timestamp and the flags in reserved
 };
 
@@ -93,7 +113,43 @@ static const struct ProtocolField mpls_fields[] = {
     {"label",  0, 20, FT_NUMBER},
     {"class", 20,  3, FT_NUMBER},
     {"bos",   23,  1, FT_NUMBER},
-    {"ttl",   24,  8, FT_NUMBER}, //TODO FT_TTL
+    {"ttl",   24,  8, FT_TTL},
+};
+
+static const struct ProtocolField dcw_fields[] = {
+    {"rt_flag",       5,  1, FT_NUMBER}, // rtag-ttag indicator
+    {"reset_flag",    6,  1, FT_NUMBER},
+    {"initseq_flag",  7,  1, FT_NUMBER},
+    {"resv",          0, 16, FT_NUMBER}, // reserved bits
+    {"seqnum",       16, 16, FT_NUMBER}, // just the sequence number
+    {"seq",           0, 32, FT_TSNSEQ}, // sequence and the flags in reserved
+};
+
+static const struct ProtocolField tcw_fields[] = {
+    {"rt_flag",       5,  1, FT_NUMBER}, // rtag-ttag indicator
+    {"reset_flag",    6,  1, FT_NUMBER},
+    {"initseq_flag",  7,  1, FT_NUMBER},
+    {"resv",          0, 16, FT_NUMBER}, // reserved bits
+    {"tstampnum",    11, 21, FT_NUMBER}, // just the timestamp
+    {"tstamp",        0, 32, FT_TSNTSTAMP}, // timestamp and the flags in reserved
+};
+
+static const struct ProtocolField ipv4_fields[] = {
+    {"ttl",       64,  8, FT_TTL},
+    {"protocol",  72,  8, FT_NUMBER},
+    //TODO "header checksum", 80, 16, FT_CHECKSUM
+    {"src",       96, 32, FT_IPV4ADDRESS},
+    {"dst",      128, 32, FT_IPV4ADDRESS},
+};
+
+static const struct ProtocolField ipv6_fields[] = {
+    {"hoplimit",    56,   8, FT_TTL},
+    {"nextheader",  48,   8, FT_NUMBER},
+    {"src",         64, 128, FT_IPV6ADDRESS},
+    {"dst",        192, 128, FT_IPV6ADDRESS},
+};
+
+static const struct ProtocolField arp_fields[] = {
 };
 
 //TODO autogenerate this list
@@ -104,9 +160,14 @@ const struct Protocol protocol_list[] = {
     {"cvlan", vlan_fields, ARRAY_SIZE(vlan_fields), 4, 3, id_from_ethertype, ethertype_from_id},
     // note: we cannot destinguish rtag and ttag by their ethertype,
     //       ACT_DELAY and ACT_ELIM must check the rt_flag
-    {"rtag", rttag_fields, ARRAY_SIZE(rttag_fields), 6, 6, id_from_ethertype, ethertype_from_id},
-    {"ttag", rttag_fields, ARRAY_SIZE(rttag_fields), 6, 6, id_from_ethertype, ethertype_from_id},
+    {"rtag", rtag_fields, ARRAY_SIZE(rtag_fields), 6, 5, id_from_ethertype, ethertype_from_id},
+    {"ttag", ttag_fields, ARRAY_SIZE(ttag_fields), 6, 5, id_from_ethertype, ethertype_from_id},
     {"mpls", mpls_fields, ARRAY_SIZE(mpls_fields), 4, 0, NULL, NULL},
+    {"dcw", dcw_fields, ARRAY_SIZE(dcw_fields), 4, 0, NULL, NULL},
+    {"tcw", tcw_fields, ARRAY_SIZE(tcw_fields), 4, 0, NULL, NULL},
+    {"ipv4", ipv4_fields, ARRAY_SIZE(ipv4_fields), 20, 0, NULL, NULL}, //TODO protocol field
+    {"ipv6", ipv6_fields, ARRAY_SIZE(ipv6_fields), 40, 0, NULL, NULL}, //TODO next header field
+    {"arp", arp_fields, ARRAY_SIZE(arp_fields), 28, 0, NULL, NULL}, //TODO this is variable-length
 };
 
 unsigned protocol_count = ARRAY_SIZE(protocol_list);
@@ -129,6 +190,8 @@ const char *fieldtype_name_from_type(enum ProtocolFieldType type)
             return "TSNSeq";
         case FT_TSNTSTAMP:
             return "TSNTstamp";
+        case FT_TTL:
+            return "TTL";
     }
     return NULL;
 }
