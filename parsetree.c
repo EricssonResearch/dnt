@@ -83,7 +83,7 @@ struct Pipeline *parsetree_process(struct ParseTree *pt_head, struct Packet *p)
             return NULL;
         }
 
-        struct HeaderDescriptor *h = pt_head->headers;
+        struct HeaderDescriptor *h = pt->headers;
         unsigned offset = 0;
         bool full_stream_match = true;
         while (h) {
