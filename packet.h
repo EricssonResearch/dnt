@@ -77,4 +77,7 @@ void packet_add_header(struct Packet *p, unsigned idx, int type, unsigned len);
 // all the headers after @idx will be shifted in the array
 void packet_del_header(struct Packet *p, unsigned idx);
 
+// remove all headers from @p->headers
+void packet_clear_headers(struct Packet *p);
+
 #endif // R2_PACKET_H

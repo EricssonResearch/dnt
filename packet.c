@@ -131,4 +131,10 @@ void packet_del_header(struct Packet *p, unsigned idx)
     p->header_count--;
 }
 
+void packet_clear_headers(struct Packet *p)
+{
+    memset(p->headers, 0, p->header_count * sizeof(struct PacketHeader));
+    p->header_count = 0;
+}
+
 
