@@ -70,7 +70,8 @@ static unsigned sequence_generation(struct SequenceGenerator *gen)
                 gen->reset_flag = false;
             }
         }
-        return seq;
+        seq |= FRER_INIT_FLAG;
+        return seq |= (FRER_RESET_FLAG * gen->reset_flag);
     }
     //regular seq generator
     unsigned seq = gen->gen_seq_num;

@@ -136,7 +136,7 @@ static bool seamless_seq_recovery(struct SequenceRecovery *rec, struct Packet *p
     unsigned packet_seq = ntohl(p->sequence) & 0xffff;
     if(rec->use_reset_flag) {
         if(rec->use_init_flag) {
-            if(p->sequence & FRER_INIT_FLAG) {
+            if(packet_seq & FRER_INIT_FLAG) {
                 delta = calc_delta(packet_seq, rec->init_recv_seq);
                 if(p->sequence & FRER_RESET_FLAG)
                     if((delta > rec->history_length) || (delta <= -rec->history_length * 2))
@@ -150,7 +150,7 @@ static bool seamless_seq_recovery(struct SequenceRecovery *rec, struct Packet *p
 
             return recover(rec, packet_seq);
         }
-        if(p->sequence & FRER_RESET_FLAG) {
+        if(packet_seq & FRER_RESET_FLAG) {
             delta = calc_delta(packet_seq, rec->recv_seq);
             if((delta > rec->history_length) || (delta <= -rec->history_length * 2))
                 rec->take_any = true;
