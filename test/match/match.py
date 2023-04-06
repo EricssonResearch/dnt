@@ -42,13 +42,21 @@ def config_ifaces():
 def test_eth():
     config_ifaces()
     start_r2dtwo()
-    time.sleep(0.5)
+    time.sleep(1)
     receiver = AsyncSniffer(iface='from_r2')
     receiver.start()
-    pkt = Ether()/Dot1Q(vlan=2023)/IP()/UDP()
-    sendp(pkt, iface="to_r2")
+
+    pkts_good = [
+        Ether()/Dot1Q(vlan=2023)/IP()/UDP(),
+        Ether()/Dot1Q(vlan=1111)/IP(src="1.2.3.4")/UDP(),
+    ]
+
+    pkts_bad = []
+
+    for pkt in pkts_good:
+        sendp(pkt, iface="to_r2")
     receiver.stop()
-    if len(receiver.results) != 1:
+    if len(receiver.results) != len(pkts_good):
         return 0
     return 1
 
