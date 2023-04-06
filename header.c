@@ -34,12 +34,7 @@ static bool compare_bytes(const void *state, const struct Value *value, const st
 {
     const struct HeaderField *field = state;
     uint8_t *match_data = value->value + value->bitoffset/8;
-    off_t field_offset = field->bitoffset/8;
-    if (field->header_idx != 0) {
-        const struct PacketHeader *prev_header = &p->headers[field->header_idx - 1];
-        field_offset += prev_header->len + prev_header->start;
-    }
-    uint8_t *hdr_data = p->buf + field_offset;
+    uint8_t *hdr_data = p->buf + p->headers[field->header_idx].start + field->bitoffset/8;
     unsigned len = value->bitcount / 8;
     return !memcmp(hdr_data, match_data, len);
 }
@@ -66,12 +61,7 @@ static bool compare_bits(const void *state, const struct Value *value, const str
 {
     const struct HeaderField *field = state;
     uint8_t *match_data = value->value + value->bitoffset/8;
-    off_t field_offset = field->bitoffset/8;
-    if (field->header_idx != 0) {
-        const struct PacketHeader *prev_header = &p->headers[field->header_idx - 1];
-        field_offset += prev_header->len + prev_header->start;
-    }
-    uint8_t *hdr_data = p->buf + field_offset;
+    uint8_t *hdr_data = p->buf + p->headers[field->header_idx].start + field->bitoffset/8;
 
     unsigned bitoffset = field->bitoffset % 8;
     unsigned bitcount = field->bitcount;
@@ -124,12 +114,7 @@ static bool compare_generic(const void *state, const struct Value *value, const 
     bool match = true;
     const struct HeaderField *field = state;
     uint8_t *match_data = value->value + value->bitoffset/8;
-    off_t field_offset = field->bitoffset/8;
-    if (field->header_idx != 0) {
-        const struct PacketHeader *prev_header = &p->headers[field->header_idx - 1];
-        field_offset += prev_header->len + prev_header->start;
-    }
-    uint8_t *hdr_data = p->buf + field_offset;
+    uint8_t *hdr_data = p->buf + p->headers[field->header_idx].start + field->bitoffset/8;
 
     unsigned bitoffset = field->bitoffset % 8;
     unsigned bitcount = field->bitcount; // total bits to compare
