@@ -7,10 +7,11 @@
 
 static void try_delete_interface(struct Interface *iface)
 {
-    if (iface->shutdown == true && iface->reference_count == 0) {
+    if (iface->state == IFS_SHUTDOWN && iface->reference_count == 0) {
         iface->close_(iface);
         free(iface->name);
         free(iface->ifname);
+        iface->state = IFS_DONE;
         //TODO somehow we need to signal the main thread that we are done
         //TODO the main thread should only exit when all interfaces gave the signal
     }
@@ -29,7 +30,8 @@ void iface_set_parsetree(struct Interface *iface, struct ParseTree *pt)
 
 void close_iface(struct Interface *iface)
 {
-    iface->shutdown = true;
+    //TODO state must be IFS_INIT or IFS_OPEN
+    iface->state = IFS_SHUTDOWN;
     // when the parsetree is done processing stuff
     //      it will unref its action pipelines
     // when the action pipelines have no more iterators

@@ -19,6 +19,13 @@ enum IfaceType {
     IF_UDP_OUT,
 };
 
+enum IfaceState {
+    IFS_INIT = 1, // created but not yet opened
+    IFS_OPEN, // opened and ready to send/recv
+    IFS_SHUTDOWN, // closing, can still send but not recv
+    IFS_DONE, // fully closed and uninitialized TODO get rid of this state
+};
+
 // receive a packet on @fd
 // blocks if no packet is in the rx queue!
 // @returns the receivec packet or NULL if reception failed
@@ -46,9 +53,11 @@ typedef value_producer *iface_get_property_reader(const struct Interface *iface,
 
 struct Interface {
     enum IfaceType type;
+    unsigned reference_count;
+    enum IfaceState state;
+    int recvfd;
     char *name;
     char *ifname;
-    int recvfd;
     // all of these callbacks are mandatory
     iface_recv *recv;
     iface_send *send;
@@ -56,8 +65,6 @@ struct Interface {
     iface_close *close_; // private TODO mark all private members
     iface_get_property_reader *get_property_reader;
     void *iface_private;
-    unsigned reference_count;
-    bool shutdown; // stop receiving when this is set
 
     struct ParseTree *parsetree;
 

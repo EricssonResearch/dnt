@@ -847,7 +847,13 @@ static bool process_action(struct StageState *stst)
                 }
             }
 
-            process_action(stst); // now edit is the newest action
+            if (edit->d.edit.assignments == NULL) {
+                stst->actions = edit->next;
+                free(edit->text);
+                free(edit);
+            } else {
+                process_action(stst); // now edit is the newest action
+            }
             break;
         case CA_DEL:
             if (stst->actions->d.del.hdr == NULL) {

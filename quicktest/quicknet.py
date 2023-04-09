@@ -43,9 +43,16 @@ def start_network():
     nc.cmd("ip l a link ethCB name ethCB.r2tunnel type vlan id 2023")
     nc.cmd("ip a a 192.168.1.3/24 dev ethCB.r2tunnel")
     nc.cmd("ip l set up dev ethCB.r2tunnel")
+    nd.cmd("ip l a link ethDC name ethDC.r2tunnel type vlan id 3210")
+    nd.cmd("ip a a 192.168.1.4/24 dev ethDC.r2tunnel")
+    nd.cmd("ip l set up dev ethDC.r2tunnel")
 
-    #TODO start r2dthree on nb
+    #TODO on nb: ../r2dtwo quicktest.ini
     #TODO on na: ping 192.168.1.3
+
+    #TODO on nb: ../r2dtwo quickdetB.ini
+    #TODO on nc: ../r2dtwo quickdetC.ini
+    #TODO on na: ping 192.126.1.4
 
     return net
 

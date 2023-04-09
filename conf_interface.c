@@ -6,6 +6,8 @@
 #include "utils.h"
 
 #include "if_eth.h"
+#include "if_udp_in.h"
+#include "if_udp_out.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -45,9 +47,6 @@ static bool iface_token_cb(char *token, void *userdata)
                 }
             } else {
                 // this may be a type-specific parameter, keep it
-                if (tstate->params == NULL) {
-                    tstate->params = new_hashmap(7, NULL, NULL);
-                }
                 if (hashmap_contains(tstate->params, key)) {
                     THROW("parameter %s is duplicate", key);
                 }
@@ -82,6 +81,7 @@ static int iface_cb(const char *key, void *value, void *userdata)
 
     struct TokenState tstate = {0};
     tstate.ifname = key;
+    tstate.params = new_hashmap(7, NULL, NULL);
     if (!foreach_tokens(desc, iface_token_cb, &tstate)) {
         THROW("failed to parse parameters");
     }
@@ -89,14 +89,67 @@ static int iface_cb(const char *key, void *value, void *userdata)
     if (tstate.type == NULL) {
         THROW("type is unspecified");
     }
+    if (tstate.iface == NULL) {
+        THROW("hw interface is unspecified");
+    }
 
     if (strcmp(tstate.type, "eth") == 0) {
-        if (tstate.iface == NULL) {
-            THROW("hw interface is unspecified");
-        }
         //TODO additional parameter: use 8 sockets or eBPF priority setting
         if (!init_eth_interface(state->ifaces+state->i, key, tstate.iface)) {
             THROW("failed to create ethernet interface");
+        }
+        state->i++;
+    } else if (strcmp(tstate.type, "udp-in") == 0) {
+        unsigned port = 6635;
+        unsigned ipver = 4;
+        unsigned u;
+        char err;
+        char *port_str = hashmap_find(tstate.params, "port");
+        if (port_str) {
+            if (sscanf(port_str, "%i%c", &u, &err) != 1)
+                THROW("port '%s' is invalid", port_str);
+            if (u > 0xffff)
+                THROW("port '%s' is invalid", port_str);
+            port = u;
+        }
+        char *ipver_str = hashmap_find(tstate.params, "ip");
+        if (ipver_str) {
+            if (sscanf(ipver_str, "%u%c", &u, &err) != 1)
+                THROW("ip version '%s' is invalid", ipver_str);
+            if (!(u == 4 || u == 6))
+                THROW("ip version '%s' is invalid", ipver_str);
+            ipver = u;
+        }
+        if (!init_udp_in_interface(state->ifaces+state->i, key, tstate.iface, port, ipver)) {
+            THROW("failed to create udp-in interface");
+        }
+        state->i++;
+    } else if (strcmp(tstate.type, "udp-out") == 0) {
+        unsigned port = 6635;
+        unsigned priority = 0;
+        unsigned u;
+        char err;
+        char *port_str = hashmap_find(tstate.params, "port");
+        if (port_str) {
+            if (sscanf(port_str, "%i%c", &u, &err) != 1)
+                THROW("port '%s' is invalid", port_str);
+            if (u > 0xffff)
+                THROW("port '%s' is invalid", port_str);
+            port = u;
+        }
+        char *dst_ip = hashmap_find(tstate.params, "dstip");
+        if (dst_ip == NULL) {
+            THROW("dstip is unspecified");
+        }
+        char *priority_str = hashmap_find(tstate.params, "prio");
+        if (priority_str) {
+            if (sscanf(priority_str, "%i%c", &u, &err) != 1)
+                THROW("prio '%s' is invalid", priority_str);
+            if (u > 7)
+                THROW("prio '%s' is invalid", priority_str);
+        }
+        if (!init_udp_out_interface(state->ifaces+state->i, key, tstate.iface, port, dst_ip, priority)) {
+            THROW("failed to create udp-out interface");
         }
         state->i++;
     } else {
@@ -105,8 +158,7 @@ static int iface_cb(const char *key, void *value, void *userdata)
 
     free(tstate.type);
     free(tstate.iface);
-    if (tstate.params)
-        delete_hashmap(tstate.params);
+    delete_hashmap(tstate.params);
     return 1;
 #undef THROW
 }

@@ -1,5 +1,7 @@
 
 #include "if_eth.h"
+#include "if_utils.h"
+#include "interface.h"
 #include "packet.h"
 #include "protocol.h"
 #include "utils.h"
@@ -18,8 +20,6 @@
 
 #include <linux/if_ether.h> /* ETH_P_ALL */
 #include <linux/if_packet.h> /* struct sockaddr_ll, PACKET_AUXDATA TODO netpacket/packet.h? */
-#include <linux/net_tstamp.h> /* SOF_TIMESTAMPING_* */
-//#include <linux/sockios.h> /* SIOCSHWTSTAMP */
 #include <linux/filter.h> /* eBPF */
 
 struct EthIfData {
@@ -30,93 +30,13 @@ struct EthIfData {
     struct ether_addr mac;
 };
 
-// copied from the code of the other TSN project
-static void enable_rx_tstamp(int sock, const char *sockname,
-        const char *ifname/*, enum hwtstamp_rx_filters filter*/)
+static void msghdr_process(struct msghdr *msg, struct Packet *p, void *userdata)
 {
-/*    struct ifreq hwtstamp;
-    struct hwtstamp_config hwconfig, hwconfig_req;
-    memset(&hwtstamp, 0, sizeof(hwtstamp));
-    strncpy(hwtstamp.ifr_name, ifname, sizeof(hwtstamp.ifr_name)-1);
-    hwtstamp.ifr_data = (void *)&hwconfig;
-    memset(&hwconfig, 0, sizeof(hwconfig));
-    hwconfig.tx_type = HWTSTAMP_TX_OFF;
-    hwconfig.rx_filter = filter;
-    hwconfig_req = hwconfig;
-    if (ioctl(sock, SIOCSHWTSTAMP, &hwtstamp) < 0) {
-        if (errno == EINVAL || errno == ENOTSUP) {
-            printf("SIOCSHWTSTAMP: HW timestamping for '%s' on '%s' is not available\n",
-                    sockname, ifname);
-        } else {
-            perror("SIOCSHWTSTAMP");
-        }
-    } else {
-        printf("SIOCSHWTSTAMP: tx_type requested %d got %d, rx_filter requested %d got %d\n",
-                hwconfig_req.tx_type, hwconfig.tx_type,
-                hwconfig_req.rx_filter, hwconfig.rx_filter);
-    }*/
-
-    int so_timestamping_flags =
-        // generate these timestamps
-    //    SOF_TIMESTAMPING_RX_HARDWARE |
-        SOF_TIMESTAMPING_RX_SOFTWARE |
-        // report these timestamps in cmsg
-    //    SOF_TIMESTAMPING_RAW_HARDWARE |
-        SOF_TIMESTAMPING_SOFTWARE |
-        0;
-    if (setsockopt(sock, SOL_SOCKET, SO_TIMESTAMPING,
-                &so_timestamping_flags, sizeof(so_timestamping_flags)) < 0) {
-        perror("setsockopt SO_TIMESTAMPING");
-    } else {
-        printf("setsockopt SO_TIMESTAMPING success for '%s' on '%s'\n",
-                sockname, ifname);
-    }
-}
-
-static struct Packet *eth_recv(struct Interface *iface)
-{
-    struct EthIfData *eid = iface->iface_private;
-    (void)eid;
-
-    struct Packet *p = new_packet(iface);
-
-    char control[1000]
-        __attribute__ ((aligned(__alignof__(struct cmsghdr))));
-    struct msghdr msg;
-    struct iovec iov;
-    struct sockaddr_in from_addr;
-    memset(&msg, 0, sizeof(msg));
-    msg.msg_name = &from_addr;
-    iov.iov_base = p->buf + p->start;
-    iov.iov_len = PACKET_BUF_LEN - p->start;
-    msg.msg_iov = &iov;
-    msg.msg_iovlen = 1;
-    msg.msg_control = control;
-    msg.msg_controllen = sizeof(control);
-
-    int res = recvmsg(iface->recvfd, &msg, 0);
-    //printf("recvmsg %d controllen %zu\n", res, msg.msg_controllen);
-    if (res < 0) {
-        perror("recvmsg");
-        return delete_packet(p);
-    }
-
-    if (packet_dummy(p)) {
-        fprintf(stderr, "packet overflow, received on interface %s\n", iface->name);
-        return delete_packet(p);
-    }
-    if (iface->shutdown) {
-        return delete_packet(p);
-    }
-
-    if (res > 0) {
-        p->len = res;
-    }
-    printf("eth %s recv %u\n", iface->name, p->len);
+    (void)userdata;
 
     // process the cmsg to get the vlan header info and timestamp
     // if we have vlan, restore it in the packet
-    for (struct cmsghdr *cmsg=CMSG_FIRSTHDR(&msg); cmsg; cmsg=CMSG_NXTHDR(&msg, cmsg)) {
+    for (struct cmsghdr *cmsg=CMSG_FIRSTHDR(msg); cmsg; cmsg=CMSG_NXTHDR(msg, cmsg)) {
         switch (cmsg->cmsg_level) {
             case SOL_SOCKET:
                 if (cmsg->cmsg_type == SCM_TIMESTAMPING) {
@@ -153,6 +73,15 @@ static struct Packet *eth_recv(struct Interface *iface)
                 break;
         }
     }
+}
+
+static struct Packet *eth_recv(struct Interface *iface)
+{
+    struct EthIfData *eid = iface->iface_private;
+    (void)eid;
+
+    struct Packet *p = iface_common_recv(iface, msghdr_process, NULL);
+    printf("eth %s recv %u\n", iface->name, p->len);
 
     uint16_t *p_vlan = (uint16_t*)(p->buf + p->start + 2*6);
     unsigned short ethertype = ntohs(*p_vlan);
@@ -182,14 +111,6 @@ static bool eth_send(struct Interface *iface, struct Packet *p)
         return false;
     }
 
-    unsigned char *dst_mac = p->buf + p->headers[0].start; //TODO use the protocol definition...
-    struct sockaddr_ll socket_address;
-    memset(&socket_address, 0, sizeof(struct sockaddr_ll));
-    socket_address.sll_family = AF_PACKET;
-    socket_address.sll_ifindex = eid->ifindex;
-    socket_address.sll_halen = ETH_ALEN;
-    memcpy(socket_address.sll_addr, dst_mac, ETH_ALEN);
-
     unsigned pcp = 0;
     if (p->header_count > 1) {
         if (p->headers[1].type == PROTO_ID_CVLAN || p->headers[1].type == PROTO_ID_SVLAN) {
@@ -199,33 +120,22 @@ static bool eth_send(struct Interface *iface, struct Packet *p)
     }
     printf("eth %s sending with priority %u\n", iface->name, pcp);
 
-    struct msghdr msg;
-    memset(&msg, 0, sizeof(msg));
-    msg.msg_name = &socket_address;
-    msg.msg_namelen = sizeof(socket_address);
+    unsigned char *dst_mac = p->buf + p->headers[0].start;
+    struct sockaddr_ll socket_address;
+    memset(&socket_address, 0, sizeof(struct sockaddr_ll));
+    socket_address.sll_family = AF_PACKET;
+    socket_address.sll_ifindex = eid->ifindex;
+    socket_address.sll_halen = ETH_ALEN;
+    memcpy(socket_address.sll_addr, dst_mac, ETH_ALEN);
 
-    //TODO optimization: merge headers if h[i+1].start = h[i].start+h[i].len
-    struct iovec iov[PACKET_MAX_HEADER_NUM];
-    for (unsigned i=0; i<p->header_count; i++) {
-        iov[i].iov_base = p->buf + p->headers[i].start;
-        iov[i].iov_len = p->headers[i].len;
-    }
-    msg.msg_iov = iov;
-    msg.msg_iovlen = p->header_count;
-
-    if (sendmsg(eid->sockfd[pcp], &msg, 0) < 0) {
-        perror("eth sendmsg");
-        return false;
-    }
-
-    return true;
+    return iface_common_send(iface, p, &socket_address, sizeof(socket_address));
 }
 
 static bool eth_open(struct Interface *iface)
 {
     struct EthIfData *eid = iface->iface_private;
 
-    if (eid->sockfd[0] > 0) {
+    if (iface->state != IFS_INIT) {
         fprintf(stderr, "open eth interface %s: already opened\n", iface->name);
         return false;
     }
@@ -242,11 +152,6 @@ static bool eth_open(struct Interface *iface)
             return false; //TODO cleanup on error
         }
 
-        //TODO this only works for L4 sockets
-        /*if (setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, iface->ifname, strlen(iface->ifname)) < 0) {
-            perror("setsockopt SO_BINDTODEVICE");
-            return false; //TODO cleanup on error
-        }*/
         if (setsockopt(sock, SOL_SOCKET, SO_PRIORITY, &i, sizeof(i)) < 0) {
             perror("setsockopt SO_PRIORITY");
             close(sock);
@@ -341,6 +246,7 @@ static bool eth_open(struct Interface *iface)
     }
 
     iface->recvfd = eid->sockfd[0];
+    iface->state = IFS_OPEN;
     return true;
 }
 
@@ -368,10 +274,7 @@ static void eth_mac_producer(void *state, value_consumer *consumer, void *consum
 static value_producer *eth_get_property_reader(const struct Interface *iface, const char *property,
         enum ProtocolFieldType target_type, const struct Value *target)
 {
-    if (iface->type != IF_ETH) {
-        fprintf(stderr, "eth_get_property_reader type error %d\n", iface->type);
-        return NULL;
-    }
+    (void)iface;
     // eth only has one property
     if (strcmp(property, "mac") != 0) {
         fprintf(stderr, "eth_get_property_reader unknown property '%s'\n", property);
@@ -396,6 +299,7 @@ bool init_eth_interface(struct Interface *iface, const char *name, const char *i
     iface->name = strdup(name);
     iface->ifname = strdup(ifname);
     iface->type = IF_ETH;
+    iface->state = IFS_INIT;
     iface->recv = eth_recv;
     iface->send = eth_send;
     iface->open = eth_open;
