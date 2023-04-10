@@ -42,7 +42,7 @@ static struct Packet *udpout_recv(struct Interface *iface)
 static bool udpout_send(struct Interface *iface, struct Packet *p)
 {
     // our socket is connected, so no dst
-    return iface_common_send(iface, p, NULL, 0);
+    return iface_common_send(iface, p, iface->recvfd, NULL, 0);
 }
 
 static bool udpout_open(struct Interface *iface)

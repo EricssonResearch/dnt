@@ -55,7 +55,7 @@ struct Interface {
     enum IfaceType type;
     unsigned reference_count;
     enum IfaceState state;
-    int recvfd;
+    int recvfd; // receives packets on this file descriptor
     char *name;
     char *ifname;
     // all of these callbacks are mandatory

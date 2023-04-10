@@ -128,7 +128,7 @@ static bool eth_send(struct Interface *iface, struct Packet *p)
     socket_address.sll_halen = ETH_ALEN;
     memcpy(socket_address.sll_addr, dst_mac, ETH_ALEN);
 
-    return iface_common_send(iface, p, &socket_address, sizeof(socket_address));
+    return iface_common_send(iface, p, eid->sockfd[pcp], &socket_address, sizeof(socket_address));
 }
 
 static bool eth_open(struct Interface *iface)

@@ -17,6 +17,6 @@ typedef void msghdr_process_cb(struct msghdr *msg, struct Packet *p, void *userd
 // the msghdr is passed to the @msg_cb callback if it's not NULL
 struct Packet *iface_common_recv(struct Interface *iface, msghdr_process_cb *msg_cb, void *userdata);
 
-bool iface_common_send(struct Interface *iface, struct Packet *p, void *dst, unsigned dstlen);
+bool iface_common_send(struct Interface *iface, struct Packet *p, int socket, void *dst, unsigned dstlen);
 
 #endif // R2_IF_UTILS_H

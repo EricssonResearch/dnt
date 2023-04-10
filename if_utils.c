@@ -97,7 +97,7 @@ struct Packet *iface_common_recv(struct Interface *iface, msghdr_process_cb *msg
     return p;
 }
 
-bool iface_common_send(struct Interface *iface, struct Packet *p, void *dst, unsigned dstlen)
+bool iface_common_send(struct Interface *iface, struct Packet *p, int socket, void *dst, unsigned dstlen)
 {
     if (iface->state != IFS_OPEN) {
         fprintf(stderr, "send on %s: interface is not open\n", iface->name);
@@ -123,7 +123,7 @@ bool iface_common_send(struct Interface *iface, struct Packet *p, void *dst, uns
     msg.msg_iov = iov;
     msg.msg_iovlen = p->header_count;
 
-    if (sendmsg(iface->recvfd, &msg, 0) < 0) {
+    if (sendmsg(socket, &msg, 0) < 0) {
         perror("sendmsg");
         return false;
     }
