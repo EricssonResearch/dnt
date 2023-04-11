@@ -63,6 +63,26 @@ struct Packet *copy_packet(const struct Packet *p)
     return newp;
 }
 
+struct Packet *serialize_packet(struct Packet *p)
+{
+    struct Packet *ret = calloc_struct(Packet);
+    ret->buf = calloc(1, PACKET_BUF_LEN);
+    packet_count++;
+    ret->start = PACKET_START_OFFSET;
+    ret->from = p->from;
+    ret->recv_time = p->recv_time;
+    unsigned dstlen = 0;
+    for (unsigned i=0; i<p->header_count; i++) {
+        unsigned char *src = p->buf + p->headers[i].start;
+        unsigned char *dst = ret->buf + PACKET_START_OFFSET + dstlen;
+        unsigned len = p->headers[i].len;
+        memcpy(dst, src, len);
+        dstlen += len;
+    }
+    ret->len = dstlen;
+    return ret;
+}
+
 bool packet_dummy(const struct Packet *p)
 {
     return p->buf == dummybuf;

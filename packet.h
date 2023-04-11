@@ -58,6 +58,9 @@ struct Packet *delete_packet(struct Packet *p);
 // returns a deep copy of the packet
 struct Packet *copy_packet(const struct Packet *p);
 
+// retuns a new packet that is a serialization of the headers in @p
+struct Packet *serialize_packet(struct Packet *p);
+
 // returns true if the packet is a dummy buffer
 bool packet_dummy(const struct Packet *p);
 

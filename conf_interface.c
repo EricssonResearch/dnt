@@ -6,6 +6,7 @@
 #include "utils.h"
 
 #include "if_eth.h"
+#include "if_internal.h"
 #include "if_udp_in.h"
 #include "if_udp_out.h"
 
@@ -98,7 +99,10 @@ static int iface_cb(const char *key, void *value, void *userdata)
         if (!init_eth_interface(state->ifaces+state->i, key, tstate.iface)) {
             THROW("failed to create ethernet interface");
         }
-        state->i++;
+    } else if (strcmp(tstate.type, "internal") == 0) {
+        if (!init_internal_interface(state->ifaces+state->i, key)) {
+            THROW("failed to create internal interface");
+        }
     } else if (strcmp(tstate.type, "udp-in") == 0) {
         unsigned port = 6635;
         unsigned ipver = 4;
@@ -123,7 +127,6 @@ static int iface_cb(const char *key, void *value, void *userdata)
         if (!init_udp_in_interface(state->ifaces+state->i, key, tstate.iface, port, ipver)) {
             THROW("failed to create udp-in interface");
         }
-        state->i++;
     } else if (strcmp(tstate.type, "udp-out") == 0) {
         unsigned port = 6635;
         unsigned priority = 0;
@@ -151,10 +154,10 @@ static int iface_cb(const char *key, void *value, void *userdata)
         if (!init_udp_out_interface(state->ifaces+state->i, key, tstate.iface, port, dst_ip, priority)) {
             THROW("failed to create udp-out interface");
         }
-        state->i++;
     } else {
         THROW("cannot yet create type '%s'", tstate.type);
     }
+    state->i++;
 
     free(tstate.type);
     free(tstate.iface);

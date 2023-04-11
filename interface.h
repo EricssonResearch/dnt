@@ -17,6 +17,7 @@ enum IfaceType {
     IP_IP6,
     IF_UDP_IN,
     IF_UDP_OUT,
+    IF_INTERNAL,
 };
 
 enum IfaceState {
