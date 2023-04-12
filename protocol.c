@@ -135,21 +135,45 @@ static const struct ProtocolField tcw_fields[] = {
 };
 
 static const struct ProtocolField ipv4_fields[] = {
-    {"ttl",       64,  8, FT_TTL},
-    {"protocol",  72,  8, FT_NUMBER},
-    //TODO "header checksum", 80, 16, FT_CHECKSUM
-    {"src",       96, 32, FT_IPV4ADDRESS},
-    {"dst",      128, 32, FT_IPV4ADDRESS},
+    {"version",         0,  4, FT_NUMBER},
+    {"ihl",             4,  4, FT_NUMBER},
+    {"dscp",            8,  6, FT_NUMBER},
+    {"ecn",            14,  2, FT_NUMBER},
+    {"tos",             8,  8, FT_NUMBER},
+    {"length",         16, 16, FT_NUMBER},
+    {"id",             32, 16, FT_NUMBER},
+    {"flags",          48,  3, FT_NUMBER},
+    {"dontfragment",   49,  1, FT_NUMBER},
+    {"morefragments",  50,  1, FT_NUMBER},
+    {"fragoffset",     51, 13, FT_NUMBER},
+    {"ttl",            64,  8, FT_TTL},
+    {"protocol",       72,  8, FT_NUMBER}, //TODO FT_NEXTHEADER
+    {"checksum",       80, 16, FT_NUMBER}, //TODO FT_CHECKSUM
+    {"src",            96, 32, FT_IPV4ADDRESS},
+    {"dst",           128, 32, FT_IPV4ADDRESS},
 };
 
 static const struct ProtocolField ipv6_fields[] = {
+    {"version",      0,   4, FT_NUMBER},
+    {"class",        4,   8, FT_NUMBER},
+    {"label",       12,  20, FT_NUMBER},
+    {"length",      32,  16, FT_NUMBER},
+    {"nextheader",  48,   8, FT_NUMBER}, //TODO FT_NEXTHEADER
     {"hoplimit",    56,   8, FT_TTL},
-    {"nextheader",  48,   8, FT_NUMBER},
     {"src",         64, 128, FT_IPV6ADDRESS},
     {"dst",        192, 128, FT_IPV6ADDRESS},
 };
 
+//TODO IPv6 extension headers?
+
 static const struct ProtocolField arp_fields[] = {
+};
+
+static const struct ProtocolField udp_fields[] = {
+    {"srcport",   0, 16, FT_NUMBER},
+    {"dstport",  16, 16, FT_NUMBER},
+    {"length",   32, 16, FT_NUMBER},
+    {"checksum", 48, 16, FT_NUMBER}, //TODO FT_CHECKSUM
 };
 
 //TODO autogenerate this list
@@ -168,6 +192,7 @@ const struct Protocol protocol_list[] = {
     {"ipv4", ipv4_fields, ARRAY_SIZE(ipv4_fields), 20, 0, NULL, NULL}, //TODO protocol field
     {"ipv6", ipv6_fields, ARRAY_SIZE(ipv6_fields), 40, 0, NULL, NULL}, //TODO next header field
     {"arp", arp_fields, ARRAY_SIZE(arp_fields), 28, 0, NULL, NULL}, //TODO this is variable-length
+    {"udp", udp_fields, ARRAY_SIZE(udp_fields), 8, 0, NULL, NULL},
 };
 
 unsigned protocol_count = ARRAY_SIZE(protocol_list);
