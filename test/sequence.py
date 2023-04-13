@@ -1,13 +1,8 @@
 #!/usr/bin/python3
 
-from subprocess import STDOUT, Popen, run, run, PIPE, DEVNULL
-#from scapy.all import AsyncSniffer, sendp, subprocess
-#from scapy.layers.l2 import Ether, Dot1Q
-#from scapy.layers.inet6 import IPv6
-#from scapy.layers.inet import IP, UDP
+from utils import *
 import shlex
 import time
-from utils import *
 
 stdouts = { }
 
@@ -17,9 +12,6 @@ nics = [
     ["r2br0_nni0", "r2br1_nni0"],
     ["r2br0_nni1", "r2br1_nni1"],
 ]
-
-def start_r2dtwo(cfg):
-    exec_bg(f"../r2dtwo {cfg}")
 
 def create_ifaces():
     for nicpair in nics:
@@ -46,8 +38,8 @@ def ping():
         print("Test simple ping 1k packets...")
         exec_fg("ip addr add 10.0.0.1/24 dev to_r2br0")
         exec_fg("ip addr add 10.0.0.2/24 dev to_r2br1")
-        start_r2dtwo("sequence/r2br0.ini")
-        start_r2dtwo("sequence/r2br1.ini")
+        exec_bg("../r2dtwo sequence/r2br0.ini")
+        exec_bg("../r2dtwo sequence/r2br1.ini")
         time.sleep(1)
 
         num_pings = 1000
@@ -75,7 +67,7 @@ def main():
     tests = [ping]
     for test in tests:
         ret += test()
-        run(shlex.split("killall r2dtwo"))
+        exec_fg("killall r2dtwo")
     print(f'All test completed, {ret}/{len(tests)} successfully')
     cleanup_ifaces()
     if ret != len(tests):
