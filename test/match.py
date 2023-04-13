@@ -1,16 +1,13 @@
 #!/usr/bin/python3
 
-from subprocess import Popen, run, run, PIPE, DEVNULL
-from scapy.all import AsyncSniffer, sendp, subprocess
+from scapy.all import AsyncSniffer, sendp
 from scapy.layers.l2 import Ether, Dot1Q
 from scapy.layers.inet6 import IPv6
 from scapy.layers.inet import IP, UDP
-import shlex
+from utils import *
+import json
 import time
-import sys
-import os
 
-r2stdout = None
 
 pkts_good_eth = [
     Ether(dst="aa:bb:cc:aa:bb:cc")/Dot1Q(vlan=2025)/IP()/UDP(),
@@ -55,22 +52,18 @@ pkts_bad_ipv6 = [
     Ether()/Dot1Q(vlan=2025, prio=5)/IPv6(src="cafe::facc", hlim=66)/UDP(),
 ]
 
-def exec_with_stdout(cmd):
-    global stdouts
-    p = Popen(shlex.split(cmd), pipesize=100000000, stdout=PIPE) #python 3.10 required
-    r2stdout = p
-    return r2stdout
-
-def exec_silent(cmd):
-    return run(shlex.split(cmd), stdout=DEVNULL, stderr=DEVNULL).returncode
 
 def start_r2dtwo():
-    exec_with_stdout("../../r2dtwo match.ini")
+    return exec_bg("../r2dtwo match/match.ini", silent=False)
+
+def cleanup_ifaces():
+    exec_fg("ip link del to_r2 type veth peer name r2rx")
+    exec_fg("ip link del from_r2 type veth peer name r2tx")
 
 def config_ifaces():
     ret = 0
-    run(shlex.split("ip link del to_r2 type veth peer name r2rx"))
-    run(shlex.split("ip link del from_r2 type veth peer name r2tx"))
+    exec_fg("ip link del to_r2 type veth peer name r2rx")
+    exec_fg("ip link del from_r2 type veth peer name r2tx")
     cmds = [
         "ip link add to_r2 type veth peer name r2rx",
         "ip link add from_r2 type veth peer name r2tx",
@@ -84,68 +77,52 @@ def config_ifaces():
         "ip link set dev r2tx up"
     ]
     for cmd in cmds:
-        ret += exec_silent(cmd)
+        ret += exec_fg(cmd).returncode
     if ret > 0:
         print("Error(s) during interface config. Running without sudo?")
         exit(1)
 
+def get_rxpktsnum(iface = "from_r2"):
+    out = exec_fg(f"ip -j -p stats show dev {iface}")
+    return int(json.loads(out.stdout)[1]["stats64"]["rx"]["packets"])
+
 def test_ethernet():
     print("Test Ethernet maching...")
-    config_ifaces()
     start_r2dtwo()
     time.sleep(1)
-    receiver = AsyncSniffer(iface='from_r2')
-    receiver.start()
-
-    for pkt in pkts_bad_eth + pkts_good_eth:
-        sendp(pkt, iface="to_r2")
-    receiver.stop()
-    if len(receiver.results) != len(pkts_good_eth):
+    sendp(pkts_bad_eth + pkts_good_eth, verbose=0, iface="to_r2")
+    if get_rxpktsnum() != len(pkts_good_eth):
+        print("Failed")
         return 0
     return 1
 
 def test_vlans():
     print("Test VLAN maching...")
-    config_ifaces()
     start_r2dtwo()
     time.sleep(1)
-    receiver = AsyncSniffer(iface='from_r2')
-    receiver.start()
-
-    for pkt in pkts_bad_vlans + pkts_good_vlans:
-        sendp(pkt, iface="to_r2")
-    receiver.stop()
-    if len(receiver.results) != len(pkts_good_vlans):
+    sendp(pkts_bad_vlans + pkts_good_vlans, verbose=0, iface="to_r2")
+    if get_rxpktsnum() != len(pkts_good_vlans):
+        print("Failed")
         return 0
     return 1
 
 def test_ipv4():
     print("Test IPv4 maching...")
-    config_ifaces()
     start_r2dtwo()
     time.sleep(1)
-    receiver = AsyncSniffer(iface='from_r2')
-    receiver.start()
-
-    for pkt in pkts_bad_ipv4 + pkts_good_ipv4:
-        sendp(pkt, iface="to_r2")
-    receiver.stop()
-    if len(receiver.results) != len(pkts_good_ipv4):
+    sendp(pkts_bad_ipv4 + pkts_good_ipv4, verbose=0, iface="to_r2")
+    if get_rxpktsnum() != len(pkts_good_ipv4):
+        print("Failed")
         return 0
     return 1
 
 def test_ipv6():
-    print("Test IPv6 maching...")
-    config_ifaces()
+    print("Test VLAN maching...")
     start_r2dtwo()
     time.sleep(1)
-    receiver = AsyncSniffer(iface='from_r2')
-    receiver.start()
-
-    for pkt in pkts_bad_ipv6 + pkts_good_ipv6:
-        sendp(pkt, iface="to_r2")
-    receiver.stop()
-    if len(receiver.results) != len(pkts_good_ipv6):
+    sendp(pkts_bad_ipv6 + pkts_good_ipv6, verbose=0, iface="to_r2")
+    if get_rxpktsnum() != len(pkts_good_ipv6):
+        print("Failed")
         return 0
     return 1
 
@@ -154,9 +131,11 @@ def main():
     ret = 0
     tests = [test_vlans, test_ethernet, test_ipv4, test_ipv6]
     for test in tests:
+        config_ifaces()
         ret += test()
-        run(shlex.split("killall r2dtwo"))
+        exec_fg("killall r2dtwo")
     print(f'All test completed, {ret}/{len(tests)} successfully')
+    cleanup_ifaces()
     if ret != len(tests):
         exit(1)
     exit(0)
