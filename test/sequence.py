@@ -7,6 +7,7 @@ from subprocess import STDOUT, Popen, run, run, PIPE, DEVNULL
 #from scapy.layers.inet import IP, UDP
 import shlex
 import time
+from utils import *
 
 stdouts = { }
 
@@ -17,37 +18,8 @@ nics = [
     ["r2br0_nni1", "r2br1_nni1"],
 ]
 
-def exec_bg(cmd, key, silent=False):
-    """
-    Execute the @cmd in the background, with optional
-    stdout/stderr output saved to stdouts map
-    Nonblockig, @cmd running in the bacground
-    @return Popen object with the running command
-    """
-    global stdouts
-    cmdout = PIPE
-    if silent:
-        cmdout = DEVNULL
-    p = Popen(shlex.split(cmd), pipesize=100000000, stdout=cmdout, stderr=cmdout)
-    stdouts[key] = p
-    return p
-
-def exec_fg(cmd, silent=True, timeout=None):
-    """
-    Execute the @cmd in foreground, with optional
-    stdout/stderr output saved to stdouts map
-    Blocking until the command returns
-    @return CompletedProcess object of the finished command
-    """
-    r = run(shlex.split(cmd),
-            pipesize=100000000,
-            text=True,
-            capture_output=silent,
-            timeout=timeout)
-    return r
-
 def start_r2dtwo(cfg):
-    exec_bg(f"../../r2dtwo {cfg}", cfg.rstrip('.ini'))
+    exec_bg(f"../r2dtwo {cfg}")
 
 def create_ifaces():
     for nicpair in nics:
@@ -74,8 +46,8 @@ def ping():
         print("Test simple ping 1k packets...")
         exec_fg("ip addr add 10.0.0.1/24 dev to_r2br0")
         exec_fg("ip addr add 10.0.0.2/24 dev to_r2br1")
-        start_r2dtwo("r2br0.ini")
-        start_r2dtwo("r2br1.ini")
+        start_r2dtwo("sequence/r2br0.ini")
+        start_r2dtwo("sequence/r2br1.ini")
         time.sleep(1)
 
         num_pings = 1000
@@ -110,4 +82,5 @@ def main():
         exit(1)
     exit(0)
 
-main()
+if __name__ == "__main__":
+    main()
