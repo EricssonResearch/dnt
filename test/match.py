@@ -1,9 +1,9 @@
 #!/usr/bin/python3
 
-from scapy.all import AsyncSniffer, sendp
 from scapy.layers.l2 import Ether, Dot1Q
-from scapy.layers.inet6 import IPv6
 from scapy.layers.inet import IP, UDP
+from scapy.layers.inet6 import IPv6
+from scapy.all import sendp
 from utils import *
 import json
 import time
@@ -54,7 +54,7 @@ pkts_bad_ipv6 = [
 
 
 def start_r2dtwo():
-    return exec_bg("../r2dtwo match/match.ini", silent=False)
+    return exec_bg("../r2dtwo match/match.ini")
 
 def cleanup_ifaces():
     exec_fg("ip link del to_r2 type veth peer name r2rx")
