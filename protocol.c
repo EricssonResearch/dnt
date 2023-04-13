@@ -66,6 +66,7 @@ static bool ethertype_from_id(uint16_t *nexthdr, enum ProtocolID id)
         case PROTO_ID_ETH:
         case PROTO_ID_DCW:
         case PROTO_ID_TCW:
+        case PROTO_ID_UDP:
             return false;
     }
     return false;
@@ -78,14 +79,14 @@ static const struct ProtocolField payload_fields[] = {
 static const struct ProtocolField eth_fields[] = {
     {"dmac",         0, 6*8, FT_MACADDRESS},
     {"smac",       6*8, 6*8, FT_MACADDRESS},
-    {"ethertype", 12*8, 2*8, FT_NUMBER}, //TODO FT_TYPE ?
+    {"ethertype", 12*8, 2*8, FT_NEXTHEADER},
 };
 
 static const struct ProtocolField vlan_fields[] = {
     {"pcp",   0,  3, FT_NUMBER},
     {"dei",   3,  1, FT_NUMBER},
     {"vid",   4, 12, FT_NUMBER},
-    {"tpid", 16, 16, FT_NUMBER},
+    {"tpid", 16, 16, FT_NEXTHEADER},
     {"vlan",  0, 16, FT_NUMBER}, // the whole header at once
 };
 
@@ -95,7 +96,7 @@ static const struct ProtocolField rtag_fields[] = {
     {"initseq_flag",  7,  1, FT_NUMBER},
     {"resv",          0, 16, FT_NUMBER}, // reserved bits
     {"seqnum",       16, 16, FT_NUMBER}, // just the sequence number
-    {"tpid",         32, 16, FT_NUMBER}, // next protocol id (ethertype)
+    {"tpid",         32, 16, FT_NEXTHEADER}, // next protocol id (ethertype)
     {"seq",           0, 32, FT_TSNSEQ}, // sequence and the flags in reserved
 };
 
@@ -105,7 +106,7 @@ static const struct ProtocolField ttag_fields[] = {
     {"initseq_flag",  7,  1, FT_NUMBER},
     {"resv",          0, 16, FT_NUMBER}, // reserved bits
     {"tstampnum",    11, 21, FT_NUMBER}, // just the timestamp
-    {"tpid",         32, 16, FT_NUMBER}, // next protocol id (ethertype)
+    {"tpid",         32, 16, FT_NEXTHEADER}, // next protocol id (ethertype)
     {"tstamp",        0, 32, FT_TSNTSTAMP}, // timestamp and the flags in reserved
 };
 
@@ -147,8 +148,8 @@ static const struct ProtocolField ipv4_fields[] = {
     {"morefragments",  50,  1, FT_NUMBER},
     {"fragoffset",     51, 13, FT_NUMBER},
     {"ttl",            64,  8, FT_TTL},
-    {"protocol",       72,  8, FT_NUMBER}, //TODO FT_NEXTHEADER
-    {"checksum",       80, 16, FT_NUMBER}, //TODO FT_CHECKSUM
+    {"protocol",       72,  8, FT_NEXTHEADER},
+    {"checksum",       80, 16, FT_CHECKSUM},
     {"src",            96, 32, FT_IPV4ADDRESS},
     {"dst",           128, 32, FT_IPV4ADDRESS},
 };
@@ -158,7 +159,7 @@ static const struct ProtocolField ipv6_fields[] = {
     {"class",        4,   8, FT_NUMBER},
     {"label",       12,  20, FT_NUMBER},
     {"length",      32,  16, FT_NUMBER},
-    {"nextheader",  48,   8, FT_NUMBER}, //TODO FT_NEXTHEADER
+    {"nextheader",  48,   8, FT_NEXTHEADER},
     {"hoplimit",    56,   8, FT_TTL},
     {"src",         64, 128, FT_IPV6ADDRESS},
     {"dst",        192, 128, FT_IPV6ADDRESS},
@@ -173,7 +174,7 @@ static const struct ProtocolField udp_fields[] = {
     {"srcport",   0, 16, FT_NUMBER},
     {"dstport",  16, 16, FT_NUMBER},
     {"length",   32, 16, FT_NUMBER},
-    {"checksum", 48, 16, FT_NUMBER}, //TODO FT_CHECKSUM
+    {"checksum", 48, 16, FT_CHECKSUM},
 };
 
 //TODO autogenerate this list
@@ -217,6 +218,10 @@ const char *fieldtype_name_from_type(enum ProtocolFieldType type)
             return "TSNTstamp";
         case FT_TTL:
             return "TTL";
+        case FT_CHECKSUM:
+            return "Checksum";
+        case FT_NEXTHEADER:
+            return "NextHeader";
     }
     return NULL;
 }

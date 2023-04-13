@@ -218,6 +218,8 @@ bool read_constant(struct Value *val, enum ProtocolFieldType type, const char *s
             fprintf(stderr, "warning: it's not a good practice to set timestamp from constant\n");
             return read_constant(val, FT_NUMBER, string);
         case FT_TTL:
+        case FT_CHECKSUM:
+        case FT_NEXTHEADER:
             return read_constant(val, FT_NUMBER, string);
     }
     return false;

@@ -14,6 +14,8 @@ enum ProtocolFieldType {
     FT_TSNSEQ,
     FT_TSNTSTAMP,
     FT_TTL,
+    FT_CHECKSUM,
+    FT_NEXTHEADER,
 };
 
 // the internal id of the protocols is their index in the @protocol_list array
@@ -31,6 +33,7 @@ enum ProtocolID {
     PROTO_ID_IPv4,
     PROTO_ID_IPv6,
     PROTO_ID_ARP,
+    PROTO_ID_UDP,
 };
 
 // describes one field of a protocol header
