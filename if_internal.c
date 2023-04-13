@@ -46,8 +46,14 @@ static struct Packet *packetfifo_get(struct PacketFifo *pf)
     if (pf->prev) {
         struct PacketFifo *del = pf->prev;
         struct Packet *p = del->p;
-        del->prev->next = del->next;
-        del->next->prev = del->prev;
+        if (pf->next == del) {
+            // now we are empty
+            pf->prev = pf->next = NULL;
+        } else {
+            // note: del->next = pf
+            del->prev->next = del->next;
+            del->next->prev = del->prev;
+        }
         free(del);
         return p;
     } else {

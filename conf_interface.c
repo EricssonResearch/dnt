@@ -90,11 +90,11 @@ static int iface_cb(const char *key, void *value, void *userdata)
     if (tstate.type == NULL) {
         THROW("type is unspecified");
     }
-    if (tstate.iface == NULL) {
-        THROW("hw interface is unspecified");
-    }
 
     if (strcmp(tstate.type, "eth") == 0) {
+        if (tstate.iface == NULL) {
+            THROW("hw interface is unspecified");
+        }
         //TODO additional parameter: use 8 sockets or eBPF priority setting
         if (!init_eth_interface(state->ifaces+state->i, key, tstate.iface)) {
             THROW("failed to create ethernet interface");
@@ -116,13 +116,16 @@ static int iface_cb(const char *key, void *value, void *userdata)
                 THROW("port '%s' is invalid", port_str);
             port = u;
         }
-        char *ipver_str = hashmap_find(tstate.params, "ip");
+        char *ipver_str = hashmap_find(tstate.params, "ipv");
         if (ipver_str) {
             if (sscanf(ipver_str, "%u%c", &u, &err) != 1)
                 THROW("ip version '%s' is invalid", ipver_str);
             if (!(u == 4 || u == 6))
                 THROW("ip version '%s' is invalid", ipver_str);
             ipver = u;
+        }
+        if (tstate.iface == NULL) {
+            THROW("hw interface is unspecified");
         }
         if (!init_udp_in_interface(state->ifaces+state->i, key, tstate.iface, port, ipver)) {
             THROW("failed to create udp-in interface");
@@ -151,11 +154,14 @@ static int iface_cb(const char *key, void *value, void *userdata)
             if (u > 7)
                 THROW("prio '%s' is invalid", priority_str);
         }
+        if (tstate.iface == NULL) {
+            THROW("hw interface is unspecified");
+        }
         if (!init_udp_out_interface(state->ifaces+state->i, key, tstate.iface, port, dst_ip, priority)) {
             THROW("failed to create udp-out interface");
         }
     } else {
-        THROW("cannot yet create type '%s'", tstate.type);
+        THROW("unknown interface type '%s'", tstate.type);
     }
     state->i++;
 

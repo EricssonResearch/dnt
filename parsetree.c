@@ -74,10 +74,6 @@ static bool parsetree_match_header(const struct HeaderMatch *fields, const struc
 struct Pipeline *parsetree_process(struct ParseTree *pt_head, struct Packet *p)
 {
     for (struct ParseTree *pt = pt_head; pt != NULL; pt = pt->next) {
-        if (p->from != pt->iface) {
-            fprintf(stderr, "wrong parsetree %s %s\n", pt->iface->name, p->from->name);
-            return NULL;
-        }
         if (pt->headers == NULL) {
             fprintf(stderr, "parsetree %s has no streams\n", pt->iface->name);
             return NULL;
