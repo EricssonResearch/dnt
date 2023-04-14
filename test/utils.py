@@ -1,25 +1,30 @@
 from subprocess import Popen, run, run, PIPE, DEVNULL
+from enum import Enum
 import shlex
 
-def exec_bg(cmd, out="none"):
+OUT_NONE = 1
+OUT_PIPE = 2
+OUT_STDOUT = 3
+
+def exec_bg(cmd, out=OUT_NONE):
     """
     Execute the @cmd in the background, with optional
     stdout/stderr output saved to stdouts map
     Nonblockig, @cmd running in the bacground
 
     @out tells what would we like to do the output. Valid values:
-    'none' - no output at all (devnull)
-    'stdout' - output straight into the stdout
-    'pipe' - output saved into pipe, use Popen.communicate() on return value
+    'OUT_NONE' - no output at all (devnull)
+    'OUT_STDOUT' - output straight into the stdout
+    'OUT_PIPE' - output saved into pipe, use Popen.communicate() on return value
 
     @return Popen object with the running command
     """
     cmdout = -1
-    if out == "none":
+    if out == OUT_NONE:
         cmdout = DEVNULL
-    elif out == "stdout":
+    elif out == OUT_STDOUT:
         cmdout = None
-    elif out == "pipe":
+    elif out == OUT_PIPE:
         cmdout = PIPE
     else:
         print("exec_bg: invalid output specified.")
