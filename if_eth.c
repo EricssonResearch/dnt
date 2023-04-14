@@ -81,6 +81,7 @@ static struct Packet *eth_recv(struct Interface *iface)
     (void)eid;
 
     struct Packet *p = iface_common_recv(iface, msghdr_process, NULL);
+    if (p == NULL) return NULL;
     printf("eth %s recv %u\n", iface->name, p->len);
 
     uint16_t *p_vlan = (uint16_t*)(p->buf + p->start + 2*6);

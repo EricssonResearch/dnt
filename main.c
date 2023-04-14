@@ -113,16 +113,23 @@ int main(int argc, char **argv)
         iface_set_parsetree(&config->ifaces[i], new_parsetree(&config->ifaces[i]));
     }
 
-    config_add_streams_to_interfaces(config);
+    if (!config_add_streams_to_interfaces(config)) {
+        delete_config(config);
+        return -1;
+    }
 
     for (unsigned i=0; i<config->ifcount; i++) {
         if (!config->ifaces[i].open(&config->ifaces[i])) {
             fprintf(stderr, "could not open interface %s\n", config->ifaces[i].name);
+            delete_config(config);
             return -1;
         }
     }
 
-    if (!init_delay()) return -1;
+    if (!init_delay()) {
+        delete_config(config);
+        return -1;
+    }
 
     recv_loop(config->ifaces, config->ifcount);
     printf("receive loop ended\n");

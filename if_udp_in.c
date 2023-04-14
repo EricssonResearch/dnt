@@ -60,6 +60,7 @@ static struct Packet *udpin_recv(struct Interface *iface)
     (void)uid;
 
     struct Packet *p = iface_common_recv(iface, msghdr_process, NULL);
+    if (p == NULL) return NULL;
     printf("udp-in %s recv %u\n", iface->name, p->len);
 
     return p;
