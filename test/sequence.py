@@ -88,14 +88,46 @@ def reset():
         return 0
     return 1
 
+def flapping():
+    try:
+        exec_bg("../r2dtwo sequence/r2br0.ini")
+        time.sleep(1)
 
+        num_pings = 500
+        ping = exec_bg(f"ping -I to_r2br0 10.0.0.2 -i 0.01 -c {num_pings} -W 10", out=OUT_PIPE)
+        for cmd in ["down", "up"] * 5:
+            time.sleep(0.1)
+            exec_fg(f"ip link set dev r2br1_nni0 {cmd}")
+        for cmd in ["down", "up"] * 5:
+            time.sleep(0.1)
+            exec_fg(f"ip link set dev r2br1_nni1 {cmd}")
+        ping_out = str(ping.communicate()[0])
+        if f"duplicates" in ping_out:
+            return False
+    except:
+        return True
+    return True
+
+def flapping_bad():
+    print("Test path flapping without recovery...")
+    exec_bg("../r2dtwo sequence/r2br1_norcvy.ini")
+    if flapping() == True:
+        return 0
+    return 1
+
+def flapping_good():
+    print("Test path flapping with recovery...")
+    exec_bg("../r2dtwo sequence/r2br1.ini")
+    if flapping() == False:
+        return 0
+    return 1
 
 def main():
     print("R2DTWO match test")
     create_ifaces()
     config_ifaces()
     ret = 0
-    tests = [ping, reset]
+    tests = [ping, reset, flapping_bad, flapping_good]
     for test in tests:
         ret += test()
         exec_fg("killall r2dtwo")
