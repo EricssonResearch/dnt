@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <arpa/inet.h> /* htonl() */
 
 const char *action_name_from_type(enum ActionType type)
 {
@@ -127,8 +128,15 @@ struct DelayData {
 static enum ActionResult action_delay_execute(struct Action *a, struct PipelineIterator *pi)
 {
     struct DelayData *dd = a->action_private;
+    struct Packet *p = pi->packet;
+    unsigned tstamp;
+    uint8_t *src = p->buf + p->headers[dd->timestamp.header_idx].start + dd->timestamp.bitoffset/8;
+    unsigned len = dd->timestamp.bitcount/8; //TODO this is always 4
+    memcpy(&tstamp, src, len);
+    tstamp = ntohl(tstamp) & 0x07FFFFFF;
+    printf("Timestamp read %x \n", tstamp);
     //TODO we might not need to delay the packet
-    delay_insert(pi, dd->delay_ms);
+    delay_insert(pi, tstamp, dd->delay_ms);
     return ACR_HOLD;
 }
 
@@ -475,8 +483,10 @@ static enum ActionResult action_writetstamp_execute(struct Action *a, struct Pip
     struct MetaData *md = a->action_private;
     struct Packet *p = pi->packet;
     uint8_t *dst = p->buf + p->headers[md->field.header_idx].start + md->field.bitoffset/8;
+    uint32_t tstamp = htonl( 0x08000000 | (p->recv_time.tv_nsec/1000) | (p->recv_time.tv_sec & 0x00000001) << 20);
+    printf("Tstamp written: %lx", (p->recv_time.tv_nsec/1000) | (p->recv_time.tv_sec & 0x00000001) << 20);
     unsigned len = md->field.bitcount/8; //TODO this is always 4
-    memcpy(dst, &p->timestamp, len);
+    memcpy(dst, &tstamp, len);
     return ACR_CONTINUE;
 }
 
@@ -504,4 +514,3 @@ struct Action *delete_action(struct Action *a)
     //free(a); actions are in an array
     return NULL;
 }
-

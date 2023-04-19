@@ -476,7 +476,34 @@ static bool process_token(char *token, void *userdata)
                 }
                 break;
             case CA_DELAY:
-                //TODO argument is a delay value (time)
+                if (stst->actions->d.delay.timestamp_field.header_idx == 0) {
+                  printf("Token %s\n", token);
+                  struct HeaderDescriptor *delay_hdr = header_list_find_by_name(stst->headers, token);
+                  if (delay_hdr) {
+                      if (header_list_find_by_name(delay_hdr->next, token)) {
+                          THROW("delay header name '%s' is ambiguous", token);
+                      }
+                      int hdrtype = delay_hdr->id;
+                      int field_idx = -1;
+                      for (unsigned i=0; i<protocol_list[hdrtype].header_field_count; i++) {
+                          if (protocol_list[hdrtype].header_fields[i].type == FT_TSNTSTAMP) {
+                              field_idx = i;
+                              break;
+                          }
+                      }
+                      if(field_idx == -1) THROW("no timestamp field in header '%s'", token);
+                      stst->actions->d.delay.timestamp_field.header_idx = header_index(stst->headers, delay_hdr);
+                      stst->actions->d.delay.timestamp_field.bitoffset = protocol_list[hdrtype].header_fields[field_idx].bitoffset;
+                      stst->actions->d.delay.timestamp_field.bitcount = protocol_list[hdrtype].header_fields[field_idx].bitcount;
+                      printf("bitcnt %d offser %d ", stst->actions->d.delay.timestamp_field.bitcount, stst->actions->d.delay.timestamp_field.bitoffset);
+                  } else {
+                      THROW("invalid header '%s' to delay", token);
+                  }
+                } else {
+                  init_confvariable_full(&stst->actions->d.delay.delay_value, CVT_CONST, FT_NUMBER, stst->actions->d.delay.timestamp_field.bitoffset, stst->actions->d.delay.timestamp_field.bitcount );
+                  read_constant(&stst->actions->d.delay.delay_value.value, FT_NUMBER, token);
+                  //THROW("delay action requires a header parameter");
+                }
                 break;
             case CA_DROP:
                 THROW("drop action doesn't take parameters");
@@ -1326,7 +1353,7 @@ struct Action *assemble_actions(const struct ConfAction *ca_list, unsigned *acti
                 create_action_del(ret+a, ca->d.del.idx, ca->text);
                 break;
             case CA_DELAY:
-                //TODO create_action_delay(ret+a, ca->d.delay.xxxx);
+                create_action_delay(ret+a, ntohl(*(unsigned *)ca->d.delay.delay_value.value.value), ca->d.delay.timestamp_field, ca->text);
                 break;
             case CA_DROP:
                 create_action_drop(ret+a, ca->text);
@@ -1416,7 +1443,7 @@ void confactions_print(const struct ConfAction *ca_list)
                 printf("  index %u\n", ca->d.del.idx);
                 break;
             case CA_DELAY:
-                printf("  \n");
+                printf("  delaying %u hdr id %d \n", htonl(*(unsigned*)ca->d.delay.delay_value.value.value), ca->d.delay.timestamp_field.header_idx);
                 break;
             case CA_DROP:
                 printf("  \n");
