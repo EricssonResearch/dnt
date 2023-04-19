@@ -34,7 +34,6 @@ void *memdup(const void *src, unsigned size);
 // timespec manipulator helpers
 // source: https://sourceware.org/git/?p=glibc.git;a=blob;f=sysdeps/pthread/posix-timer.h
 static inline int
-__attribute ((always_inline, unused))
 timespec_compare (const struct timespec *left, const struct timespec *right)
 {
   if (left->tv_sec < right->tv_sec)
@@ -51,7 +50,6 @@ timespec_compare (const struct timespec *left, const struct timespec *right)
 }
 
 static inline void
-__attribute ((always_inline, unused))
 timespec_add (struct timespec *sum, const struct timespec *left,
 	      const struct timespec *right)
 {
@@ -66,7 +64,6 @@ timespec_add (struct timespec *sum, const struct timespec *left,
 }
 
 static inline void
-__attribute ((always_inline, unused))
 timespec_sub (struct timespec *diff, const struct timespec *left,
 	      const struct timespec *right)
 {

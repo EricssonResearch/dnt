@@ -8,6 +8,7 @@
 #include "seq_gen.h"
 #include "seq_recov.h"
 #include "utils.h"
+#include "pof.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -264,6 +265,38 @@ void create_action_elim(struct Action *a, struct SequenceRecovery *rcvy, const c
 /////////////////////////////////////////////////////////////////////
 
 //TODO pof
+struct PofData {
+    struct Pof *pof;
+};
+
+static enum ActionResult action_pof_execute(struct Action *a, struct PipelineIterator *pi)
+{
+    struct PofData *pd = a->action_private;
+    if (pof_insert(pd->pof, pi)) {
+        return ACR_HOLD;
+    } else {
+        return ACR_DONE;
+    }
+}
+
+static void action_pof_del(void *action_private)
+{
+    struct PofData *pd = action_private;
+    free(pd);
+}
+
+void create_action_pof(struct Action *a, struct Pof *pof, const char *text)
+{
+    bzero(a, sizeof(*a));
+    a->type = ACT_POF;
+    a->execute = action_pof_execute;
+    a->del = action_pof_del;
+    a->text = strdup(text);
+
+    struct PofData *pd = calloc_struct(PofData);
+    pd->pof = pof;
+    a->action_private = pd;
+}
 
 /////////////////////////////////////////////////////////////////////
 
@@ -514,3 +547,4 @@ struct Action *delete_action(struct Action *a)
     //free(a); actions are in an array
     return NULL;
 }
+
