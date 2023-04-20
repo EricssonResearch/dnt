@@ -51,6 +51,9 @@ static void pof_reset(struct Pof *pof);
 
 static void pof_debug(const struct Pof *pof)
 {
+    if (pof->queue_len < 2) {
+        return;
+    }
     struct PofElem *iter = pof->q_head;
     printf("POF: len=%d queue=", pof->queue_len);
     while (iter != NULL) {
@@ -142,7 +145,6 @@ bool pof_insert(struct Pof *pof, struct PipelineIterator *pi)
 
     pof->queue_len += 1;
     clock_gettime(CLOCK_REALTIME, &pof->pof_last_recv_ts);
-    pthread_mutex_unlock(&pof->lock); // TODO: check if OK
 
     unsigned long event;
     if (pe->seq <= pof->pof_last_sent + 1 || pof->take_any == true) {
@@ -154,6 +156,7 @@ bool pof_insert(struct Pof *pof, struct PipelineIterator *pi)
         // TODO: might be fatal, terminate r2dtwo
         perror("write");
     }
+    pthread_mutex_unlock(&pof->lock); // TODO: check if OK
     return true;
 }
 
@@ -200,7 +203,7 @@ static void pof_forward(struct PofElem *pe)
 
 static void pof_try_forward(struct Pof *pof, int event)
 {
-    struct PofElem *iter = pof->q_head;
+    struct PofElem *iter_prev, *iter = pof->q_head;
     if (event & POF_TIMEOUT) {
         iter = pof->next_to_forward;
     }
@@ -211,7 +214,13 @@ static void pof_try_forward(struct Pof *pof, int event)
         else {
             break;
         }
+        iter_prev = iter;
+        iter = iter->next;
+        free(iter_prev);
+        pof->queue_len -= 1;
     }
+    if (pof->queue_len == 0)
+        pof->q_head = NULL;
 }
 
 static void *pof_thread(void *arg)
@@ -220,43 +229,47 @@ static void *pof_thread(void *arg)
     struct pollfd fd = { .fd = pof->evfd, .events = POLLIN };
     // pof_take_any_time is in millisec
 
+    pthread_setname_np(pthread_self(), "pof thread");
     pof_reset(pof);
     struct timespec now, timeout;
     struct timespec *next_deadline = get_next_deadline(pof);
     clock_gettime(CLOCK_REALTIME, &now);
     if (next_deadline == NULL)
-        next_deadline = &now;
-    timespec_add(&timeout, &now, &pof->pof_take_any_time);
+        timeout = pof->pof_take_any_time;
+    else
+        timespec_sub(&timeout, next_deadline, &now);
     while (true) {
         int ret = ppoll(&fd, 1, &timeout, NULL);
         if (ret < 0) {
             perror("ppoll");
             continue;
         }
-        pthread_mutex_lock(&pof->lock);
         pof_debug(pof);
+        pthread_mutex_lock(&pof->lock);
         if (ret & POLLIN) {
             unsigned long event;
             ret = read(pof->evfd, &event, sizeof(event));
             if (ret < 0) {
                 perror("read");
-                continue;
+                goto out;
             }
             if (event & POF_IN_ORDER_PKT) {
                 pof_try_forward(pof, event);
             }
         } else if (ret == 0) { // POF timeout
             if (pof->take_any) {
-                continue;
+                goto out;
             }
             pof_try_forward(pof, POF_TIMEOUT);
             pof_reset(pof);
         }
+out:
         next_deadline = get_next_deadline(pof);
         clock_gettime(CLOCK_REALTIME, &now);
         if (next_deadline == NULL)
-            next_deadline = &now;
-        timespec_add(&timeout, &now, &pof->pof_take_any_time);
+            timeout = pof->pof_take_any_time;
+        else
+            timespec_sub(&timeout, next_deadline, &now);
         pthread_mutex_unlock(&pof->lock);
     }
 
