@@ -10,8 +10,6 @@
 #include <arpa/inet.h>
 #include <time.h>
 
-#define NSEC_PER_SEC    1000000000L
-
 struct SequenceRecovery {
     enum SequenceRecoveryAlgorithm algorithm;
     bool use_reset_flag;
