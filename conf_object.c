@@ -2,6 +2,7 @@
 #include "conf_object.h"
 #include "conf_utils.h"
 #include "inifile.h"
+#include "pof.h"
 #include "seq_gen.h"
 #include "seq_recov.h"
 #include "utils.h"
@@ -204,7 +205,9 @@ static int object_cb(const char *key, void *value, void *userdata)
                     info.p.rec.latent_error_paths);
             break;
         case CO_POF:
-            //TODO obj->object = new_pof()
+            obj->object = new_pof(info.p.pof.max_delay,
+                    info.p.pof.take_any_time,
+                    info.p.pof.buffer_size);
             break;
 
     }
@@ -230,7 +233,7 @@ static int delete_cb(const char *key, void *value, void *userdata)
             delete_seq_rec(obj->object);
             break;
         case CO_POF:
-            //TODO delete_pof()
+            delete_pof(obj->object);
             break;
     }
     free(obj);

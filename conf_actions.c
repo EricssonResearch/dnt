@@ -123,7 +123,7 @@ struct ConfAction {
             struct HeaderField *field;
         } meta; // read/write seq/tstamp
         struct {
-            struct ConfObject *pof; //TODO struct Pof
+            struct Pof *pof;
         } pof;
         struct {
             struct ReplicateList *pipelines;
@@ -570,7 +570,7 @@ static bool process_token(char *token, void *userdata)
                     struct ConfObject *obj = hashmap_find(stst->objects, token);
                     if (obj) {
                         if (obj->type == CO_POF) {
-                            stst->actions->d.pof.pof = obj;
+                            stst->actions->d.pof.pof = obj->object;
                         } else {
                             THROW("pof first argument must be a pof object");
                         }
@@ -681,7 +681,7 @@ static bool process_token(char *token, void *userdata)
                         break;
                     case CO_POF:
                         stst->actions->type = CA_POF;
-                        stst->actions->d.pof.pof = obj;
+                        stst->actions->d.pof.pof = obj->object;
                         break;
                 }
             } else {
@@ -1021,7 +1021,9 @@ static bool process_action(struct StageState *stst)
             stst->had_final = true;
             break;
         case CA_POF:
-            //TODO
+            if (stst->actions->d.pof.pof == NULL) {
+                THROW("no POF object specified");
+            }
             break;
         case CA_READSEQ:
         case CA_WRITESEQ:
@@ -1353,7 +1355,7 @@ struct Action *assemble_actions(const struct ConfAction *ca_list, unsigned *acti
                 //TODO cleanup on error
                 return NULL;
             case CA_POF:
-                //TODO create_action_pof()
+                create_action_pof(ret+a, ca->d.pof.pof, ca->text);
                 break;
             case CA_READSEQ:
                 create_action_readseq(ret+a, ca->d.meta.field, ca->text);
