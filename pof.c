@@ -1,4 +1,5 @@
 #define _GNU_SOURCE
+#include <stdbool.h>
 #include <time.h>
 #include <pthread.h>
 #include <poll.h>
@@ -20,7 +21,7 @@ enum PofEvent {
 };
 
 struct PofElem {
-    struct Pof *pof;
+    /* struct Pof *pof; */
     struct PipelineIterator *pi;
     struct PofElem *next;
     int seq; //for easy access
@@ -61,6 +62,16 @@ static void pof_debug(const struct Pof *pof)
         iter = iter->next;
     }
     printf("\n");
+}
+
+static void pof_sane(const struct Pof *pof)
+{
+    if (pof->queue_len == 0 && pof->q_head != NULL) {
+        printf("\n\n\n**********POF INTERNAL INCONSISTENCY ERROR 1!***********\n\n\n");
+    }
+    if (pof->q_head && pof->q_head->next == NULL && pof->queue_len != 1) {
+        printf("\n\n\n**********POF INTERNAL INCONSISTENCY ERROR 2!***********\n\n\n");
+    }
 }
 
 struct Pof *new_pof(unsigned pof_max_delay, unsigned pof_take_any_time, unsigned queue_max_len)
@@ -109,7 +120,7 @@ struct Pof *delete_pof(struct Pof *pof)
 static struct PofElem *new_pof_elem(struct Pof *pof, struct PipelineIterator *pi)
 {
     struct PofElem *ret = calloc_struct(PofElem);
-    ret->pof = pof;
+    /* ret->pof = pof; */
     ret->pi = pi;
     ret->seq = ntohl(pi->packet->sequence) & 0xffff;
     struct timespec now;
@@ -120,13 +131,12 @@ static struct PofElem *new_pof_elem(struct Pof *pof, struct PipelineIterator *pi
 
 bool pof_insert(struct Pof *pof, struct PipelineIterator *pi)
 {
-    pthread_mutex_lock(&pof->lock);
-
     if (pof->queue_len >= pof->queue_max_len) {
         fprintf(stderr, "POF buffer is full, drop new packet.\n");
         return false;
     }
 
+    pthread_mutex_lock(&pof->lock);
     struct PofElem *pe = new_pof_elem(pof, pi);
     struct PofElem *iter = pof->q_head;
     struct PofElem *iter_prev = NULL;
@@ -160,24 +170,48 @@ bool pof_insert(struct Pof *pof, struct PipelineIterator *pi)
     return true;
 }
 
+static void pof_pop_item(struct Pof *pof, struct PofElem *pe)
+{
+    if (pe == NULL)
+        return;
+
+    /* struct Pof *pof = pe->pof; */
+    pof_sane(pof);
+
+    if(pof->queue_len) {
+        struct PofElem *iter, *iter_prev;
+        iter = pof->q_head;
+        iter_prev = NULL;
+        while (iter != NULL && iter != pe) {
+            iter_prev = iter;
+            iter = iter->next;
+        }
+        printf("POF: iterprev=%p iter=%p pe=%p\n", iter_prev, iter, pe);
+        if (iter_prev == NULL) {
+            pof->q_head = iter->next;
+        } else {
+            iter_prev->next = iter->next;
+        }
+        printf("POF DELETE=%p\n", pe);
+        free(pe);
+        pof->queue_len -= 1;
+    }
+}
+
 static void pof_reset(struct Pof *pof)
 {
-    struct PofElem *iter = pof->q_head;
-    while (iter != NULL) {
-        struct PofElem *next = iter->next;
-        free(iter);
-        iter = next;
-    }
-    pof->queue_len = 0;
-    pof->q_head = NULL;
+    pof_sane(pof);
+    while (pof->q_head)
+        pof_pop_item(pof, pof->q_head);
     pof->take_any = true;
-    printf("POF reset\n");
+    printf("\n\n\n\n\nPOF reset\n\n\n\n\n\n");
 }
 
 static struct timespec *get_next_deadline(struct Pof *pof)
 {
+    pof_sane(pof);
     pof->next_to_forward = NULL;
-    if (pof->queue_len == 0 || pof->take_any)
+    if (pof->queue_len == 0)
         return NULL;
     struct timespec *ret = &pof->q_head->forward_time;
     struct PofElem *iter = pof->q_head;
@@ -191,54 +225,59 @@ static struct timespec *get_next_deadline(struct Pof *pof)
     return ret;
 }
 
-static void pof_forward(struct PofElem *pe)
+static void pof_forward(struct Pof *pof, struct PofElem *pe)
 {
-    // TODO: free pe
-    pe->pof->pof_last_sent = pe->seq;
-    pe->pof->take_any = false;
-    printf("POF forward seq=%d\n", pe->seq);
+    /* struct Pof *pof = pe->pof; */
+    pof->pof_last_sent = pe->seq;
+    printf("POF forward seq=%d address=%p\n", pe->seq, pe->pi->packet);
     pe->pi->pos += 1; // advance in the pipeline
     pipe_iterator_run(pe->pi);
 }
 
 static void pof_try_forward(struct Pof *pof, int event)
 {
-    struct PofElem *iter_prev, *iter = pof->q_head;
-    if (event & POF_TIMEOUT) {
-        iter = pof->next_to_forward;
+    pof_sane(pof);
+    struct PofElem *pkt_to_send = pof->q_head;
+    if (event & POF_TIMEOUT && pof->take_any == false) {
+        if (pof->next_to_forward)
+            pkt_to_send = pof->next_to_forward;
     }
     while (pof->queue_len > 0) {
-        if (iter->seq <= pof->pof_last_sent + 1 || pof->take_any) {
-            pof_forward(iter);
+        if (pkt_to_send->seq == pof->pof_last_sent + 1 || (event & POF_TIMEOUT)) {
+            if (pof->take_any)
+               pof->take_any = false;
+            pof_forward(pof, pkt_to_send);
+            if (event & POF_TIMEOUT) {
+                event &= ~POF_TIMEOUT;
+            }
+            pof_pop_item(pof, pkt_to_send);
         }
-        else {
+        else if (pkt_to_send->seq < pof->pof_last_sent + 1){
+            pof_forward(pof, pkt_to_send);
+            pof_pop_item(pof, pkt_to_send);
+        } else
             break;
-        }
-        iter_prev = iter;
-        iter = iter->next;
-        free(iter_prev);
-        pof->queue_len -= 1;
+
+        pkt_to_send = pof->q_head;
     }
-    if (pof->queue_len == 0)
-        pof->q_head = NULL;
 }
 
 static void *pof_thread(void *arg)
 {
     struct Pof *pof = arg;
     struct pollfd fd = { .fd = pof->evfd, .events = POLLIN };
-    // pof_take_any_time is in millisec
-
     pthread_setname_np(pthread_self(), "pof thread");
     pof_reset(pof);
+
     struct timespec now, timeout;
     struct timespec *next_deadline = get_next_deadline(pof);
     clock_gettime(CLOCK_REALTIME, &now);
-    if (next_deadline == NULL)
-        timeout = pof->pof_take_any_time;
-    else
+    if (next_deadline && timespec_compare(next_deadline, &now) > 0)
         timespec_sub(&timeout, next_deadline, &now);
+    else
+        timeout = pof->pof_take_any_time;
     while (true) {
+        pof_sane(pof);
         int ret = ppoll(&fd, 1, &timeout, NULL);
         if (ret < 0) {
             perror("ppoll");
@@ -257,19 +296,23 @@ static void *pof_thread(void *arg)
                 pof_try_forward(pof, event);
             }
         } else if (ret == 0) { // POF timeout
-            if (pof->take_any) {
+            if (pof->queue_len != 0) {
+                pof_try_forward(pof, POF_TIMEOUT);
                 goto out;
-            }
-            pof_try_forward(pof, POF_TIMEOUT);
-            pof_reset(pof);
+            } else
+                pof_reset(pof);
+            /* printf("Timeout: %lu.%lu\n", timeout.tv_sec, timeout.tv_nsec); */
+        } else {
+            printf("FATAL\n\n*************************************");
+            printf("FATAL\n");
         }
 out:
         next_deadline = get_next_deadline(pof);
         clock_gettime(CLOCK_REALTIME, &now);
-        if (next_deadline == NULL)
-            timeout = pof->pof_take_any_time;
-        else
+        if (next_deadline && timespec_compare(next_deadline, &now) > 0)
             timespec_sub(&timeout, next_deadline, &now);
+        else
+            timeout = pof->pof_take_any_time;
         pthread_mutex_unlock(&pof->lock);
     }
 
