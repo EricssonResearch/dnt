@@ -152,7 +152,29 @@ static bool token_cb(char *str, void *userdata)
                     }
                     break;
                 case CO_POF:
-                    //TODO
+                    if (strcmp(key, "TakeAnyTime") == 0) {
+                        unsigned msec;
+                        char err;
+                        if (sscanf(val, "%i%c", &msec, &err) != 1) {
+                            THROW("invalid take any time '%s'", val);
+                        }
+                        info->p.pof.take_any_time = msec;
+                    } else if (strcmp(key, "MaxDelay") == 0) {
+                        unsigned msec;
+                        char err;
+                        if (sscanf(val, "%i%c", &msec, &err) != 1) {
+                            THROW("invalid max delay time '%s'", val);
+                        }
+                        info->p.pof.max_delay = msec;
+                    } else if (strcmp(key, "BufferSize") == 0) {
+                        unsigned size;
+                        char err;
+                        if (sscanf(val, "%i%c", &size, &err) != 1) {
+                            THROW("invalid max delay time '%s'", val);
+                        }
+                        info->p.pof.buffer_size = size;
+                    }
+
                     break;
             }
         } else {
