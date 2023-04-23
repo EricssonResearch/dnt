@@ -120,7 +120,7 @@ struct ConfAction {
         } jump;
         struct {
             struct HeaderDescriptor *hdr;
-            struct HeaderField field;
+            struct HeaderField *field;
         } meta; // read/write seq/tstamp
         struct {
             struct ConfObject *pof; //TODO struct Pof
@@ -1040,21 +1040,15 @@ static bool process_action(struct StageState *stst)
                     THROW("no header specified");
                 }
                 int hdrtype = stst->actions->d.meta.hdr->id;
-                int field_idx = -1;
-                for (unsigned i=0; i<protocol_list[hdrtype].header_field_count; i++) {
-                    if (protocol_list[hdrtype].header_fields[i].type == FT_TSNSEQ) {
-                        field_idx = i;
-                        break;
-                    }
-                }
+                int field_idx = protocol_get_field_id_by_type(hdrtype, FT_TSNSEQ);
                 if (field_idx == -1) {
                     THROW("header '%s' doesn't have a sequence number field", stst->actions->d.meta.hdr->name);
                 }
-                //TODO new_headerfield()
-                stst->actions->d.meta.field.header_idx = header_index(stst->headers, stst->actions->d.meta.hdr);
-                stst->actions->d.meta.field.bitoffset = protocol_list[hdrtype].header_fields[field_idx].bitoffset;
-                stst->actions->d.meta.field.bitcount = protocol_list[hdrtype].header_fields[field_idx].bitcount;
-                if ((stst->actions->d.meta.field.bitoffset % 8) || (stst->actions->d.meta.field.bitcount != 32)) {
+                stst->actions->d.meta.field = new_headerfield(
+                        header_index(stst->headers, stst->actions->d.meta.hdr),
+                        &protocol_list[hdrtype].header_fields[field_idx]);
+                if ((stst->actions->d.meta.field->bitoffset % 8)
+                        || (stst->actions->d.meta.field->bitcount != 32)) {
                     THROW("sequence number field of header '%s' is invalid", stst->actions->d.meta.hdr->name);
                 }
             } while (0);
@@ -1067,21 +1061,15 @@ static bool process_action(struct StageState *stst)
                     THROW("no header specified");
                 }
                 int hdrtype = stst->actions->d.meta.hdr->id;
-                int field_idx = -1;
-                for (unsigned i=0; i<protocol_list[hdrtype].header_field_count; i++) {
-                    if (protocol_list[hdrtype].header_fields[i].type == FT_TSNTSTAMP) {
-                        field_idx = i;
-                        break;
-                    }
-                }
+                int field_idx = protocol_get_field_id_by_type(hdrtype, FT_TSNTSTAMP);
                 if (field_idx == -1) {
                     THROW("header '%s' doesn't have a timestamp field", stst->actions->d.meta.hdr->name);
                 }
-                //TODO new_headerfield()
-                stst->actions->d.meta.field.header_idx = header_index(stst->headers, stst->actions->d.meta.hdr);
-                stst->actions->d.meta.field.bitoffset = protocol_list[hdrtype].header_fields[field_idx].bitoffset;
-                stst->actions->d.meta.field.bitcount = protocol_list[hdrtype].header_fields[field_idx].bitcount;
-                if ((stst->actions->d.meta.field.bitoffset % 8) || (stst->actions->d.meta.field.bitcount != 32)) {
+                stst->actions->d.meta.field = new_headerfield(
+                        header_index(stst->headers, stst->actions->d.meta.hdr),
+                        &protocol_list[hdrtype].header_fields[field_idx]);
+                if ((stst->actions->d.meta.field->bitoffset % 8)
+                        || (stst->actions->d.meta.field->bitcount != 32)) {
                     THROW("timestamp field of header '%s' is invalid", stst->actions->d.meta.hdr->name);
                 }
             } while (0);
@@ -1262,8 +1250,10 @@ struct ConfAction *delete_confaction_list(struct ConfAction *ca_list)
             case CA_POF:
                 break;
             case CA_READSEQ:
-                break;
             case CA_READTSTAMP:
+            case CA_WRITESEQ:
+            case CA_WRITETSTAMP:
+                free(del->d.meta.field);
                 break;
             case CA_REPL:
                 delete_replicatelist(del->d.repl.pipelines);
@@ -1271,10 +1261,6 @@ struct ConfAction *delete_confaction_list(struct ConfAction *ca_list)
             case CA_SEND:
                 break;
             case CA_SEQGEN:
-                break;
-            case CA_WRITESEQ:
-                break;
-            case CA_WRITETSTAMP:
                 break;
         }
         free(del);
@@ -1489,12 +1475,11 @@ void confactions_print(const struct ConfAction *ca_list)
                 printf("  \n");
                 break;
             case CA_READSEQ:
-                printf("  field idx %u bitoffset %u bitcount %u\n",
-                        ca->d.meta.field.header_idx, ca->d.meta.field.bitoffset, ca->d.meta.field.bitcount);
-                break;
             case CA_READTSTAMP:
+            case CA_WRITESEQ:
+            case CA_WRITETSTAMP:
                 printf("  field idx %u bitoffset %u bitcount %u\n",
-                        ca->d.meta.field.header_idx, ca->d.meta.field.bitoffset, ca->d.meta.field.bitcount);
+                        ca->d.meta.field->header_idx, ca->d.meta.field->bitoffset, ca->d.meta.field->bitcount);
                 break;
             case CA_REPL:
                 for (struct ReplicateList *p=ca->d.repl.pipelines; p; p=p->next) {
@@ -1508,14 +1493,6 @@ void confactions_print(const struct ConfAction *ca_list)
                 break;
             case CA_SEQGEN:
                 printf("  \n");
-                break;
-            case CA_WRITESEQ:
-                printf("  field idx %u bitoffset %u bitcount %u\n",
-                        ca->d.meta.field.header_idx, ca->d.meta.field.bitoffset, ca->d.meta.field.bitcount);
-                break;
-            case CA_WRITETSTAMP:
-                printf("  field idx %u bitoffset %u bitcount %u\n",
-                        ca->d.meta.field.header_idx, ca->d.meta.field.bitoffset, ca->d.meta.field.bitcount);
                 break;
         }
     }

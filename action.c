@@ -287,7 +287,7 @@ static enum ActionResult action_readseq_execute(struct Action *a, struct Pipelin
     return ACR_CONTINUE;
 }
 
-void create_action_readseq(struct Action *a, struct HeaderField seqfield, const char *text)
+void create_action_readseq(struct Action *a, const struct HeaderField *seqfield, const char *text)
 {
     bzero(a, sizeof(*a));
     a->type = ACT_READSEQ;
@@ -296,7 +296,7 @@ void create_action_readseq(struct Action *a, struct HeaderField seqfield, const 
     a->text = strdup(text);
 
     struct MetaData *md = calloc_struct(MetaData);
-    md->field = seqfield;
+    md->field = *seqfield;
     a->action_private = md;
 }
 
@@ -310,7 +310,7 @@ static enum ActionResult action_readtstamp_execute(struct Action *a, struct Pipe
     return ACR_CONTINUE;
 }
 
-void create_action_readtstamp(struct Action *a, struct HeaderField tsfield, const char *text)
+void create_action_readtstamp(struct Action *a, const struct HeaderField *tsfield, const char *text)
 {
     bzero(a, sizeof(*a));
     a->type = ACT_READTSTAMP;
@@ -319,7 +319,7 @@ void create_action_readtstamp(struct Action *a, struct HeaderField tsfield, cons
     a->text = strdup(text);
 
     struct MetaData *md = calloc_struct(MetaData);
-    md->field = tsfield;
+    md->field = *tsfield;
     a->action_private = md;
 }
 
@@ -465,7 +465,7 @@ static enum ActionResult action_writeseq_execute(struct Action *a, struct Pipeli
     return ACR_CONTINUE;
 }
 
-void create_action_writeseq(struct Action *a, struct HeaderField seqfield, const char *text)
+void create_action_writeseq(struct Action *a, const struct HeaderField *seqfield, const char *text)
 {
     bzero(a, sizeof(*a));
     a->type = ACT_WRITESEQ;
@@ -474,7 +474,7 @@ void create_action_writeseq(struct Action *a, struct HeaderField seqfield, const
     a->text = strdup(text);
 
     struct MetaData *md = calloc_struct(MetaData);
-    md->field = seqfield;
+    md->field = *seqfield;
     a->action_private = md;
 }
 
@@ -490,7 +490,7 @@ static enum ActionResult action_writetstamp_execute(struct Action *a, struct Pip
     return ACR_CONTINUE;
 }
 
-void create_action_writetstamp(struct Action *a, struct HeaderField tsfield, const char *text)
+void create_action_writetstamp(struct Action *a, const struct HeaderField *tsfield, const char *text)
 {
     bzero(a, sizeof(*a));
     a->type = ACT_WRITETSTAMP;
@@ -499,7 +499,7 @@ void create_action_writetstamp(struct Action *a, struct HeaderField tsfield, con
     a->text = strdup(text);
 
     struct MetaData *md = calloc_struct(MetaData);
-    md->field = tsfield;
+    md->field = *tsfield;
     a->action_private = md;
 }
 

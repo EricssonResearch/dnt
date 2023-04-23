@@ -93,9 +93,9 @@ void create_action_elim(struct Action *a, struct SequenceRecovery *rcvy, const c
 //TODO receive a pof object
 //void create_action_pof(struct Action *a, struct HeaderField *sequence, const char *text);
 
-void create_action_readseq(struct Action *a, struct HeaderField seqfield, const char *text);
+void create_action_readseq(struct Action *a, const struct HeaderField *seqfield, const char *text);
 
-void create_action_readtstamp(struct Action *a, struct HeaderField tsfield, const char *text);
+void create_action_readtstamp(struct Action *a, const struct HeaderField *tsfield, const char *text);
 
 void create_action_repl(struct Action *a, struct PipelineList *list, const char *text);
 
@@ -103,9 +103,9 @@ void create_action_send(struct Action *a, struct Interface *iface, const char *t
 
 void create_action_seqgen(struct Action *a, struct SequenceGenerator *gen, const char *text);
 
-void create_action_writeseq(struct Action *a, struct HeaderField seqfield, const char *text);
+void create_action_writeseq(struct Action *a, const struct HeaderField *seqfield, const char *text);
 
-void create_action_writetstamp(struct Action *a, struct HeaderField tsfield, const char *text);
+void create_action_writetstamp(struct Action *a, const struct HeaderField *tsfield, const char *text);
 
 
 // send action returns its interface
