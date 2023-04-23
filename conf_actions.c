@@ -93,7 +93,6 @@ struct ConfAction {
     union {
         struct {
             char *newname;
-            char *newtype;
             int id;
             struct HeaderDescriptor *pos; // relative to this header
             enum BeforeAfter beforeafter;
@@ -175,7 +174,6 @@ static struct HeaderDescriptor *copy_header_list(const struct HeaderDescriptor *
         } else {
             ret = r = w;
         }
-        w->type = strdup(h->type);
         w->name = strdup(h->name);
         w->id = h->id;
 
@@ -413,10 +411,11 @@ static bool process_token(char *token, void *userdata)
                     stst->actions->d.add.newname = strdup(token);
                     char *type = header_type_from_name(token);
                     stst->actions->d.add.id = protocol_id_from_type(type);
+                    free(type);
                     if (stst->actions->d.add.id < 0) {
                         THROW("type is invalid for new header'%s'", token);
                     }
-                    stst->actions->d.add.newtype = type;
+                    //stst->actions->d.add.newtype = type;
                     stst->actions->d.add.len = protocol_list[stst->actions->d.add.id].bytelength;
                 } else {
                     char *lhs, *rhs;
@@ -719,7 +718,8 @@ static bool process_action(struct StageState *stst)
             printf("CA_ADD: %s %s %s %s\n",
                     stst->actions->d.add.beforeafter==ADD_BEFORE?"before":"after",
                     stst->actions->d.add.pos->name,
-                    stst->actions->d.add.newname, stst->actions->d.add.newtype);
+                    stst->actions->d.add.newname,
+                    protocol_type_from_id(stst->actions->d.add.id));
             if (stst->actions->d.add.newname == NULL) {
                 THROW("no new header name");
             }
@@ -731,7 +731,6 @@ static bool process_action(struct StageState *stst)
             }
 
             struct HeaderDescriptor *newheader = calloc_struct(HeaderDescriptor);
-            newheader->type = strdup(stst->actions->d.add.newtype);
             newheader->name = strdup(stst->actions->d.add.newname);
             newheader->id = stst->actions->d.add.id;
 
@@ -794,7 +793,8 @@ static bool process_action(struct StageState *stst)
                     uint16_t nexthdrnum;
                     if (!newpr->get_nexthdr(&nexthdrnum, nextheader->id)) {
                         THROW("header type %s cannot have type %s as next header",
-                                newheader->type, nextheader->type);
+                                protocol_type_from_id(newheader->id),
+                                protocol_type_from_id(nextheader->id));
                     }
 
                     // create an assignment: newheader.nexthdr = nexthdrnum constant
@@ -852,7 +852,8 @@ static bool process_action(struct StageState *stst)
                 uint16_t nexthdrnum;
                 if (!prevpr->get_nexthdr(&nexthdrnum, newheader->id)) {
                     THROW("header type %s cannot have type %s as next header",
-                            prevheader->type, newheader->type);
+                            protocol_type_from_id(prevheader->id),
+                            protocol_type_from_id(newheader->id));
                 }
 
                 // create an assignment: nexthdr field = nexthdrnum constant
@@ -910,7 +911,8 @@ static bool process_action(struct StageState *stst)
                         uint16_t nexthdrnum;
                         if (!prevpr->get_nexthdr(&nexthdrnum, del->next->id)) {
                             THROW("header type %s cannot have type %s as next header",
-                                    prev->type, del->next->type);
+                                    protocol_type_from_id(prev->id),
+                                    protocol_type_from_id(del->next->id));
                         }
 
                         // create an assignment: nexthdr field = nexthdrnum constant
@@ -1241,7 +1243,6 @@ struct ConfAction *delete_confaction_list(struct ConfAction *ca_list)
         switch (del->type) {
             case CA_ADD:
                 free(del->d.add.newname);
-                free(del->d.add.newtype);
                 delete_confassignments(del->d.add.assignments);
                 break;
             case CA_DEL:
@@ -1435,9 +1436,10 @@ void confactions_print(const struct ConfAction *ca_list)
                 confaction_name_from_type(ca->type), ca->text);
         switch (ca->type) {
             case CA_ADD:
-                printf("  new name %s type %s id %d len %u index %u\n",
-                        ca->d.add.newname, ca->d.add.newtype, ca->d.add.id, ca->d.add.len,
-                        ca->d.add.pos_idx);
+                printf("  new name %s id %d type %s len %u index %u\n",
+                        ca->d.add.newname, ca->d.add.id,
+                        protocol_type_from_id(ca->d.add.id),
+                        ca->d.add.len, ca->d.add.pos_idx);
                 break;
             case CA_DEL:
                 printf("  index %u\n", ca->d.del.idx);

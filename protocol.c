@@ -228,6 +228,7 @@ const char *fieldtype_name_from_type(enum ProtocolFieldType type)
 
 int protocol_id_from_type(const char *type)
 {
+    if (type == NULL) return -1;
     for (unsigned i=0; i<protocol_count; i++) {
         if (strcmp(type, protocol_list[i].name) == 0) return i;
 }

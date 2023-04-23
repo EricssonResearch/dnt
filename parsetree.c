@@ -121,7 +121,6 @@ struct HeaderDescriptor *delete_header_list(struct HeaderDescriptor *headers)
     while (h) {
         struct HeaderDescriptor *d = h;
         h = h->next;
-        free(d->type);
         free(d->name);
         delete_match_list(d->matches);
         free(d);
