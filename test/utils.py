@@ -32,7 +32,8 @@ def exec_bg(cmd, out=OUT_NONE):
     p = Popen(shlex.split(cmd),
               pipesize=100000000,
               stdout=cmdout,
-              stderr=cmdout)
+              stderr=cmdout,
+              text=True)
     return p
 
 def exec_fg(cmd, silent=True, timeout=None):
