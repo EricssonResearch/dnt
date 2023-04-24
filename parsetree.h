@@ -19,8 +19,7 @@ struct HeaderMatch {
 };
 
 struct HeaderDescriptor {
-    char *type; //TODO we can get this from the @id
-    char *name; // type[_identifier]
+    char *name; // format: type[_identifier]
     int id; // protocol type id
     struct HeaderMatch *matches; //TODO hash table instead of linked list?
 

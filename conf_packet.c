@@ -34,10 +34,11 @@ static bool process_packet_token(char *token, void *userdata)
         THROW("invalid extra parameter '%s'", token);
     } else {
         stst->headers->name = strdup(token);
-        stst->headers->type = header_type_from_name(token);
-        stst->headers->id = protocol_id_from_type(stst->headers->type);
+        char *type = header_type_from_name(token);
+        stst->headers->id = protocol_id_from_type(type);
+        free(type);
         if (stst->headers->id < 0) {
-            THROW("unknown protocol '%s'", stst->headers->type);
+            THROW("unknown protocol '%s'", stst->headers->name);
         }
     }
 

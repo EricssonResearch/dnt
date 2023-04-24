@@ -228,6 +228,7 @@ const char *fieldtype_name_from_type(enum ProtocolFieldType type)
 
 int protocol_id_from_type(const char *type)
 {
+    if (type == NULL) return -1;
     for (unsigned i=0; i<protocol_count; i++) {
         if (strcmp(type, protocol_list[i].name) == 0) return i;
 }
@@ -257,4 +258,22 @@ bool protocol_fieldname_valid(int id, const char *fieldname)
 {
     const struct ProtocolField *f = protocol_get_field_by_name(id, fieldname);
     return f != NULL;
+}
+
+const struct ProtocolField *protocol_get_field_by_type(int proto_id, enum ProtocolFieldType type)
+{
+    for (unsigned i=0; i<protocol_list[proto_id].header_field_count; i++) {
+        if (protocol_list[proto_id].header_fields[i].type == type)
+            return &protocol_list[proto_id].header_fields[i];
+    }
+    return NULL;
+}
+
+int protocol_get_field_id_by_type(int proto_id, enum ProtocolFieldType type)
+{
+    for (unsigned i=0; i<protocol_list[proto_id].header_field_count; i++) {
+        if (protocol_list[proto_id].header_fields[i].type == type)
+            return i;
+    }
+    return -1;
 }

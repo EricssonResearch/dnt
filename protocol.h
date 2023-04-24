@@ -85,11 +85,19 @@ int protocol_id_from_type(const char *type);
 // TODO enum ProtocolID id
 const char *protocol_type_from_id(int id);
 
-// @returns pointer to the field descriptor with @fieldname
-// @returns NULL if the protocol has no field with the given name
+// @returns pointer to the field descriptor
+// @returns NULL if the protocol has no field with the given @fieldname
 const struct ProtocolField *protocol_get_field_by_name(int id, const char *fieldname);
 
 // @returns true if @fieldname is valid for this protocol
 bool protocol_fieldname_valid(int id, const char *fieldname);
+
+// @returns pointer to the field descriptor
+// @returns NULL if the protocol has no field with the given @type
+const struct ProtocolField *protocol_get_field_by_type(int proto_id, enum ProtocolFieldType type);
+
+// @returns index of the field in the protocol header
+// @returns -1 if the protocol has no field with the given @type
+int protocol_get_field_id_by_type(int proto_id, enum ProtocolFieldType type);
 
 #endif // R2_PROTOCOL_H

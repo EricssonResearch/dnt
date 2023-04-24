@@ -76,6 +76,7 @@ struct SequenceRecovery *new_seq_rec(enum SequenceRecoveryAlgorithm algo, bool u
 struct SequenceRecovery *delete_seq_rec(struct SequenceRecovery *rec)
 {
     pthread_cancel(rec->reset_thread);
+    pthread_join(rec->reset_thread, NULL);
     free(rec->history);
     free(rec->init_history);
     free(rec);
