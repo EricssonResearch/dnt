@@ -2,6 +2,7 @@
 
 from utils import *
 import time
+import sys
 
 stdouts = { }
 
@@ -26,6 +27,8 @@ def config_ifaces():
         ret += exec_fg(f"sysctl -w net.ipv6.conf.{nic}.disable_ipv6=1").returncode
         ret += exec_fg(f"ip link set dev {nic} up").returncode
 
+    # up loopback in case its running in namespace
+    ret += exec_fg(f"ip link set dev lo up").returncode
     # accept local ARP on listener uni
     ret += exec_fg(f"sysctl -w net.ipv4.conf.to_r2br1.accept_local=1").returncode
     ret += exec_fg("ip addr flush dev to_r2br0").returncode
@@ -167,26 +170,25 @@ def ofo_pof_smallbuffer():
 # we can send all the in-seqence buffered packets inmediately!
 # As a result, (since we dont have delay on the reverse direction) we must see a 5 packet 500ms burst
 # in the output of the ping. If not, the test was not successful
-# TODO: Bug: works from terminal but not from this script!
 def pof_burst():
     try:
         print("Test POF burst (faster path's failure+recover)...")
-        exec_bg("../r2dtwo pof/r2br0.ini")
-        exec_bg("../r2dtwo pof/r2br1.ini")
+        exec_bg("../r2dtwo pof/r2br0.ini", OUT_NONE)
+        exec_bg("../r2dtwo pof/r2br1.ini", OUT_NONE)
         time.sleep(1)
 
         num_pings = 40
-        exec_fg("tc qdisc add dev r2br0_nni1 root netem delay 500ms", silent=False)
-        ping = exec_bg(f"ping -I to_r2br0 10.0.0.2 -i 0.1 -c {num_pings} -W 10", out=OUT_PIPE)
+        exec_fg("tc qdisc add dev r2br0_nni1 root netem delay 500ms")
+        ping = exec_bg(f"ping -I to_r2br0 10.0.0.2 -i 0.1 -c {num_pings} -W 10", OUT_PIPE)
         time.sleep(1)
-        exec_fg(f"ip link set dev r2br1_nni0 down", silent=False)
-        # exec_fg(f"tc filter add dev r2br0_nni0 matchall action drop")
+        exec_fg(f"ip link set dev r2br1_nni0 down")
         time.sleep(0.5)
-        # exec_fg(f"tc filter del dev r2br0_nni0")
-        exec_fg(f"ip link set dev r2br1_nni0 up", silent=False)
-        exec_fg("tc qdisc del dev r2br0_nni1 root", silent=False)
+        exec_fg(f"ip link set dev r2br1_nni0 up")
+
+        # Notes: do not remove netem qdisc during the test!
+        # It will drop some packets and send the remaining in a burst
         ping_out = str(ping.communicate()[0])
-        print(ping_out)
+        exec_fg("tc qdisc del dev r2br0_nni1 root")
         if f"duplicates" in ping_out:
             return 0
         if ", 0% packet loss" not in ping_out:
@@ -203,7 +205,8 @@ def main():
     print("R2DTWO POF test")
     create_ifaces()
     config_ifaces()
-    # exit(1)
+    if len(sys.argv) == 2 and sys.argv[1] == "--debug":
+        exit(1)
     ret = 0
     tests = [no_out_of_order, ofo_no_pof, ofo_pof, pof_reset, ofo_pof_smallbuffer, pof_burst]
     # tests = [pof_burst]
