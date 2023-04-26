@@ -147,8 +147,8 @@ struct StageState {
     struct HashMap *objects;
     struct IniSection *streams_sec;
     bool had_final;
-    //TODO bool had_readseq
-    //TODO bool had_readtstamp
+    bool seq_set; // true if we had an action that sets packet->sequence
+    //bool tstamp_set; //TODO instead: packet->timestamp should be initialized from packet->recv_time
 };
 
 
@@ -983,6 +983,9 @@ static bool process_action(struct StageState *stst)
             if (stst->actions->d.elim.rec == NULL) {
                 THROW("eliminate needs a sequence recovery object");
             }
+            if (!stst->seq_set) {
+                THROW("can't eliminate without a sequence number");
+            }
             break;
         case CA_JUMP:
             printf("CA_JUMP: %s\n", stst->actions->text);
@@ -1038,6 +1041,13 @@ static bool process_action(struct StageState *stst)
                 if ((stst->actions->d.meta.field->bitoffset % 8)
                         || (stst->actions->d.meta.field->bitcount != 32)) {
                     THROW("sequence number field of header '%s' is invalid", stst->actions->d.meta.hdr->name);
+                }
+                if (stst->actions->type == CA_READSEQ) {
+                    stst->seq_set = true;
+                } else {
+                    if (!stst->seq_set) {
+                        THROW("can't write undefined sequence number");
+                    }
                 }
             } while (0);
             break;
@@ -1104,6 +1114,7 @@ static bool process_action(struct StageState *stst)
             if (stst->actions->d.seq.gen == NULL) {
                 THROW("seqgen needs a sequence generator object");
             }
+            stst->seq_set = true;
             break;
     }
     return true;
