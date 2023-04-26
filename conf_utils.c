@@ -152,7 +152,7 @@ bool read_constant(struct Value *val, enum ProtocolFieldType type, const char *s
         case FT_UNKNOWN:
             fprintf(stderr, "constant cannot be unknown type\n");
             return false;
-        case FT_NUMBER: {
+        case FT_NUMBER: do {
             uint64_t num;
             if (val->bitcount == 1) {
                 int b = read_boolean(string);
@@ -172,7 +172,7 @@ bool read_constant(struct Value *val, enum ProtocolFieldType type, const char *s
                 fprintf(stderr, "number '%s' doesn't fit into %u bits\n", string, val->bitcount);
                 return false;
             }
-            return true; }
+            return true; } while (0);
         case FT_MACADDRESS:
             if (val->bitoffset != 0 || val->bitcount != 6*8) {
                 fprintf(stderr, "bitoffset %u bitcount %u invalid for Ethernet address\n",
@@ -217,9 +217,11 @@ bool read_constant(struct Value *val, enum ProtocolFieldType type, const char *s
         case FT_TSNTSTAMP:
             fprintf(stderr, "warning: it's not a good practice to set timestamp from constant\n");
             return read_constant(val, FT_NUMBER, string);
+        case FT_NEXTHEADER:
+            fprintf(stderr, "warning: it's not a good practice to set nextheader from constant\n");
+            return read_constant(val, FT_NUMBER, string);
         case FT_TTL:
         case FT_CHECKSUM:
-        case FT_NEXTHEADER:
             return read_constant(val, FT_NUMBER, string);
     }
     return false;
