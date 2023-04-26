@@ -2,6 +2,7 @@
 
 from scapy.layers.l2 import Ether, Dot1Q
 from scapy.layers.inet import IP, UDP
+from scapy.contrib.mpls import MPLS
 from scapy.layers.inet6 import IPv6
 from scapy.all import sendp
 from utils import *
@@ -51,6 +52,16 @@ pkts_bad_ipv6 = [
     Ether()/Dot1Q(vlan=2025)/IPv6(src="face::cafe", dst="dead::dead", hlim=36)/UDP(),
     Ether()/Dot1Q(vlan=2025, prio=5)/IPv6(src="cafe::facc", hlim=66)/UDP(),
 ]
+
+pkts_good_stack =[
+    Ether(dst="aa:bb:fc:fa:bb:cc")/Dot1Q(vlan=2065)/Dot1Q(vlan=3999)/IP(src="2.2.2.2",dst="6.6.6.6")/UDP()/MPLS(label=4444)/IPv6(src="dead::face", dst="dead::cafe"),
+    Ether(dst="aa:bb:fc:fa:bb:cc")/Dot1Q(vlan=2065)/Dot1Q(vlan=3999)/IP(src="2.2.2.2",dst="6.6.6.6")/UDP()/MPLS(label=1048575)/Dot1Q(vlan=33)/IPv6(src="dead::face", dst="dead::cafe"),
+]
+pkts_bad_stack =[
+    Ether(dst="aa:bb:fc:fa:bb:cc")/Dot1Q(vlan=2065)/Dot1Q(vlan=3999)/IP(src="2.2.2.2",dst="6.6.6.6")/UDP()/MPLS(label=4445)/IPv6(src="dead::face", dst="dead::cafe"),
+    Ether(dst="aa:bb:fc:fa:bb:cc")/Dot1Q(vlan=2065)/Dot1Q(vlan=3999)/IP(src="2.2.2.2",dst="6.6.6.6")/UDP()/MPLS(label=1048575)/Dot1Q(vlan=31)/IPv6(src="dead::face", dst="dead::cafe"),
+]
+
 
 
 def start_r2dtwo():
@@ -126,10 +137,20 @@ def test_ipv6():
         return 0
     return 1
 
+def test_large():
+    print("Test large stack matching...")
+    start_r2dtwo()
+    time.sleep(1)
+    sendp(pkts_bad_stack + pkts_good_stack, verbose=0, iface="to_r2")
+    if get_rxpktsnum() != len(pkts_good_stack):
+        print("Failed")
+        return 0
+    return 1
+
 def main():
     print("R2DTWO match test")
     ret = 0
-    tests = [test_vlans, test_ethernet, test_ipv4, test_ipv6]
+    tests = [test_vlans, test_ethernet, test_ipv4, test_ipv6, test_large]
     for test in tests:
         config_ifaces()
         ret += test()
