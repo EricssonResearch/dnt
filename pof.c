@@ -50,7 +50,7 @@ struct Pof {
 static void *pof_thread(void *);
 static void pof_reset(struct Pof *pof);
 
-static void pof_debug(const struct Pof *pof)
+static inline void pof_debug(const struct Pof *pof)
 {
     if (pof->queue_len < 0) {
         return;
@@ -64,15 +64,6 @@ static void pof_debug(const struct Pof *pof)
     printf("\n");
 }
 
-static void pof_sane(const struct Pof *pof)
-{
-    if (pof->queue_len == 0 && pof->q_head != NULL) {
-        printf("\n\n\n**********POF INTERNAL INCONSISTENCY ERROR 1!***********\n\n\n");
-    }
-    if (pof->q_head && pof->q_head->next == NULL && pof->queue_len != 1) {
-        printf("\n\n\n**********POF INTERNAL INCONSISTENCY ERROR 2!***********\n\n\n");
-    }
-}
 
 struct Pof *new_pof(unsigned pof_max_delay, unsigned pof_take_any_time, unsigned queue_max_len)
 {
@@ -172,7 +163,7 @@ bool pof_insert(struct Pof *pof, struct PipelineIterator *pi)
 
 static void pof_pop_item(struct PofElem *pe)
 {
-    if (pe == NULL)
+    if (pe == NULL || pe->pof->q_head == NULL)
         return;
 
     struct Pof *pof = pe->pof;
@@ -187,7 +178,7 @@ static void pof_pop_item(struct PofElem *pe)
         }
         if (iter_prev == NULL) {
             pof->q_head = iter->next;
-        } else {
+        } else if(iter) {
             iter_prev->next = iter->next;
         }
         free(pe);
@@ -223,7 +214,6 @@ static struct timespec *get_next_deadline(struct Pof *pof)
 static void pof_forward(struct PofElem *pe)
 {
     struct Pof *pof = pe->pof;
-    pof_debug(pof);
     pof->pof_last_sent = pe->seq;
     pe->pi->pos += 1; // advance in the pipeline
     /* printf("POF: last_sent=%d forward=%d take_any=%d\n", pof->pof_last_sent, pe->seq, pof->take_any); */
@@ -272,7 +262,6 @@ static void *pof_thread(void *arg)
     else
         timeout = pof->pof_take_any_time;
     while (true) {
-        pof_sane(pof);
         int ret = ppoll(&fd, 1, &timeout, NULL);
         if (ret < 0) {
             perror("ppoll");
