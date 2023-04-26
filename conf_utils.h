@@ -55,6 +55,7 @@ int read_boolean(const char *string);
 // @returns false if the number doesn't fit into the space
 bool prepare_constant_number(struct Value *val, uint64_t num);
 
+// reads a constant from @string and stores it such that it's easy to write into a packet
 // interprets @string as a value of @type
 // uses @bitoffset and @bitcount of @val to position the result
 // if the result is shorter than @bitcount, it will be padded
