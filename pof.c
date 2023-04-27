@@ -1,4 +1,9 @@
 #define _GNU_SOURCE
+#include "pof.h"
+#include "pipeline.h"
+#include "packet.h"
+#include "utils.h"
+
 #include <stdbool.h>
 #include <time.h>
 #include <pthread.h>
@@ -8,11 +13,6 @@
 #include <sys/eventfd.h>
 #include <unistd.h>
 #include <arpa/inet.h>
-
-#include "pipeline.h"
-#include "packet.h"
-#include "utils.h"
-#include "pof.h"
 
 enum PofEvent {
     POF_IN_ORDER_PKT = 1,
@@ -269,7 +269,7 @@ static void *pof_thread(void *arg)
         }
         /* pof_debug(pof); */
         pthread_mutex_lock(&pof->lock);
-        if (ret & POLLIN) {
+        if (fd.events & POLLIN) {
             unsigned long event;
             ret = read(pof->evfd, &event, sizeof(event));
             if (ret < 0) {
