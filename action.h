@@ -91,7 +91,6 @@ void create_action_edit(struct Action *a, struct EditAssign *assigns, unsigned a
 
 void create_action_elim(struct Action *a, struct SequenceRecovery *rcvy, const char *text);
 
-//TODO receive a pof object
 void create_action_pof(struct Action *a, struct Pof *pof, const char *text);
 
 void create_action_readseq(struct Action *a, const struct HeaderField *seqfield, const char *text);

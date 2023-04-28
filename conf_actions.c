@@ -461,7 +461,7 @@ static bool process_token(char *token, void *userdata)
                             stst->actions->type = CA_JUMP;
                             stst->actions->d.jump.pipename = strdup(token);
                         } else {
-                            THROW("action name invalid");
+                            THROW("'%s' does not name an action, object or action list", token);
                         }
                     }
                 }

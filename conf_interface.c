@@ -70,6 +70,8 @@ static int iface_cb(const char *key, void *value, void *userdata)
     do {                                                            \
         fprintf(stderr, "interface %s error: " msg "\n",            \
                 key, ##__VA_ARGS__);                                \
+        free(tstate.type);                                          \
+        delete_hashmap(tstate.params);                              \
         return 0;                                                   \
     } while (0)
 
@@ -295,6 +297,7 @@ struct HashMap *parse_interface_streams(struct IniSection *interfaces_section,
     if (!hashmap_foreach(interfaces_section->contents, iface_stream_cb, &state)) {
         fprintf(stderr, "an interface streams line is invalid\n");
         delete_hashmap(state.iface_streams);
+        return NULL;
     }
 
     return state.iface_streams;
