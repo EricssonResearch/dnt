@@ -115,6 +115,7 @@ static int checkline_cb(const char *key, void *value, void *userdata)
         } else if (strcmp(colon+1, "match") == 0) {
             if (!hashmap_contains(state->streams, streamname)) {
                 fprintf(stderr, "stream '%s' has match line but no packet line\n", streamname);
+                free(streamname);
                 return 0;
             }
         }

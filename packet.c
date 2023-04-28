@@ -107,7 +107,7 @@ void packet_identify_header(struct Packet *p, int type, unsigned offset, unsigne
     p->header_count++;
 }
 
-static off_t scratch_alloc(struct Packet *p, unsigned len)
+static int scratch_alloc(struct Packet *p, unsigned len)
 {
     if (p->scratch_len + len >= PACKET_START_OFFSET) return -1;
     off_t ret = p->scratch_len;
