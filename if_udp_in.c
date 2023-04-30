@@ -27,39 +27,12 @@ struct UdpInIfData {
     } srcip;
 };
 
-static void msghdr_process(struct msghdr *msg, struct Packet *p, void *userdata)
-{
-    (void)userdata;
-
-    // process the cmsg to get the timestamp
-    for (struct cmsghdr *cmsg=CMSG_FIRSTHDR(msg); cmsg; cmsg=CMSG_NXTHDR(msg, cmsg)) {
-        switch (cmsg->cmsg_level) {
-            case SOL_SOCKET:
-                if (cmsg->cmsg_type == SCM_TIMESTAMPING) {
-                    struct timespec *tstamp;
-                    if (cmsg->cmsg_len < sizeof(struct cmsghdr)+3*sizeof(struct timespec)) {
-                        fprintf(stderr, "cmsg_len %zu tstamp %zu cmsghdr %zu\n",
-                                cmsg->cmsg_len, sizeof(struct timespec), sizeof(struct cmsghdr));
-                    } else {
-                        // we aligned msg.msg_control so the alignment should be okay here
-                        tstamp = (struct timespec *)CMSG_DATA(cmsg);
-                        printf("RX SW %ld.%09ld HW %ld.%09ld\n",
-                                tstamp[0].tv_sec, tstamp[0].tv_nsec,
-                                tstamp[2].tv_sec, tstamp[2].tv_nsec);
-                        p->recv_time = tstamp[0];
-                    }
-                }
-                break;
-        }
-    }
-}
-
 static struct Packet *udpin_recv(struct Interface *iface)
 {
     struct UdpInIfData *uid = iface->iface_private;
     (void)uid;
 
-    struct Packet *p = iface_common_recv(iface, msghdr_process, NULL);
+    struct Packet *p = iface_common_recv(iface, NULL, NULL);
     if (p == NULL) return NULL;
     printf("udp-in %s recv %u\n", iface->name, p->len);
 

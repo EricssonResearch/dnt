@@ -54,6 +54,34 @@ void enable_rx_tstamp(int sock, const char *sockname,
     }
 }
 
+static void get_rx_tstamp(struct msghdr *msg, struct Packet *p, void *userdata)
+{
+    (void)userdata;
+
+    // process the cmsg to get the timestamp
+    for (struct cmsghdr *cmsg=CMSG_FIRSTHDR(msg); cmsg; cmsg=CMSG_NXTHDR(msg, cmsg)) {
+        switch (cmsg->cmsg_level) {
+            case SOL_SOCKET:
+                if (cmsg->cmsg_type == SCM_TIMESTAMPING) {
+                    struct timespec *tstamp;
+                    if (cmsg->cmsg_len < sizeof(struct cmsghdr)+3*sizeof(struct timespec)) {
+                        fprintf(stderr, "cmsg_len %zu tstamp %zu cmsghdr %zu\n",
+                                cmsg->cmsg_len, sizeof(struct timespec), sizeof(struct cmsghdr));
+                    } else {
+                        // we aligned msg.msg_control so the alignment should be okay here
+                        tstamp = (struct timespec *)CMSG_DATA(cmsg);
+                        printf("RX SW %ld.%09ld HW %ld.%09ld\n",
+                                tstamp[0].tv_sec, tstamp[0].tv_nsec,
+                                tstamp[2].tv_sec, tstamp[2].tv_nsec);
+                        p->recv_time = tstamp[0];
+                        //TODO also set p->timestamp
+                    }
+                }
+                break;
+        }
+    }
+}
+
 struct Packet *iface_common_recv(struct Interface *iface, msghdr_process_cb *msg_cb, void *userdata)
 {
     struct Packet *p = new_packet(iface);
@@ -90,6 +118,8 @@ struct Packet *iface_common_recv(struct Interface *iface, msghdr_process_cb *msg
     if (res > 0) {
         p->len = res;
     }
+
+    get_rx_tstamp(&msg, p, userdata);
 
     if (msg_cb)
         msg_cb(&msg, p, userdata);

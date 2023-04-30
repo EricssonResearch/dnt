@@ -30,30 +30,12 @@ struct EthIfData {
     struct ether_addr mac;
 };
 
-static void msghdr_process(struct msghdr *msg, struct Packet *p, void *userdata)
+static void restore_vlan(struct msghdr *msg, struct Packet *p, void *userdata)
 {
     (void)userdata;
 
-    // process the cmsg to get the vlan header info and timestamp
-    // if we have vlan, restore it in the packet
     for (struct cmsghdr *cmsg=CMSG_FIRSTHDR(msg); cmsg; cmsg=CMSG_NXTHDR(msg, cmsg)) {
         switch (cmsg->cmsg_level) {
-            case SOL_SOCKET:
-                if (cmsg->cmsg_type == SCM_TIMESTAMPING) {
-                    struct timespec *tstamp;
-                    if (cmsg->cmsg_len < sizeof(struct cmsghdr)+3*sizeof(struct timespec)) {
-                        fprintf(stderr, "cmsg_len %zu tstamp %zu cmsghdr %zu\n",
-                                cmsg->cmsg_len, sizeof(struct timespec), sizeof(struct cmsghdr));
-                    } else {
-                        // we aligned msg.msg_control so the alignment should be okay here
-                        tstamp = (struct timespec *)CMSG_DATA(cmsg);
-                        printf("RX SW %ld.%09ld HW %ld.%09ld\n",
-                                tstamp[0].tv_sec, tstamp[0].tv_nsec,
-                                tstamp[2].tv_sec, tstamp[2].tv_nsec);
-                        p->recv_time = tstamp[0];
-                    }
-                }
-                break;
             case SOL_PACKET:
                 if (cmsg->cmsg_type == PACKET_AUXDATA) {
                     struct tpacket_auxdata *aux = (struct tpacket_auxdata *)CMSG_DATA(cmsg);
@@ -80,7 +62,7 @@ static struct Packet *eth_recv(struct Interface *iface)
     struct EthIfData *eid = iface->iface_private;
     (void)eid;
 
-    struct Packet *p = iface_common_recv(iface, msghdr_process, NULL);
+    struct Packet *p = iface_common_recv(iface, restore_vlan, NULL);
     if (p == NULL) return NULL;
     printf("eth %s recv %u\n", iface->name, p->len);
 
