@@ -856,6 +856,24 @@ static bool process_action(struct StageState *stst)
                 stst->headers = newheader;
             }
 
+            // set sequence number if the new header has such a field
+            int seq_field_idx = protocol_get_field_id_by_type(newheader->id, FT_TSNSEQ);
+            if (seq_field_idx >= 0) {
+                if (stst->seq_set) {
+                    struct ConfAction *writeseq = new_confaction(stst, CA_WRITESEQ, newaction->text);
+                    writeseq->d.meta.hdr = newheader;
+                    process_action(stst); // now writeseq is the newest action
+                } else {
+                    THROW("can't add header with undefined sequence number");
+                }
+            }
+
+            // set timestamp if the new header has such a field
+            int tstamp_field_idx = protocol_get_field_id_by_type(newheader->id, FT_TSNTSTAMP);
+            if (tstamp_field_idx >= 0) {
+                //TODO we need to init packet->timestamp from packet->recvtime
+                //      where do we do that?
+            }
 
             // split off the header assignments into a new edit action
             struct ConfAction *edit = new_confaction(stst, CA_EDIT, newaction->text);
