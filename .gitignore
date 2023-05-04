@@ -3,3 +3,6 @@ r2dtwo
 *.sw?
 tags
 build*
+.cache
+compile_commands.json
+test/__pycache__
