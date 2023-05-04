@@ -1,4 +1,6 @@
 
+TODO this document is out-of-date
+
 # Compiler for the Stream Properties
 
 This document is about the processing of the `:packet` and `:actions` lines of the *streams* section in the config. For the full documentation of the config see *inispec.md*.
