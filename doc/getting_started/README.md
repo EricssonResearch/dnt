@@ -53,9 +53,10 @@ usage: r2dtwo configfile
 
 # Test R2DTWO in a simple network environments
 
-For simplicity, in this guide we use standard linux tools to create our sandbox network.
-Advanced users can use real network topology for that, however make sure the NXP board properly initialized.
-__Please note:__ the configurations used in the scenarios identical to the NXP boards, so they can be used on those as well.
+For simplicity, in this guide we use standard linux tools to test R2DTWO in a sandbox network.
+Advanced users can use real network topology for that, however make sure the NXP boards properly initialized.
+
+__Please note:__ the R2DTWO configurations used in the scenarios identical to the NXP boards, so they can be used on those as well.
 But every scenario described here focusing on running R2DTWO on a single machine for simplicity.
 
 There are three scenario, you can find the details (`README.md`s) and relevant configs (network setup scripts and R2DTWO config `.ini`s) in their subfolders:

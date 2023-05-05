@@ -37,7 +37,7 @@ In the first scenario, we try out R2DTWO's IEEE 802.1CB FRER implementation.
 This utilize the FRER Redundancy Tag header with sequence numbers and operates in Layer 2.
 
 The configuration file for R2DTWO prepared in the this folder: `r2dtwo.ini`.
-This is a symmetrical configurations, reflecting the to the network topology above.
+This is a symmetrical configuration, reflecting the to the network topology above.
 In cases where the network setup not symmetrical, separate configs might required on each switch.
 
 ### Explanation of the configuration
@@ -59,13 +59,15 @@ nni2 = eth iface=swp1
 nni2:streams = stream_nni2
 ```
 
-The interfaces usually described by two lines: the first one define the interface itself, the next one with the `:streams` suffix is a list of streams, we are trying to identify.
-For each interface, we can define a meaningful custom name, will used in the rest of the config, type (in this case all of them `eth`), and their real names in Linux (`ip link`).
-In this example we use the names `uni`, `nni1` and `nni2` since these properly referring to their roles: User-Network Interface (`uni`) and Network-Network Interface (`nni1` and `nni2`).
-The matches of the listed streams (described in `streamname:match` line) applied to the packet sequentially, the first applicable match win, and the packet identified as part of that stream.
+The interfaces usually described by two lines: the first one define the interface itself, the next one with the `:streams` suffix is list of streams, we are trying to identify.
+Every received packet will be tested on the defined streams.
+The matches of the listed streams (described in `streamname:match` line) tested on the packet sequentially, the first applicable match win, and the packet identified as part of that stream.
 If none of the streams identified, the packet will be dropped.
 
 __Important:__ R2DTWO receive a copy of each packet! This is not a problem in many cases, but keep in mind in that case only the copy dropped by R2DTWO and the original packet continue its way in the Linux network stack.
+
+For each interface, we can define a meaningful custom name, will used in the rest of the config, type (in this case all of them `eth`), and their real names in Linux (`ip link`).
+In this example we use the names `uni`, `nni1` and `nni2` since these properly referring to their roles: User-Network Interface (`uni`) and Network-Network Interface (`nni1` and `nni2`).
 
 In the `r2dtwo.ini`'s `[interfaces]` section above we only have one stream candidate for each interface: `stream_uni`, `stream_nni1` and `stream_nni2`.
 These streams defined in the `[streams]` section of the config see below:
@@ -89,6 +91,7 @@ stream_nni2:actions = readseq rtag, seqrcvy, del rtag, del cvlan, send uni
 ```
 
 Each stream can described with three lines in `streamname:suffix` format. The stream names are custom identifiers, while the suffixes are the following:
+
 * `:packet` - the expected header structure in the frame. See the documentation for the supported headers.
 * `:match` - the expected header field values in the frame. See the documentation for the supported fields and their format.
 Matching of multiple headers and fields supported, but make sure all of them described int the `:packet` line!
@@ -113,13 +116,15 @@ For example the `replicate tx_nni1 tx_nni2` action above branching the pipeline 
 ```
 
 For the full list of the supported R2DTWO actions, their parameters and behavior please consult with the documentation.
-Right now, the packets matching in `stream_uni` will be processed as described below:
-0. The switch receive a packet on `eno0` interface, and since its an ethernet interface, R2DTWO apply a VLAN 0 tag (`cvaln`) on it by default
+
+Right now, the packets matching in `stream_uni` stream will be processed as described below as described in the `:actions` line:
+
+0. The switch receive a packet on `eno0` interface, and since its an ethernet interface, R2DTWO apply a VLAN 0 tag (named as `cvaln` in the config) on it by default
 1. The `seqgen` action gives a unique sequence number for each packet
 2. After the VLAN tag R2DTWO insert the FRER Redundancy-tag (R-tag) header
-3. The `writeseq` action insert the packet's sequence number to the R-tag's sequence field
+3. The `writeseq` action insert the packet's sequence number to the R-tag's sequence field. __This is optional, R2DTWO smart enough to put the sequence number implicitly into the R-tag__
 4. The `replicate` action do the packet copy and branches the action pipeline into two different paths
-5. On the two brances, there is an `edit` action set the VLAN ID-s to 100 an 200 then a `send` action which transmit the packets. Note that after the send action we can still process the packet further, however currently thats the last action in this particular config.
+5. On both branches, there is an `edit` action set the VLAN ID-s to 100 an 200 then a `send` action which transmit the packets. Note that after the send action we can still process the packet further, however currently that is the last action in this particular config.
 
 Lastly, there is an `[objects]` section.
 
@@ -138,12 +143,13 @@ Similarly, there is a __SeqRcvy__ instance called `seqrcvy` implements recovery 
 This maintain a history window which tells if a received packet's sequence number already seen or not. If not, accept it, if already seen drop it.
 For the dropped packets, the rest of the action pipeline not executed.
 
-### Run the R2DTWO and generate traffic
+
+## Run the R2DTWO and generate traffic
 
 Lets try out R2DTWO with this scenario.
 For that we need at least three terminal window: one for generate traffic (`talker`) and two for run R2DTWO instances on `nxp1` and `nxp2`.
 
-After opening the terminals, switch to `root` user and do the network config in each:
+After opening the terminals, switch to `root` user and do the network config in each with the `source env.sh` command:
 
 ```
 sudo su
@@ -151,16 +157,16 @@ sudo su
 source env.sh
 ```
 
-If everything OK, the prompt looks changed to `(tsn test) root:scenario1# `.
-Now we should have all the networking configured with helper commands.
+If everything OK, the prompt should be changed to `(tsn test) root:scenario1# ` which tells right now we are in the test network environment.
+Now we should have all the networking (nodes, interfaces and IP addresses) configured and helper commands to execute commands on the nodes.
 To run a command on a node (e.g. `talker` or `nxp1`, etc.) just prefix the command with its name:
 
 ```
-(tsn test) root:scenario1# talker ip -br a
+talker ip -br a
 lo               UNKNOWN        127.0.0.1/8 ::1/128 
 eth0@if2         UP             10.0.0.1/24 fe80::8c59:3ff:fe99:6204/64 
 
-(tsn test) root:scenario1# nxp1 ip -br a
+nxp1 ip -br a
 lo               UNKNOWN        127.0.0.1/8 ::1/128 
 eno0@if2         UP             fe80::60a6:45ff:febf:df30/64 
 swp0@if2         UP             fe80::9449:e9ff:fe8e:4c7c/64 
@@ -222,4 +228,6 @@ On the other path VLAN ID will be `200`, to investigate that start `tshark` as a
 
 Since every network configuration used in this guide sandboxed, we only have to exit from the sourced environment in every terminal window.
 To do that use the `exit` command or press `Ctrl+D`.
-The last terminal will clean up the network namespaces and every other network configuration related to the test environment.
+When we exit from the last environment, that will clean up the network namespaces and every other network configuration related to the test environment.
+
+__Important: do not run multiple test scenarios at the same time! Make sure you are exited from the test environment in every terminal before source a new environment in for a new test scenario!__
