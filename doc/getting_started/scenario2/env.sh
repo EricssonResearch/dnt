@@ -25,10 +25,10 @@ configure_networkenv() {
   ip netns add nxp1 2>/dev/null
   ip netns add nxp2 2>/dev/null
 
-  ip link add eth0 netns talker type veth peer eno0 netns nxp1
+  ip link add eno0 netns nxp1 type veth peer eth0 netns talker
   ip link add swp0 netns nxp1 type veth peer swp0 netns nxp2
   ip link add swp1 netns nxp1 type veth peer swp1 netns nxp2
-  ip link add eth0 netns listener type veth peer eno0 netns nxp2
+  ip link add eno0 netns nxp2 type veth peer eth0 netns listener
 
   # Configure the test environment inside the namespace
   talker ip link set dev lo up

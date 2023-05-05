@@ -5,7 +5,6 @@ alias nxp1="ip netns exec nxp1"
 alias nxp2="ip netns exec nxp2"
 
 ALIASES='alias talker="ip netns exec talker"; alias listener="ip netns exec listener"; alias nxp1="ip netns exec nxp1"; alias nxp2="ip netns exec nxp2"'
-export BASH_ALIASES
 
 if [ $(id -u) -ne 0 ]; then
   echo "Usage: run 'source env.sh' as root"
@@ -20,17 +19,16 @@ fi
 
 configure_networkenv() {
   echo "Initialize r2dtwo test environment"
-  export PS1="TSNoDetNet# "
   # Create the test namespace
   ip netns add talker 2>/dev/null
   ip netns add listener 2>/dev/null
   ip netns add nxp1 2>/dev/null
   ip netns add nxp2 2>/dev/null
 
-  ip link add eth0 netns talker type veth peer eno0 netns nxp1
+  ip link add eno0 netns nxp1 type veth peer eth0 netns talker
   ip link add swp0 netns nxp1 type veth peer swp0 netns nxp2
   ip link add swp1 netns nxp1 type veth peer swp1 netns nxp2
-  ip link add eth0 netns listener type veth peer eno0 netns nxp2
+  ip link add eno0 netns nxp2 type veth peer eth0 netns listener
 
   # Configure the test environment inside the namespace
   talker ip link set dev lo up
