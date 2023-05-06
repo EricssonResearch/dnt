@@ -37,6 +37,61 @@ static void remove_comments_from_values(struct IniSection *ini)
     }
 }
 
+static const char *find_duplicate_sections(struct IniSection *ini)
+{
+    bool ifs_found = false;
+    bool obj_found = false;
+    bool str_found = false;
+
+    struct IniSection *i = ini;
+    while (i) {
+        if (strcmp(i->name, "interfaces") == 0) {
+            if (ifs_found)
+                return "interfaces";
+            else
+                ifs_found = true;
+        }
+        if (strcmp(i->name, "objects") == 0) {
+            if (obj_found)
+                return "objects";
+            else
+                obj_found = true;
+        }
+        if (strcmp(i->name, "streams") == 0) {
+            if (str_found)
+                return "streams";
+            else
+                str_found = true;
+        }
+        i = i->next;
+    }
+
+    return NULL;
+}
+
+static const char *find_unknown_section(struct IniSection *ini)
+{
+    struct IniSection *i = ini;
+    while (i) {
+        if (strcmp(i->name, "interfaces") == 0) {
+            i = i->next;
+            continue;
+        }
+        if (strcmp(i->name, "objects") == 0) {
+            i = i->next;
+            continue;
+        }
+        if (strcmp(i->name, "streams") == 0) {
+            i = i->next;
+            continue;
+        }
+
+        return i->name;
+    }
+
+    return NULL;
+}
+
 struct R2d2Config *read_config(const char *filename)
 {
 #define THROW(msg, ...)                                             \
@@ -59,12 +114,21 @@ struct R2d2Config *read_config(const char *filename)
     struct IniSection *streams_sec = inisection_find_section(ini, "streams");
 
     if (interfaces_sec == NULL) {
-        THROW("no interfaces");
+        THROW("no interfaces section");
     }
     if (streams_sec == NULL) {
-        THROW("no streams");
+        THROW("no streams section");
     }
     // objects are optional
+
+    const char *sec_err = find_duplicate_sections(ini);
+    if (sec_err) {
+        THROW("section %s defined more than once", sec_err);
+    }
+    sec_err = find_unknown_section(ini);
+    if (sec_err) {
+        THROW("unknown section '%s'", sec_err);
+    }
 
     ret->ifaces = parse_interfaces(interfaces_sec, &ret->ifcount);
     if (ret->ifaces == NULL) {

@@ -9,10 +9,6 @@ Our INI parser deviates from the usual INI format by treating the keys as case-s
 
 There are 3 sections in the config: *interfaces*, *streams*, *objects*. The first two are mandatory. Each section can only be present once, their order is arbitrary.
 
-TODO currently we don't check if these sections only appear once...
-TODO currently we don't check if there are other sections...
-TODO these checks are easy to implement though...
-
 ## interfaces
 
 List of interfaces where we can send/receive packets. The keys of the items are the names of the interfaces, actions refer to interfaces by their names, and not by the hardware interface names. The values of the items are in the form of `iftype parameter=value [parameter=value]`. The *iftype* is mandatory. The valid parameters depend on the *iftype* of the interface. The currently supported interface types with their parameters are the following:
