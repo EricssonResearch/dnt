@@ -150,6 +150,7 @@ static value_producer *udpout_get_property_reader(const struct Interface *iface,
         unsigned bitcount = uid->family == AF_INET6 ? 128 : 32;
         if (target_type != ftype) {
             fprintf(stderr, "udpout_get_property_reader 'srcip' target type %d invalid\n", target_type);
+            return NULL;
         }
         if ((target->bitoffset % 8) || (target->bitcount != bitcount)) {
             fprintf(stderr, "udpout_get_property_reader 'srcip' target position %u %u invalid\n",

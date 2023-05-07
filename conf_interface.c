@@ -7,6 +7,7 @@
 
 #include "if_eth.h"
 #include "if_internal.h"
+#include "if_ip.h"
 #include "if_udp_in.h"
 #include "if_udp_out.h"
 
@@ -104,6 +105,10 @@ static int iface_cb(const char *key, void *value, void *userdata)
     } else if (strcmp(tstate.type, "internal") == 0) {
         if (!init_internal_interface(state->ifaces+state->i, key)) {
             THROW("failed to create internal interface");
+        }
+    } else if (strcmp(tstate.type, "ip") == 0) {
+        if (!init_ip_interface(state->ifaces+state->i, key, tstate.iface)) {
+            THROW("failed to create ip interface");
         }
     } else if (strcmp(tstate.type, "udp-in") == 0) {
         unsigned port = 6635;

@@ -172,7 +172,7 @@ static bool eth_open(struct Interface *iface)
                 return false;
             }
 
-            enable_rx_tstamp(sock, "eth rx", iface->ifname/*, HWTSTAMP_FILTER_ALL*/);
+            enable_rx_tstamp(sock, "eth", iface->ifname/*, HWTSTAMP_FILTER_ALL*/);
 
             // bind to device
             struct sockaddr_ll socket_address = {0};

@@ -13,13 +13,13 @@ CFLAGS += -Iinifile
 LFLAGS += -lpthread
 
 OBJECTS = main.o action.o delay.o header.o interface.o packet.o parsetree.o pipeline.o protocol.o utils.o
-OBJECTS += if_eth.o if_internal.o if_udp_in.o if_udp_out.o if_utils.o
+OBJECTS += if_eth.o if_internal.o if_ip.o if_udp_in.o if_udp_out.o if_utils.o
 OBJECTS += seq_gen.o seq_recov.o pof.o
 OBJECTS += configfile.o conf_actions.o conf_interface.o conf_object.o conf_packet.o conf_streams.o conf_utils.o
 OBJECTS += inifile/hashmap.o inifile/inifile.o
 
 HEADERS = action.h delay.h header.h interface.h packet.h parsetree.h pipeline.h protocol.h utils.h
-HEADERS += if_eth.h if_internal.h if_udp_in.h if_udp_out.h if_utils.h
+HEADERS += if_eth.h if_internal.h if_ip.h if_udp_in.h if_udp_out.h if_utils.h
 HEADERS += seq_gen.h seq_recov.h pof.h
 HEADERS += configfile.h conf_actions.h conf_interface.h conf_object.h conf_packet.h conf_streams.h conf_utils.h
 HEADERS += inifile/hashmap.h inifile/inifile.h inifile/iniutils.h

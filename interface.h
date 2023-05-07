@@ -13,8 +13,7 @@ struct ParseTree;
 
 enum IfaceType {
     IF_ETH = 1,
-    IF_IP4,
-    IP_IP6,
+    IF_IP,
     IF_UDP_IN,
     IF_UDP_OUT,
     IF_INTERNAL,

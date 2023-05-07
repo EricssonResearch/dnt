@@ -15,6 +15,8 @@ List of interfaces where we can send/receive packets. The keys of the items are 
 
 * `eth` raw ethernet interface intended to be a TSN UNI, valid parameters:
     * `iface` the name of the hardware interface
+* `ip` outging UNI for IP-over-DetNet (cannot receive packets), valid parameters:
+    * `iface` the name of the hardware interface
 * `udp-in` receiving end of an UDP tunnel (cannot send packets), valid parameters:
     * `iface` the name of the hardware interface
     * `port` the UDP port to listen on (default: 6635)
@@ -26,13 +28,12 @@ List of interfaces where we can send/receive packets. The keys of the items are 
     * `prio` the IPv4 TOS or IPv6 Traffic Class for the sent packets
 * `internal` a virtual interface within R2DTWO, useful for stream re-classification in decapsulating scenarios, no parameters
 
-TODO IP interface for DetNet UNI
-
 Each interface has an accompanying line with key `ifname:streams` that defines the streams received on that interface. The value for this key is a list of stream names separated by space. The ordering of the streams in this line determines the matching order when a received packet is processed. The interface drops all incoming packets if no streams are defined on it. One stream can be listed on multiple interfaces.
 
 Each interface can have read-only properties that can be used as right-hand-side expressions in edit actions in the form of `ifname.property`. The currently supported properties are:
 
 * eth: mac
+* ip: srcip
 * udp-in: srcip, port
 * udp-out: dstip, port
 * internal: (nothing)
