@@ -1,6 +1,8 @@
 
 # Specification for the new config file format
 
+TODO add examples to each section
+
 We use a simple INI format for the config. The INI format is not formally specified, and variations in syntax exist in the parser implementations. We expect the most basic variant: single-line key=value elements, any number of whitespace around the = sign, section headers with the [name] syntax, and we assume no ordering of the keys within a section. Comments start with '#' or ';' and last until the end of the line. Multi-line strings or comments are not supported.
 
 Our INI parser deviates from the usual INI format by treating the keys as case-sensitive. This is because originally it was designed to parse .desktop files, which have a standardized format and it is specified to be case-sensitive.
@@ -46,7 +48,7 @@ This section lists the packet streams that R2DTWO can receive, and the actions t
 
 This line specifies the expected header structure of the packet. The header list is separated by commas (,).
 
-The currently Known header types are:
+The currently known header types are:
 
 * eth
 * svlan
@@ -61,9 +63,9 @@ The currently Known header types are:
 * dcw
 * tcw
 
-The actions that manipulate the packet refer to the headers by their names. The name of the headers are their types by default. If the packet contains multiple headers of the same type, an alphanumeric suffix in the form of `headertype_identifier` can be used to distinguish them. The name of the header is the whole expression, the type is still the *headertype* part. The *identifier* strings are arbitrary. This distinguishing identifier can be omitted, if the duplicate headers are not referenced any action.
+The actions that manipulate the packet refer to the headers by their names. The name of the headers are their types by default. If the packet contains multiple headers of the same type, an alphanumeric suffix in the form of `headertype_identifier` can be used to distinguish them. The name of the header is the whole expression, the type is still the *headertype* part. The *identifier* strings are arbitrary. This distinguishing identifier can be omitted, if the duplicate headers are not referenced any action or match.
 
-Anything after the last specified header is considered `payload`. If the last header before the `payload` specifies the type of the next header, then the type of the payload will be handled correctly (e.g. when adding a new header just before the payload, and setting the nextheader field of the header), but no action can manipulate the `payload` directly.
+All headers must be specified in the `packet` line that are to be used in the `match` or `actions` line. The packet is only processed until the last header defined in the `packet` line, and the rest of the packet is considered `payload` that cannot be manipulated by the actions. If the last header before the `payload` specifies the type of the next header, then the type of the payload will be handled correctly (e.g. when adding a new header just before the payload, and setting the nextheader field of the header), but no action can manipulate the `payload` directly.
 
 ### match
 
@@ -80,7 +82,7 @@ If there is no matching stream for an incoming packet, the action is `drop`.
 
 This line specifies the processing actions that must be run on the received packet that matches the corresponding *packet* and *match* lines. The actions in the list are separated by commas (,), and they are executed in the given order.
 
-The actions are the following:
+The available actions are the following:
 
 * `{before|after} header add newheader fieldname=fieldvalue` adds a new header of type `newheader` with the given field values at the given position
     * if the header has a nextheader field, it will be filled with the correct type code automatically
@@ -113,30 +115,34 @@ When the parameter of an action is a header field, it is given in this form: `he
 
 When the parameter of an action is time, it is always interpreted as milliseconds.
 
-For actions that use stateful objects the name of the action can be omitted, because the type of the object determines the name of the action. These actions are the following: eliminate (sequence recovery object), pof (pof object), seqgen (sequence generator object). Similarly, the `jump` action can be used by only specifying the name of the action pipeline to jump to.
+For actions that use stateful objects the name of the action can be omitted, because the type of the object determines the action. These actions are the following: eliminate (sequence recovery object), pof (pof object), seqgen (sequence generator object). Similarly, the `jump` action can be used by only specifying the name of the action pipeline to jump to.
 
-When the action pipeline is finished, the memory used for the packet is automatically reclaimed, there is no need to explicitly drop it with the `drop` action.
+When the action pipeline is finished, the memory used for the packet is automatically reclaimed.
 
 ## objects
 
-This section instantiates the stateful objects that can be referenced by name in the action pipelines of the streams. The instantiation is in this format: `name = type parameter=value [parameter=value]`. The valid parameter names and their valid values depend on the type of the object. The currently known object types are:
+This section instantiates the stateful objects that implement TSN/DetNet functionalities. They can be referenced by name in the action pipelines of the streams. Each object type has a corresponding action that uses it. One object can be referenced by multiple actions, in that case they share their state.
 
-* `SeqGen` sequence number generator
+The object instantiation is in this format: `name = type parameter=value [parameter=value]`. The valid parameter names and their valid values depend on the type of the object. The currently known object types are:
+
+* `SeqGen` sequence number generator (for `seqgen` action)
     * InitSeqFlag
     * InitSeqStart
     * ResetFlag
-* `SeqRec` sequence number recovery
+* `SeqRec` sequence number recovery (for `eliminate` action)
     * frerSeqRcvyAlgorithm
     * frerSeqRcvyHistoryLength
     * frerSeqRcvyLatentErrorPaths
     * frerSeqRcvyResetMsec
     * InitSeqFlag
     * ResetFlag
-* `Pof` packet ordering function
+* `Pof` packet ordering function (for `pof` action)
     * BufferSize
     * MaxDelay
     * TakeAnyTime
 
 All of these objects work on the metadata of the packet instead of the header fields.
+
+When the parameter of an object is time, it is always interpreted as milliseconds.
 
 
