@@ -49,6 +49,8 @@ static void recv_loop(struct Interface *ifaces, unsigned iface_count)
     }
 
     for (unsigned i=0; i<iface_count; i++) {
+        if (ifaces[i].recvfd == 0) continue;
+
         struct epoll_event ev;
         ev.events = EPOLLIN;
         ev.data.ptr = &ifaces[i];

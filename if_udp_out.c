@@ -17,6 +17,7 @@
 #include <netdb.h> /* getaddrinfo() */
 
 struct UdpOutIfData {
+    int sock;
     int ifindex;
     int mtu;
     unsigned port;
@@ -41,8 +42,9 @@ static struct Packet *udpout_recv(struct Interface *iface)
 
 static bool udpout_send(struct Interface *iface, struct Packet *p)
 {
+    struct UdpOutIfData *uid = iface->iface_private;
     // our socket is connected, so no dst
-    return iface_common_send(iface, p, iface->recvfd, NULL, 0);
+    return iface_common_send(iface, p, uid->sock, NULL, 0);
 }
 
 static bool udpout_open(struct Interface *iface)
@@ -52,48 +54,49 @@ static bool udpout_open(struct Interface *iface)
         fprintf(stderr, "open udp-out interface %s: already opened\n", iface->name);
         return false;
     }
+    int sock = uid->sock;
 
     struct ifreq if_mtu, if_idx;
     memset(&if_mtu, 0, sizeof(struct ifreq));
     memset(&if_idx, 0, sizeof(struct ifreq));
     strncpy(if_mtu.ifr_name, iface->ifname, strlen(iface->ifname));
     strncpy(if_idx.ifr_name, iface->ifname, strlen(iface->ifname));
-    if (ioctl(iface->recvfd, SIOCGIFMTU, &if_mtu) < 0) {
+    if (ioctl(sock, SIOCGIFMTU, &if_mtu) < 0) {
         perror("udp-out SIOCGIFMTU");
         return false;
     }
-    if (ioctl(iface->recvfd, SIOCGIFINDEX, &if_idx) < 0) {
+    if (ioctl(sock, SIOCGIFINDEX, &if_idx) < 0) {
         perror("udp-out SIOCGIFINDEX");
         return false;
     }
     uid->mtu = if_mtu.ifr_mtu;
     uid->ifindex = if_idx.ifr_ifindex;
 
-    if (setsockopt(iface->recvfd, SOL_SOCKET, SO_BINDTODEVICE, iface->ifname, strlen(iface->ifname)) < 0) {
+    if (setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, iface->ifname, strlen(iface->ifname)) < 0) {
         perror("udp-out setsockopt SO_BINDTODEVICE");
         return false;
     }
 
     if (uid->family == AF_INET6) {
         int tos = (uid->priority & 7) << 5;
-        if (setsockopt(iface->recvfd, IPPROTO_IPV6, IPV6_TCLASS, &tos, sizeof(int)) < 0) {
+        if (setsockopt(sock, IPPROTO_IPV6, IPV6_TCLASS, &tos, sizeof(int)) < 0) {
             perror("udp-out setsockopt IPV6_TCLASS");
             return false;
         }
     } else {
         int tos = (uid->priority & 7) << 5;
-        if (setsockopt(iface->recvfd, IPPROTO_IP, IP_TOS, &tos, sizeof(int)) < 0) {
+        if (setsockopt(sock, IPPROTO_IP, IP_TOS, &tos, sizeof(int)) < 0) {
             perror("udp-out setsockopt IP_TOS");
             return false;
         }
     }
 
-    if (setsockopt(iface->recvfd, SOL_SOCKET, SO_PRIORITY, &uid->priority, sizeof(int)) < 0) {
+    if (setsockopt(sock, SOL_SOCKET, SO_PRIORITY, &uid->priority, sizeof(int)) < 0) {
         perror("udp-out setsockopt SO_PRIORITY");
         return false;
     }
 
-    if (setsockopt(iface->recvfd, SOL_SOCKET, SO_BINDTODEVICE, iface->ifname, strlen(iface->ifname)) < 0) {
+    if (setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, iface->ifname, strlen(iface->ifname)) < 0) {
         perror("udp-out setsockopt SO_BINDTODEVICE");
         return false;
     }
@@ -105,7 +108,7 @@ static bool udpout_open(struct Interface *iface)
 static bool udpout_close(struct Interface *iface)
 {
     struct UdpOutIfData *uid = iface->iface_private;
-    close(iface->recvfd);
+    close(uid->sock);
     free(uid);
     return true;
 }
@@ -212,11 +215,11 @@ bool init_udp_out_interface(struct Interface *iface, const char *name, const cha
         return false;
     }
 
-    iface->recvfd = sock;
     iface->state = IFS_INIT;
 
     struct UdpOutIfData *uid = calloc_struct(UdpOutIfData);
     iface->iface_private = uid;
+    uid->sock = sock;
     uid->port = port;
     uid->family = rp->ai_family;
     if (uid->family == AF_INET6) {
