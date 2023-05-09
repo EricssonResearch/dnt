@@ -871,8 +871,9 @@ static bool process_action(struct StageState *stst)
             // set timestamp if the new header has such a field
             int tstamp_field_idx = protocol_get_field_id_by_type(newheader->id, FT_TSNTSTAMP);
             if (tstamp_field_idx >= 0) {
-                //TODO we need to init packet->timestamp from packet->recvtime
-                //      where do we do that?
+                struct ConfAction *writets = new_confaction(stst, CA_WRITETSTAMP, newaction->text);
+                writets->d.meta.hdr = newheader;
+                process_action(stst); // now writets is the newest action
             }
 
             // split off the header assignments into a new edit action

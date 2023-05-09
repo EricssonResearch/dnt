@@ -2,6 +2,7 @@
 #include "if_utils.h"
 #include "interface.h"
 #include "packet.h"
+#include "time_utils.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -120,6 +121,8 @@ struct Packet *iface_common_recv(struct Interface *iface, msghdr_process_cb *msg
     }
 
     get_rx_tstamp(&msg, p, userdata);
+
+    timespec_to_tsntstamp(p->timestamp, &p->recv_time);
 
     if (msg_cb)
         msg_cb(&msg, p, userdata);
