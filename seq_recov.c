@@ -143,7 +143,7 @@ static bool recover(struct SequenceRecovery *rec, unsigned packet_seq)
 
 static bool vector_seq_recovery(struct SequenceRecovery *rec, struct Packet *p)
 {
-    unsigned packet_seq = ntohl(p->sequence) & 0xffff;
+    unsigned packet_seq = ntohl(p->sequence);
     return recover(rec, packet_seq);
 }
 
