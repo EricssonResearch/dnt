@@ -38,6 +38,9 @@ inifile/%.o : inifile/%.c $(HEADERS)
 $(EXE): $(OBJECTS)
 	$(CC) $^ -o $@ $(LFLAGS)
 
+install: $(EXE)
+	cp $(EXE) /usr/local/bin
+
 .PHONY: clean
 clean:
 	rm -f *.o
