@@ -1,11 +1,13 @@
 
-# Specification for the new config file format
+# Specification for the config file format of R2DTWO 6.0 and above
 
 TODO add examples to each section
 
 We use a simple INI format for the config. The INI format is not formally specified, and variations in syntax exist in the parser implementations. We expect the most basic variant: single-line key=value elements, any number of whitespace around the = sign, section headers with the [name] syntax, and we assume no ordering of the keys within a section. Comments start with '#' or ';' and last until the end of the line. Multi-line strings or comments are not supported.
 
 Our INI parser deviates from the usual INI format by treating the keys as case-sensitive. This is because originally it was designed to parse .desktop files, which have a standardized format and it is specified to be case-sensitive.
+
+The format of the values given in the config file depend on the type of the parameter or the header field.  Regular numbers can be given in decimal or hexadecimal form. Booleans can be given as true/false, yes/no, 1/0. Time values don't have units, they are always interpreted as milliseconds. Ethernet, IPv4 and IPv6 addresses must be given in their usual form.
 
 ## Sections
 
@@ -27,7 +29,7 @@ List of interfaces where we can send/receive packets. The keys of the items are 
     * `iface` the name of the hardware interface
     * `port` the UDP port to send to (default: 6635)
     * `dstip` the IP address to send to (also determines the IP version, domain names are also accepted)
-    * `prio` the IPv4 TOS or IPv6 Traffic Class for the sent packets
+    * `prio` the IPv4 TOS or IPv6 Traffic Class for the sent packets (default: 0)
 * `internal` a virtual interface within R2DTWO, useful for stream re-classification in decapsulating scenarios, no parameters
 
 Each interface has an accompanying line with key `ifname:streams` that defines the streams received on that interface. The value for this key is a list of stream names separated by space. The ordering of the streams in this line determines the matching order when a received packet is processed. The interface drops all incoming packets if no streams are defined on it. One stream can be listed on multiple interfaces.
@@ -39,6 +41,20 @@ Each interface can have read-only properties that can be used as right-hand-side
 * udp-in: srcip, port
 * udp-out: dstip, port
 * internal: (nothing)
+
+Example for a DetNet scenario:
+
+```
+[interfaces]
+
+ifUNIin = eth iface=enp3s0
+ifUNIout = ip iface=enp3s0
+ifNNIin = udp-in iface=enp4s0 ipv=6
+ifNNIout = udp-out iface=enp4s0 dstip=fd03::11
+
+ifUNIin:streams = user_in
+ifNNIin:streams = tunnel_in
+```
 
 ## streams
 
@@ -113,11 +129,23 @@ It is possible to define action pipelines in the *streams* section that are not 
 
 When the parameter of an action is a header field, it is given in this form: `headername.fieldname`, some actions only need the header name, and they automatically select the correct field by its type.
 
-When the parameter of an action is time, it is always interpreted as milliseconds.
-
 For actions that use stateful objects the name of the action can be omitted, because the type of the object determines the action. These actions are the following: eliminate (sequence recovery object), pof (pof object), seqgen (sequence generator object). Similarly, the `jump` action can be used by only specifying the name of the action pipeline to jump to.
 
-When the action pipeline is finished, the memory used for the packet is automatically reclaimed.
+When the action pipeline is finished, the memory used for the packet is automatically reclaimed, there is no need to explicitly drop it with the `drop` action. The `drop` action can be used to explicitly filter out certain types of packets.
+
+Example for a DetNet scenario:
+
+```
+[streams]
+
+user_in:packet = eth, cvlan, ipv6
+user_in:match = ipv6.dst=fd03::42
+user_in:actions = del eth, del cvlan, send ifNNIout
+
+tunnel_in:packet = mpls, dcw, ipv6
+tunnel_in:match = mpls.label=42
+tunnel_in:actions = readseq dcw, seq_rcvy2, del mpls, del dcw, send ifUNIout
+```
 
 ## objects
 
@@ -126,23 +154,27 @@ This section instantiates the stateful objects that implement TSN/DetNet functio
 The object instantiation is in this format: `name = type parameter=value [parameter=value]`. The valid parameter names and their valid values depend on the type of the object. The currently known object types are:
 
 * `SeqGen` sequence number generator (for `seqgen` action)
-    * InitSeqFlag
-    * InitSeqStart
-    * ResetFlag
+    * InitSeqFlag use the Init flag (seamless mode)
+    * InitSeqStart the starting sequence number (default: 0x8000)
+    * ResetFlag use the Reset flag (seamless mode)
 * `SeqRec` sequence number recovery (for `eliminate` action)
-    * frerSeqRcvyAlgorithm
-    * frerSeqRcvyHistoryLength
-    * frerSeqRcvyLatentErrorPaths
-    * frerSeqRcvyResetMsec
-    * InitSeqFlag
-    * ResetFlag
+    * frerSeqRcvyAlgorithm can be Vector (default), SeamlessVector, Match
+    * frerSeqRcvyHistoryLength size of the history window (default: 512)
+    * frerSeqRcvyLatentErrorPaths elimination path count (default: 2)
+    * frerSeqRcvyResetMsec silence detection timout (default: 2000)
+    * InitSeqFlag whether to use the Init flag (seamless mode)
+    * ResetFlag use the Reset flag (seamless mode)
 * `Pof` packet ordering function (for `pof` action)
-    * BufferSize
-    * MaxDelay
-    * TakeAnyTime
+    * BufferSize max number of packets in the reorder buffer (default: 512)
+    * MaxDelay timeout when waiting for missing packet (default: 5)
+    * TakeAnyTime initial time for sequencing (default: 500)
 
 All of these objects work on the metadata of the packet instead of the header fields.
 
-When the parameter of an object is time, it is always interpreted as milliseconds.
+Example for a DetNet scenario:
 
+```
+[objects]
 
+seq_rcvy2 = SeqRcvy frerSeqRcvyAlgorithm=Vector frerSeqRcvyHistoryLength=1993
+```
