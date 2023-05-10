@@ -241,6 +241,12 @@ static int iface_stream_cb(const char *key, void *value, void *userdata)
     if (is == NULL)
         return 1;
 
+    // verify that there is no garbage after :streams
+    if (is-key != (long int)strlen(key) - 8) {
+        fprintf(stderr, "interface streams '%s' invalid\n", key);
+        return 0;
+    }
+
     // find the interface
     char *ifname = strndup(key, is-key);
     struct Interface *iface = NULL;
