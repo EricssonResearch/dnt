@@ -27,7 +27,8 @@ List of interfaces where we can send/receive packets. The keys of the items are 
     * `ipv` the IP version, can be 4 or 6 (default: 4)
 * `udp-out` sending end of an UDP tunnel (cannot receive packets), valid parameters:
     * `iface` the name of the hardware interface
-    * `port` the UDP port to send to (default: 6635)
+    * `srcport` the UDP source port of the sent packets (default: let Linux choose)
+    * `dstport` the UDP port to send to (default: 6635)
     * `dstip` the IP address to send to (also determines the IP version, domain names are also accepted)
     * `prio` the IPv4 TOS or IPv6 Traffic Class for the sent packets (default: 0)
 * `internal` a virtual interface within R2DTWO, useful for stream re-classification in decapsulating scenarios, no parameters
@@ -39,7 +40,7 @@ Each interface can have read-only properties that can be used as right-hand-side
 * eth: mac
 * ip: srcip
 * udp-in: srcip, port
-* udp-out: dstip, port
+* udp-out: dstip, srcport, dstport
 * internal: (nothing)
 
 Example for a DetNet scenario:

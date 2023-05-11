@@ -138,17 +138,26 @@ static int iface_cb(const char *key, void *value, void *userdata)
             THROW("failed to create udp-in interface");
         }
     } else if (strcmp(tstate.type, "udp-out") == 0) {
-        unsigned port = 6635;
+        unsigned srcport = 0;
+        unsigned dstport = 6635;
         unsigned priority = 0;
         unsigned u;
         char err;
-        char *port_str = hashmap_find(tstate.params, "port");
+        char *port_str = hashmap_find(tstate.params, "srcport");
         if (port_str) {
             if (sscanf(port_str, "%i%c", &u, &err) != 1)
-                THROW("port '%s' is invalid", port_str);
+                THROW("srcport '%s' is invalid", port_str);
             if (u > 0xffff)
-                THROW("port '%s' is invalid", port_str);
-            port = u;
+                THROW("srcport '%s' is invalid", port_str);
+            srcport = u;
+        }
+        port_str = hashmap_find(tstate.params, "dstport");
+        if (port_str) {
+            if (sscanf(port_str, "%i%c", &u, &err) != 1)
+                THROW("dstport '%s' is invalid", port_str);
+            if (u > 0xffff)
+                THROW("dstport '%s' is invalid", port_str);
+            dstport = u;
         }
         char *dst_ip = hashmap_find(tstate.params, "dstip");
         if (dst_ip == NULL) {
@@ -164,7 +173,7 @@ static int iface_cb(const char *key, void *value, void *userdata)
         if (tstate.iface == NULL) {
             THROW("hw interface is unspecified");
         }
-        if (!init_udp_out_interface(state->ifaces+state->i, key, tstate.iface, port, dst_ip, priority)) {
+        if (!init_udp_out_interface(state->ifaces+state->i, key, tstate.iface, srcport, dst_ip, dstport, priority)) {
             THROW("failed to create udp-out interface");
         }
     } else {

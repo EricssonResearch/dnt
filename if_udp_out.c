@@ -20,7 +20,8 @@ struct UdpOutIfData {
     int sock;
     int ifindex;
     int mtu;
-    unsigned port;
+    unsigned sport;
+    unsigned dport;
     int family;
     unsigned priority;
     union {
@@ -72,11 +73,6 @@ static bool udpout_open(struct Interface *iface)
     uid->mtu = if_mtu.ifr_mtu;
     uid->ifindex = if_idx.ifr_ifindex;
 
-    if (setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, iface->ifname, strlen(iface->ifname)) < 0) {
-        perror("udp-out setsockopt SO_BINDTODEVICE");
-        return false;
-    }
-
     if (uid->family == AF_INET6) {
         int tos = (uid->priority & 7) << 5;
         if (setsockopt(sock, IPPROTO_IPV6, IPV6_TCLASS, &tos, sizeof(int)) < 0) {
@@ -113,11 +109,19 @@ static bool udpout_close(struct Interface *iface)
     return true;
 }
 
-static void udpout_port_producer(void *state, value_consumer *consumer, void *consumer_state, struct Packet *p)
+static void udpout_srcport_producer(void *state, value_consumer *consumer, void *consumer_state, struct Packet *p)
 {
     struct Interface *iface = state;
     struct UdpOutIfData *uid = iface->iface_private;
-    struct Value val = {&uid->port, 0, 2*8};
+    struct Value val = {&uid->sport, 0, 2*8};
+    consumer(consumer_state, &val, p);
+}
+
+static void udpout_dstport_producer(void *state, value_consumer *consumer, void *consumer_state, struct Packet *p)
+{
+    struct Interface *iface = state;
+    struct UdpOutIfData *uid = iface->iface_private;
+    struct Value val = {&uid->dport, 0, 2*8};
     consumer(consumer_state, &val, p);
 }
 
@@ -134,17 +138,28 @@ static value_producer *udpout_get_property_reader(const struct Interface *iface,
 {
     struct UdpOutIfData *uid = iface->iface_private;
 
-    if (strcmp(property, "port") == 0) {
+    if (strcmp(property, "srcport") == 0) {
         if (target_type != FT_NUMBER) {
-            fprintf(stderr, "udpout_get_property_reader 'port' target type %d invalid\n", target_type);
+            fprintf(stderr, "udpout_get_property_reader 'srcport' target type %d invalid\n", target_type);
             return NULL;
         }
         if ((target->bitoffset % 8) || (target->bitcount != 2*8)) {
-            fprintf(stderr, "udpout_get_property_reader 'port' target position %u %u invalid\n",
+            fprintf(stderr, "udpout_get_property_reader 'srcport' target position %u %u invalid\n",
                     target->bitoffset, target->bitcount);
             return NULL;
         }
-        return udpout_port_producer;
+        return udpout_srcport_producer;
+    } else if (strcmp(property, "dstport") == 0) {
+        if (target_type != FT_NUMBER) {
+            fprintf(stderr, "udpout_get_property_reader 'dstport' target type %d invalid\n", target_type);
+            return NULL;
+        }
+        if ((target->bitoffset % 8) || (target->bitcount != 2*8)) {
+            fprintf(stderr, "udpout_get_property_reader 'dstport' target position %u %u invalid\n",
+                    target->bitoffset, target->bitcount);
+            return NULL;
+        }
+        return udpout_dstport_producer;
     } else if (strcmp(property, "dstip") == 0) {
         enum ProtocolFieldType ftype = uid->family == AF_INET6 ? FT_IPV6ADDRESS : FT_IPV4ADDRESS;
         unsigned bitcount = uid->family == AF_INET6 ? 128 : 32;
@@ -165,7 +180,7 @@ static value_producer *udpout_get_property_reader(const struct Interface *iface,
 }
 
 bool init_udp_out_interface(struct Interface *iface, const char *name, const char *ifname,
-        unsigned port, const char *dst_ip, unsigned priority)
+        unsigned src_port, const char *dst_ip, unsigned dst_port, unsigned priority)
 {
     printf("init_udp_out_interface %s %s\n", name, ifname);
     bzero(iface, sizeof(*iface));
@@ -185,7 +200,7 @@ bool init_udp_out_interface(struct Interface *iface, const char *name, const cha
     //      this is checked between init and open!
 
     char port_str[15];
-    sprintf(port_str, "%u", port);
+    sprintf(port_str, "%u", dst_port);
     struct addrinfo hints;
     struct addrinfo *result, *rp;
     bzero(&hints, sizeof(hints));
@@ -204,6 +219,41 @@ bool init_udp_out_interface(struct Interface *iface, const char *name, const cha
         sock = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
         if (sock < 0) continue;
 
+        if (setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, ifname, strlen(ifname)) < 0) {
+            perror("udp-out setsockopt SO_BINDTODEVICE");
+            close(sock);
+            sock = -1;
+            continue;
+        }
+
+        if (src_port) {
+            if (rp->ai_family == AF_INET6) {
+                struct sockaddr_in6 addr6;
+                memset(&addr6, 0, sizeof(addr6));
+                addr6.sin6_family = AF_INET6;
+                addr6.sin6_addr = in6addr_any;
+                addr6.sin6_port = htons(src_port);
+                if (bind(sock, (struct sockaddr*)&addr6, sizeof(addr6)) < 0) {
+                    perror("udp-out bind sock udp6");
+                    close(sock);
+                    sock = -1;
+                    continue;
+                }
+            } else {
+                struct sockaddr_in addr;
+                memset(&addr, 0, sizeof(addr));
+                addr.sin_family = AF_INET;
+                addr.sin_addr.s_addr = htonl(INADDR_ANY);
+                addr.sin_port = htons(src_port);
+                if (bind(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+                    perror("udp-out bind sock udp");
+                    close(sock);
+                    sock = -1;
+                    continue;
+                }
+            }
+        }
+
         if (connect(sock, rp->ai_addr, rp->ai_addrlen) == 0) break;
         perror("udp-out connect");
         close(sock);
@@ -221,7 +271,8 @@ bool init_udp_out_interface(struct Interface *iface, const char *name, const cha
     struct UdpOutIfData *uid = calloc_struct(UdpOutIfData);
     iface->iface_private = uid;
     uid->sock = sock;
-    uid->port = port;
+    uid->sport = src_port;
+    uid->dport = dst_port;
     uid->family = rp->ai_family;
     if (uid->family == AF_INET6) {
         uid->dstip.v6 = ((struct sockaddr_in6*)(rp->ai_addr))->sin6_addr;

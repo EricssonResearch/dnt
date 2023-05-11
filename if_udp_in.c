@@ -138,7 +138,7 @@ static bool udpin_open(struct Interface *iface)
         addr6.sin6_port = htons(uid->port);
         if (bind(sock, (struct sockaddr*)&addr6, sizeof(addr6)) < 0) {
             perror("udp-in bind sock udp6");
-            return -1;
+            return false;
         }
     } else {
         struct sockaddr_in addr;
@@ -148,7 +148,7 @@ static bool udpin_open(struct Interface *iface)
         addr.sin_port = htons(uid->port);
         if (bind(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
             perror("udp-in bind sock udp");
-            return -1;
+            return false;
         }
     }
 
