@@ -8,6 +8,7 @@
 #include "parsetree.h"
 #include "pipeline.h"
 #include "protocol.h"
+#include "time_utils.h"
 #include "version.h"
 
 #include <stdio.h>
@@ -60,6 +61,8 @@ static void recv_loop(struct Interface *ifaces, unsigned iface_count)
         }
     }
 
+    struct timespec last_perfcheck_time;
+    clock_gettime(CLOCK_REALTIME, &last_perfcheck_time);
     struct epoll_event events[MAX_EVENTS];
     while (sigint_count == 0) {
         int nfds = epoll_wait(epollfd, events, MAX_EVENTS, -1);
@@ -90,6 +93,16 @@ static void recv_loop(struct Interface *ifaces, unsigned iface_count)
                 // the iterator deletes itself when it's done
                 pipe_iterator_run(pi);
             }
+        }
+
+        struct timespec now, diff;
+        clock_gettime(CLOCK_REALTIME, &now);
+        timespecsub(&now, &last_perfcheck_time, &diff);
+        unsigned diff_msec;
+        timespec_to_msec(diff_msec, &diff);
+        if (diff_msec > 2000) {
+            packets_check_performance();
+            last_perfcheck_time = now;
         }
     }
 }

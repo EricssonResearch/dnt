@@ -83,4 +83,7 @@ void packet_del_header(struct Packet *p, unsigned idx);
 // remove all headers from @p->headers
 void packet_clear_headers(struct Packet *p);
 
+// prints a warning if there are too many packets in the system
+void packets_check_performance(void);
+
 #endif // R2_PACKET_H

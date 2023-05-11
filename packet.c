@@ -157,4 +157,12 @@ void packet_clear_headers(struct Packet *p)
     p->header_count = 0;
 }
 
-
+void packets_check_performance(void)
+{
+    if (packet_count > PACKET_COUNT_LIMIT * 0.8) {
+        fprintf(stderr, "\033[0;31mPERFORMANCE WARNING: too many packets in the system\033[0m\n");
+    } else if (packet_count > PACKET_COUNT_LIMIT * 0.5) {
+        fprintf(stderr, "\033[0;33mPERFORMANCE WARNING: too many packets in the system\033[0m\n");
+    }
+    //else fprintf(stderr, "\033[0;32mPERFORMANCE okay\033[0m\n");
+}
