@@ -20,7 +20,7 @@ We will use the following topology, which consist:
 │          │    │                  │         │                  │    │          │
 │          │    │                  │         │                  │    │          │
 │          │    │                  │         │                  │    │          │
-│    eth0 ─┼────┼─ eno0            │         │            eno0 ─┼────┼─ eth0    │
+│    eth0 ─┼────┼─ swp2            │         │            swp2 ─┼────┼─ eth0    │
 10.0.100.11│    │ 10.0.100.1       │         │       10.0.200.1 │    10.0.200.22│
 │          │    │                  │         │                  │    │          │
 │          │    │                  │         │                  │    │          │
@@ -67,9 +67,9 @@ Since we can receive Ethernet packets and there is the `del` action to remove th
 
 ```
 [interfaces]
-uni_eth = eth iface=eno0
+uni_eth = eth iface=swp2
 uni_eth:streams = stream_uni_eth
-uni_ip = ip iface=eno0
+uni_ip = ip iface=swp2
 ...
 ```
 
@@ -154,19 +154,71 @@ That means it will generate an ICMP error message and send it back to the talker
 
 However, since the Layer2 frame of the ping packet sent by the talker handled by R2DTWO and properly transmitted to the listener, we will receive a reply for that.
 
-A workaround to avoid the misleading destination unreachable ICMP errors, is to drop them.
-For example we can drop any __type 3 (destination unreachable)__ error before sending them to the talker at the UNI interface (`eno0`):
+In fact, the root of the problem is the bad configuration.
+If one can read the document carefully, the recommended way to use R2DTWO in IP over DetNet scenario is to use together with OvS or Linux TC.
+With those tools, we can do the following:
+
+1. Configure TC or OvS rules on the ingress interface, matching on the traffic expected in stream(s) defined in R2DTWO
+2. Redirect the matching packets to a virtual interface, like veth which defined as UNI in the R2DTWO config
+3. Let the Linux network stack handle the background traffic
+
+This can be visualized on the figure below:
 
 ```
-nxp1 iptables -A OUTPUT -o eno0 -p icmp --icmp-type destination-unreachable -j DROP
+                                R2DTWO
+                              ┌────────────────────────────┐
+                              │                            │
+                              │                            │
+                              │                            │
+                              │ ┌───────┐                  │
+                              │ │r2veth1│ ◄─── uni         │
+                              │ └───┬───┘                  │
+                              │     │                      │
+                              │     │                      │
+                              └─────┼──────────────────────┘
+                                    │
+                                    │
+                                ┌───┴───┐
+                                │r2veth0│
+                                └───────┘
+                                    ▲
+                                    │Stream(s)
+  Streams +   ┌──────────────┐      │traffic
+  background  │              ├──────┘
+   traffic    │     swp2     │
+──────────────►  10.0.100.1  ├────────────────►
+              └──────────────┘   Background
+                                   traffic
 ```
 
-After that `iptables` drop rule, the misleading ICMP errors will be dropped.
+So we have to edit the config files to use the interfaces dedicated to R2DTWO traffic only:
 
-__Important__: one can notice that in R2DTWO there are packets with the following error `no pipeline found for packet on uni_eth, unknown stream`.
-This is normal, since R2DTWO receive a __copy from the ARP packets__, however we let the Linux handle the original packet (and generate the ARP reply eventually).
-If one can ever experience duplicate ping replies or such kind of unknown stream packets, there are high chance R2DTWO and Linux both handled the packet.
+```
+uni_eth = eth iface=r2veth1
+```
 
+Then modify the networking accordingly:
+
+```
+# Add veth UNI interfaces
+nxp1 ip link add r2veth0 type veth peer name r2veth1
+nxp2 ip link add r2veth0 type veth peer name r2veth1
+
+# Turn on ingress filtering to the UNI interfaces
+nxp1 tc qdisc add dev swp2 handle ffff: ingress
+nxp2 tc qdisc add dev swp2 handle ffff: ingress
+
+# Redirect stream traffic (IPv4 with the good source/destination) to R2DTWO
+nxp1 tc filter add dev swp2 parent ffff: protocol ip flower src_ip 10.0.100.11 action mirred egress redirect dev r2veth0
+nxp2 tc filter add dev swp2 parent ffff: protocol ip flower src_ip 10.0.200.22 action mirred egress redirect dev r2veth0
+```
+
+With this configuration, the ICMP errors will disappears, since the `r2veth1` interface dont have IP address so no routing or any other Layer3 operation will be skipped by the Linux networking.
+
+In the example above, we used the Linux's built-in _Traffic Control_ subsystem and `tc filter` to separate the background and time sensitive traffic, however one can do it with Open vSwitch as well.
+
+__Note that__ this idea can be used in other cases as well, when we want to pre-filter the traffic.
+This is beneficial, since background traffic will by dropped by R2DTWO anyway, lack of matching packets, consuming CPU resources.
 
 ## Optional: Cleanup (if running locally, not on physical NXP boards)
 

@@ -20,7 +20,7 @@ We will use the following topology, which consist:
 │        │    │                  │         │                  │    │         │
 │        │    │                  │         │                  │    │         │
 │        │    │                  │         │                  │    │         │
-│  eth0 ─┼────┼─ eno0            │         │            eno0 ─┼────┼─ eth0   │
+│  eth0 ─┼────┼─ swp2            │         │            swp2 ─┼────┼─ eth0   │
 │        │    │                  │         │                  │    │         │
 │        │    │                  │         │                  │    │         │
 │        │    │                  │         │                  │    │         │
@@ -51,7 +51,7 @@ Its completely normal, if an interface only used for just sending or just receiv
 
 ```
 [interfaces]
-uni = eth iface=eno0
+uni = eth iface=swp2
 uni:streams = stream_uni
 nni1 = eth iface=swp0
 nni1::streams = stream_nni1
@@ -119,7 +119,7 @@ For the full list of the supported R2DTWO actions, their parameters and behavior
 
 Right now, the packets matching in `stream_uni` stream will be processed as described below as described in the `:actions` line:
 
-0. The switch receive a packet on `eno0` interface, and since its an ethernet interface, R2DTWO apply a VLAN 0 tag (named as `cvaln` in the config) on it by default
+0. The switch receive a packet on `swp2` interface, and since its an ethernet interface, R2DTWO apply a VLAN 0 tag (named as `cvaln` in the config) on it by default
 1. The `seqgen` action gives a unique sequence number for each packet
 2. After the VLAN tag R2DTWO insert the FRER Redundancy-tag (R-tag) header
 3. The `writeseq` action insert the packet's sequence number to the R-tag's sequence field. __This is optional, R2DTWO smart enough to put the sequence number implicitly into the R-tag__
@@ -168,7 +168,7 @@ eth0@if2         UP             10.0.0.1/24 fe80::8c59:3ff:fe99:6204/64
 
 nxp1 ip -br a
 lo               UNKNOWN        127.0.0.1/8 ::1/128 
-eno0@if2         UP             fe80::60a6:45ff:febf:df30/64 
+swp2@if2         UP             fe80::60a6:45ff:febf:df30/64 
 swp0@if2         UP             fe80::9449:e9ff:fe8e:4c7c/64 
 swp1@if3         UP             fe80::5466:b5ff:fea0:c6fc/64 
 ```

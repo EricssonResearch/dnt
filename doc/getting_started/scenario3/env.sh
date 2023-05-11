@@ -25,10 +25,10 @@ configure_networkenv() {
   ip netns add nxp1 2>/dev/null
   ip netns add nxp2 2>/dev/null
 
-  ip link add eno0 netns nxp1 type veth peer eth0 netns talker
+  ip link add swp2 netns nxp1 type veth peer eth0 netns talker
   ip link add swp0 netns nxp1 type veth peer swp0 netns nxp2
   ip link add swp1 netns nxp1 type veth peer swp1 netns nxp2
-  ip link add eno0 netns nxp2 type veth peer eth0 netns listener
+  ip link add swp2 netns nxp2 type veth peer eth0 netns listener
 
   # Configure the test environment inside the namespace
   talker ip link set dev lo up
@@ -40,10 +40,10 @@ configure_networkenv() {
   listener ip link set eth0 up
   nxp1 ip link set dev swp0 up
   nxp1 ip link set dev swp1 up
-  nxp1 ip link set dev eno0 up
+  nxp1 ip link set dev swp2 up
   nxp2 ip link set dev swp0 up
   nxp2 ip link set dev swp1 up
-  nxp2 ip link set dev eno0 up
+  nxp2 ip link set dev swp2 up
 
   # Configure the addresses
   talker ip address add 10.0.100.11/24 dev eth0
@@ -51,11 +51,11 @@ configure_networkenv() {
 
   nxp1 ip address add 192.168.55.1/24 dev swp0
   nxp1 ip address add 192.168.66.1/24 dev swp1
-  nxp1 ip address add 10.0.100.1/24 dev eno0
+  nxp1 ip address add 10.0.100.1/24 dev swp2
 
   nxp2 ip address add 192.168.55.2/24 dev swp0
   nxp2 ip address add 192.168.66.2/24 dev swp1
-  nxp2 ip address add 10.0.200.1/24 dev eno0
+  nxp2 ip address add 10.0.200.1/24 dev swp2
 
   # Configure routing
   nxp1 sysctl -w net.ipv4.ip_forward=1

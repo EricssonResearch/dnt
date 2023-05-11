@@ -20,7 +20,7 @@ We will use the following topology, which consist:
 │          │    │                  │         │                  │    │          │
 │          │    │                  │         │                  │    │          │
 │          │    │                  │         │                  │    │          │
-│    eth0 ─┼────┼─ eno0            │         │            eno0 ─┼────┼─ eth0    │
+│    eth0 ─┼────┼─ swp2            │         │            swp2 ─┼────┼─ eth0    │
 │ 10.0.0.1 │    │                  │         │                  │    │ 10.0.0.1 │
 │          │    │                  │         │                  │    │          │
 │          │    │                  │         │                  │    │          │
@@ -56,7 +56,7 @@ Take a look into the `[interfaces]` section, this is where this scenario differs
 
 ```
 [interfaces]
-uni = eth iface=eno0
+uni = eth iface=swp2
 uni:streams = stream_uni
 nni1_in = udp-in iface=swp0 ipv=4
 nni1_in:streams = stream_nni
@@ -101,7 +101,7 @@ For the full list of the supported R2DTWO actions, their parameters and behavior
 
 Right now, the packets matching in `stream_uni` stream will be processed as described below as described in the `:actions` line:
 
-0. The switch receive a packet on `eno0` interface, and since its an ethernet interface, R2DTWO apply a VLAN 0 tag (named as `cvaln` in the config) on it by default
+0. The switch receive a packet on `swp2` interface, and since its an ethernet interface, R2DTWO apply a VLAN 0 tag (named as `cvaln` in the config) on it by default
 1. The `prf` action gives a unique sequence number for each packet: `prf`
 2. We change the VLAN ID to 99, so at the PEF side we can match to that regardless of the paths. This is an R2DTWO extra feature, normally one can define two NNI streams and matching to the outer MPLS labels: `edit cvlan.vid=99`
 3. Now we have to prepare the DetNet encapsulation. For that we will add an MPLS header `before eth add mpls` and a DetNet control word `after mpls add dcw`.
@@ -151,7 +151,7 @@ eth0@if2         UP             10.0.0.1/24 fe80::f83d:8ff:fec6:527d/64
 
 nxp1 ip -br a
 lo               UNKNOWN        127.0.0.1/8 ::1/128 
-eno0@if2         UP             fe80::a0e3:8bff:fe7b:860a/64 
+swp2@if2         UP             fe80::a0e3:8bff:fe7b:860a/64 
 swp0@if2         UP             192.168.55.1/24 fe80::e8aa:eff:fe0a:76f1/64 
 swp1@if3         UP             192.168.66.1/24 fe80::c494:d1ff:fe1b:b38/64
 ```
