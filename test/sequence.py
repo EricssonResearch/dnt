@@ -1,8 +1,9 @@
 #!/usr/bin/python3
 
 from utils import *
-import shlex
+import signal
 import time
+import sys
 
 stdouts = { }
 
@@ -122,12 +123,92 @@ def flapping_good():
         return 0
     return 1
 
+def resetonly_bad():
+    print("Test reset flag with reset flag unaware recovery...")
+    try:
+        br0 = exec_bg("../r2dtwo sequence/r2br0_resetonly.ini")
+        exec_bg("../r2dtwo sequence/r2br1.ini")
+        time.sleep(1)
+        num_pings = 20
+        pingcmd = exec_bg(f"ping -I to_r2br0 10.0.0.2 -i 0.1 -c {num_pings}", out=OUT_PIPE)
+        time.sleep(1)
+        # Reset the seq generators of r2br0 instance with SIGUSR1
+        br0.send_signal(signal.SIGUSR1)
+        ping_output = str(pingcmd.communicate()[0])
+        if ping_output and f", {num_pings} received," not in ping_output:
+            return 1
+    except:
+        return 0
+    return 0
+
+def resetonly_good():
+    print("Test reset flag with reset flag aware recovery...")
+    try:
+        br0 = exec_bg("../r2dtwo sequence/r2br0_resetonly.ini")
+        exec_bg("../r2dtwo sequence/r2br1_resetonly.ini")
+        time.sleep(1)
+        num_pings = 20
+        pingcmd = exec_bg(f"ping -I to_r2br0 10.0.0.2 -i 0.1 -c {num_pings}", out=OUT_PIPE)
+        time.sleep(1)
+        # Reset the seq generators of r2br0 instance with SIGUSR1
+        br0.send_signal(signal.SIGUSR1)
+        ping_output = str(pingcmd.communicate()[0])
+        if ping_output and f", {num_pings} received," in ping_output:
+            return 1
+    except:
+        return 0
+    return 0
+
+def seamless_bad():
+    print("Test init+reset flag with init/reset flag unaware recovery...")
+    try:
+        br0 = exec_bg("../r2dtwo sequence/r2br0_init.ini")
+        exec_bg("../r2dtwo sequence/r2br1.ini")
+        time.sleep(1)
+        num_pings = 20
+        pingcmd = exec_bg(f"ping -I to_r2br0 10.0.0.2 -i 0.1 -c {num_pings}", out=OUT_PIPE)
+        time.sleep(1)
+        # Reset the seq generators of r2br0 instance with SIGUSR1
+        br0.send_signal(signal.SIGUSR1)
+        ping_output = str(pingcmd.communicate()[0])
+        if ping_output and f", {num_pings} received," not in ping_output:
+            return 1
+    except:
+        return 0
+    return 0
+
+def seamless_good():
+    print("Test init+reset flag with seamless recovery...")
+    try:
+        br0 = exec_bg("../r2dtwo sequence/r2br0_init.ini")
+        tshark = exec_bg("tshark -l -O 'ieee8021cb' -i r2br0_nni0", out=OUT_PIPE)
+        exec_bg("../r2dtwo sequence/r2br1_init.ini")
+        time.sleep(1)
+        num_pings = 30
+        pingcmd = exec_bg(f"ping -I to_r2br0 10.0.0.2 -i 0.1 -c {num_pings}", out=OUT_PIPE)
+        time.sleep(1)
+        # Reset the seq generators of r2br0 instance with SIGUSR1
+        br0.send_signal(signal.SIGUSR1)
+        ping_output = str(pingcmd.communicate()[0])
+        tshark.kill()
+        tshark_output = str(tshark.communicate()[0])
+        if ping_output and f", {num_pings} received," in ping_output:
+            # From linear seq space we must have to see a large seq
+            if "SEQ: 65533" in tshark_output:
+                return 1
+    except:
+        return 0
+    return 0
+
+
 def main():
-    print("R2DTWO match test")
+    print("R2DTWO sequence generator and recovery test\n")
     create_ifaces()
     config_ifaces()
+    if len(sys.argv) == 2 and "debug" in sys.argv[1]:
+        exit(0)
     ret = 0
-    tests = [ping, reset, flapping_bad, flapping_good]
+    tests = [ping, reset, flapping_bad, flapping_good, resetonly_good, resetonly_bad, seamless_good, seamless_bad]
     for test in tests:
         ret += test()
         exec_fg("killall r2dtwo")
