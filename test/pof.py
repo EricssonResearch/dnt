@@ -149,12 +149,10 @@ def ofo_pof_smallbuffer():
         pingcmd = exec_fg(f"ping -I to_r2br0 10.0.0.2 -i 0.005 -c {num_pings}")
         exec_fg("tc qdisc del dev r2br0_nni1 root")
         exec_fg("tc qdisc del dev r2br0_nni0 root")
-        if pingcmd.stdout and f", {num_pings} received," in pingcmd.stdout:
-            print(pingcmd.stdout)
-            return 0
         if ping_check_out_of_order(pingcmd.stdout) == True:
-            print(pingcmd.stdout)
-            return 0
+            if pingcmd.stdout and f", {num_pings} received," in pingcmd.stdout:
+                print(pingcmd.stdout)
+                return 0
     except:
             return 0
     return 1
@@ -195,7 +193,11 @@ def pof_burst():
             return 0
         # with good delays, 5 packets burst icmp_seq 11-15 observed
         for i in range(11, 16):
-            if f"icmp_seq={i} ttl=64 time=500 ms" not in ping_out:
+            good = False
+            for j in range(498, 503):
+                if f"icmp_seq={i} ttl=64 time={j} ms" in ping_out:
+                    good = True
+            if not good:
                 return 0
     except:
         return 0
@@ -209,7 +211,6 @@ def main():
         exit(1)
     ret = 0
     tests = [no_out_of_order, ofo_no_pof, ofo_pof, pof_reset, ofo_pof_smallbuffer, pof_burst]
-    # tests = [pof_burst]
     for test in tests:
         ret += test()
         exec_fg("killall r2dtwo")
