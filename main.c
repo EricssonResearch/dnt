@@ -8,6 +8,7 @@
 #include "parsetree.h"
 #include "pipeline.h"
 #include "protocol.h"
+#include "seq_gen.h"
 #include "time_utils.h"
 #include "version.h"
 
