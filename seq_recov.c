@@ -50,7 +50,7 @@ static void *reset_thread(void *arg);
 
 static void reset_ticks(struct SequenceRecovery *rec)
 {
-        rec->remaining_ticks = ((rec->reset_msec * FRER_TICKS_PER_SEC) + 999) / 1000;
+    rec->remaining_ticks = ((rec->reset_msec * FRER_TICKS_PER_SEC) + 999) / 1000;
 }
 
 struct SequenceRecovery *new_seq_rec(enum SequenceRecoveryAlgorithm algo, bool use_reset_flag, bool use_init_flag,
@@ -81,13 +81,13 @@ struct SequenceRecovery *delete_seq_rec(struct SequenceRecovery *rec)
     return NULL;
 }
 
-static void shift_seq_history(struct SequenceRecovery *rec, unsigned new_zero)
+static void shift_seq_history(struct SequenceRecovery *rec, char *history,  unsigned new_zero)
 {
-    if(rec->history[rec->history_length - 1] == 0)
+    if(history[rec->history_length - 1] == 0)
         rec->lost_packets += 1;
     for(int i = rec->history_length - 1; i != 0; --i)
-        rec->history[i] = rec->history[i - 1];
-    rec->history[0] = new_zero;
+        history[i] = history[i - 1];
+    history[0] = new_zero;
 }
 
 static inline int calc_delta(int seq1, int seq2)
@@ -98,13 +98,27 @@ static inline int calc_delta(int seq1, int seq2)
     return delta;
 }
 
-static bool recover(struct SequenceRecovery *rec, unsigned packet_seq)
+static bool recover(struct SequenceRecovery *rec, unsigned packet_seq, bool init)
 {
-    int delta = calc_delta(packet_seq, rec->recv_seq);
-    if(rec->take_any) {
-        rec->take_any = false;
-        rec->history[0] = 1;
-        rec->recv_seq = packet_seq;
+    unsigned int *recovery_seq;
+    bool *take_any;
+    char *history;
+
+    if (init) {
+        recovery_seq = &rec->init_recv_seq;
+        take_any = &rec->init_take_any;
+        history = rec->init_history;
+    } else {
+        recovery_seq = &rec->recv_seq;
+        take_any = &rec->take_any;
+        history = rec->history;
+    }
+
+    int delta = calc_delta(packet_seq, *recovery_seq);
+    if(*take_any) {
+        *take_any = false;
+        history[0] = 1;
+        *recovery_seq = packet_seq;
         rec->passed_packets += 1;
         reset_ticks(rec);
         return true;
@@ -115,8 +129,8 @@ static bool recover(struct SequenceRecovery *rec, unsigned packet_seq)
         if(rec->individual_recovery)
             reset_ticks(rec);
     } else if(delta <= 0) {
-        if(rec->history[-delta] == 0) {
-            rec->history[-delta] = 1;
+        if(history[-delta] == 0) {
+            history[-delta] = 1;
             rec->out_of_order_packets += 1;
             rec->passed_packets += 1;
             reset_ticks(rec);
@@ -131,9 +145,9 @@ static bool recover(struct SequenceRecovery *rec, unsigned packet_seq)
             rec->out_of_order_packets += 1;
 
         while((delta -= 1) != 0)
-            shift_seq_history(rec, 0);
-        shift_seq_history(rec, 1);
-        rec->recv_seq = packet_seq;
+            shift_seq_history(rec, history, 0);
+        shift_seq_history(rec, history, 1);
+        *recovery_seq = packet_seq;
         rec->passed_packets += 1;
         reset_ticks(rec);
         return true;
@@ -143,38 +157,42 @@ static bool recover(struct SequenceRecovery *rec, unsigned packet_seq)
 
 static bool vector_seq_recovery(struct SequenceRecovery *rec, struct Packet *p)
 {
-    unsigned packet_seq = ntohl(p->sequence);
-    return recover(rec, packet_seq);
+    unsigned packet_seq = ntohl(p->sequence) & 0xffff;
+    return recover(rec, packet_seq, false);
 }
 
 static bool seamless_seq_recovery(struct SequenceRecovery *rec, struct Packet *p)
 {
     int delta = 0;
     // TODO: use proper metadata seq/flags as packet member not rtag format
-    unsigned packet_seq = ntohl(p->sequence) & 0xffff;
+    unsigned flags = ntohl(p->sequence) & 0xffff0000;
+    unsigned seq = ntohl(p->sequence) & 0xffff;
     if(rec->use_reset_flag) {
         if(rec->use_init_flag) {
-            if(packet_seq & FRER_INIT_FLAG) {
-                delta = calc_delta(packet_seq, rec->init_recv_seq);
-                if(p->sequence & FRER_RESET_FLAG)
+            if(flags & FRER_INIT_FLAG) {
+
+                delta = calc_delta(seq, rec->init_recv_seq);
+                if(flags & FRER_RESET_FLAG) {
                     if((delta > rec->history_length) || (delta <= -rec->history_length * 2))
                         rec->init_take_any = true;
-            }
+                }
 
-            int high = FRER_RCVY_SEQ_SPACE - 3 * rec->history_length;
-            int low = FRER_RCVY_SEQ_SPACE - rec->history_length;
-            if((int)packet_seq >= high && (int)packet_seq < low)
-                rec->take_any = true;
+                int high = FRER_RCVY_SEQ_SPACE - 3 * rec->history_length;
+                int low = FRER_RCVY_SEQ_SPACE - rec->history_length;
 
-            return recover(rec, packet_seq);
-        }
-        if(packet_seq & FRER_RESET_FLAG) {
-            delta = calc_delta(packet_seq, rec->recv_seq);
+                if((int)seq >= high && (int)seq < low)
+                    rec->take_any = true;
+                return recover(rec, seq, true);
+            } // init flag set in packet
+        } // disabled init flag handling
+
+        if(flags & FRER_RESET_FLAG) {
+            delta = calc_delta(seq, rec->recv_seq);
             if((delta > rec->history_length) || (delta <= -rec->history_length * 2))
                 rec->take_any = true;
         }
-    }
-    return recover(rec, packet_seq);
+    } // no reset flag handling
+    return recover(rec, seq, false);
 }
 
 static void vector_seq_recovery_reset(struct SequenceRecovery *rec)
@@ -188,6 +206,7 @@ static void vector_seq_recovery_reset(struct SequenceRecovery *rec)
 static void seamless_seq_recovery_reset(struct SequenceRecovery *rec)
 {
     vector_seq_recovery_reset(rec);
+    memset(rec->init_history, 0, rec->history_length * sizeof(char));
     rec->init_recv_seq = FRER_RCVY_SEQ_SPACE - 1;
     rec->init_take_any = true;
 }

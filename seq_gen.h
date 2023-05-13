@@ -2,6 +2,7 @@
 #ifndef R2_SEQ_GEN_H
 #define R2_SEQ_GEN_H
 
+#include "hashmap.h"
 #include "header.h"
 
 #include <stdbool.h>
@@ -19,6 +20,8 @@ struct SequenceGenerator *delete_seq_gen(struct SequenceGenerator *gen);
 // @state is struct SequenceGenerator
 void seq_generator(struct SequenceGenerator *gen, struct Packet *p);
 
-void sequence_generation_reset(struct SequenceGenerator *gen);
+// Helper function to reset all sequence generators in the system
+// Triggered by manual reset signal (no timer expiration)
+int reset_all_seq_generators(const char *key, void *value, void *udata);
 
 #endif // R2_SEQ_GEN_H

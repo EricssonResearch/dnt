@@ -13,6 +13,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
 
 #include <signal.h>
 #include <sys/epoll.h>
@@ -20,6 +21,8 @@
 #define MAX_EVENTS 10
 
 int sigint_count = 0;
+struct R2d2Config *config;
+
 static void sigint_handler(int sig, siginfo_t *si, void *uc)
 {
     (void)sig;
@@ -30,6 +33,18 @@ static void sigint_handler(int sig, siginfo_t *si, void *uc)
     sigint_count++;
 }
 
+static void sigusr1_handler(int sig, siginfo_t *si, void *uc)
+{
+    (void)si;
+    (void)uc;
+
+    if (sig != SIGUSR1)
+        return;
+    printf("SIGUSR1 caught\n");
+
+    hashmap_foreach(config->objects, reset_all_seq_generators, NULL);
+}
+
 static void recv_loop(struct Interface *ifaces, unsigned iface_count)
 {
     struct sigaction sa;
@@ -38,10 +53,15 @@ static void recv_loop(struct Interface *ifaces, unsigned iface_count)
     sa.sa_sigaction = sigint_handler;
     sigemptyset(&sa.sa_mask);
     if (sigaction(SIGINT, &sa, NULL) < 0) {
-            perror("sigaction");
-            return ;
-        }
+        perror("sigaction");
+        return;
+    }
 
+    sa.sa_sigaction = sigusr1_handler;
+    if (sigaction(SIGUSR1, &sa, NULL) < 0) {
+        perror("sigaction");
+        return;
+    }
 
     int epollfd = epoll_create1(0);
     if (epollfd < 0) {
@@ -67,6 +87,10 @@ static void recv_loop(struct Interface *ifaces, unsigned iface_count)
     while (sigint_count == 0) {
         int nfds = epoll_wait(epollfd, events, MAX_EVENTS, -1);
         if (nfds == -1) {
+            // a signal, keep receiving
+            if (errno == EINTR) {
+                continue;
+            }
             perror("epoll_wait");
             return;
         }
@@ -121,7 +145,7 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    struct R2d2Config *config = read_config(argv[1]);
+    config = read_config(argv[1]);
     if (config == NULL) {
         fprintf(stderr, "the config is invalid\n");
         return -1;
