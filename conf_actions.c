@@ -1203,6 +1203,8 @@ struct ConfAction *parse_actions_line(const char *stream, char *line,
     //TODO perform optimization passes on the action list
     //      e.g. merge subsequent Edit actions
 
+    //TODO in stst.actions set all pointers to stst.headers to NULL
+
     delete_header_list(stst.headers);
 
     return stst.actions;
@@ -1307,7 +1309,7 @@ static struct EditAssign *assemble_fieldassigns(struct ConfAssignment *list, uns
             return NULL;
         }
         if (l->lhs.type == CVT_FIELD)
-            a->write_state = l->lhs.v.header.field; //TODO memdup
+            a->write_state = memdup(l->lhs.v.header.field, sizeof(struct HeaderField));
 
         switch (l->rhs.type) {
             case CVT_UNDEF:
@@ -1315,7 +1317,8 @@ static struct EditAssign *assemble_fieldassigns(struct ConfAssignment *list, uns
                 free(ret);
                 return NULL;
             case CVT_FIELD:
-                a->read_state = l->rhs.v.header.field; //TODO memdup
+                a->read_state = memdup(l->rhs.v.header.field, sizeof(struct HeaderField));
+                a->owns_read_state = true;
                 break;
             case CVT_CONST:
                 a->constant = l->rhs.value;
@@ -1325,6 +1328,7 @@ static struct EditAssign *assemble_fieldassigns(struct ConfAssignment *list, uns
                 break;
             case CVT_IFACE:
                 a->read_state = l->rhs.v.iface.iface;
+                a->owns_read_state = false;
                 break;
         }
 

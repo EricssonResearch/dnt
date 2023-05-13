@@ -247,6 +247,16 @@ static int pipe_cache_delete_cb(const char *key, void *value, void *userdata)
     return 1;
 }
 
+static int del_confactions(const char *key, void *value, void *userdata)
+{
+    (void)key;
+    (void)value;
+    (void)userdata;
+    struct ConfStream *stream = value;
+    stream->actions = delete_confaction_list(stream->actions);
+    return 1;
+}
+
 bool config_add_streams_to_interfaces(struct R2d2Config *config)
 {
     struct AddstreamState state = {
@@ -260,6 +270,12 @@ bool config_add_streams_to_interfaces(struct R2d2Config *config)
         return false;
     }
     delete_hashmap(state.pipe_cache);
+
+    // pipeline actions must be independent of the config's ConfAction list
+    // we must not segfault if this line is enabled
+    // (the only reason to keep the ConfAction list is DynConf's comparison with the new config)
+    hashmap_foreach(config->streams, del_confactions, NULL);
+
     return true;
 }
 

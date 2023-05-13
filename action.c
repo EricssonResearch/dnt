@@ -207,6 +207,9 @@ static void action_edit_del(void *action_private)
     for (unsigned i=0; i<ed->assign_count; i++) {
         free(ed->assigns[i].text);
         free(ed->assigns[i].constant.value);
+        free(ed->assigns[i].write_state);
+        if (ed->assigns[i].owns_read_state)
+            free(ed->assigns[i].read_state);
     }
     free(ed->assigns);
     free(ed);
@@ -264,7 +267,6 @@ void create_action_elim(struct Action *a, struct SequenceRecovery *rcvy, const c
 
 /////////////////////////////////////////////////////////////////////
 
-//TODO pof
 struct PofData {
     struct Pof *pof;
 };

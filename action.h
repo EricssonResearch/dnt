@@ -65,11 +65,12 @@ struct PipelineList {
 // if @read is NULL then it is a constant value
 struct EditAssign {
     value_consumer *write;
-    void *write_state;
+    void *write_state; // currently this is always a struct HeaderField *
     value_producer *read;
     void *read_state;
     struct Value constant;
     char *text;
+    bool owns_read_state;
 };
 
 
