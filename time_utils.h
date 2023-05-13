@@ -53,15 +53,17 @@
 
 #define timespec_to_tsntstamp(tsnts, tsp)                   \
     do {                                                    \
-        (tsnts) = 0x0800 + (((tsp)->tv_sec % 2) << 20)      \
+        (tsnts) = 0x08000000 + (((tsp)->tv_sec % 2) << 20)  \
                 + (((tsp)->tv_nsec / 1000) & 0xfffff);      \
+        (tsnts) = htonl(tsnts);                             \
     } while (0)
 
 // this assumes that @tsnts was less than 2 seconds before @now
 #define timespec_from_tsntstamp(tsp, tsnts, now)            \
     do {                                                    \
-        (tsp)->tv_sec = ((tsnts) >> 20) & 1;                \
-        (tsp)->tv_nsec = ((tsnts) & 0xfffff) * 1000;        \
+        unsigned ts = ntohl(tsnts);                         \
+        (tsp)->tv_sec = (ts >> 20) & 1;                     \
+        (tsp)->tv_nsec = (ts & 0xfffff) * 1000;             \
         if (((now)->tv_sec & 1) == (tsp)->tv_sec) {         \
             if ((now)->tv_nsec > (tsp)->tv_nsec) {          \
                 (tsp)->tv_sec = (now)->tv_sec;              \

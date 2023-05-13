@@ -518,10 +518,8 @@ static enum ActionResult action_writetstamp_execute(struct Action *a, struct Pip
     struct MetaData *md = a->action_private;
     struct Packet *p = pi->packet;
     uint8_t *dst = p->buf + p->headers[md->field.header_idx].start + md->field.bitoffset/8;
-    uint32_t tstamp = htonl( 0x08000000 | (p->recv_time.tv_nsec/1000) | (p->recv_time.tv_sec & 0x00000001) << 20);
-    printf("Tstamp written: %lx", (p->recv_time.tv_nsec/1000) | (p->recv_time.tv_sec & 0x00000001) << 20);
     unsigned len = md->field.bitcount/8; //TODO this is always 4
-    memcpy(dst, &tstamp, len);
+    memcpy(dst, &p->timestamp, len);
     return ACR_CONTINUE;
 }
 
