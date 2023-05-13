@@ -32,13 +32,8 @@ struct UdpOutIfData {
 
 static struct Packet *udpout_recv(struct Interface *iface)
 {
-    struct Packet *p = iface_common_recv(iface, NULL, NULL);
-    if (p) {
-        printf("udp-out %s recv %u dropping\n", iface->name, p->len);
-        return delete_packet(p);
-    } else {
-        return NULL;
-    }
+    fprintf(stderr, "udp-out interface %s recv how??\n", iface->name);
+    return NULL;
 }
 
 static bool udpout_send(struct Interface *iface, struct Packet *p)
@@ -182,7 +177,7 @@ static value_producer *udpout_get_property_reader(const struct Interface *iface,
 bool init_udp_out_interface(struct Interface *iface, const char *name, const char *ifname,
         unsigned src_port, const char *dst_ip, unsigned dst_port, unsigned priority)
 {
-    printf("init_udp_out_interface %s %s\n", name, ifname);
+    //printf("init_udp_out_interface %s %s\n", name, ifname);
     bzero(iface, sizeof(*iface));
     iface->name = strdup(name);
     iface->ifname = strdup(ifname);

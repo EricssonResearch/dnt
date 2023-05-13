@@ -203,13 +203,13 @@ static int addstream_cb(const char *key, void *value, void *userdata)
     }
 
     for (struct ConfStreamList *s=streamlist; s; s=s->next) {
-        printf("adding stream %s to interface %s\n", s->stream_name, key);
+        //printf("adding stream %s to interface %s\n", s->stream_name, key);
 
         struct Pipeline *pipe = hashmap_find(state->pipe_cache, s->stream_name);
         if (pipe) {
-            printf("  reusing already compiled pipeline\n");
+            //printf("  reusing already compiled pipeline\n");
         } else {
-            printf("  compiling new pipeline\n");
+            //printf("  compiling new pipeline\n");
             unsigned action_count;
             struct Action *actions = assemble_actions(s->stream->actions, &action_count);
             if (!actions) {

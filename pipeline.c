@@ -88,10 +88,14 @@ static void delete_iterator(struct PipelineIterator *pi)
 
 void pipe_iterator_run(struct PipelineIterator *pi)
 {
+#ifdef VERBOSE_RECV
     printf("pipe_iterator_run, action count %u\n", pi->pipe->action_count);
+#endif
     while (!iterator_done(pi)) {
         struct Action *a = &pi->pipe->actions[pi->pos];
+#ifdef VERBOSE_RECV
         printf("  action type %d %s '%s'\n", a->type, action_name_from_type(a->type), a->text);
+#endif
         enum ActionResult res = a->execute(a, pi);
         switch (res) {
             case ACR_CONTINUE:

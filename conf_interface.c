@@ -283,10 +283,12 @@ static int iface_stream_cb(const char *key, void *value, void *userdata)
 
     REVERSE_LIST(tokstate.iface_stream_list);
     hashmap_insert(state->iface_streams, ifname, tokstate.iface_stream_list);
+#ifdef VERBOSE_CONF
     printf("interface %s receives streams:\n", ifname);
     for (struct ConfStreamList *i=tokstate.iface_stream_list; i; i=i->next) {
         printf("  %s\n", i->stream_name);
     }
+#endif
     return 1;
 }
 

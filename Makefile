@@ -8,6 +8,8 @@ CFLAGS += -g -O0 -std=gnu99
 CFLAGS += -Wall -Wextra -Wshadow -Wstrict-prototypes -Wmissing-declarations -Wwrite-strings
 CFLAGS += -Werror
 CFLAGS += -Iinifile
+CFLAGS += -DVERBOSE_RECV
+CFLAGS += -DVERBOSE_CONF
 
 #TODO gnu libc doesn't need this
 LFLAGS += -lpthread

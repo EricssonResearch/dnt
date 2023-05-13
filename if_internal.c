@@ -108,7 +108,7 @@ static bool int_close(struct Interface *iface)
 
 bool init_internal_interface(struct Interface *iface, const char *name)
 {
-    printf("init_internal_interface %s\n", name);
+    //printf("init_internal_interface %s\n", name);
     bzero(iface, sizeof(*iface));
     iface->name = strdup(name);
     iface->ifname = NULL;

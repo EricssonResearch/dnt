@@ -32,11 +32,7 @@ static struct Packet *udpin_recv(struct Interface *iface)
     struct UdpInIfData *uid = iface->iface_private;
     (void)uid;
 
-    struct Packet *p = iface_common_recv(iface, NULL, NULL);
-    if (p == NULL) return NULL;
-    printf("udp-in %s recv %u\n", iface->name, p->len);
-
-    return p;
+    return iface_common_recv(iface, NULL, NULL);
 }
 
 static bool udpin_send(struct Interface *iface, struct Packet *p)
@@ -221,7 +217,7 @@ static value_producer *udpin_get_property_reader(const struct Interface *iface, 
 bool init_udp_in_interface(struct Interface *iface, const char *name, const char *ifname,
         unsigned port, unsigned ipversion)
 {
-    printf("init_udp_in_interface %s %s\n", name, ifname);
+    //printf("init_udp_in_interface %s %s\n", name, ifname);
     bzero(iface, sizeof(*iface));
     iface->name = strdup(name);
     iface->ifname = strdup(ifname);

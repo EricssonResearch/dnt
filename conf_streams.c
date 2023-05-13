@@ -47,7 +47,9 @@ static int packetline_cb(const char *key, void *value, void *userdata)
             struct HeaderDescriptor *headers = NULL;
             struct ConfAction *actions = NULL;
 
-            printf("parsing stream '%s'\n", streamname);
+#ifdef VERBOSE_CONF
+            printf("Parsing stream '%s'\n", streamname);
+#endif
 
             headers = parse_packet_line(streamname, packetline);
             if (headers == NULL) {
@@ -82,8 +84,10 @@ static int packetline_cb(const char *key, void *value, void *userdata)
             if (actions == NULL) {
                 THROW("actions invalid");
             }
+#ifdef VERBOSE_CONF
             printf("Stream %s actions:\n", streamname);
             confactions_print(actions);
+#endif
 
 
             struct ConfStream *stream = calloc_struct(ConfStream);

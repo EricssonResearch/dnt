@@ -324,10 +324,10 @@ static value_producer *process_assignment_rhs(struct StageState *stst, const str
         return NULL;                                                \
     } while (0)
 
-    printf("process_assignment_rhs '%s'\n", string);
+    //printf("process_assignment_rhs '%s'\n", string);
     char *key, *val;
     if (parse_fieldname(string, &key, &val)) {
-        printf("rhs has a dot '%s' . '%s'\n", key, val);
+        //printf("rhs has a dot '%s' . '%s'\n", key, val);
         struct HeaderDescriptor *h = header_list_find_by_name(stst->headers, key);
         if (h) {
             if (header_list_find_by_name(h->next, key)) {
@@ -335,7 +335,7 @@ static value_producer *process_assignment_rhs(struct StageState *stst, const str
             }
             const struct ProtocolField *f = protocol_get_field_by_name(h->id, val);
             if (f) {
-                printf("rhs is a header field!\n");
+                //printf("rhs is a header field!\n");
                 if (lhs->value_type != f->type) {
                     THROW("types of left-hand-side %s and right-hand-side %s don't match",
                             fieldtype_name_from_type(lhs->value_type), fieldtype_name_from_type(f->type));
@@ -356,7 +356,7 @@ static value_producer *process_assignment_rhs(struct StageState *stst, const str
 
         struct Interface *iface = find_interface(stst, key);
         if (iface) {
-            printf("rhs is an interface!\n");
+            //printf("rhs is an interface!\n");
             if (iface->get_property_reader) {
                 value_producer *read = iface->get_property_reader(iface, val, lhs->value_type, &lhs->value);
                 if (read == NULL) {
@@ -376,11 +376,11 @@ static value_producer *process_assignment_rhs(struct StageState *stst, const str
         val[-1] = '.';
     }
 
-    printf("rhs may be a constant...\n");
+    //printf("rhs may be a constant...\n");
     // constant doesn't have a read function just a value
     init_confvariable_full(rhs, CVT_CONST, FT_UNKNOWN, lhs->value.bitoffset, lhs->value.bitcount);
     if (read_constant(&rhs->value, lhs->value_type, string)) {
-        printf("rhs is a constant!\n");
+        //printf("rhs is a constant!\n");
         rhs->value_type = lhs->value_type;
         return dummy_constant_reader;
     } else {
@@ -571,7 +571,6 @@ static bool process_token(char *token, void *userdata)
                 THROW("drop action doesn't take parameters");
                 break;
             case CA_EDIT: {
-                printf("edit token '%s'\n", token);
                 char *lhs, *rhs;
                 struct ConfAssignment *a = calloc_struct(ConfAssignment);
                 a->next = stst->actions->d.edit.assignments;
@@ -806,11 +805,11 @@ static bool process_action(struct StageState *stst)
         case CA_UNDEF:
             THROW("no action\n");
         case CA_ADD:
-            printf("CA_ADD: %s %s %s %s\n",
+            /*printf("CA_ADD: %s %s %s %s\n",
                     newaction->d.add.beforeafter==ADD_BEFORE?"before":"after",
                     newaction->d.add.pos->name,
                     newaction->d.add.newname,
-                    protocol_type_from_id(newaction->d.add.id));
+                    protocol_type_from_id(newaction->d.add.id));*/
             if (newaction->d.add.newname == NULL) {
                 THROW("no new header name");
             }
@@ -980,16 +979,13 @@ static bool process_action(struct StageState *stst)
             }
             break;
         case CA_DELAY:
-            //TODO check that first param was a valid timestamp field
-            //      need to find the header by name
-            //  TODO feri: we should always use the timestamp metadata
-            //TODO check that second param was a valid time constant
+            //TODO check that param was a valid time constant
             break;
         case CA_DROP:
             stst->had_final = true;
             break;
         case CA_EDIT:
-            printf("CA_EDIT: %s\n", newaction->text);
+            //printf("CA_EDIT: %s\n", newaction->text);
             if (newaction->d.edit.assignments != NULL) {
                 REVERSE_LIST(newaction->d.edit.assignments);
             } else {
@@ -1005,7 +1001,7 @@ static bool process_action(struct StageState *stst)
             }
             break;
         case CA_JUMP:
-            printf("CA_JUMP: %s\n", newaction->text);
+            //printf("CA_JUMP: %s\n", newaction->text);
             if (newaction->d.jump.pipename == NULL) {
                 THROW("no action pipeline to jump to");
             }
@@ -1090,13 +1086,12 @@ static bool process_action(struct StageState *stst)
             } while (0);
             break;
         case CA_REPL:
-            printf("CA_REPL: %s\n", newaction->text);
+            //printf("CA_REPL: %s\n", newaction->text);
             if (newaction->d.repl.pipelines == NULL) {
                 THROW("no pipelines specified");
             }
             struct ReplicateList *p = newaction->d.repl.pipelines;
             while (p) {
-                printf(" branch '%s'\n", p->string);
                 char *pstring = inisection_get(stst->streams_sec, p->string);
                 if (pstring == NULL) {
                     THROW("pipeline '%s' not found", p->string);

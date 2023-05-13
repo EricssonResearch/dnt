@@ -39,11 +39,11 @@ static void restore_vlan(struct msghdr *msg, struct Packet *p, void *userdata)
             case SOL_PACKET:
                 if (cmsg->cmsg_type == PACKET_AUXDATA) {
                     struct tpacket_auxdata *aux = (struct tpacket_auxdata *)CMSG_DATA(cmsg);
-                    printf("AUX 0x%.08x len %u VLAN 0x%.04x EtherType 0x%.04x\n",
-                            aux->tp_status, aux->tp_len, aux->tp_vlan_tci, aux->tp_vlan_tpid);
+                    //printf("AUX 0x%.08x len %u VLAN 0x%.04x EtherType 0x%.04x\n",
+                    //        aux->tp_status, aux->tp_len, aux->tp_vlan_tci, aux->tp_vlan_tpid);
 
                     if (aux->tp_status & TP_STATUS_VLAN_VALID) {
-                        printf("restoring vlan header in the packet\n");
+                        //printf("restoring vlan header in the packet\n");
                         memmove(p->buf + p->start - 4, p->buf + p->start, 2*6);
                         p->start -= 4;
                         p->len += 4;
@@ -64,12 +64,11 @@ static struct Packet *eth_recv(struct Interface *iface)
 
     struct Packet *p = iface_common_recv(iface, restore_vlan, NULL);
     if (p == NULL) return NULL;
-    printf("eth %s recv %u\n", iface->name, p->len);
 
     uint16_t *p_vlan = (uint16_t*)(p->buf + p->start + 2*6);
     unsigned short ethertype = ntohs(*p_vlan);
     if (ethertype != ETH_P_8021Q && ethertype != ETH_P_8021AD) {
-        printf("adding default cvlan to untagged packet\n");
+        //printf("adding default cvlan to untagged packet\n");
         memmove(p->buf + p->start - 4, p->buf + p->start, 2*6);
         p->start -= 4;
         p->len += 4;
@@ -101,7 +100,7 @@ static bool eth_send(struct Interface *iface, struct Packet *p)
             pcp = (*vlan) >> 5;
         }
     }
-    printf("eth %s sending with priority %u\n", iface->name, pcp);
+    //printf("eth %s sending with priority %u\n", iface->name, pcp);
 
     unsigned char *dst_mac = p->buf + p->headers[0].start;
     struct sockaddr_ll socket_address;
@@ -277,7 +276,7 @@ static value_producer *eth_get_property_reader(const struct Interface *iface, co
 
 bool init_eth_interface(struct Interface *iface, const char *name, const char *ifname)
 {
-    printf("init_eth_interface %s %s\n", name, ifname);
+    //printf("init_eth_interface %s %s\n", name, ifname);
     bzero(iface, sizeof(*iface));
     iface->name = strdup(name);
     iface->ifname = strdup(ifname);

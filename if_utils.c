@@ -50,7 +50,7 @@ void enable_rx_tstamp(int sock, const char *sockname,
                 &so_timestamping_flags, sizeof(so_timestamping_flags)) < 0) {
         perror("setsockopt SO_TIMESTAMPING");
     } else {
-        printf("setsockopt SO_TIMESTAMPING success for '%s' on '%s'\n",
+        if (0) printf("setsockopt SO_TIMESTAMPING success for '%s' on '%s'\n",
                 sockname, ifname);
     }
 }
@@ -71,9 +71,9 @@ static void get_rx_tstamp(struct msghdr *msg, struct Packet *p, void *userdata)
                     } else {
                         // we aligned msg.msg_control so the alignment should be okay here
                         tstamp = (struct timespec *)CMSG_DATA(cmsg);
-                        printf("RX SW %ld.%09ld HW %ld.%09ld\n",
-                                tstamp[0].tv_sec, tstamp[0].tv_nsec,
-                                tstamp[2].tv_sec, tstamp[2].tv_nsec);
+                        //printf("RX SW %ld.%09ld HW %ld.%09ld\n",
+                        //        tstamp[0].tv_sec, tstamp[0].tv_nsec,
+                        //        tstamp[2].tv_sec, tstamp[2].tv_nsec);
                         p->recv_time = tstamp[0];
                         //TODO also set p->timestamp
                     }
@@ -127,6 +127,9 @@ struct Packet *iface_common_recv(struct Interface *iface, msghdr_process_cb *msg
     if (msg_cb)
         msg_cb(&msg, p, userdata);
 
+#ifdef VERBOSE_RECV
+    printf("IFACE %s recv %u\n", iface->name, p->len);
+#endif
     return p;
 }
 

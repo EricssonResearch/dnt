@@ -230,7 +230,7 @@ static value_producer *ip_get_property_reader(const struct Interface *iface, con
 
 bool init_ip_interface(struct Interface *iface, const char *name, const char *ifname)
 {
-    printf("init_ip_interface %s %s\n", name, ifname);
+    //printf("init_ip_interface %s %s\n", name, ifname);
     bzero(iface, sizeof(*iface));
     iface->name = strdup(name);
     iface->ifname = strdup(ifname);
