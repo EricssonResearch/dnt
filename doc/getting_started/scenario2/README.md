@@ -28,9 +28,9 @@ We will use the following topology, which consist:
 │          │    │      192.168.66.1│         │192.168.66.2      │    │          │
 └──────────┘    └──────────────────┘         └──────────────────┘    └──────────┘
 
-                      PRF ───►                     ───► PEF
+                      PRF ───>                     ───> PEF
 
-                      PEF ◄───                     ◄─── PRF
+                      PEF <───                     <─── PRF
 
                       R2DTWO                       R2DTWO
 ```
