@@ -60,7 +60,7 @@ __Important:__ the recommended way to run R2DTWO is to use root privileges.
 
 ### Support
 
-Question regarding to R2DTWO contact with [Ferenc Fejes <ferenc.fejes@ericsson.com>](mailto:ferenc.fejes@erisson.com?subject=[R2DTWO support])
+Question regarding to R2DTWO contact with [Ferenc Fejes <ferenc.fejes@ericsson.com>](mailto:ferenc.fejes@erisson.com)
 
 Team:
 
