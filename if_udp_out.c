@@ -55,8 +55,8 @@ static bool udpout_open(struct Interface *iface)
     struct ifreq if_mtu, if_idx;
     memset(&if_mtu, 0, sizeof(struct ifreq));
     memset(&if_idx, 0, sizeof(struct ifreq));
-    strncpy(if_mtu.ifr_name, iface->ifname, strlen(iface->ifname));
-    strncpy(if_idx.ifr_name, iface->ifname, strlen(iface->ifname));
+    strncpy(if_mtu.ifr_name, iface->ifname, IFNAMSIZ);
+    strncpy(if_idx.ifr_name, iface->ifname, IFNAMSIZ);
     if (ioctl(sock, SIOCGIFMTU, &if_mtu) < 0) {
         perror("udp-out SIOCGIFMTU");
         return false;
@@ -87,7 +87,7 @@ static bool udpout_open(struct Interface *iface)
         return false;
     }
 
-    if (setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, iface->ifname, strlen(iface->ifname)) < 0) {
+    if (setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, iface->ifname, IFNAMSIZ) < 0) {
         perror("udp-out setsockopt SO_BINDTODEVICE");
         return false;
     }
@@ -214,7 +214,7 @@ bool init_udp_out_interface(struct Interface *iface, const char *name, const cha
         sock = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
         if (sock < 0) continue;
 
-        if (setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, ifname, strlen(ifname)) < 0) {
+        if (setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, ifname, IFNAMSIZ) < 0) {
             perror("udp-out setsockopt SO_BINDTODEVICE");
             close(sock);
             sock = -1;
