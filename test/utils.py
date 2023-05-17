@@ -1,6 +1,7 @@
 from subprocess import Popen, run, run, PIPE, DEVNULL
 from enum import Enum
 import shlex
+import os
 
 OUT_NONE = 1
 OUT_PIPE = 2
@@ -30,7 +31,7 @@ def exec_bg(cmd, out=OUT_NONE):
         print("exec_bg: invalid output specified.")
         print("Use: none, pipe or stdout")
     p = Popen(shlex.split(cmd),
-              pipesize=100000000,
+              pipesize=10000000,
               stdout=cmdout,
               stderr=cmdout,
               text=True)
@@ -43,8 +44,9 @@ def exec_fg(cmd, silent=True, timeout=None):
     Blocking until the command returns
     @return CompletedProcess object of the finished command
     """
+    os.environ['LC_ALL']='C'
     r = run(shlex.split(cmd),
-            pipesize=100000000,
+            pipesize=10000000,
             text=True,
             capture_output=silent,
             timeout=timeout)

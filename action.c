@@ -123,7 +123,7 @@ void create_action_del(struct Action *a, unsigned idx, const char *text)
 
 struct DelayData {
     unsigned delay_ms;
-    struct HeaderField timestamp;
+    //struct HeaderField timestamp;
 };
 
 static enum ActionResult action_delay_execute(struct Action *a, struct PipelineIterator *pi)
@@ -131,10 +131,8 @@ static enum ActionResult action_delay_execute(struct Action *a, struct PipelineI
     struct DelayData *dd = a->action_private;
     struct Packet *p = pi->packet;
     unsigned tstamp;
-    uint8_t *src = p->buf + p->headers[dd->timestamp.header_idx].start + dd->timestamp.bitoffset/8;
-    unsigned len = dd->timestamp.bitcount/8; //TODO this is always 4
-    memcpy(&tstamp, src, len);
-    tstamp = ntohl(tstamp) & 0x07FFFFFF;
+    // get timestamp from metadata
+    tstamp = ntohl(p->timestamp) & 0x07FFFFFF;
     printf("Timestamp read %x \n", tstamp);
     //TODO we might not need to delay the packet
     delay_insert(pi, tstamp, dd->delay_ms);
@@ -147,7 +145,7 @@ static void action_delay_del(void *action_private)
     free(dd);
 }
 
-void create_action_delay(struct Action *a, unsigned delay_ms, struct HeaderField timestamp, const char *text)
+void create_action_delay(struct Action *a, unsigned delay_ms, const char *text)
 {
     bzero(a, sizeof(*a));
     a->type = ACT_DELAY;
@@ -157,7 +155,6 @@ void create_action_delay(struct Action *a, unsigned delay_ms, struct HeaderField
 
     struct DelayData *dd = calloc_struct(DelayData);
     dd->delay_ms = delay_ms;
-    dd->timestamp = timestamp;
     a->action_private = dd;
 }
 
@@ -518,8 +515,10 @@ static enum ActionResult action_writetstamp_execute(struct Action *a, struct Pip
     struct MetaData *md = a->action_private;
     struct Packet *p = pi->packet;
     uint8_t *dst = p->buf + p->headers[md->field.header_idx].start + md->field.bitoffset/8;
+    uint32_t tstamp = htonl( 0x08000000 | (p->recv_time.tv_nsec/1000) | (p->recv_time.tv_sec & 0x00000001) << 20);
+    printf("Tstamp written: %lx", (p->recv_time.tv_nsec/1000) | (p->recv_time.tv_sec & 0x00000001) << 20);
     unsigned len = md->field.bitcount/8; //TODO this is always 4
-    memcpy(dst, &p->timestamp, len);
+    memcpy(dst, &tstamp, len);
     return ACR_CONTINUE;
 }
 
@@ -547,4 +546,3 @@ struct Action *delete_action(struct Action *a)
     //free(a); actions are in an array
     return NULL;
 }
-

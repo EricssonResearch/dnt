@@ -40,12 +40,12 @@ static inline struct timespec timespec_diff(struct timespec a, struct timespec b
     return result;
 }
 
-static void print_tstamp(void)
+static void print_tstamp(struct timespec ts)
 {
 #ifdef DEBUG_TSTAMP
-        struct timespec time_now;
-        clock_gettime(CLOCK_REALTIME, &time_now);
-        printf("* %lu.%09ld ", time_now.tv_sec,time_now.tv_nsec);  // timestamp debug
+//        struct timespec time_now;
+//        clock_gettime(CLOCK_REALTIME, &time_now);
+        printf("* %lu.%09ld ", ts.tv_sec,ts.tv_nsec);  // timestamp debug
 #endif
 }
 
@@ -53,7 +53,7 @@ struct DelayQueue {
     //TODO keep a list of PipelineIterator objects (priority queue)
     //      a background thread will get them from the queue and pipe_iterator_run()
     struct PipelineIterator *pi;
-    unsigned delay;
+    unsigned delay_ms;
     struct timespec due_time;
     struct DelayQueue *next;
 };
@@ -108,24 +108,19 @@ static void *delay_thread(void *arg)
       struct PipelineIterator *pi = pDelayQueueFirst->pi;
       //struct Action *a = pi->pipe->actions[pi->pos];
 
-      print_tstamp();
+      print_tstamp(time_now);
       printf(" *****************************************  delayed send \n");
 
 
+			// Unlock mutex
+			pthread_mutex_unlock (&mutex);
 
-      //TODO when we get a PipelineIterator from the queue the current action is the delay
       //      we need to step to the next action before pipe_iterator_run()
       pi->pos++;
       pipe_iterator_run(pi);
 
       // Move  to the next frame in tt queue
       delay_queue = pDelayQueueFirst->next;
-
-      pthread_mutex_unlock (&mutex);
-
-      // Free frame
-      //free_packet(tt_queue_first->data);           // free data
-
       free(pDelayQueueFirst);
 
       // Check if the tt queue is empty
@@ -196,6 +191,7 @@ void fini_delay(void)
     pthread_cancel(delay_tid); //TODO flush the queue first
     pthread_join(delay_tid, NULL);
 
+    close(ev_fds);
     free(delay_queue);
 }
 
@@ -210,7 +206,7 @@ void delay_insert(struct PipelineIterator *pi, unsigned timestamp, unsigned dela
   }
 
   pDelayQueueEntry->pi = pi;
-  pDelayQueueEntry->delay = delay;
+  pDelayQueueEntry->delay_ms = delay;
   pDelayQueueEntry->next = NULL;
 
   // get current time
@@ -280,7 +276,7 @@ void delay_insert(struct PipelineIterator *pi, unsigned timestamp, unsigned dela
       delay_queue = pDelayQueueEntry;
 
       // interrupt current pselect
-      if(write(ev_fds, &val, sizeof(val)) <= 0) printf ("write event fd error!!!");       // TODO: THROW
+      if(write(ev_fds, &val, sizeof(val)) <= 0) printf ("write event fd error!!!\n");       // TODO: THROW
 
       // unlock mutex
       pthread_mutex_unlock (&mutex);

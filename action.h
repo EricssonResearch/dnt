@@ -82,7 +82,7 @@ void create_action_add(struct Action *a, unsigned idx, int type, unsigned len, c
 void create_action_del(struct Action *a, unsigned idx, const char *text);
 
 //TODO some upper bits of the timestamp are flags!
-void create_action_delay(struct Action *a, unsigned delay_ms, struct HeaderField timestamp, const char *text);
+void create_action_delay(struct Action *a, unsigned delay_ms, const char *text);
 
 void create_action_drop(struct Action *a, const char *text);
 
