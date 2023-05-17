@@ -50,13 +50,12 @@ clean:
 	rm -f $(EXE)
 
 .PHONY: doc
-doc: 
-	rm /tmp/r2dtwo.md
+doc:
+	-rm /tmp/r2dtwo.md
 	cat doc/getting_started/README.md >> /tmp/r2dtwo.md
 	cat doc/getting_started/scenario1/README.md >> /tmp/r2dtwo.md
 	cat doc/getting_started/scenario2/README.md >> /tmp/r2dtwo.md
 	cat doc/getting_started/scenario3/README.md >> /tmp/r2dtwo.md
 	cat doc/inispec.md >> /tmp/r2dtwo.md
 	cat doc/stream_compiler.md >> /tmp/r2dtwo.md
-	pandoc --pdf-engine=xelatex -V monofont="Ubuntu Mono" -V fontsize=10pt -V geometry:margin=1.5cm /tmp/r2dtwo.md -o readme.pdf
-
+	pandoc --pdf-engine=xelatex -V monofont="Noto Sans Mono" -V fontsize=10pt -V geometry:margin=1.5cm /tmp/r2dtwo.md -o readme.pdf

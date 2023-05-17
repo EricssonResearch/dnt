@@ -70,8 +70,8 @@ static bool udpin_open(struct Interface *iface)
     struct ifreq if_mtu, if_idx;
     memset(&if_mtu, 0, sizeof(struct ifreq));
     memset(&if_idx, 0, sizeof(struct ifreq));
-    strncpy(if_mtu.ifr_name, iface->ifname, strlen(iface->ifname));
-    strncpy(if_idx.ifr_name, iface->ifname, strlen(iface->ifname));
+    strncpy(if_mtu.ifr_name, iface->ifname, IFNAMSIZ);
+    strncpy(if_idx.ifr_name, iface->ifname, IFNAMSIZ);
     if (ioctl(sock, SIOCGIFMTU, &if_mtu) < 0) {
         perror("udp-in SIOCGIFMTU");
         close(sock);

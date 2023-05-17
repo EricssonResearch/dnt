@@ -76,6 +76,7 @@ struct Pof *new_pof(unsigned pof_max_delay, unsigned pof_take_any_time, unsigned
     timespec_from_u64(&ret->pof_take_any_time, (uint64_t) pof_take_any_time * NSEC_PER_SEC / 1000);
     ret->queue_max_len = queue_max_len;
     ret->queue_len = 0;
+    ret->take_any = true;
     ret->evfd = eventfd(0, EFD_NONBLOCK);
     if (ret->evfd < 0) {
         perror("eventfd");
@@ -190,8 +191,10 @@ static void pof_reset(struct Pof *pof)
 {
     while (pof->q_head)
         pof_pop_item(pof->q_head);
-    pof->take_any = true;
-    printf("POF reset\n");
+    if (pof->take_any == false) {
+        printf("POF reset\n");
+        pof->take_any = true;
+    }
 }
 
 static struct timespec *get_next_deadline(struct Pof *pof)
@@ -269,9 +272,9 @@ static void *pof_thread(void *arg)
         }
         /* pof_debug(pof); */
         pthread_mutex_lock(&pof->lock);
-        if (fd.events & POLLIN) {
+        if (fd.revents != 0 && (fd.revents & POLLIN)) {
             unsigned long event;
-            ret = read(pof->evfd, &event, sizeof(event));
+            ret = read(fd.fd, &event, sizeof(event));
             if (ret < 0) {
                 perror("read");
                 goto out;
@@ -283,8 +286,9 @@ static void *pof_thread(void *arg)
             if (pof->queue_len != 0) {
                 pof_try_forward(pof, POF_TIMEOUT);
                 goto out;
-            } else // take_any
+            } else {// take_any
                 pof_reset(pof);
+            }
         }
 out:
         next_deadline = get_next_deadline(pof);

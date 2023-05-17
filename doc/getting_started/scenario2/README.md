@@ -1,13 +1,12 @@
-# Getting started with R2DTWO: Reliable & Robust Deterministic Tool for netWOrking
+# Scenario #2: R2DTWO TSN over DetNet
 
 __Important: this scenario assumes background knowledge of the basics from Scenario #1. Please take a look into Scenario #1 if you have not already.__ [Scenario #1](../scenario1/README.md)
 
-# Scenario #2: R2DTWO TSN over DetNet
-
-In the following we will use R2DTWO as a DetNet router.
+In the following, we will use R2DTWO as a DetNet router.
 The Layer2 traffic of `talker` and `listener` nodes will be encapsulated in MPLS DetNet pseudowires, then sent through a PREF (Packet Replication and Elimination Functions).
 
-We will use the following topology, which consist:
+We will use the following topology, which consists:
+
 * a talker node called **talker** which will generate traffic
 * a node called **listener** which receive the traffic coming from the **talker**
 * two R2DTWO instances, running on the **nxp1** and **nxp2** nodes.
@@ -28,14 +27,14 @@ We will use the following topology, which consist:
 │          │    │      192.168.66.1│         │192.168.66.2      │    │          │
 └──────────┘    └──────────────────┘         └──────────────────┘    └──────────┘
 
-                      PRF ───>                     ───> PEF
+                      PRF ───►                     ───► PEF
 
-                      PEF <───                     <─── PRF
+                      PEF ◄───                     ◄─── PRF
 
                       R2DTWO                       R2DTWO
 ```
 As you can see, there are redundant paths between **nxp1** and **nxp2**.
-These paths will utilized by R2DTWO for redundancy.
+These paths will be utilized by R2DTWO for redundancy.
 What is important here, unlike in the Layer2 TSN case (Scenario #1) now R2DTWO operates at Layer3 and the replicated packets will be routed to the DetNet peer.
 
 In the scenario above however the routing is very simple, but the same configuration would work even when there are multiple routers between `nxp1` and `nxp2`.
@@ -43,14 +42,14 @@ In the scenario above however the routing is very simple, but the same configura
 ## The R2DTWO configurations
 
 Now we have separate R2DTWO config files for the two DetNet nodes: `nxp1.ini` and `nxp2.ini`.
-This is required because even if the topology symmetrical, we have different IP addresses on the two routers.
+This is required because even if the topology is symmetrical, we have different IP addresses on the two routers.
 
 
 ### Explanation of the configuration
 
-For full details, please take a look into the R2DTWO documentation.
-Right now we are only explaining the actions in the `nxp1.ini` file, but everything expect the addresses apply to the `nxp2.ini` too obviously.
-Like before in Scenario #1, this config also consists three main sections: `[interfaces]`, `[objects]` and `[streams]`.
+For full details, please take a look at the R2DTWO documentation.
+Right now we are only explaining the actions in the `nxp1.ini` file, but everything except the addresses apply to the `nxp2.ini` too obviously.
+Like before in Scenario #1, this config also consists of three main sections: `[interfaces]`, `[objects]` and `[streams]`.
 
 Take a look into the `[interfaces]` section, this is where this scenario differs mostly.
 
@@ -68,12 +67,12 @@ nni2_out = udp-out iface=swp1 dstip=192.168.66.2
 
 As one can see there are separate interfaces defined for egress (`nni1_out` and `nni2_out`) and ingress (`nni1_in` and `nni2_in`) DetNet traffic.
 Notice that on the egress interfaces there are no streams defined.
-This makes sense since those interfaces cannot be used to receive traffic, they only sending the encapsulated traffic to their counterparts.
+This makes sense since those interfaces cannot be used to receive traffic, they only send the encapsulated traffic to their counterparts.
 
-The `[objects]` section very similar to Scenario #1.
+The `[objects]` section is very similar to Scenario #1.
 That is because the same semantics can be applied to sequence number generation, replication and elimination.
 In DetNet terminology, we use __PRF__ to replication and __PEF__ to elimination.
-We using the `prf` and `pef` names accordingly.
+We use the `prf` and `pef` names accordingly.
 
 ```
 [objects]
@@ -101,35 +100,35 @@ For the full list of the supported R2DTWO actions, their parameters and behavior
 
 Right now, the packets matching in `stream_uni` stream will be processed as described below as described in the `:actions` line:
 
-0. The switch receive a packet on `swp2` interface, and since its an ethernet interface, R2DTWO apply a VLAN 0 tag (named as `cvaln` in the config) on it by default
+0. The switch receives a packet on `swp2` interface, and since its an ethernet interface, R2DTWO applies a VLAN 0 tag (named as `cvaln` in the config) on it by default
 1. The `prf` action gives a unique sequence number for each packet: `prf`
-2. We change the VLAN ID to 99, so at the PEF side we can match to that regardless of the paths. This is an R2DTWO extra feature, normally one can define two NNI streams and matching to the outer MPLS labels: `edit cvlan.vid=99`
+2. We change the VLAN ID to 99, so at the PEF side we can match to that regardless of the paths. This is an R2DTWO extra feature, normally one can define two NNI streams and match to the outer MPLS labels: `edit cvlan.vid=99`
 3. Now we have to prepare the DetNet encapsulation. For that we will add an MPLS header `before eth add mpls` and a DetNet control word `after mpls add dcw`.
-4. Optional, but might be useful to show: `writeseq dcw` will write the sequence number of the packet (given from `prf`) into the `dcw` header. R2DTWO smart enough to do that if we pushing new DetNet CW header.
+4. Optional, but might be useful to show: `writeseq dcw` will write the sequence number of the packet (given from `prf`) into the `dcw` header. R2DTWO is smart enough to do that if we push new DetNet CW header.
 5. That was the common part of the pipeline. Now we perform a branching with the `replicate nni1_out nni2_out` action, and continue the execution of the pipeline differently with two copies of the packet.
 6. We set the MPLS Label field to 100 and 200 values, and sending the replica packets on `nni1_out` and `nni2_out` interfaces. Before the sending we also set the MPLS Bottom of Stack bit to 1, since we dont do label stacking, that is the only MPLS label we have right now.
 
-Now lets see the NNI part.
+Now let's see the NNI part.
 The NNIs currently UDP sockets for both ingress and egress: we will check it with `tshark` later.
-Right now we only defined one NNI stream for purpose: regardless of the ingress NNI interfaces, we only matching the VLAN ID 99, which is set at step 2. of the `stream_uni` action pipeline.
+Right now we only defined one NNI stream for purpose: regardless of the ingress NNI interfaces, we only match the VLAN ID 99, which is set at step 2. of the `stream_uni` action pipeline.
 
 In the NNI `:packet` line we have to define the expected encapsulation, which is `mpls, dcw, eth, cvlan`.
 __Important__: as you can see, the packet header definition does not contain the underlying network's encapsulation (Ethernet, IP, UDP).
-Thats because we only interested the traffic in the pseudowires.
+That's because we are only interested in the traffic in the pseudowires.
 
 The steps in `stream_nni`:
 
 1. After the matching of VLAN ID 99 we will read the DetNet CW sequence number: `readseq dcw`. That is required for the PEF
 2. Now we can do the elimination with the PEF, which is performed by the `pef` action. Notice that `pef` is defined in the `[objects]` section, but until their names are not ambiguous we can use an object name in the action pipeline and the action type implicitly guessed by the R2DTWO.
-3. Now we decapsulate the headers until the Layer2 payload, as received by the UNI, since the `talker` will expect the same encapsulation what it used when sent the packet. So right now we will delete the MPLS, DetNet CW and VLAN headers: `del dcw, del mpls, del cvlan`.
+3. Now we decapsulate the headers until the Layer2 payload, as received by the UNI, since the `talker` will expect the same encapsulation that it used when sent the packet. So right now we will delete the MPLS, DetNet CW and VLAN headers: `del dcw, del mpls, del cvlan`.
 4. Then in the last action of the pipeline, we send the decapsulated packet on the UNI for the `talker`: `send uni`.
 
-As mentioned before, the `nxp2.ini` very similar, however the UNI connected to the `listener` in that case.
+As mentioned before, the `nxp2.ini` is very similar however, the UNI is connected to the `listener` in that case.
 
 
 ## Run the R2DTWO and generate traffic
 
-Lets try out R2DTWO with this scenario.
+Let's try out R2DTWO with this scenario.
 For that we need at least three terminal window: one for generate traffic (`talker`) and two for run R2DTWO instances on `nxp1` and `nxp2`.
 
 After opening the terminals, switch to `root` user and do the network config in each with the `source env.sh` command:
@@ -305,9 +304,9 @@ Internet Control Message Protocol
         [Length: 48]
 ```
 
-This is a very-very verbose output, showing all of the fields decoded from every protocol.
+This is a very very verbose output, showing all of the fields decoded from every protocol.
 
-If we clean up the not relevant bits, a little bit, and show a shorter summary for every protocol header expect the DetNet Control Word, use the following command:
+If we clean up the not relevant bits, a little bit, and show a shorter summary for every protocol header except the DetNet Control Word, use the following command:
 
 ```
 nxp1 tshark -Q -l -O pwethcw -i swp0
@@ -328,7 +327,8 @@ Internet Control Message Protocol
 ```
 
 As one can see, we have the router IPv4 addresses in the outermost IP header, then UDP with the standard `6635` destination port.
-After that we have the DetNet encapsulation: MPLS and DetNet CW, in this packet for example the sequence number is 4.
+
+After that, we have the DetNet encapsulation: MPLS and DetNet CW, in this packet for example the sequence number is 4.
 Inside that, we have the talker's traffic tunneled: Ethernet, CVLAN, IPv4 and ICMP (ping).
 
 For better visibility, please use Wireshark.
@@ -336,8 +336,9 @@ For better visibility, please use Wireshark.
 
 ## Optional: Cleanup (if running locally, not on physical NXP boards)
 
-Since every network configuration used in this guide sandboxed, we only have to exit from the sourced environment in every terminal window.
+Since every network configuration used in this guide is sandboxed, we only have to exit from the sourced environment in every terminal window.
 To do that use the `exit` command or press `Ctrl+D`.
 When we exit from the last environment, that will clean up the network namespaces and every other network configuration related to the test environment.
 
-__Important: do not run multiple test scenarios at the same time! Make sure you are exited from the test environment in every terminal before source a new environment in for a new test scenario!__
+__Important: do not run multiple test scenarios at the same time! Make sure you are exited from the test environment in every terminal before sourcing a new environment in for a new test scenario!__
+
