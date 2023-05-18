@@ -121,7 +121,7 @@ For the full list of the supported R2DTWO actions, their parameters, and behavio
 
 Right now, the packets matching in `stream_uni` stream will be processed as described below as described in the `:actions` line:
 
-0. The switch receives a packet on `swp2` interface, and since its an ethernet interface, R2DTWO applies a VLAN 0 tag (named as `cvaln` in the config) on it by default
+0. The switch receives a packet on `swp2` interface, and since its an ethernet interface, R2DTWO applies a VLAN 0 tag (named as `cvlan` in the config) on it by default
 1. The `seqgen` action gives a unique sequence number for each packet
 2. After the VLAN tag R2DTWO insert the FRER Redundancy-tag (R-tag) header
 3. The `writeseq` action inserts the packet's sequence number to the R-tag's sequence field. __This is optional, R2DTWO is smart enough to put the sequence number implicitly into the R-tag__

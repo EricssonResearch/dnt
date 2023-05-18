@@ -100,7 +100,7 @@ For the full list of the supported R2DTWO actions, their parameters and behavior
 
 Right now, the packets matching in `stream_uni` stream will be processed as described below as described in the `:actions` line:
 
-0. The switch receives a packet on `swp2` interface, and since its an ethernet interface, R2DTWO applies a VLAN 0 tag (named as `cvaln` in the config) on it by default
+0. The switch receives a packet on `swp2` interface, and since its an ethernet interface, R2DTWO applies a VLAN 0 tag (named as `cvlan` in the config) on it by default
 1. The `prf` action gives a unique sequence number for each packet: `prf`
 2. We change the VLAN ID to 99, so at the PEF side we can match to that regardless of the paths. This is an R2DTWO extra feature, normally one can define two NNI streams and match to the outer MPLS labels: `edit cvlan.vid=99`
 3. Now we have to prepare the DetNet encapsulation. For that we will add an MPLS header `before eth add mpls` and a DetNet control word `after mpls add dcw`.

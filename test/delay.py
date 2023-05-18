@@ -100,7 +100,7 @@ def main():
         exec_fg("killall r2dtwo")
     print(f'All test completed, {ret}/{len(tests)} successfully')
     # exit(0)
-    #cleanup_ifaces()
+    cleanup_ifaces()
     if ret != len(tests):
         exit(1)
     exit(0)
