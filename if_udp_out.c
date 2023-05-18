@@ -87,7 +87,7 @@ static bool udpout_open(struct Interface *iface)
         return false;
     }
 
-    if (setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, iface->ifname, IFNAMSIZ) < 0) {
+    if (setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, iface->ifname, strlen(iface->ifname)) < 0) {
         perror("udp-out setsockopt SO_BINDTODEVICE");
         return false;
     }
@@ -214,7 +214,7 @@ bool init_udp_out_interface(struct Interface *iface, const char *name, const cha
         sock = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
         if (sock < 0) continue;
 
-        if (setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, ifname, IFNAMSIZ) < 0) {
+        if (setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, ifname, strlen(ifname)) < 0) {
             perror("udp-out setsockopt SO_BINDTODEVICE");
             close(sock);
             sock = -1;
