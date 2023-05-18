@@ -133,7 +133,8 @@ struct IniSection *read_inifile(const char *filename)
             // realloc, read more
             bufsize += BUFFERSIZE;
             linebuf = realloc(linebuf, bufsize*sizeof(char));
-            fgets(linebuf+len, BUFFERSIZE, f);//TODO EOF?
+            if (fgets(linebuf+len, BUFFERSIZE, f) == NULL)
+                perror("fgets");
             len = strlen(linebuf);
         }
         char *c = linebuf;

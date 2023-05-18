@@ -66,7 +66,9 @@ static struct Packet *int_recv(struct Interface *iface)
 {
     struct PacketFifo *pf = iface->iface_private;
     uint64_t one;
-    read(iface->recvfd, &one, 8);
+    int ret = read(iface->recvfd, &one, 8);
+    if (ret < 0)
+        perror("read");
     struct Packet *p = packetfifo_get(pf);
     return p;
 }
@@ -78,7 +80,9 @@ static bool int_send(struct Interface *iface, struct Packet *p)
         struct Packet *newp = serialize_packet(p);
         packetfifo_insert(pf, newp);
         uint64_t one = 1;
-        write(iface->recvfd, &one, 8);
+        int ret = write(iface->recvfd, &one, 8);
+        if (ret < 0)
+            perror("write");
     }
     return true;
 }
