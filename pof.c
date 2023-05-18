@@ -50,7 +50,7 @@ struct Pof {
 static void *pof_thread(void *);
 static void pof_reset(struct Pof *pof);
 
-static inline void pof_debug(const struct Pof *pof)
+static inline __attribute__((unused)) void pof_debug(const struct Pof *pof)
 {
     if (pof->queue_len < 0) {
         return;
