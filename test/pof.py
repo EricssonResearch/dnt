@@ -4,6 +4,11 @@ from utils import *
 import time
 import sys
 
+PATH_DELAY_MS = 30
+REORDER_PERCENT = 50
+PING_INTERVAL_SEC = 0.01
+PING_NUM = 100
+
 stdouts = { }
 
 nics = [
@@ -53,8 +58,8 @@ def no_out_of_order():
         exec_bg("../r2dtwo pof/r2br1.ini")
         time.sleep(1)
         exec_fg("ip link set dev r2br0_nni1 down")
-        num_pings = 1000
-        pingcmd = exec_fg(f"ping -I to_r2br0 10.0.0.2 -i 0.005 -c {num_pings}")
+        num_pings = PING_NUM
+        pingcmd = exec_fg(f"ping -I to_r2br0 10.0.0.2 -i {PING_INTERVAL_SEC} -c {num_pings}")
         exec_fg("ip link set dev r2br0_nni1 up")
         if pingcmd.stdout and f", {num_pings} received," not in pingcmd.stdout:
             print(pingcmd.stdout)
@@ -73,10 +78,10 @@ def ofo_no_pof():
         exec_bg("../r2dtwo pof/r2br0.ini")
         exec_bg("../r2dtwo pof/r2br1_nopof.ini")
         time.sleep(1)
-        num_pings = 1000
+        num_pings = PING_NUM
         exec_fg("tc qdisc add dev r2br0_nni1 root netem delay 30ms reorder 50% 50%")
         exec_fg("tc qdisc add dev r2br0_nni0 root netem delay 30ms reorder 50% 50%")
-        pingcmd = exec_fg(f"ping -I to_r2br0 10.0.0.2 -i 0.005 -c {num_pings}")
+        pingcmd = exec_fg(f"ping -I to_r2br0 10.0.0.2 -i {PING_INTERVAL_SEC} -c {num_pings}")
         exec_fg("tc qdisc del dev r2br0_nni1 root")
         exec_fg("tc qdisc del dev r2br0_nni0 root")
         if pingcmd.stdout and f", {num_pings} received," not in pingcmd.stdout:
@@ -96,10 +101,10 @@ def ofo_pof():
         exec_bg("../r2dtwo pof/r2br0.ini")
         exec_bg("../r2dtwo pof/r2br1.ini")
         time.sleep(1)
-        num_pings = 1000
+        num_pings = PING_NUM
         exec_fg("tc qdisc add dev r2br0_nni1 root netem delay 30ms reorder 50% 50%")
         exec_fg("tc qdisc add dev r2br0_nni0 root netem delay 30ms reorder 50% 50%")
-        pingcmd = exec_fg(f"ping -I to_r2br0 10.0.0.2 -i 0.005 -c {num_pings}")
+        pingcmd = exec_fg(f"ping -I to_r2br0 10.0.0.2 -i {PING_INTERVAL_SEC} -c {num_pings}")
         exec_fg("tc qdisc del dev r2br0_nni1 root")
         exec_fg("tc qdisc del dev r2br0_nni0 root")
         if pingcmd.stdout and f", {num_pings} received," not in pingcmd.stdout:
@@ -119,12 +124,12 @@ def pof_reset():
         exec_bg("../r2dtwo pof/r2br0.ini")
         exec_bg("../r2dtwo pof/r2br1.ini")
         time.sleep(1)
-        num_pings = 100
+        num_pings = PING_NUM
         exec_fg("tc qdisc add dev r2br0_nni1 root netem delay 30ms reorder 50% 50%")
         exec_fg("tc qdisc add dev r2br0_nni0 root netem delay 30ms reorder 50% 50%")
-        pingcmd = exec_fg(f"ping -I to_r2br0 10.0.0.2 -i 0.005 -c {num_pings}")
+        pingcmd = exec_fg(f"ping -I to_r2br0 10.0.0.2 -i {PING_INTERVAL_SEC} -c {num_pings}")
         time.sleep(3) # sleep more than POF reset (=1sec)
-        pingcmd = exec_fg(f"ping -I to_r2br0 10.0.0.2 -i 0.005 -c {num_pings}")
+        pingcmd = exec_fg(f"ping -I to_r2br0 10.0.0.2 -i {PING_INTERVAL_SEC} -c {num_pings}")
         exec_fg("tc qdisc del dev r2br0_nni1 root")
         exec_fg("tc qdisc del dev r2br0_nni0 root")
         if pingcmd.stdout and f", {num_pings} received," not in pingcmd.stdout:
@@ -143,10 +148,10 @@ def ofo_pof_smallbuffer():
         exec_bg("../r2dtwo pof/r2br0.ini")
         exec_bg("../r2dtwo pof/r2br1_smallbuf.ini")
         time.sleep(1)
-        num_pings = 100
+        num_pings = PING_NUM
         exec_fg("tc qdisc add dev r2br0_nni1 root netem delay 30ms reorder 50% 50%")
         exec_fg("tc qdisc add dev r2br0_nni0 root netem delay 30ms reorder 50% 50%")
-        pingcmd = exec_fg(f"ping -I to_r2br0 10.0.0.2 -i 0.005 -c {num_pings}")
+        pingcmd = exec_fg(f"ping -I to_r2br0 10.0.0.2 -i {PING_INTERVAL_SEC} -c {num_pings}")
         exec_fg("tc qdisc del dev r2br0_nni1 root")
         exec_fg("tc qdisc del dev r2br0_nni0 root")
         if ping_check_out_of_order(pingcmd.stdout) == True:

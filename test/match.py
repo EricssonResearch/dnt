@@ -94,8 +94,8 @@ def config_ifaces():
         exit(1)
 
 def get_rxpktsnum(iface = "from_r2"):
-    out = exec_fg(f"ip -j -p stats show dev {iface}")
-    return int(json.loads(out.stdout)[1]["stats64"]["rx"]["packets"])
+    out = exec_fg(f"ip -j -p stats show group link dev {iface}")
+    return int(json.loads(out.stdout)[0]["stats64"]["rx"]["packets"])
 
 def test_ethernet():
     print("Test Ethernet maching...")
