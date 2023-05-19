@@ -21,8 +21,6 @@ static void free_dummybuf(void)
 
 struct Packet *new_packet(struct Interface *from)
 {
-    //TODO global constructor function?
-    //TODO delete in a global destructor function?
     if (!dummybuf) dummybuf = calloc(1, PACKET_BUF_LEN);
 
     struct Packet *ret = calloc_struct(Packet);

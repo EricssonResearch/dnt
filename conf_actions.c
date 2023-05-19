@@ -150,7 +150,6 @@ struct StageState {
     struct IniSection *streams_sec;
     bool had_final;
     bool seq_set; // true if we had an action that sets packet->sequence
-    //bool tstamp_set; //TODO instead: packet->timestamp should be initialized from packet->recv_time
 };
 
 
@@ -992,14 +991,17 @@ static bool process_action(struct StageState *stst)
             }
             char *pipestring = inisection_get(stst->streams_sec, newaction->d.jump.pipename);
             if (pipestring) {
+                pipestring = strdup(pipestring);
                 struct StageState jstst = *stst;
                 jstst.stream = newaction->d.jump.pipename;
                 jstst.actions = NULL;
                 //TODO limit recursion depth with a counter in stst
                 if (!foreach_stages(pipestring, process_stage, &jstst)) {
+                    free(pipestring);
                     delete_confaction_list(jstst.actions);
                     THROW("failed to process pipeline '%s'", newaction->d.jump.pipename);
                 }
+                free(pipestring);
                 if (jstst.actions == NULL) {
                     THROW("no actions in pipeline '%s'", newaction->d.jump.pipename);
                 }
@@ -1081,15 +1083,18 @@ static bool process_action(struct StageState *stst)
                 if (pstring == NULL) {
                     THROW("pipeline '%s' not found", p->string);
                 }
+                pstring = strdup(pstring);
                 struct StageState pstst = *stst;
                 pstst.stream = p->string;
                 pstst.headers = copy_header_list(stst->headers);
                 pstst.actions = NULL;
                 if (!foreach_stages(pstring, process_stage, &pstst)) {
+                    free(pstring);
                     delete_header_list(pstst.headers);
                     delete_confaction_list(pstst.actions);
                     THROW("failed to process pipeline '%s'", p->string);
                 }
+                free(pstring);
                 if (pstst.actions == NULL) {
                     delete_header_list(pstst.headers);
                     THROW("no actions in pipeline '%s'", p->string);
@@ -1165,12 +1170,15 @@ struct ConfAction *parse_actions_line(const char *stream, char *line,
         .had_final = false,
         .seq_set = false,
     };
-    if (!foreach_stages(line, process_stage, &stst)) {
+    char *aline = strdup(line);
+    if (!foreach_stages(aline, process_stage, &stst)) {
         fprintf(stderr, "failed to process actions line for stream '%s'\n", stream);
+        free(aline);
         delete_header_list(stst.headers);
         delete_confaction_list(stst.actions);
         return NULL;
     }
+    free(aline);
 
     if (stst.actions == NULL) {
         fprintf(stderr, "no actions in actions line for stream '%s'\n", stream);
