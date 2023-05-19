@@ -1,3 +1,6 @@
+// Copyright (c) 2023, Ericsson AB and Ericsson Telecommunication Hungary
+// All rights reserved.
+
 
 #ifndef R2_TRANSFER_H
 #define R2_TRANSFER_H

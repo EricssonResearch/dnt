@@ -1,3 +1,6 @@
+// Copyright (c) 2023, Ericsson AB and Ericsson Telecommunication Hungary
+// All rights reserved.
+
 #define _GNU_SOURCE
 #include "pof.h"
 #include "pipeline.h"

@@ -1,3 +1,6 @@
+// Copyright (c) 2023, Ericsson AB and Ericsson Telecommunication Hungary
+// All rights reserved.
+
 
 #include "if_utils.h"
 #include "interface.h"

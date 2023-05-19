@@ -1,3 +1,6 @@
+// Copyright (c) 2023, Ericsson AB and Ericsson Telecommunication Hungary
+// All rights reserved.
+
 
 #ifndef R2_CONF_OBJECT_H
 #define R2_CONF_OBJECT_H
