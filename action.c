@@ -136,7 +136,6 @@ static enum ActionResult action_delay_execute(struct Action *a, struct PipelineI
     unsigned tstamp;
     // get timestamp from metadata
     tstamp = ntohl(p->timestamp) & 0x07FFFFFF;
-    printf("Timestamp read %x \n", tstamp);
     //TODO we might not need to delay the packet
     delay_insert(pi, tstamp, dd->delay_ms);
     return ACR_HOLD;
@@ -519,7 +518,6 @@ static enum ActionResult action_writetstamp_execute(struct Action *a, struct Pip
     struct Packet *p = pi->packet;
     uint8_t *dst = p->buf + p->headers[md->field.header_idx].start + md->field.bitoffset/8;
     uint32_t tstamp = htonl( 0x08000000 | (p->recv_time.tv_nsec/1000) | (p->recv_time.tv_sec & 0x00000001) << 20);
-    printf("Tstamp written: %lx", (p->recv_time.tv_nsec/1000) | (p->recv_time.tv_sec & 0x00000001) << 20);
     unsigned len = md->field.bitcount/8; //TODO this is always 4
     memcpy(dst, &tstamp, len);
     return ACR_CONTINUE;
