@@ -106,6 +106,7 @@ err_calloc:
 struct Pof *delete_pof(struct Pof *pof)
 {
     pthread_cancel(pof->thread_id);
+    pthread_join(pof->thread_id, NULL);
     pthread_mutex_destroy(&pof->lock);
     pof_reset(pof);
     free(pof);
