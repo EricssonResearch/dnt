@@ -1430,7 +1430,7 @@ struct Action *assemble_actions(const struct ConfAction *ca_list, unsigned *acti
 void confactions_print(const struct ConfAction *ca_list)
 {
     for (const struct ConfAction *ca = ca_list; ca; ca=ca->next) {
-        fprintf(stderr, "ConfAction %s '%s'\n",
+        printf("ConfAction %s '%s'\n",
                 confaction_name_from_type(ca->type), ca->text);
         switch (ca->type) {
             case CA_UNDEF:

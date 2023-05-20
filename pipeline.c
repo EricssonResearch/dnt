@@ -48,13 +48,13 @@ struct Pipeline *new_pipeline(struct Action *actions, unsigned action_count)
 
 void pipeline_ref(struct Pipeline *pipe)
 {
-    pipe->reference_count++;
+    __atomic_fetch_add(&pipe->reference_count, 1, __ATOMIC_RELAXED);
 }
 
 void pipeline_unref(struct Pipeline *pipe)
 {
     if (pipe->reference_count > 0)
-        pipe->reference_count--;
+        __atomic_fetch_sub(&pipe->reference_count, 1, __ATOMIC_RELAXED);
 
     if (pipe->reference_count == 0) {
         unref_send_interfaces(pipe);

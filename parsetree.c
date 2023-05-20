@@ -33,13 +33,13 @@ struct ParseTree *new_parsetree(struct Interface *iface)
 
 void parsetree_ref(struct ParseTree *pt)
 {
-    pt->reference_count++;
+    __atomic_fetch_add(&pt->reference_count, 1, __ATOMIC_RELAXED);
 }
 
 void parsetree_unref(struct ParseTree *pt)
 {
     if (pt->reference_count > 0)
-        pt->reference_count--;
+        __atomic_fetch_sub(&pt->reference_count, 1, __ATOMIC_RELAXED);
 
     if (pt->reference_count == 0) {
         if (pt->pipe) {

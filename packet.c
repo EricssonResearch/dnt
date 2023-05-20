@@ -28,7 +28,7 @@ struct Packet *new_packet(struct Interface *from)
         ret->buf = dummybuf;
     } else {
         ret->buf = calloc(1, PACKET_BUF_LEN);
-        packet_count++;
+        __atomic_fetch_add(&packet_count, 1, __ATOMIC_RELAXED);
     }
     // note: malloc returns pointers aligned to be suitable for long double
     // this offset is divisible with 4, so the start position is okay
@@ -42,7 +42,7 @@ struct Packet *delete_packet(struct Packet *p)
     if (!p) return NULL;
     if (p->buf != dummybuf) {
         free(p->buf);
-        packet_count--;
+        __atomic_fetch_sub(&packet_count, 1, __ATOMIC_RELAXED);
     }
     free(p);
     return NULL;
@@ -60,7 +60,7 @@ struct Packet *copy_packet(const struct Packet *p)
     // we need to keep the unallocated scratch space zeroed
     memcpy(newp->buf, p->buf, p->start+p->len);
 #endif
-    packet_count++;
+    __atomic_fetch_add(&packet_count, 1, __ATOMIC_RELAXED);
     return newp;
 }
 
@@ -68,7 +68,7 @@ struct Packet *serialize_packet(struct Packet *p)
 {
     struct Packet *ret = calloc_struct(Packet);
     ret->buf = calloc(1, PACKET_BUF_LEN);
-    packet_count++;
+    __atomic_fetch_add(&packet_count, 1, __ATOMIC_RELAXED);
     ret->start = PACKET_START_OFFSET;
     ret->from = p->from;
     ret->recv_time = p->recv_time;
