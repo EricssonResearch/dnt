@@ -52,6 +52,8 @@ static void print_tstamp(struct timespec ts)
     //        struct timespec time_now;
     //        clock_gettime(CLOCK_REALTIME, &time_now);
     printf("* %lu.%09ld ", ts.tv_sec,ts.tv_nsec);  // timestamp debug
+#else
+    (void)ts;
 #endif
 }
 
@@ -244,6 +246,10 @@ void delay_insert(struct PipelineIterator *pi, unsigned timestamp, unsigned dela
         pDelayQueueEntry->due_time.tv_nsec -= 1000000000;
     }
 
+#ifdef DEBUG_TSTAMP
+    struct timespec due_time = pDelayQueueEntry->due_time;
+#endif
+
     // handling the delay queue should not be interrupted
     pthread_mutex_lock (&mutex);
 
@@ -302,10 +308,10 @@ void delay_insert(struct PipelineIterator *pi, unsigned timestamp, unsigned dela
     }
 
 #if defined (DEBUG_TSTAMP)
-    if(pDelayQueueEntry->due_time.tv_nsec - t2.tv_nsec < 0)
-        printf(" delay: %ld.%09ld\n", pDelayQueueEntry->due_time.tv_sec-1-t2.tv_sec, pDelayQueueEntry->due_time.tv_nsec -t2.tv_nsec + 1000000000);
+    if(due_time.tv_nsec - t2.tv_nsec < 0)
+        printf(" delay: %ld.%09ld\n", due_time.tv_sec-1-t2.tv_sec, due_time.tv_nsec -t2.tv_nsec + 1000000000);
     else
-        printf(" delay: %ld.%09ld\n", pDelayQueueEntry->due_time.tv_sec-t2.tv_sec, pDelayQueueEntry->due_time.tv_nsec -t2.tv_nsec);
+        printf(" delay: %ld.%09ld\n", due_time.tv_sec-t2.tv_sec, due_time.tv_nsec -t2.tv_nsec);
 #endif
 
 }
