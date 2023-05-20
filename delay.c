@@ -119,6 +119,10 @@ static void *delay_thread(void *arg)
         print_tstamp(time_now);
         /* printf(" *****************************************  delayed send \n"); */
 
+        // Move  to the next frame in tt queue
+        delay_queue = pDelayQueueFirst->next;
+        free(pDelayQueueFirst);
+
 
         // Unlock mutex
         pthread_mutex_unlock (&mutex);
@@ -126,10 +130,6 @@ static void *delay_thread(void *arg)
         //      we need to step to the next action before pipe_iterator_run()
         pi->pos++;
         pipe_iterator_run(pi);
-
-        // Move  to the next frame in tt queue
-        delay_queue = pDelayQueueFirst->next;
-        free(pDelayQueueFirst);
 
         // Check if the tt queue is empty
         if(delay_queue != NULL){               // more packets in queue, prime timer
