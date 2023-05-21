@@ -83,7 +83,8 @@ static void *delay_thread(void *arg)
     int nfds = ev_fds+1;
     struct timespec time_now, wait;
 
-    int ret, val;
+    int ret;
+    uint64_t val;
 
     FD_ZERO(&readfds);
 
@@ -266,7 +267,7 @@ void delay_insert(struct PipelineIterator *pi, unsigned timestamp, unsigned dela
     }
 
 
-    int val = 1;
+    uint64_t val = 1;
     if(pDelayQueueIteratorPrev == NULL){
 
         // if the  queue not empty, set the next
