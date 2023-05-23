@@ -98,7 +98,7 @@ def get_rxpktsnum(iface = "from_r2"):
     return int(json.loads(out.stdout)[0]["stats64"]["rx"]["packets"])
 
 def test_ethernet():
-    print("Test Ethernet maching...")
+    print("Test Ethernet maching...", end=" ")
     start_r2dtwo()
     time.sleep(1)
     sendp(pkts_bad_eth + pkts_good_eth, verbose=0, iface="to_r2")
@@ -108,7 +108,7 @@ def test_ethernet():
     return 1
 
 def test_vlans():
-    print("Test VLAN maching...")
+    print("Test VLAN maching...", end=" ")
     start_r2dtwo()
     time.sleep(1)
     sendp(pkts_bad_vlans + pkts_good_vlans, verbose=0, iface="to_r2")
@@ -118,7 +118,7 @@ def test_vlans():
     return 1
 
 def test_ipv4():
-    print("Test IPv4 maching...")
+    print("Test IPv4 maching...", end=" ")
     start_r2dtwo()
     time.sleep(1)
     sendp(pkts_bad_ipv4 + pkts_good_ipv4, verbose=0, iface="to_r2")
@@ -128,7 +128,7 @@ def test_ipv4():
     return 1
 
 def test_ipv6():
-    print("Test VLAN maching...")
+    print("Test VLAN maching...", end=" ")
     start_r2dtwo()
     time.sleep(1)
     sendp(pkts_bad_ipv6 + pkts_good_ipv6, verbose=0, iface="to_r2")
@@ -138,7 +138,7 @@ def test_ipv6():
     return 1
 
 def test_large():
-    print("Test large stack matching...")
+    print("Test large stack matching...", end=" ")
     start_r2dtwo()
     time.sleep(1)
     sendp(pkts_bad_stack + pkts_good_stack, verbose=0, iface="to_r2")
@@ -153,7 +153,12 @@ def main():
     tests = [test_vlans, test_ethernet, test_ipv4, test_ipv6, test_large]
     for test in tests:
         config_ifaces()
-        ret += test()
+        result = test()
+        ret += result
+        if result == 1:
+            print("✔")
+        else:
+            print("✘")
         exec_fg("killall r2dtwo")
     print(f'All test completed, {ret}/{len(tests)} successfully')
     cleanup_ifaces()

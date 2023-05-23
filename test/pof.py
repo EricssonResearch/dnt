@@ -53,7 +53,7 @@ def ping_check_out_of_order(ping_output):
 
 def no_out_of_order():
     try:
-        print("Test POF with no out of order delivery...")
+        print("Test POF with no out of order delivery...", end=" ")
         exec_bg("../r2dtwo pof/r2br0.ini")
         exec_bg("../r2dtwo pof/r2br1.ini")
         time.sleep(1)
@@ -74,7 +74,7 @@ def no_out_of_order():
 
 def ofo_no_pof():
     try:
-        print("Test out of order TSN delivery without POF...")
+        print("Test out of order TSN delivery without POF...", end=" ")
         exec_bg("../r2dtwo pof/r2br0.ini")
         exec_bg("../r2dtwo pof/r2br1_nopof.ini")
         time.sleep(1)
@@ -97,7 +97,7 @@ def ofo_no_pof():
 
 def ofo_pof():
     try:
-        print("Test out of order TSN delivery with POF...")
+        print("Test out of order TSN delivery with POF...", end=" ")
         exec_bg("../r2dtwo pof/r2br0.ini")
         exec_bg("../r2dtwo pof/r2br1.ini")
         time.sleep(1)
@@ -120,7 +120,7 @@ def ofo_pof():
 
 def pof_reset():
     try:
-        print("Test POF reset...")
+        print("Test POF reset...", end=" ")
         exec_bg("../r2dtwo pof/r2br0.ini")
         exec_bg("../r2dtwo pof/r2br1.ini")
         time.sleep(1)
@@ -144,7 +144,7 @@ def pof_reset():
 
 def ofo_pof_smallbuffer():
     try:
-        print("Test out of order TSN delivery with small buffer=2 POF...")
+        print("Test out of order TSN delivery with small buffer=2 POF...", end=" ")
         exec_bg("../r2dtwo pof/r2br0.ini")
         exec_bg("../r2dtwo pof/r2br1_smallbuf.ini")
         time.sleep(1)
@@ -175,7 +175,7 @@ def ofo_pof_smallbuffer():
 # in the output of the ping. If not, the test was not successful
 def pof_burst():
     try:
-        print("Test POF burst (faster path's failure+recover)...")
+        print("Test POF burst (faster path's failure+recover)...", end=" ")
         exec_bg("../r2dtwo pof/r2br0.ini", OUT_NONE)
         exec_bg("../r2dtwo pof/r2br1.ini", OUT_NONE)
         time.sleep(1)
@@ -217,7 +217,12 @@ def main():
     ret = 0
     tests = [no_out_of_order, ofo_no_pof, ofo_pof, pof_reset, ofo_pof_smallbuffer, pof_burst]
     for test in tests:
-        ret += test()
+        result = test()
+        ret += result
+        if result == 1:
+            print("✔")
+        else:
+            print("✘")
         exec_fg("killall r2dtwo")
     print(f'All test completed, {ret}/{len(tests)} successfully')
     # exit(0)

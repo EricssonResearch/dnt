@@ -49,7 +49,7 @@ def ping_check_time(ping_output):
 
 def delay_burst():
     try:
-        print("Delay test with back-to-back packets...")
+        print("Delay test with back-to-back packets...", end=" ")
         exec_bg("../r2dtwo delay/r2br0.ini")
         exec_bg("../r2dtwo delay/r2br1.ini")
         time.sleep(1)
@@ -70,7 +70,7 @@ def delay_burst():
 
 def delay_single():
     try:
-        print("Delay test with single packets...")
+        print("Delay test with single packets...", end=" ")
         exec_bg("../r2dtwo delay/r2br0.ini")
         exec_bg("../r2dtwo delay/r2br1.ini")
         time.sleep(1)
@@ -96,7 +96,12 @@ def main():
     ret = 0
     tests = [delay_burst, delay_single]
     for test in tests:
-        ret += test()
+        result = test()
+        ret += result
+        if result == 1:
+            print("✔")
+        else:
+            print("✘")
         exec_fg("killall r2dtwo")
     print(f'All test completed, {ret}/{len(tests)} successfully')
     # exit(0)

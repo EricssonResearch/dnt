@@ -40,7 +40,7 @@ def config_ifaces():
 
 def ping():
     try:
-        print("Test simple ping 1k packets...")
+        print("Test simple ping 1k packets...", end=" ")
         exec_bg("../r2dtwo sequence/r2br0.ini")
         exec_bg("../r2dtwo sequence/r2br1.ini")
         time.sleep(1)
@@ -51,7 +51,7 @@ def ping():
             print(pingcmd.stdout)
             return 0
 
-        print("Test simple ping 70k packets...")
+        print("Test simple ping 70k packets...", end=" ")
         num_pings = 70000
         pingcmd = exec_fg(f"ping -I to_r2br0 10.0.0.2 -i 0.0001 -c {num_pings}", timeout=10.0)
         if pingcmd.stdout and f", {num_pings} received," not in pingcmd.stdout:
@@ -63,7 +63,7 @@ def ping():
 
 def reset():
     try:
-        print("Test sequence recovery reset...")
+        print("Test sequence recovery reset...", end=" ")
         r2 = exec_bg("../r2dtwo sequence/r2br0.ini")
         exec_bg("../r2dtwo sequence/r2br1.ini")
         time.sleep(1)
@@ -110,21 +110,21 @@ def flapping():
     return True
 
 def flapping_bad():
-    print("Test path flapping without recovery...")
+    print("Test path flapping without recovery...", end=" ")
     exec_bg("../r2dtwo sequence/r2br1_norcvy.ini")
     if flapping() == True:
         return 0
     return 1
 
 def flapping_good():
-    print("Test path flapping with recovery...")
+    print("Test path flapping with recovery...", end=" ")
     exec_bg("../r2dtwo sequence/r2br1.ini")
     if flapping() == False:
         return 0
     return 1
 
 def resetonly_bad():
-    print("Test reset flag with reset flag unaware recovery...")
+    print("Test reset flag with reset flag unaware recovery...", end=" ")
     try:
         br0 = exec_bg("../r2dtwo sequence/r2br0_resetonly.ini")
         exec_bg("../r2dtwo sequence/r2br1.ini")
@@ -142,7 +142,7 @@ def resetonly_bad():
     return 0
 
 def resetonly_good():
-    print("Test reset flag with reset flag aware recovery...")
+    print("Test reset flag with reset flag aware recovery...", end=" ")
     try:
         br0 = exec_bg("../r2dtwo sequence/r2br0_resetonly.ini")
         exec_bg("../r2dtwo sequence/r2br1_resetonly.ini")
@@ -160,7 +160,7 @@ def resetonly_good():
     return 0
 
 def seamless_bad():
-    print("Test init+reset flag with init/reset flag unaware recovery...")
+    print("Test init+reset flag with init/reset flag unaware recovery...", end=" ")
     try:
         br0 = exec_bg("../r2dtwo sequence/r2br0_init.ini")
         exec_bg("../r2dtwo sequence/r2br1.ini")
@@ -178,7 +178,7 @@ def seamless_bad():
     return 0
 
 def seamless_good():
-    print("Test init+reset flag with seamless recovery...")
+    print("Test init+reset flag with seamless recovery...", end=" ")
     try:
         br0 = exec_bg("../r2dtwo sequence/r2br0_init.ini")
         tshark = exec_bg("tshark -l -O 'ieee8021cb' -i r2br0_nni0", out=OUT_PIPE)
@@ -210,7 +210,12 @@ def main():
     ret = 0
     tests = [ping, reset, flapping_bad, flapping_good, resetonly_good, resetonly_bad, seamless_good, seamless_bad]
     for test in tests:
-        ret += test()
+        result = test()
+        ret += result
+        if result == 1:
+            print("✔")
+        else:
+            print("✘")
         exec_fg("killall r2dtwo")
     print(f'All test completed, {ret}/{len(tests)} successfully')
     cleanup_ifaces()
