@@ -58,8 +58,8 @@ static bool udpout_open(struct Interface *iface)
     struct ifreq if_mtu, if_idx;
     memset(&if_mtu, 0, sizeof(struct ifreq));
     memset(&if_idx, 0, sizeof(struct ifreq));
-    strncpy(if_mtu.ifr_name, iface->ifname, IFNAMSIZ);
-    strncpy(if_idx.ifr_name, iface->ifname, IFNAMSIZ);
+    strncpy(if_mtu.ifr_name, iface->ifname, IFNAMSIZ-1);
+    strncpy(if_idx.ifr_name, iface->ifname, IFNAMSIZ-1);
     if (ioctl(sock, SIOCGIFMTU, &if_mtu) < 0) {
         perror("udp-out SIOCGIFMTU");
         return false;

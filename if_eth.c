@@ -148,9 +148,9 @@ static bool eth_open(struct Interface *iface)
             memset(&if_mtu, 0, sizeof(struct ifreq));
             memset(&if_mac, 0, sizeof(struct ifreq));
             memset(&if_idx, 0, sizeof(struct ifreq));
-            strncpy(if_mtu.ifr_name, iface->ifname, IFNAMSIZ);
-            strncpy(if_mac.ifr_name, iface->ifname, IFNAMSIZ);
-            strncpy(if_idx.ifr_name, iface->ifname, IFNAMSIZ);
+            strncpy(if_mtu.ifr_name, iface->ifname, IFNAMSIZ-1);
+            strncpy(if_mac.ifr_name, iface->ifname, IFNAMSIZ-1);
+            strncpy(if_idx.ifr_name, iface->ifname, IFNAMSIZ-1);
             if (ioctl(sock, SIOCGIFMTU, &if_mtu) < 0) {
                 perror("SIOCGIFMTU");
                 return false;
@@ -296,4 +296,3 @@ bool init_eth_interface(struct Interface *iface, const char *name, const char *i
 
     return true;
 }
-
