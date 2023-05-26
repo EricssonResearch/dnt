@@ -100,14 +100,16 @@ static bool udpin_open(struct Interface *iface)
         if (ifa->ifa_addr == NULL) continue;
         int family = ifa->ifa_addr->sa_family;
         if (family != uid->family) continue;
+        if (strcmp(ifa->ifa_name, iface->ifname) != 0) continue;
+        //print_ifaddrs(ifa);
 
         if (family == AF_INET6) {
             struct in6_addr *a6 = &((struct sockaddr_in6*)(ifa->ifa_addr))->sin6_addr;
             if (IN6_IS_ADDR_LINKLOCAL(a6)) continue;
-            uid->srcip.v6 = ((struct sockaddr_in6*)(ifa->ifa_addr))->sin6_addr;
+            uid->srcip.v6 = *a6;
             srcip_set = true;
             break;
-        } else {
+        } else if (family == AF_INET) {
             uid->srcip.v4 = ((struct sockaddr_in*)(ifa->ifa_addr))->sin_addr;
             srcip_set = true;
             break;

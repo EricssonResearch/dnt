@@ -1,7 +1,7 @@
 // Copyright (c) 2023, Ericsson AB and Ericsson Telecommunication Hungary
 // All rights reserved.
 
-
+#define _GNU_SOURCE     /* for NI_MAXHOST */
 #include "if_utils.h"
 #include "interface.h"
 #include "packet.h"
@@ -14,6 +14,8 @@
 #include <arpa/inet.h> /* ntohs() */
 #include <linux/net_tstamp.h> /* SOF_TIMESTAMPING_* */
 //#include <linux/sockios.h> /* SIOCSHWTSTAMP */
+#include <ifaddrs.h>
+#include <netdb.h> /* getnameinfo() */
 
 // copied from the code of the other TSN project
 void enable_rx_tstamp(int sock, const char *sockname,
@@ -170,3 +172,27 @@ bool iface_common_send(struct Interface *iface, struct Packet *p, int socket, vo
     return true;
 }
 
+
+void print_ifaddrs(struct ifaddrs *ifa)
+{
+    int family = ifa->ifa_addr->sa_family;
+    printf("IFAddress of %s family %s ", ifa->ifa_name, (family == AF_PACKET) ? "AF_PACKET" :
+            (family == AF_INET) ? "AF_INET" :
+            (family == AF_INET6) ? "AF_INET6" : "unknown");
+    if (family == AF_INET || family == AF_INET6) {
+        char host[NI_MAXHOST];
+        int err = getnameinfo(ifa->ifa_addr, (family == AF_INET) ? sizeof(struct sockaddr_in) :
+                sizeof(struct sockaddr_in6),
+                host, NI_MAXHOST,
+                NULL, 0, NI_NUMERICHOST);
+
+        if (err) {
+            printf("getnameinfo() failed with %s\n", gai_strerror(err));
+        } else {
+            printf("%s\n", host);
+        }
+    } else {
+        //TODO this is usually AF_PACKET
+        printf("\n");
+    }
+}

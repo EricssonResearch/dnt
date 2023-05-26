@@ -22,4 +22,7 @@ struct Packet *iface_common_recv(struct Interface *iface, msghdr_process_cb *msg
 
 bool iface_common_send(struct Interface *iface, struct Packet *p, int socket, void *dst, unsigned dstlen);
 
+struct ifaddrs;
+void print_ifaddrs(struct ifaddrs *ifa);
+
 #endif // R2_IF_UTILS_H

@@ -21,9 +21,6 @@
 #include <linux/if_packet.h> /* struct sockaddr_ll TODO netpacket/packet.h? */
 #include <ifaddrs.h>
 
-#include <arpa/inet.h>
-#define arrlen(a) (sizeof (a) / sizeof (*(a)))
-
 struct IpIfData {
     int sock4;
     int sock6;
@@ -67,28 +64,7 @@ static bool ip_send(struct Interface *iface, struct Packet *p)
         return false;
     }
 }
-/*
-static void print_ifaddrs(struct ifaddrs *ifa)
-{
-    char ip[INET6_ADDRSTRLEN];
 
-    printf("family: %d; name: %s; ", ifa->ifa_addr->sa_family,
-                                       ifa->ifa_name);
-    if (ifa->ifa_addr->sa_family == AF_INET) {
-        struct sockaddr_in *addr = (struct sockaddr_in *) ifa->ifa_addr;
-        printf("ipv4: %s; port: %d\n",
-               inet_ntop(AF_INET, &addr->sin_addr, ip, arrlen(ip)),
-               ntohs(addr->sin_port));
-    } else if (ifa->ifa_addr->sa_family == AF_INET6) {
-        struct sockaddr_in6 *addr = (struct sockaddr_in6 *) ifa->ifa_addr;
-        printf("ipv6: %s; port: %d\n",
-               inet_ntop(AF_INET6, &addr->sin6_addr, ip, arrlen(ip)),
-               ntohs(addr->sin6_port));
-    } else {
-        printf("unsupported address family: %d\n", ifa->ifa_addr->sa_family);
-    }
-}
-*/
 static bool ip_open(struct Interface *iface)
 {
     struct IpIfData *iid = iface->iface_private;
@@ -169,7 +145,7 @@ static bool ip_open(struct Interface *iface)
         if (ifa->ifa_addr == NULL) continue;
         int family = ifa->ifa_addr->sa_family;
 
-        if(strcmp(ifa->ifa_name,iface->ifname) == 0){
+        if (strcmp(ifa->ifa_name, iface->ifname) == 0) {
             //print_ifaddrs(ifa);
             if (family == AF_INET6) {
                 if (srcip6_set) continue;
@@ -177,7 +153,7 @@ static bool ip_open(struct Interface *iface)
                 if (IN6_IS_ADDR_LINKLOCAL(a6)) continue;
                 iid->ipv6 = ((struct sockaddr_in6*)(ifa->ifa_addr))->sin6_addr;
                 srcip6_set = true;
-            } else if (family == AF_INET){
+            } else if (family == AF_INET) {
                 if (srcip4_set) continue;
                 iid->ipv4 = ((struct sockaddr_in*)(ifa->ifa_addr))->sin_addr;
                 srcip4_set = true;
@@ -232,6 +208,9 @@ static value_producer *ip_get_property_reader(const struct Interface *iface, con
 {
     struct IpIfData *iid = iface->iface_private;
     (void)iid;
+
+    //TODO check if the interface has such an address
+    //      problem: we are between init and open
 
     if (strcmp(property, "srcip") == 0) {
         if (target_type == FT_IPV4ADDRESS) {
