@@ -60,8 +60,8 @@ static void set_default_parameters(struct ObjectInfo *info)
             info->p.rec.algo = RCVY_Vector;
             break;
         case CO_POF:
-            info->p.pof.max_delay = 5;
-            info->p.pof.take_any_time = 500;
+            info->p.pof.max_delay = 20;
+            info->p.pof.take_any_time = 2000;
             info->p.pof.buffer_size = 512; // = info->p.rec.history_length
             break;
     }

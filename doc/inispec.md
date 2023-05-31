@@ -1,8 +1,6 @@
 
 # Specification for the config file format of R2DTWO 6.0 and above
 
-TODO add examples to each section
-
 We use a simple INI format for the config. The INI format is not formally specified, and variations in syntax exist in the parser implementations. We expect the most basic variant: single-line key=value elements, any number of whitespace around the = sign, section headers with the [name] syntax, and we assume no ordering of the keys within a section. Comments start with '#' or ';' and last until the end of the line. Multi-line strings or comments are not supported.
 
 Our INI parser deviates from the usual INI format by treating the keys as case-sensitive. This is because originally it was designed to parse .desktop files, which have a standardized format and it is specified to be case-sensitive.
@@ -155,20 +153,20 @@ This section instantiates the stateful objects that implement TSN/DetNet functio
 The object instantiation is in this format: `name = type parameter=value [parameter=value]`. The valid parameter names and their valid values depend on the type of the object. The currently known object types are:
 
 * `SeqGen` sequence number generator (for `seqgen` action)
-    * InitSeqFlag use the Init flag (seamless mode)
+    * InitSeqFlag use the Init flag for seamless mode (default: off)
     * InitSeqStart the starting sequence number (default: 0x8000)
-    * ResetFlag use the Reset flag (seamless mode)
+    * ResetFlag use the Reset flag for seamless mode (default: off)
 * `SeqRec` sequence number recovery (for `eliminate` action)
     * frerSeqRcvyAlgorithm can be Vector (default), SeamlessVector, Match
     * frerSeqRcvyHistoryLength size of the history window (default: 512)
     * frerSeqRcvyLatentErrorPaths elimination path count (default: 2)
     * frerSeqRcvyResetMsec silence detection timout (default: 2000)
-    * InitSeqFlag whether to use the Init flag (seamless mode)
-    * ResetFlag use the Reset flag (seamless mode)
+    * InitSeqFlag whether to use the Init flag for seamless mode (default: off)
+    * ResetFlag use the Reset flag for seamless mode (default: off)
 * `Pof` packet ordering function (for `pof` action)
     * BufferSize max number of packets in the reorder buffer (default: 512)
-    * MaxDelay timeout when waiting for missing packet (default: 5)
-    * TakeAnyTime initial time for sequencing (default: 500)
+    * MaxDelay timeout when waiting for missing packet (default: 20)
+    * TakeAnyTime initial time for sequencing (default: 2000)
 
 All of these objects work on the metadata of the packet instead of the header fields.
 
