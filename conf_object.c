@@ -126,7 +126,7 @@ static bool token_cb(char *str, void *userdata)
                             THROW("invalid history length '%s'", val);
                         }
                         info->p.rec.history_length = hlen;
-                    } else if (strcmp(key, "frerSeqRcvyResetMsec") == 0) {
+                    } else if (strcmp(key, "frerSeqRcvyResetMSec") == 0) {
                         unsigned msec;
                         char err;
                         if (sscanf(val, "%i%c", &msec, &err) != 1) {

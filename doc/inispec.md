@@ -160,7 +160,7 @@ The object instantiation is in this format: `name = type parameter=value [parame
     * frerSeqRcvyAlgorithm can be Vector (default), SeamlessVector, Match
     * frerSeqRcvyHistoryLength size of the history window (default: 512)
     * frerSeqRcvyLatentErrorPaths elimination path count (default: 2)
-    * frerSeqRcvyResetMsec silence detection timout (default: 2000)
+    * frerSeqRcvyResetMSec silence detection timout (default: 2000)
     * InitSeqFlag whether to use the Init flag for seamless mode (default: off)
     * ResetFlag use the Reset flag for seamless mode (default: off)
 * `Pof` packet ordering function (for `pof` action)
