@@ -158,13 +158,13 @@ The object instantiation is in this format: `name = type parameter=value [parame
     * ResetFlag use the Reset flag for seamless mode (default: off)
 * `SeqRec` sequence number recovery (for `eliminate` action)
     * frerSeqRcvyAlgorithm can be Vector (default), SeamlessVector, Match
-    * frerSeqRcvyHistoryLength size of the history window (default: 512)
+    * frerSeqRcvyHistoryLength size of the history window (default: 2)
     * frerSeqRcvyLatentErrorPaths elimination path count (default: 2)
     * frerSeqRcvyResetMSec silence detection timout (default: 2000)
     * InitSeqFlag whether to use the Init flag for seamless mode (default: off)
     * ResetFlag use the Reset flag for seamless mode (default: off)
 * `Pof` packet ordering function (for `pof` action)
-    * BufferSize max number of packets in the reorder buffer (default: 512)
+    * BufferSize max number of packets in the reorder buffer (default: 2)
     * MaxDelay timeout when waiting for missing packet (default: 20)
     * TakeAnyTime initial time for sequencing (default: 2000)
 

@@ -31,10 +31,10 @@ EXE = r2dtwo
 
 default: $(EXE)
 
-inifile/%.o : inifile/%.c $(HEADERS)
+inifile/%.o : inifile/%.c $(HEADERS) Makefile
 	cd inifile && $(CC) $(CFLAGS) -c $(<F)
 
-%.o : %.c $(HEADERS)
+%.o : %.c $(HEADERS) Makefile
 	$(CC) $(CFLAGS) -c $<
 
 $(EXE): $(OBJECTS)

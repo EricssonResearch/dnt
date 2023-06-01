@@ -54,7 +54,7 @@ static void set_default_parameters(struct ObjectInfo *info)
         case CO_SEQREC:
             info->p.rec.use_reset_flag = false;
             info->p.rec.use_init_flag = false;
-            info->p.rec.history_length = 512;
+            info->p.rec.history_length = 2;
             info->p.rec.reset_msec = 2000;
             info->p.rec.latent_error_paths = 2;
             info->p.rec.algo = RCVY_Vector;
@@ -62,7 +62,7 @@ static void set_default_parameters(struct ObjectInfo *info)
         case CO_POF:
             info->p.pof.max_delay = 20;
             info->p.pof.take_any_time = 2000;
-            info->p.pof.buffer_size = 512; // = info->p.rec.history_length
+            info->p.pof.buffer_size = 2; // = info->p.rec.history_length
             break;
     }
 }
