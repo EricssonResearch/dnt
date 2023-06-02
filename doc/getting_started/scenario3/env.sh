@@ -38,12 +38,16 @@ configure_networkenv() {
 
   talker ip link set eth0 up
   listener ip link set eth0 up
-  nxp1 ip link set dev swp0 up
-  nxp1 ip link set dev swp1 up
+  nxp1 ip link set dev swp0 mtu 1600 up      # bigger MTU for NNI interfaces
+  nxp1 ip link set dev swp1 mtu 1600 up
   nxp1 ip link set dev swp2 up
-  nxp2 ip link set dev swp0 up
-  nxp2 ip link set dev swp1 up
+  nxp2 ip link set dev swp0 mtu 1600 up
+  nxp2 ip link set dev swp1 mtu 1600 up
   nxp2 ip link set dev swp2 up
+
+  # disable path MTU discovery
+  nxp1 sysctl -w net.ipv4.ip_no_pmtu_disc=1
+  nxp2 sysctl -w net.ipv4.ip_no_pmtu_disc=1
 
   # Configure the addresses
   talker ip address add 10.0.100.11/24 dev eth0
@@ -90,4 +94,3 @@ else
   newvalue=`expr $cntvalue - 1`
   echo $newvalue > $CNTFILE
 fi
-

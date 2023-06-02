@@ -26,7 +26,7 @@
 //TODO: Convert to new BSD timespec utilities
 
 //TODO: Check debug macros considering system wide debug output
-#define DEBUG_TSTAMP
+//#define DEBUG_TSTAMP
 
 #ifndef timespeccmp
 #define	timespeccmp(_ts, _us, cmp)					\

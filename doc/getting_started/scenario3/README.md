@@ -118,7 +118,7 @@ sudo su
 source env.sh
 ```
 
-If everything OK, the prompt should be changed to `(ip over detnet) root:scenario2# ` which tells right now we are in the test network environment.
+If everything OK, the prompt should be changed to `(ip over detnet) root:scenario3# ` which tells right now we are in the test network environment.
 Now we should have all the networking (nodes, interfaces, IP addresses and routing) configured and helper commands to execute commands on the nodes.
 
 Now we can start the R2DTWO instances on `nxp1` and `nxp2`:
@@ -203,5 +203,3 @@ To do that use the `exit` command or press `Ctrl+D`.
 When we exit from the last environment, that will clean up the network namespaces and every other network configuration related to the test environment.
 
 __Important: do not run multiple test scenarios at the same time! Make sure you are exited from the test environment in every terminal before sourcing a new environment in for a new test scenario!__
-
-
