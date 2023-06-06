@@ -8,7 +8,7 @@
 #include <time.h>
 #include <stdint.h>
 
-#define NSEC_PER_SEC 1000000000
+#define NSEC_PER_SEC 1000000000L
 
 #define calloc_struct(T) (struct T *)calloc(1, sizeof(struct T))
 

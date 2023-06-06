@@ -22,6 +22,12 @@ struct Packet *iface_common_recv(struct Interface *iface, msghdr_process_cb *msg
 
 bool iface_common_send(struct Interface *iface, struct Packet *p, int socket, void *dst, unsigned dstlen);
 
+// @returns a handle to the monitoring object or NULL on error
+void *monitor_error_queue(int socket, int family, const char *name);
+
+// @monitor is the object returned by @monitor_error_queue
+void stop_monitoring_error_queue(void *monitor);
+
 struct ifaddrs;
 void print_ifaddrs(struct ifaddrs *ifa);
 

@@ -6,9 +6,14 @@
 #include "interface.h"
 #include "packet.h"
 #include "time_utils.h"
+#include "utils.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <pthread.h>
+#include <poll.h>
+#include <errno.h>
 
 #include <sys/socket.h>
 #include <arpa/inet.h> /* ntohs() */
@@ -16,6 +21,7 @@
 //#include <linux/sockios.h> /* SIOCSHWTSTAMP */
 #include <ifaddrs.h>
 #include <netdb.h> /* getnameinfo() */
+#include <linux/errqueue.h>
 
 // copied from the code of the other TSN project
 void enable_rx_tstamp(int sock, const char *sockname,
@@ -172,6 +178,135 @@ bool iface_common_send(struct Interface *iface, struct Packet *p, int socket, vo
     return true;
 }
 
+struct MonitorState {
+    const char *name;
+    int socket;
+    int family;
+    pthread_t tid;
+};
+
+static void *socket_monitor_thread(void *param)
+{
+    struct MonitorState *st = param;
+
+    pthread_setname_np(pthread_self(), "sockerr monitor");
+
+    nfds_t nfds = 1;
+    struct pollfd fds[1];
+    fds[0].fd = st->socket;
+    fds[0].events = POLLERR;
+
+    while (1) {
+        // MSG_ERRQUEUE is always non-blocking, we need to poll it first
+        int poll_num = poll(fds, nfds, -1);
+        if (poll_num == -1) {
+            if (errno == EINTR)
+                continue;
+            perror("poll");
+            continue;
+        }
+        if (poll_num == 0)
+            continue;
+
+        char data[1600]; //TODO we don't need this buffer at all
+        char control[1000]
+            __attribute__ ((aligned(__alignof__(struct cmsghdr))));
+        struct msghdr msg;
+        struct iovec iov;
+        memset(&msg, 0, sizeof(msg));
+        msg.msg_name = NULL; // we already know the source
+        iov.iov_base = data;
+        iov.iov_len = sizeof(data);
+        msg.msg_iov = &iov;
+        msg.msg_iovlen = 1;
+        msg.msg_control = control;
+        msg.msg_controllen = sizeof(control);
+
+        int res = recvmsg(st->socket, &msg, MSG_ERRQUEUE);
+        //printf("res %d controllen %zu\n", res, msg.msg_controllen);
+        if (res < 0) {
+            perror("recvmsg");
+            continue;
+        }
+
+        for (struct cmsghdr *cmsg=CMSG_FIRSTHDR(&msg); cmsg; cmsg=CMSG_NXTHDR(&msg, cmsg)) {
+            if (cmsg->cmsg_level == SOL_IP && cmsg->cmsg_type == IP_RECVERR) {
+                struct sock_extended_err *serr = (void *) CMSG_DATA(cmsg);
+                // serr->ee_origin = 2 (SO_EE_ORIGIN_ICMP)
+                printf("error on %s '%s' ICMP type %u code %u\n",
+                        st->name, strerror(serr->ee_errno),
+                        serr->ee_type, serr->ee_code);
+            } else if (cmsg->cmsg_level == SOL_IPV6 && cmsg->cmsg_type == IPV6_RECVERR) {
+                struct sock_extended_err *serr = (void *) CMSG_DATA(cmsg);
+                // serr->ee_origin = 3 (SO_EE_ORIGIN_ICMP6)
+                printf("error on %s '%s' ICMPv6 type %u code %u\n",
+                        st->name, strerror(serr->ee_errno),
+                        serr->ee_type, serr->ee_code);
+            } else {
+                printf("unexpected error on %s level %u type %u\n",
+                        st->name, cmsg->cmsg_level, cmsg->cmsg_type);
+            }
+        }
+    }
+
+    return NULL;
+}
+
+void *monitor_error_queue(int socket, int family, const char *name)
+{
+    if (family == AF_INET6) {
+        int enable = 1;
+        if (setsockopt(socket, IPPROTO_IPV6, IPV6_RECVERR, &enable, sizeof(enable)) < 0) {
+            perror("setsockopt IPV6_RECVERR");
+            return false;
+        }
+    } else if (family == AF_INET) {
+        int enable = 1;
+        if (setsockopt(socket, IPPROTO_IP, IP_RECVERR, &enable, sizeof(enable)) < 0) {
+            perror("setsockopt IP_RECVERR");
+            return false;
+        }
+    } else {
+        fprintf(stderr, "cannot monitor error queue on socket family %d\n", family);
+        return false;
+    }
+
+    struct MonitorState *st = calloc_struct(MonitorState);
+    st->name = name;
+    st->socket = socket;
+    st->family = family;
+
+    if (pthread_create(&st->tid, NULL, socket_monitor_thread, st) < 0) {
+        fprintf(stderr, "could not create error queue monitoring thread\n");
+        free(st);
+        //TODO disable RECVERR?
+        return NULL;
+    }
+
+    return st;
+}
+
+void stop_monitoring_error_queue(void *monitor)
+{
+    struct MonitorState *st = monitor;
+    if (st) {
+        pthread_cancel(st->tid);
+        pthread_join(st->tid, NULL);
+
+        if (st->family == AF_INET6) {
+            int enable = 0;
+            if (setsockopt(st->socket, IPPROTO_IPV6, IPV6_RECVERR, &enable, sizeof(enable)) < 0) {
+                perror("setsockopt IPV6_RECVERR");
+            }
+        } else if (st->family == AF_INET) {
+            int enable = 0;
+            if (setsockopt(st->socket, IPPROTO_IP, IP_RECVERR, &enable, sizeof(enable)) < 0) {
+                perror("setsockopt IP_RECVERR");
+            }
+        }
+    }
+    free(st);
+}
 
 void print_ifaddrs(struct ifaddrs *ifa)
 {

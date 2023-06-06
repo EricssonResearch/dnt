@@ -31,6 +31,7 @@ struct UdpOutIfData {
         struct in_addr v4;
         struct in6_addr v6;
     } dstip;
+    void *errq_monitor;
 };
 
 static struct Packet *udpout_recv(struct Interface *iface)
@@ -95,6 +96,8 @@ static bool udpout_open(struct Interface *iface)
         return false;
     }
 
+    uid->errq_monitor = monitor_error_queue(sock, uid->family, iface->name);
+
     iface->state = IFS_OPEN;
     return true;
 }
@@ -102,6 +105,7 @@ static bool udpout_open(struct Interface *iface)
 static bool udpout_close(struct Interface *iface)
 {
     struct UdpOutIfData *uid = iface->iface_private;
+    stop_monitoring_error_queue(uid->errq_monitor);
     close(uid->sock);
     free(uid);
     return true;
