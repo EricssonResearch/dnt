@@ -32,8 +32,8 @@ def start_network():
     nxp2.cmd("ethtool -K swp1 tx off; ip link set swp1 mtu 1536 up")
     nxp2.cmd("ethtool -K swp2 tx off; ip link set swp2 mtu 1536 up")
 
-    nxp1.cmd("tc qdisc add dev swp0 parent root netem delay 50ms")
-    nxp2.cmd("tc qdisc add dev swp0 parent root netem delay 50ms")
+    nxp1.cmd("tc qdisc add dev swp0 parent root netem limit 5000 delay 50ms")
+    nxp2.cmd("tc qdisc add dev swp0 parent root netem limit 5000 delay 50ms")
     nxp1.cmd("tc qdisc add dev swp1 parent root netem loss 50%")
     nxp2.cmd("tc qdisc add dev swp1 parent root netem loss 50%")
 
