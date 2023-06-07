@@ -8,6 +8,7 @@
 #include "utils.h"
 #include "action.h"
 #include "pipeline.h"
+#include "time_utils.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -26,36 +27,8 @@
 //TODO: Convert to new BSD timespec utilities
 
 //TODO: Check debug macros considering system wide debug output
-//#define DEBUG_TSTAMP
+#define DEBUG_TSTAMP
 
-#ifndef timespeccmp
-#define	timespeccmp(_ts, _us, cmp)					\
-(((_ts).tv_sec == (_us).tv_sec) ?			  	\
- ((_ts).tv_nsec cmp (_us).tv_nsec) :			\
- ((_ts).tv_sec cmp (_us).tv_sec))
-#endif
-
-static inline struct timespec timespec_diff(struct timespec a, struct timespec b) {
-    struct timespec result;
-    result.tv_sec  = a.tv_sec  - b.tv_sec;
-    result.tv_nsec = a.tv_nsec - b.tv_nsec;
-    while (result.tv_nsec < 0) {
-        --result.tv_sec;
-        result.tv_nsec += 1000000000L;
-    }
-    return result;
-}
-
-static void print_tstamp(struct timespec ts)
-{
-#ifdef DEBUG_TSTAMP
-    //        struct timespec time_now;
-    //        clock_gettime(CLOCK_REALTIME, &time_now);
-    printf("* %lu.%09ld ", ts.tv_sec,ts.tv_nsec);  // timestamp debug
-#else
-    (void)ts;
-#endif
-}
 
 struct DelayQueue {
     //TODO keep a list of PipelineIterator objects (priority queue)
@@ -95,7 +68,7 @@ static void *delay_thread(void *arg)
     while (1) {
         FD_SET(ev_fds, &readfds);
         clock_gettime(CLOCK_REALTIME, &time_now);
-        wait = timespec_diff(delay_timer, time_now);
+        timespecsub(&delay_timer, &time_now, &wait);
 
         //TODO: convert to poll API as agreed months ago...
         ret = pselect(nfds, &readfds, 0, 0, &wait, NULL);
@@ -119,9 +92,6 @@ static void *delay_thread(void *arg)
         struct PipelineIterator *pi = pDelayQueueFirst->pi;
         //struct Action *a = pi->pipe->actions[pi->pos];
 
-        print_tstamp(time_now);
-        /* printf(" *****************************************  delayed send \n"); */
-
         // Move  to the next frame in tt queue
         delay_queue = pDelayQueueFirst->next;
         free(pDelayQueueFirst);
@@ -140,7 +110,7 @@ static void *delay_thread(void *arg)
             delay_timer.tv_nsec = delay_queue->due_time.tv_nsec;
 
 #if defined (DEBUG) || defined (DEBUG_TSTAMP)
-            printf(" timer %ld.%09ld", delay_queue->due_time.tv_sec, delay_queue->due_time.tv_nsec);
+            printf("* %lu.%09ld  timer %ld.%09ld", time_now.tv_sec,time_now.tv_nsec, delay_queue->due_time.tv_sec, delay_queue->due_time.tv_nsec);
 #endif
             // it will sleep
 
@@ -260,7 +230,7 @@ void delay_insert(struct PipelineIterator *pi, unsigned timestamp, unsigned dela
     pDelayQueueIterator = (struct DelayQueue *) delay_queue; pDelayQueueIteratorPrev = NULL;
     while(pDelayQueueIterator != NULL){
         //printf("\n\t\t* %lu:%lu > %lu:%lu",pttq_iter->due_time.tv_sec, pttq_iter->due_time.tv_nsec,pttqe->due_time.tv_sec, pttqe->due_time.tv_nsec);
-        if(timespeccmp(pDelayQueueIterator->due_time, pDelayQueueEntry->due_time, >))
+        if(timespeccmp(&pDelayQueueIterator->due_time, &pDelayQueueEntry->due_time, >))
             break;
         pDelayQueueIteratorPrev = pDelayQueueIterator;
         pDelayQueueIterator = pDelayQueueIterator->next;

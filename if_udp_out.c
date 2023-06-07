@@ -95,6 +95,17 @@ static bool udpout_open(struct Interface *iface)
         perror("udp-out setsockopt SO_BINDTODEVICE");
         return false;
     }
+/*
+     int optval = 1;
+     int optlen = sizeof(optval);
+     if (setsockopt (sock, SOL_SOCKET, SO_DONTROUTE, (void*) &optval, optlen) == -1)
+        perror("udp-out setsockopt SO_DONTROUTE");
+*/
+    int val = IP_PMTUDISC_PROBE;
+    if (setsockopt(sock, IPPROTO_IP, IP_MTU_DISCOVER, &val, sizeof(val)) < 0) {
+        perror("udp-out setsockopt IP_MTU_DISCOVER");
+        return false;
+    }
 
     uid->errq_monitor = monitor_error_queue(sock, uid->family, iface->name);
 
@@ -256,7 +267,13 @@ bool init_udp_out_interface(struct Interface *iface, const char *name, const cha
             }
         }
 
-        if (connect(sock, rp->ai_addr, rp->ai_addrlen) == 0) break;
+    int val = IP_PMTUDISC_PROBE;
+    if (setsockopt(sock, IPPROTO_IP, IP_MTU_DISCOVER, &val, sizeof(val)) < 0) {
+        perror("udp-out setsockopt IP_MTU_DISCOVER");
+        return false;
+    }
+
+    if (connect(sock, rp->ai_addr, rp->ai_addrlen) == 0) break;
         perror("udp-out connect");
         close(sock);
         sock = -1;
