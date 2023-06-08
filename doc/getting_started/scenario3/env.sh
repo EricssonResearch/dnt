@@ -45,9 +45,9 @@ configure_networkenv() {
   nxp2 ip link set dev swp1 mtu 1600 up
   nxp2 ip link set dev swp2 up
 
-  # disable path MTU discovery
-  nxp1 sysctl -w net.ipv4.ip_no_pmtu_disc=1
-  nxp2 sysctl -w net.ipv4.ip_no_pmtu_disc=1
+  # disable path MTU discovery - done per socket, so not needed
+  #nxp1 sysctl -w net.ipv4.ip_no_pmtu_disc=1
+  #nxp2 sysctl -w net.ipv4.ip_no_pmtu_disc=1
 
   # Configure the addresses
   talker ip address add 10.0.100.11/24 dev eth0

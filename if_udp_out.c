@@ -96,11 +96,16 @@ static bool udpout_open(struct Interface *iface)
         return false;
     }
 /*
+     // SO_DONTROUTE option also solves MTU problem. However, it will only work on directly
+     // connected interfaces. So we are not using this option, instead we use IP MTU discovery
+     // probe mode.
      int optval = 1;
      int optlen = sizeof(optval);
      if (setsockopt (sock, SOL_SOCKET, SO_DONTROUTE, (void*) &optval, optlen) == -1)
         perror("udp-out setsockopt SO_DONTROUTE");
 */
+
+    // it seems that setting IP MTU discovery mode is also needed here
     int val = IP_PMTUDISC_PROBE;
     if (setsockopt(sock, IPPROTO_IP, IP_MTU_DISCOVER, &val, sizeof(val)) < 0) {
         perror("udp-out setsockopt IP_MTU_DISCOVER");
@@ -267,6 +272,7 @@ bool init_udp_out_interface(struct Interface *iface, const char *name, const cha
             }
         }
 
+    /* set IP MTU discovery mode before connecting */
     int val = IP_PMTUDISC_PROBE;
     if (setsockopt(sock, IPPROTO_IP, IP_MTU_DISCOVER, &val, sizeof(val)) < 0) {
         perror("udp-out setsockopt IP_MTU_DISCOVER");

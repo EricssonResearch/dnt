@@ -47,9 +47,10 @@ configure_networkenv() {
   # Enable packet routing
   nxp1 sysctl -w net.ipv4.ip_forward=1
   nxp2 sysctl -w net.ipv4.ip_forward=1
-  # disable path MTU discovery
-  nxp1 sysctl -w net.ipv4.ip_no_pmtu_disc=1
-  nxp2 sysctl -w net.ipv4.ip_no_pmtu_disc=1
+
+  # disable path MTU discovery - done per socket, so not needed
+  #nxp1 sysctl -w net.ipv4.ip_no_pmtu_disc=1
+  #nxp2 sysctl -w net.ipv4.ip_no_pmtu_disc=1
 
   # Configure the addresses
   talker ip address add 10.0.0.1/24 dev eth0
