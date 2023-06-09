@@ -233,17 +233,17 @@ static void *socket_monitor_thread(void *param)
             if (cmsg->cmsg_level == SOL_IP && cmsg->cmsg_type == IP_RECVERR) {
                 struct sock_extended_err *serr = (void *) CMSG_DATA(cmsg);
                 // serr->ee_origin = 2 (SO_EE_ORIGIN_ICMP)
-                printf("error on %s '%s' ICMP type %u code %u\n",
+                fprintf(stderr, "error on %s '%s' ICMP type %u code %u\n",
                         st->name, strerror(serr->ee_errno),
                         serr->ee_type, serr->ee_code);
             } else if (cmsg->cmsg_level == SOL_IPV6 && cmsg->cmsg_type == IPV6_RECVERR) {
                 struct sock_extended_err *serr = (void *) CMSG_DATA(cmsg);
                 // serr->ee_origin = 3 (SO_EE_ORIGIN_ICMP6)
-                printf("error on %s '%s' ICMPv6 type %u code %u\n",
+                fprintf(stderr, "error on %s '%s' ICMPv6 type %u code %u\n",
                         st->name, strerror(serr->ee_errno),
                         serr->ee_type, serr->ee_code);
             } else {
-                printf("unexpected error on %s level %u type %u\n",
+                fprintf(stderr, "unexpected error on %s level %u type %u\n",
                         st->name, cmsg->cmsg_level, cmsg->cmsg_type);
             }
         }
