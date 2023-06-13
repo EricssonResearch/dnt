@@ -158,6 +158,38 @@ static bool recover(struct SequenceRecovery *rec, unsigned packet_seq, bool init
     return false;
 }
 
+static bool match_seq_recovery(struct SequenceRecovery *rec, struct Packet *p)
+{
+    /* unsigned flags = ntohl(p->sequence) & 0xffff0000; */
+    unsigned seq = ntohl(p->sequence) & 0xffff;
+    if (rec->take_any) {
+        rec->take_any = false;
+        rec->recv_seq = seq;
+
+        rec->passed_packets += 1;
+        reset_ticks(rec);
+        return true;
+    }
+
+    int delta = (seq - rec->recv_seq) & (FRER_RCVY_SEQ_SPACE - 1);
+    if (delta == 0) {
+        rec->discarded_packets += 1;
+        if (rec->individual_recovery)
+            reset_ticks(rec);
+    } else {
+        if (delta != 1) {
+            rec->out_of_order_packets += 1;
+        }
+        //TODO: use atomic, no lock required
+        rec->recv_seq = seq;
+        rec->passed_packets += 1;
+        reset_ticks(rec);
+        return true;
+    }
+
+    return false;
+}
+
 static bool vector_seq_recovery(struct SequenceRecovery *rec, struct Packet *p)
 {
     unsigned packet_seq = ntohl(p->sequence) & 0xffff;
@@ -214,6 +246,7 @@ static void seamless_seq_recovery_reset(struct SequenceRecovery *rec)
     rec->init_take_any = true;
 }
 
+//TODO: race condition
 bool seq_recovery(struct SequenceRecovery *rec, struct Packet *p)
 {
     switch (rec->algorithm) {
@@ -221,9 +254,8 @@ bool seq_recovery(struct SequenceRecovery *rec, struct Packet *p)
             return vector_seq_recovery(rec, p);
         case RCVY_SeamlessVector:
             return seamless_seq_recovery(rec, p);
-        // TODO: implement match
         case RCVY_Match:
-            return true;
+            return match_seq_recovery(rec, p);
     }
     return true;
 }
@@ -233,9 +265,7 @@ static void seq_recovery_reset(struct SequenceRecovery *rec)
 
     printf("Seqence recovery reset.\n");
     switch (rec->algorithm) {
-        // TODO: implement match
         case RCVY_Match:
-            break;
         case RCVY_Vector:
             return vector_seq_recovery_reset(rec);
         case RCVY_SeamlessVector:

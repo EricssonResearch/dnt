@@ -200,6 +200,44 @@ def seamless_good():
         return 0
     return 0
 
+def match_good():
+    print("Test match recovery...", end=" ")
+    try:
+        exec_bg("../r2dtwo sequence/r2br0_match.ini", out=OUT_NONE)
+        exec_bg("../r2dtwo sequence/r2br1_match.ini", out=OUT_NONE)
+        time.sleep(1)
+        pingcmd = exec_fg(f"ping -I to_r2br0 10.0.0.2 -A -c 5 -W 5", timeout=3.0)
+        num_pings = 500
+        pingcmd = exec_fg(f"ping -I to_r2br0 10.0.0.2 -A -c {num_pings} -W 5", timeout=3.0)
+        if pingcmd.stdout and f", {num_pings} received," not in pingcmd.stdout:
+            print(pingcmd.stdout)
+            return 0
+    except:
+        return 0
+    return 1
+
+def match_path_fail():
+    print("Test match recovery with path failure...", end=" ")
+    try:
+        exec_bg("../r2dtwo sequence/r2br0_match.ini", out=OUT_NONE)
+        exec_bg("../r2dtwo sequence/r2br1_match.ini", out=OUT_NONE)
+        time.sleep(1)
+        num_pings = 30
+        pingcmd = exec_bg(f"ping -I to_r2br0 10.0.0.2 -i 0.1 -c {num_pings}", out=OUT_PIPE)
+        time.sleep(1)
+        exec_fg("ip link set dev r2br0_nni0 down")
+        exec_fg("ip link set dev r2br0_nni1 down")
+        time.sleep(1)
+        exec_fg("ip link set dev r2br0_nni0 up")
+        exec_fg("ip link set dev r2br0_nni1 up")
+        time.sleep(2)
+        ping_output = str(pingcmd.communicate()[0])
+        if ping_output and "30 packets transmitted, 20 received" not in ping_output:
+            print(pingcmd.stdout)
+            return 0
+    except:
+        return 0
+    return 1
 
 def main():
     print("R2DTWO sequence generator and recovery test\n")
@@ -208,7 +246,8 @@ def main():
     if len(sys.argv) == 2 and "debug" in sys.argv[1]:
         exit(0)
     ret = 0
-    tests = [ping, reset, flapping_bad, flapping_good, resetonly_good, resetonly_bad, seamless_good, seamless_bad]
+    tests = [ping, reset, flapping_bad, flapping_good, resetonly_good, resetonly_bad, seamless_good, seamless_bad,
+             match_good, match_path_fail]
     for test in tests:
         result = test()
         ret += result
@@ -217,6 +256,7 @@ def main():
         else:
             print("✘")
         exec_fg("killall r2dtwo")
+        time.sleep(0.5)
     print(f'All test completed, {ret}/{len(tests)} successfully')
     cleanup_ifaces()
     if ret != len(tests):
