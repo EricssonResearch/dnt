@@ -57,5 +57,7 @@ doc:
 	cat doc/getting_started/scenario2/README.md >> /tmp/r2dtwo.md
 	cat doc/getting_started/scenario3/README.md >> /tmp/r2dtwo.md
 	cat doc/inispec.md >> /tmp/r2dtwo.md
-	cat doc/stream_compiler.md >> /tmp/r2dtwo.md
+	doc/protocolfields.pl protocol.c > doc/protocols.md
+	cat doc/protocols.md >> /tmp/r2dtwo.md
+	#cat doc/stream_compiler.md >> /tmp/r2dtwo.md
 	pandoc --pdf-engine=xelatex -V monofont="Noto Sans Mono" -V fontsize=10pt -V geometry:margin=1.5cm /tmp/r2dtwo.md -o readme.pdf
