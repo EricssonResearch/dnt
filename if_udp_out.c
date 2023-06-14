@@ -78,14 +78,25 @@ static bool udpout_open(struct Interface *iface)
             perror("udp-out setsockopt IPV6_TCLASS");
             return false;
         }
+        // it seems that setting IPv6 MTU discovery mode is also needed here
+        int val = IPV6_PMTUDISC_PROBE;
+        if (setsockopt(sock, IPPROTO_IPV6, IPV6_MTU_DISCOVER, &val, sizeof(val)) < 0) {
+            perror("udp-out setsockopt IP_MTU_DISCOVER");
+            return false;
+        }
     } else {
         int tos = (uid->priority & 7) << 5;
         if (setsockopt(sock, IPPROTO_IP, IP_TOS, &tos, sizeof(int)) < 0) {
             perror("udp-out setsockopt IP_TOS");
             return false;
         }
+        // it seems that setting IPv4 MTU discovery mode is also needed here
+        int val = IP_PMTUDISC_PROBE;
+        if (setsockopt(sock, IPPROTO_IP, IP_MTU_DISCOVER, &val, sizeof(val)) < 0) {
+            perror("udp-out setsockopt IP_MTU_DISCOVER");
+            return false;
+        }
     }
-
     if (setsockopt(sock, SOL_SOCKET, SO_PRIORITY, &uid->priority, sizeof(int)) < 0) {
         perror("udp-out setsockopt SO_PRIORITY");
         return false;
@@ -104,13 +115,6 @@ static bool udpout_open(struct Interface *iface)
      if (setsockopt (sock, SOL_SOCKET, SO_DONTROUTE, (void*) &optval, optlen) == -1)
         perror("udp-out setsockopt SO_DONTROUTE");
 */
-
-    // it seems that setting IP MTU discovery mode is also needed here
-    int val = IP_PMTUDISC_PROBE;
-    if (setsockopt(sock, IPPROTO_IP, IP_MTU_DISCOVER, &val, sizeof(val)) < 0) {
-        perror("udp-out setsockopt IP_MTU_DISCOVER");
-        return false;
-    }
 
     uid->errq_monitor = monitor_error_queue(sock, uid->family, iface->name);
 
@@ -257,6 +261,12 @@ bool init_udp_out_interface(struct Interface *iface, const char *name, const cha
                     sock = -1;
                     continue;
                 }
+                /* set IPv6 MTU discovery mode before connecting */
+                int val = IPV6_PMTUDISC_PROBE;
+                if (setsockopt(sock, IPPROTO_IPV6, IPV6_MTU_DISCOVER, &val, sizeof(val)) < 0) {
+                    perror("udp-out setsockopt IP_MTU_DISCOVER");
+                    return false;
+                }
             } else {
                 struct sockaddr_in addr;
                 memset(&addr, 0, sizeof(addr));
@@ -269,15 +279,14 @@ bool init_udp_out_interface(struct Interface *iface, const char *name, const cha
                     sock = -1;
                     continue;
                 }
+                /* set IPv4 MTU discovery mode before connecting */
+                int val = IP_PMTUDISC_PROBE;
+                if (setsockopt(sock, IPPROTO_IP, IP_MTU_DISCOVER, &val, sizeof(val)) < 0) {
+                    perror("udp-out setsockopt IP_MTU_DISCOVER");
+                    return false;
+                }
             }
         }
-
-    /* set IP MTU discovery mode before connecting */
-    int val = IP_PMTUDISC_PROBE;
-    if (setsockopt(sock, IPPROTO_IP, IP_MTU_DISCOVER, &val, sizeof(val)) < 0) {
-        perror("udp-out setsockopt IP_MTU_DISCOVER");
-        return false;
-    }
 
     if (connect(sock, rp->ai_addr, rp->ai_addrlen) == 0) break;
         perror("udp-out connect");
