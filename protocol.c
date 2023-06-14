@@ -171,6 +171,15 @@ static const struct ProtocolField ipv6_fields[] = {
 //TODO IPv6 extension headers?
 
 static const struct ProtocolField arp_fields[] = {
+    {"hwtype",   0, 16, FT_NUMBER}, // should be 1 (Eth)
+    {"prtype",  16, 16, FT_NUMBER}, // should be 0x0800 (IPv4)
+    {"hwsize",  32,  8, FT_NUMBER}, // should be 6
+    {"prsize",  40,  8, FT_NUMBER}, // should be 4
+    {"opcode",  48, 16, FT_NUMBER}, // 1 request, 2 reply
+    {"srcmac",  64, 48, FT_MACADDRESS},
+    {"srcip",  112, 32, FT_IPV4ADDRESS},
+    {"dstmac", 144, 48, FT_MACADDRESS},
+    {"dstip",  192, 32, FT_IPV4ADDRESS},
 };
 
 static const struct ProtocolField udp_fields[] = {
