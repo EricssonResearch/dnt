@@ -1,0 +1,16 @@
+cmake_minimum_required(VERSION 3.10)
+
+project(R2DTWO_Testing)
+
+include_directories(../)
+
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -Og -std=gnu99 -Wall -Wextra -Wstrict-prototypes -Wmissing-declarations -Wwrite-strings -Wshadow -Werror")
+
+function(add_test_seqrcvy name)
+    add_executable(${name} ../seq_recov.c ../packet.c ${name}.c)
+    target_link_libraries(${name} m pthread)
+    target_compile_definitions(${name} PUBLIC TESTING)
+endfunction()
+
+add_test_seqrcvy(test_seq_rcvy_vector)
+

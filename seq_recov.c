@@ -67,8 +67,10 @@ struct SequenceRecovery *new_seq_rec(enum SequenceRecoveryAlgorithm algo, bool u
     ret->history_length = history_length;
     ret->reset_msec = reset_msec;
     ret->latent_error_paths = latent_error_paths;
-    ret->history = calloc(history_length, sizeof(char));
-    ret->init_history = calloc(history_length, sizeof(char));
+    ret->history = calloc(history_length, sizeof(char)); //TODO not if algo==Match
+    ret->init_history = calloc(history_length, sizeof(char)); //TODO we only need this when algo==Seamless
+    ret->take_any = true;
+    ret->init_take_any = true;
     pthread_create(&ret->reset_thread, NULL, reset_thread, ret);
 
     return ret;
@@ -125,7 +127,7 @@ static bool recover(struct SequenceRecovery *rec, unsigned packet_seq, bool init
         rec->passed_packets += 1;
         reset_ticks(rec);
         return true;
-    } else if(delta > rec->history_length || delta <= -rec->history_length) {
+    } else if(delta >= rec->history_length || delta <= -rec->history_length) {
         rec->rogue_packets += 1;
         rec->discarded_packets += 1;
 
@@ -234,8 +236,6 @@ static void vector_seq_recovery_reset(struct SequenceRecovery *rec)
 {
     rec->recv_seq = FRER_RCVY_SEQ_SPACE - 1;
     memset(rec->history, 0, rec->history_length * sizeof(char));
-    rec->seq_recovery_resets += 1;
-    rec->take_any = true;
 }
 
 static void seamless_seq_recovery_reset(struct SequenceRecovery *rec)
@@ -249,23 +249,32 @@ static void seamless_seq_recovery_reset(struct SequenceRecovery *rec)
 //TODO: race condition
 bool seq_recovery(struct SequenceRecovery *rec, struct Packet *p)
 {
+    bool ret = true;
+    //TODO grab mutex
     switch (rec->algorithm) {
         case RCVY_Vector:
-            return vector_seq_recovery(rec, p);
+            ret = vector_seq_recovery(rec, p);
+            break;
         case RCVY_SeamlessVector:
-            return seamless_seq_recovery(rec, p);
+            ret = seamless_seq_recovery(rec, p);
+            break;
         case RCVY_Match:
-            return match_seq_recovery(rec, p);
+            ret = match_seq_recovery(rec, p);
+            break;
     }
-    return true;
+    //TODO release mutex
+    return ret;
 }
 
 static void seq_recovery_reset(struct SequenceRecovery *rec)
 {
 
     printf("Seqence recovery reset.\n");
+    rec->seq_recovery_resets += 1;
+    rec->take_any = true;
     switch (rec->algorithm) {
         case RCVY_Match:
+            break;
         case RCVY_Vector:
             return vector_seq_recovery_reset(rec);
         case RCVY_SeamlessVector:
@@ -317,6 +326,8 @@ static void *reset_thread(void *arg)
 {
     struct SequenceRecovery *rec = arg;
     struct timespec sleep_until, delta, now;
+
+    //TODO grab mutex
 
     reset_ticks(rec);
 
