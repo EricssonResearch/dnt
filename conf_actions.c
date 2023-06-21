@@ -7,6 +7,7 @@
 #include "conf_packet.h"
 #include "conf_utils.h"
 #include "action.h"
+#include "hashmap.h"
 #include "header.h"
 #include "interface.h"
 #include "inifile.h"
@@ -42,6 +43,9 @@ enum ConfActionType {
     CA_SEQGEN,
     CA_WRITESEQ,
     CA_WRITETSTAMP,
+    CA_MEPSTART,
+    CA_MEPSTOP,
+    CA_MIP,
 };
 
 enum BeforeAfter {
@@ -137,6 +141,12 @@ struct ConfAction {
         struct {
             struct SequenceGenerator *gen;
         } seq;
+        struct {
+            char *name;
+            int level;
+            struct ConfObject *obj; // NULL is valid too
+            struct Interface *oam_iface;
+        } oam;
     } d;
 };
 
@@ -238,6 +248,12 @@ static const char *confaction_name_from_type(enum ConfActionType type)
             return "WriteSeq";
         case CA_WRITETSTAMP:
             return "WriteTstamp";
+        case CA_MEPSTART:
+            return "MEPStart";
+        case CA_MEPSTOP:
+            return "MEPStop";
+        case CA_MIP:
+            return "MIP";
     }
     return NULL;
 }
@@ -439,6 +455,15 @@ static bool process_token(char *token, void *userdata)
                     stst->actions->type = CA_WRITESEQ;
                 } else if (strcmp(token, "writetstamp") == 0) {
                     stst->actions->type = CA_WRITETSTAMP;
+                } else if (strcmp(token, "mep-start") == 0) {
+                    stst->actions->type = CA_MEPSTART;
+                    stst->actions->d.oam.level = -1;
+                } else if (strcmp(token, "mep-stop") == 0) {
+                    stst->actions->type = CA_MEPSTOP;
+                    stst->actions->d.oam.level = -1;
+                } else if (strcmp(token, "mip") == 0) {
+                    stst->actions->type = CA_MIP;
+                    stst->actions->d.oam.level = -1;
                 } else {
                     struct ConfObject *obj = hashmap_find(stst->objects, token);
                     if (obj) {
@@ -540,12 +565,12 @@ static bool process_token(char *token, void *userdata)
                 break;
             case CA_DELAY:
                 if (stst->actions->d.delay.delay_value == 0) {
-                  char err;
-                  if (sscanf(token, "%i%c", &stst->actions->d.delay.delay_value, &err) != 1) {
-                      THROW("invalid delay '%s'", token);
-                  }
+                    char err;
+                    if (sscanf(token, "%i%c", &stst->actions->d.delay.delay_value, &err) != 1) {
+                        THROW("invalid delay '%s'", token);
+                    }
                 } else {
-                  THROW("delay action requires a delay parameter");
+                    THROW("delay action requires a delay parameter");
                 }
                 break;
             case CA_DROP:
@@ -663,6 +688,34 @@ static bool process_token(char *token, void *userdata)
                     }
                 } else {
                     THROW("seqgen only takes one argument");
+                }
+                break;
+            case CA_MEPSTART:
+            case CA_MEPSTOP:
+            case CA_MIP:
+                if (stst->actions->d.oam.name == NULL) {
+                    stst->actions->d.oam.name = strdup(token);
+                    break;
+                }
+                if (stst->actions->d.oam.level == -1) {
+                    if (sscanf(token, "%d", &stst->actions->d.oam.level) != 1) {
+                        THROW("invalid argument for OAM action '%s'", token);
+                    }
+                    break;
+                }
+                if (stst->actions->d.oam.obj == NULL) {
+                    struct ConfObject *obj = hashmap_find(stst->objects, token);
+                    if (obj) {
+                        if (!(obj->type == CO_SEQGEN || obj->type == CO_SEQREC || obj->type == CO_POF))
+                            THROW("unsupported object argument '%s' for OAM action", token);
+                    } else {
+                        THROW("unknown object '%s' for OAM action", token);
+                    }
+                    stst->actions->d.oam.obj = obj;
+                    break;
+                }
+                if (stst->actions->d.oam.name != NULL && stst->actions->d.oam.level != -1 && stst->actions->d.oam.obj != NULL) {
+                    THROW("action '%s' takes two mandatory and one optional argument", confaction_name_from_type(stst->actions->type));
                 }
                 break;
         }
@@ -1118,6 +1171,12 @@ static bool process_action(struct StageState *stst)
             }
             stst->seq_set = true;
             break;
+        case CA_MEPSTART:
+        case CA_MEPSTOP:
+        case CA_MIP:
+            //TODO: alphabetic order
+            //TODO: implement ALL parameter verification
+            break;
     }
     return true;
 #undef THROW
@@ -1267,6 +1326,11 @@ struct ConfAction *delete_confaction_list(struct ConfAction *ca_list)
             case CA_SEND:
                 break;
             case CA_SEQGEN:
+                break;
+            case CA_MEPSTART:
+            case CA_MEPSTOP:
+            case CA_MIP:
+                free(del->d.oam.name);
                 break;
         }
         free(del);
@@ -1419,6 +1483,11 @@ struct Action *assemble_actions(const struct ConfAction *ca_list, unsigned *acti
             case CA_WRITETSTAMP:
                 create_action_writetstamp(ret+a, ca->d.meta.field, ca->text);
                 break;
+            case CA_MEPSTART:
+            case CA_MEPSTOP:
+            case CA_MIP:
+                //TODO: implement
+                break;
         }
         a++;
     }
@@ -1502,6 +1571,11 @@ void confactions_print(const struct ConfAction *ca_list)
                 printf("  iface %s\n", ca->d.send.iface ? ca->d.send.iface->name : "UNKNOWN");
                 break;
             case CA_SEQGEN:
+                break;
+            case CA_MEPSTART:
+            case CA_MEPSTOP:
+            case CA_MIP:
+                //TODO: implement
                 break;
         }
     }
