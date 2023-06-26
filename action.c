@@ -33,6 +33,8 @@ const char *action_name_from_type(enum ActionType type)
             return "Edit";
         case ACT_ELIM:
             return "Eliminate";
+        case ACT_FILTEROAM:
+            return "FilterOAM";
         case ACT_POF:
             return "POF";
         case ACT_READSEQ:
@@ -262,6 +264,48 @@ void create_action_elim(struct Action *a, struct SequenceRecovery *rcvy, const c
     struct ElimData *ed = calloc_struct(ElimData);
     ed->rcvy = rcvy;
     a->action_private = ed;
+}
+
+/////////////////////////////////////////////////////////////////////
+
+struct FilterOamData {
+    struct HeaderField field;
+};
+
+static enum ActionResult action_filteroam_execute(struct Action *a, struct PipelineIterator *pi)
+{
+    struct FilterOamData *fd = a->action_private;
+
+    struct Packet *p = pi->packet;
+    uint8_t *src = p->buf + p->headers[fd->field.header_idx].start + fd->field.bitoffset/8;
+    unsigned len = fd->field.bitcount/8; //TODO this is always 4
+    uint32_t seq;
+    memcpy(&seq, src, len);
+
+    if (ntohl(seq) & 0x10000000) {
+        return ACR_DONE;
+    } else {
+        return ACR_CONTINUE;
+    }
+}
+
+static void action_filteroam_del(void *action_private)
+{
+    struct FilterOamData *fd = action_private;
+    free(fd);
+}
+
+void create_action_filteroam(struct Action *a, const struct HeaderField *seqfield, const char *text)
+{
+    bzero(a, sizeof(*a));
+    a->type = ACT_FILTEROAM;
+    a->execute = action_filteroam_execute;
+    a->del = action_filteroam_del;
+    a->text = strdup(text);
+
+    struct FilterOamData *fd = calloc_struct(FilterOamData);
+    fd->field = *seqfield;
+    a->action_private = fd;
 }
 
 /////////////////////////////////////////////////////////////////////

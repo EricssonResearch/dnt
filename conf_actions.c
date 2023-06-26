@@ -34,6 +34,7 @@ enum ConfActionType {
     CA_DROP,
     CA_EDIT,
     CA_ELIM,
+    CA_FILTEROAM,
     CA_JUMP,
     CA_POF,
     CA_READSEQ,
@@ -122,6 +123,9 @@ struct ConfAction {
         struct {
             struct SequenceRecovery *rec;
         } elim;
+        struct {
+            struct HeaderField *field;
+        } filteroam;
         struct {
             char *pipename;
         } jump;
@@ -230,6 +234,8 @@ static const char *confaction_name_from_type(enum ConfActionType type)
             return "Edit";
         case CA_ELIM:
             return "Eliminate";
+        case CA_FILTEROAM:
+            return "FilterOAM";
         case CA_JUMP:
             return "Jump";
         case CA_POF:
@@ -617,6 +623,9 @@ static bool process_token(char *token, void *userdata)
                     THROW("the only argument of eliminate is the recovery object");
                 }
                 break;
+            case CA_FILTEROAM:
+                // the user can't create this action, so nothing to do here
+                break;
             case CA_JUMP:
                 if (stst->actions->d.jump.pipename == NULL) {
                     stst->actions->d.jump.pipename = strdup(token);
@@ -975,6 +984,18 @@ static bool process_action(struct StageState *stst)
             }
             newaction->d.del.idx = idx;
 
+            // if removing a sequence number tag (= end of tunnel), automatically filter OAM packets
+            int seq_field_id = protocol_get_field_id_by_type(del->id, FT_TSNSEQ);
+            if (seq_field_id >= 0) {
+                struct ConfAction *filter = new_confaction(stst, CA_FILTEROAM, del->name);
+                filter->d.filteroam.field = new_headerfield(
+                        idx, &protocol_list[del->id].header_fields[seq_field_id]);
+                // swap filter and delete so we are filtering before deleting
+                filter->next = newaction->next;
+                newaction->next = filter;
+                stst->actions = newaction;
+            }
+
             // handle the nexthdr field of prev
             struct ConfAssignment *a = NULL;
             if (prev) {
@@ -1036,6 +1057,9 @@ static bool process_action(struct StageState *stst)
             if (!stst->seq_set) {
                 THROW("can't eliminate without a sequence number");
             }
+            break;
+        case CA_FILTEROAM:
+            // the user can't create this action, so nothing to verify here
             break;
         case CA_JUMP:
             //printf("CA_JUMP: %s\n", newaction->text);
@@ -1309,6 +1333,9 @@ struct ConfAction *delete_confaction_list(struct ConfAction *ca_list)
                 break;
             case CA_ELIM:
                 break;
+            case CA_FILTEROAM:
+                free(del->d.filteroam.field);
+                break;
             case CA_JUMP:
                 free(del->d.jump.pipename);
                 break;
@@ -1434,6 +1461,9 @@ struct Action *assemble_actions(const struct ConfAction *ca_list, unsigned *acti
             case CA_ELIM:
                 create_action_elim(ret+a, ca->d.elim.rec, ca->text);
                 break;
+            case CA_FILTEROAM:
+                create_action_filteroam(ret+a, ca->d.filteroam.field, ca->text);
+                break;
             case CA_JUMP:
                 fprintf(stderr, "assemble_actions() jump should have been inlined\n");
                 //TODO cleanup on error
@@ -1547,6 +1577,11 @@ void confactions_print(const struct ConfAction *ca_list)
                 }
                 break;
             case CA_ELIM:
+                break;
+            case CA_FILTEROAM:
+                printf("  field idx %u bitoffset %u bitcount %u\n",
+                        ca->d.filteroam.field->header_idx, ca->d.filteroam.field->bitoffset,
+                        ca->d.filteroam.field->bitcount);
                 break;
             case CA_JUMP:
                 printf("  %s\n", ca->d.jump.pipename);

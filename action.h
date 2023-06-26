@@ -14,6 +14,7 @@ enum ActionType {
     ACT_DROP,
     ACT_EDIT,
     ACT_ELIM,
+    ACT_FILTEROAM,
     ACT_POF,
     ACT_READSEQ,
     ACT_READTSTAMP,
@@ -93,6 +94,8 @@ void create_action_drop(struct Action *a, const char *text);
 void create_action_edit(struct Action *a, struct EditAssign *assigns, unsigned assign_count, const char *text);
 
 void create_action_elim(struct Action *a, struct SequenceRecovery *rcvy, const char *text);
+
+void create_action_filteroam(struct Action *a, const struct HeaderField *seqfield, const char *text);
 
 void create_action_pof(struct Action *a, struct Pof *pof, const char *text);
 
