@@ -28,7 +28,7 @@ On Fedora/RHEL and derivates:
 sudo dnf groupinstall @development-tools @development-libraries
 ```
 
-Also a fairly up-to-date Linux kernel required.
+A fairly up-to-date Linux kernel is also required.
 Kernel versions shipped with major GNU/Linux distributions in the past ~5 years should be fine.
 
 __Compile and (optionally) install R2DTWO__
@@ -41,6 +41,8 @@ cd r2dtwo
 make
 ```
 
+*Note:* it is possible to turn off the detailed logging by removing the `VERBOSE_RECV` and `VERBOSE_CONF` definitions in the `Makefile`.
+
 Optional: install R2DTWO system wide.
 
 ```
@@ -51,16 +53,48 @@ sudo make install
 
 To get started with R2DTWO there is a detailed [Getting started](doc/getting_started/README.md) guide.
 This shows three common practical use-cases (Layer 2 TSN, Layer 3 TSN over Detnet and IP over Detnet) supported by R2DTWO.
-To try them no hardware equipment required, however we support NXP switches as well.
+To try them no special hardware equipment is required, however the scenarios are crafted such that the configs can be run on NXP switches without modifications.
 
-R2DTWO supplied with detailed documentation included in the release package.
-The documentation show various scenarios and configuration examples.
+R2DTWO comes with detailed documentation included in the release package.
+The documentation shows various scenarios and configuration examples.
 
 __Important:__ the recommended way to run R2DTWO is to use root privileges.
 
-### Support
+## Tests
 
-In questions regarding to R2DTWO bugs/usage, please contact with [Ferenc Fejes \<ferenc.fejes@ericsson.com\>](mailto:ferenc.fejes@ericsson.com)
+R2DTWO comes with a few different tests to verify its correct operation.
+
+### Unit tests
+
+These are in the `unit_test` directory. They need `cmake` to build, and it's recommended to build them in a separate directory. For example:
+
+```
+cd unit_test
+mkdir build
+cd build
+cmake ..
+make
+./test_seq_rcvy_vector
+```
+
+The unit tests use the same infrastructure as the unit tests that come with the INI parser library used by R2DTWO (see inifile/test). The exit code of the tests is 0 if all the test cases passed.
+
+### Integration tests
+
+These are in the `test` directory. They test R2DTWO as a whole by running it with certain configurations. They need python3 to run, and most of them also need python3-scapy. __TODO more documentation on this__
+
+### Debugging tests
+
+These were used to debug R2DTWO during development. They are not systematic, not comprehensive, and not well-documented, but may be useful for showing some of the capabilities of R2DTWO. They need python3 and mininet to run.
+
+* *quicktest* is a mess that was used to test various R2DTWO functionalities during development. It contains configs for TSN and DetNet scenarios. Start the network with quicknet.py, and consult the comment lines in that script to see how to start R2DTWO and run the traffic.
+* *stresstest* is a scenario for testing the POF and Delay functions of R2DTWO: it replicates the traffic on two paths, one path has a substantial packet loss, the other one is delayed. Running this scenario is similar to running *quicktest*.
+
+It is recommended to start xterm terminals from mininet on the virtual nodes, and run the commands in those terminals.
+
+## Support
+
+With questions regarding to R2DTWO bugs/usage, please contact [Ferenc Fejes \<ferenc.fejes@ericsson.com\>](mailto:ferenc.fejes@ericsson.com)
 
 Team:
 
