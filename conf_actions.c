@@ -88,7 +88,7 @@ struct ConfAssignment {
 };
 
 struct ReplicateList {
-    char *string;
+    char *name;
     struct ConfAction *actions;
     struct ReplicateList *next;
 };
@@ -138,6 +138,7 @@ struct ConfAction {
         } pof;
         struct {
             struct ReplicateList *pipelines;
+            struct Replicate *replobj;
         } repl;
         struct {
             struct Interface *iface;
@@ -167,10 +168,11 @@ struct StageState {
 };
 
 
-static void replicatelist_push_string(struct ReplicateList **list, char *string)
+static void replicatelist_push(struct ReplicateList **list, char *name, struct ConfAction *actions)
 {
     struct ReplicateList *l = calloc_struct(ReplicateList);
-    l->string = string;
+    l->name = name;
+    l->actions = actions;
     l->next = *list;
     *list = l;
 }
@@ -412,6 +414,8 @@ static value_producer *process_assignment_rhs(struct StageState *stst, const str
 #undef THROW
 }
 
+static bool process_stage(char *stage, void *userdata);
+
 // here we process the parameters for the action individually
 static bool process_token(char *token, void *userdata)
 {
@@ -423,6 +427,7 @@ static bool process_token(char *token, void *userdata)
     } while (0)
 
     struct StageState *stst = userdata;
+    //TODO struct ConfAction *newaction = stst->actions;
 
     //TODO reindent this
         switch (stst->actions->type) {
@@ -485,6 +490,10 @@ static bool process_token(char *token, void *userdata)
                             case CO_POF:
                                 stst->actions->type = CA_POF;
                                 stst->actions->d.pof.pof = obj->object;
+                                break;
+                            case CO_REPL:
+                                stst->actions->type = CA_REPL;
+                                stst->actions->d.repl.replobj = obj->object;
                                 break;
                         }
                     } else {
@@ -668,7 +677,41 @@ static bool process_token(char *token, void *userdata)
                 }
                 break;
             case CA_REPL:
-                replicatelist_push_string(&stst->actions->d.repl.pipelines, strdup(token));
+                char *pstring = inisection_get(stst->streams_sec, token);
+                if (pstring == NULL) {
+                    // first argument can be the name of a state object
+                    if (stst->actions->d.repl.replobj == NULL
+                            && stst->actions->d.repl.pipelines == NULL) {
+                        struct ConfObject *obj = hashmap_find(stst->objects, token);
+                        if (obj) {
+                            stst->actions->d.repl.replobj = obj->object;
+                        } else {
+                            THROW("pipeline or object '%s' not found", token);
+                        }
+                    } else {
+                        THROW("pipeline or object '%s' not found", token);
+                    }
+                } else {
+                    pstring = strdup(pstring);
+                    struct StageState pstst = *stst;
+                    pstst.stream = token;
+                    pstst.headers = copy_header_list(stst->headers);
+                    pstst.actions = NULL;
+                    if (!foreach_stages(pstring, process_stage, &pstst)) {
+                        free(pstring);
+                        delete_header_list(pstst.headers);
+                        delete_confaction_list(pstst.actions);
+                        THROW("failed to process pipeline '%s'", token);
+                    }
+                    free(pstring);
+                    if (pstst.actions == NULL) {
+                        delete_header_list(pstst.headers);
+                        THROW("no actions in pipeline '%s'", token);
+                    }
+                    delete_header_list(pstst.headers);
+                    REVERSE_LIST(pstst.actions);
+                    replicatelist_push(&stst->actions->d.repl.pipelines, strdup(token), pstst.actions);
+                }
                 break;
             case CA_SEND:
                 if (stst->actions->d.send.iface) {
@@ -829,8 +872,6 @@ static struct ConfAction *new_confaction(struct StageState *stst, enum ConfActio
     ret->type = type;
     return ret;
 }
-
-static bool process_stage(char *stage, void *userdata);
 
 // here we do processing that needs all the parameters of the action
 static bool process_action(struct StageState *stst)
@@ -1154,33 +1195,6 @@ static bool process_action(struct StageState *stst)
             if (newaction->d.repl.pipelines == NULL) {
                 THROW("no pipelines specified");
             }
-            struct ReplicateList *p = newaction->d.repl.pipelines;
-            while (p) {
-                char *pstring = inisection_get(stst->streams_sec, p->string);
-                if (pstring == NULL) {
-                    THROW("pipeline '%s' not found", p->string);
-                }
-                pstring = strdup(pstring);
-                struct StageState pstst = *stst;
-                pstst.stream = p->string;
-                pstst.headers = copy_header_list(stst->headers);
-                pstst.actions = NULL;
-                if (!foreach_stages(pstring, process_stage, &pstst)) {
-                    free(pstring);
-                    delete_header_list(pstst.headers);
-                    delete_confaction_list(pstst.actions);
-                    THROW("failed to process pipeline '%s'", p->string);
-                }
-                free(pstring);
-                if (pstst.actions == NULL) {
-                    delete_header_list(pstst.headers);
-                    THROW("no actions in pipeline '%s'", p->string);
-                }
-                delete_header_list(pstst.headers);
-                p->actions = pstst.actions;
-                REVERSE_LIST(p->actions);
-                p = p->next;
-            }
             REVERSE_LIST(newaction->d.repl.pipelines);
             stst->had_final = true;
             break;
@@ -1303,7 +1317,7 @@ static void delete_replicatelist(struct ReplicateList *pipelines)
     while (pipelines) {
         struct ReplicateList *del = pipelines;
         pipelines = pipelines->next;
-        free(del->string);
+        free(del->name);
         delete_confaction_list(del->actions);
         free(del);
     }
@@ -1483,7 +1497,7 @@ struct Action *assemble_actions(const struct ConfAction *ca_list, unsigned *acti
                     unsigned r_action_count;
                     struct Action *r_actions = assemble_actions(r->actions, &r_action_count);
                     if (!r_actions) {
-                        fprintf(stderr, "failed to assemble actions for stream %s\n", r->string);
+                        fprintf(stderr, "failed to assemble actions for stream %s\n", r->name);
                         //TODO cleanup on error
                         return NULL;
                     }
@@ -1494,12 +1508,12 @@ struct Action *assemble_actions(const struct ConfAction *ca_list, unsigned *acti
 
                     struct PipelineList *p = calloc_struct(PipelineList);
                     p->pipe = pipe;
-                    p->text = r->string;
+                    p->text = r->name;
                     p->next = pipes;
                     pipes = p;
                 }
                 REVERSE_LIST(pipes);
-                create_action_repl(ret+a, pipes, ca->text);
+                create_action_repl(ret+a, pipes, ca->d.repl.replobj, ca->text);
                 break; }
             case CA_SEND:
                 create_action_send(ret+a, ca->d.send.iface, ca->text);
@@ -1597,9 +1611,9 @@ void confactions_print(const struct ConfAction *ca_list)
                 break;
             case CA_REPL:
                 for (struct ReplicateList *p=ca->d.repl.pipelines; p; p=p->next) {
-                    printf("  vvvvvvvv %s vvvvvvvv\n", p->string);
+                    printf("  vvvvvvvv %s vvvvvvvv\n", p->name);
                     confactions_print(p->actions);
-                    printf("  ^^^^^^^^ %s ^^^^^^^^\n", p->string);
+                    printf("  ^^^^^^^^ %s ^^^^^^^^\n", p->name);
                 }
                 break;
             case CA_SEND:

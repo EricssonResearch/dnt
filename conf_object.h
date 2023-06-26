@@ -12,6 +12,7 @@ enum ConfObjectType {
     CO_SEQGEN = 1,
     CO_SEQREC,
     CO_POF,
+    CO_REPL,
 };
 
 struct ConfObject {

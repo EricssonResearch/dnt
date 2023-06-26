@@ -116,7 +116,7 @@ The available actions are the following:
 * `pof pofobject` puts the packet in a reorder buffer based on its sequence number metadata, continues the actions on this pipeline when the ordering is okay
 * `readseq header` reads the sequence number from the given header into the packet metadata field (to be used by the `eliminate` and `pof` actions)
 * `readtstamp header` reads the timestamp from the given header into the packet metadata field (to be used by the `delay` action)
-* `replicate pipeline1 [pipeline2]` makes copies of the packet and continues processing them on the given pipelines, which have to be defined in the *streams* section, this can create any number of branches; this action is the last one in a pipeline
+* `replicate pipeline1 [pipeline2]` makes copies of the packet and continues processing them on the given pipelines, which have to be defined in the *streams* section, this can create any number of branches; the first argument can optionally be the name of a Replicate object that stores statistics about the replication; this action is the last one in a pipeline
 * `send iface` sends out the packet on the given interface from the *interfaces* list
 * `seqgen generator` uses the given sequence generator object to set the sequence number metadata of the packet
 * `writeseq header` writes the sequence number from the packet metadata to the given header
@@ -167,6 +167,7 @@ The object instantiation is in this format: `name = type parameter=value [parame
     * BufferSize max number of packets in the reorder buffer (default: 2)
     * MaxDelay timeout when waiting for missing packet (default: 20)
     * TakeAnyTime initial time for sequencing (default: 2000)
+* `Replicate` counters for `replicate` action, takes no parameters
 
 All of these objects work on the metadata of the packet instead of the header fields.
 

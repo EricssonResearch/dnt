@@ -37,6 +37,7 @@ struct HeaderFieldAssign;
 struct Interface;
 struct Packet;
 struct PipelineIterator;
+struct Replicate;
 struct SequenceGenerator;
 struct SequenceRecovery;
 struct Pof;
@@ -103,7 +104,7 @@ void create_action_readseq(struct Action *a, const struct HeaderField *seqfield,
 
 void create_action_readtstamp(struct Action *a, const struct HeaderField *tsfield, const char *text);
 
-void create_action_repl(struct Action *a, struct PipelineList *list, const char *text);
+void create_action_repl(struct Action *a, struct PipelineList *list, struct Replicate *replobj, const char *text);
 
 void create_action_send(struct Action *a, struct Interface *iface, const char *text);
 

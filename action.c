@@ -8,6 +8,7 @@
 #include "interface.h"
 #include "packet.h"
 #include "pipeline.h"
+#include "replicate.h"
 #include "seq_gen.h"
 #include "seq_recov.h"
 #include "utils.h"
@@ -403,14 +404,20 @@ void create_action_readtstamp(struct Action *a, const struct HeaderField *tsfiel
 
 /////////////////////////////////////////////////////////////////////
 
+struct ReplData {
+    struct PipelineList *pipes;
+    struct Replicate *replobj;
+};
+
 static enum ActionResult action_repl_execute(struct Action *a, struct PipelineIterator *pi)
 {
-    struct PipelineList *list = a->action_private;
+    struct ReplData *rd = a->action_private;
 
     // extract the packet from our iterator
     struct Packet *iterpacket = pi->packet;
     pi->packet = NULL;
 
+    struct PipelineList *list = rd->pipes;
     while (list) {
         struct Packet *p;
         if (list->next) {
@@ -423,21 +430,24 @@ static enum ActionResult action_repl_execute(struct Action *a, struct PipelineIt
         pipe_iterator_run(newpi);
         list = list->next;
     }
+    replicate_packet_passed(rd->replobj);
     return ACR_DONE;
 }
 
 static void action_repl_del(void *action_private)
 {
-    struct PipelineList *list = action_private;
+    struct ReplData *rd = action_private;
+    struct PipelineList *list = rd->pipes;
     while (list) {
         struct PipelineList *del = list;
         list = list->next;
         pipeline_unref(del->pipe);
         free(del);
     }
+    free(rd);
 }
 
-void create_action_repl(struct Action *a, struct PipelineList *list, const char *text)
+void create_action_repl(struct Action *a, struct PipelineList *list, struct Replicate *replobj, const char *text)
 {
     bzero(a, sizeof(*a));
     a->type = ACT_REPL;
@@ -445,14 +455,17 @@ void create_action_repl(struct Action *a, struct PipelineList *list, const char 
     a->del = action_repl_del;
     a->text = strdup(text);
 
-    a->action_private = list;
+    struct ReplData *rd = calloc_struct(ReplData);
+    rd->pipes = list;
+    rd->replobj = replobj;
+    a->action_private = rd;
 }
 
 struct PipelineList *action_repl_get_piplinelist(struct Action *a)
 {
     if (a->type == ACT_REPL) {
-        struct PipelineList *list = a->action_private;
-        return list;
+        struct ReplData *rd = a->action_private;
+        return rd->pipes;
     }
     return NULL;
 }
