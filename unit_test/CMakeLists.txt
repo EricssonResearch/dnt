@@ -12,5 +12,6 @@ function(add_test_seqrcvy name)
     target_compile_definitions(${name} PUBLIC TESTING)
 endfunction()
 
+add_test_seqrcvy(test_seq_rcvy_match)
 add_test_seqrcvy(test_seq_rcvy_vector)
 

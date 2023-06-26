@@ -83,7 +83,6 @@ static void test_window(void)
     p->sequence = htonl(65520);
     OK(seq_recovery(rec, p) == true, "in window");
 
-
     OK(delete_seq_rec(rec) == NULL, "delete object");
     OK(delete_packet(p) == NULL, "delete packet");
 }
