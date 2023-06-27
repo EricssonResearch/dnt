@@ -19,6 +19,8 @@
 #include <stdio.h>
 #include <arpa/inet.h> /* htonl() */
 
+#define OAM_INDICATOR_MASK 0x10000000u
+
 const char *action_name_from_type(enum ActionType type)
 {
     switch (type) {
@@ -283,7 +285,7 @@ static enum ActionResult action_filteroam_execute(struct Action *a, struct Pipel
     uint32_t seq;
     memcpy(&seq, src, len);
 
-    if (ntohl(seq) & 0x10000000) {
+    if (ntohl(seq) & OAM_INDICATOR_MASK) {
         return ACR_DONE;
     } else {
         return ACR_CONTINUE;
@@ -550,9 +552,18 @@ static enum ActionResult action_writeseq_execute(struct Action *a, struct Pipeli
 {
     struct MetaData *md = a->action_private;
     struct Packet *p = pi->packet;
-    uint8_t *dst = p->buf + p->headers[md->field.header_idx].start + md->field.bitoffset/8;
+
+    uint8_t *src = p->buf + p->headers[md->field.header_idx].start + md->field.bitoffset/8;
     unsigned len = md->field.bitcount/8; //TODO this is always 4
-    memcpy(dst, &p->sequence, len);
+    uint32_t seq;
+    memcpy(&seq, src, len);
+
+    // skip if seq already contains OAM associated channel header
+    if ((ntohl(seq) & OAM_INDICATOR_MASK) == 0) {
+        uint8_t *dst = p->buf + p->headers[md->field.header_idx].start + md->field.bitoffset/8;
+        memcpy(dst, &p->sequence, len);
+    }
+
     return ACR_CONTINUE;
 }
 
