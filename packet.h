@@ -5,8 +5,6 @@
 #ifndef R2_PACKET_H
 #define R2_PACKET_H
 
-#include "transfer.h"
-
 #include <stdbool.h>
 #include <time.h>
 

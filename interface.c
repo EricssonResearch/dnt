@@ -33,7 +33,14 @@ void iface_set_parsetree(struct Interface *iface, struct ParseTree *pt)
 
 void close_iface(struct Interface *iface)
 {
-    //TODO state must be IFS_INIT or IFS_OPEN
+    if (iface->state == IFS_SHUTDOWN) {
+        fprintf(stderr, "interface %s close called twice\n", iface->name);
+        return;
+    }
+    if (iface->state == IFS_DONE) {
+        fprintf(stderr, "interface close called when it was already deleted\n");
+        return;
+    }
     iface->state = IFS_SHUTDOWN;
     // when the parsetree is done processing stuff
     //      it will unref its action pipelines

@@ -17,7 +17,6 @@ enum ConfObjectType {
 struct ConfObject {
     enum ConfObjectType type;
     void *object;
-    //TODO what else do we need?
 };
 
 // @returns map of ConfObject keyed by their names

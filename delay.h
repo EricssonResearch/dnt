@@ -3,6 +3,7 @@
 
 
 #ifndef R2_DELAY_H
+#define R2_DELAY_H
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -22,5 +23,4 @@ void fini_delay(void);
 void delay_insert(struct PipelineIterator *pi, unsigned timestamp, unsigned delay);
 
 
-#define R2_DELAY_H
 #endif // R2_DELAY_H

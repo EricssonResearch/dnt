@@ -51,6 +51,7 @@ typedef bool iface_close(struct Interface *iface);
 // @return a function that can read @property of the interface
 // @type is the type the consumer wants, it is checked against the property
 // the bitoffset and bitlength in @target is checked against the property
+// @returns NULL on error
 typedef value_producer *iface_get_property_reader(const struct Interface *iface, const char *property,
         enum ProtocolFieldType target_type, const struct Value *target);
 
@@ -70,15 +71,6 @@ struct Interface {
     void *iface_private;
 
     struct ParseTree *parsetree;
-
-    //TODO properties that actions can query: MAC address, IP address, port etc.
-    //  TODO we need a per-type list of the names for the config validator
-    //  TODO we need a per-instance hash to query the values
-
-    //TODO we should do a refcounting of the interfaces
-    //      pipelines hold a ref to the interfaces they send on
-    //      iface is not deleted while we have a packet in the system that will be sent out on that iface
-    //      if iface is marked for deletion (but still having ref) stops receiving packets
 };
 
 // no global init(), each interface type has its own

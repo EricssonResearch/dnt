@@ -19,7 +19,6 @@ struct SequenceGenerator *new_seq_gen(bool use_reset_flag, bool use_init_flag, u
 // always returns NULL
 struct SequenceGenerator *delete_seq_gen(struct SequenceGenerator *gen);
 
-// this is a Producer function
 // @state is struct SequenceGenerator
 void seq_generator(struct SequenceGenerator *gen, struct Packet *p);
 

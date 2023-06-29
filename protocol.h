@@ -74,7 +74,7 @@ struct Protocol {
 // the internal id of the protocols is their index in this array
 // TODO make this array private?
 extern const struct Protocol protocol_list[];
-extern unsigned protocol_count;
+extern const unsigned protocol_count;
 
 // @returns the name of the field type or NULL on unknown type
 const char *fieldtype_name_from_type(enum ProtocolFieldType type);

@@ -31,8 +31,6 @@
 
 
 struct DelayQueue {
-    //TODO keep a list of PipelineIterator objects (priority queue)
-    //      a background thread will get them from the queue and pipe_iterator_run()
     struct PipelineIterator *pi;
     unsigned delay_ms;
     struct timespec due_time;

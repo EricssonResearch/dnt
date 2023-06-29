@@ -208,7 +208,7 @@ const struct Protocol protocol_list[] = {
     {"udp", udp_fields, ARRAY_SIZE(udp_fields), 8, 0, NULL, NULL},
 };
 
-unsigned protocol_count = ARRAY_SIZE(protocol_list);
+const unsigned protocol_count = ARRAY_SIZE(protocol_list);
 
 
 const char *fieldtype_name_from_type(enum ProtocolFieldType type)
