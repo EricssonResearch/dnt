@@ -62,6 +62,11 @@ const char *action_name_from_type(enum ActionType type)
     return NULL;
 }
 
+#define INIT_ACTION(type_)                      \
+    bzero(a, sizeof(*a));                       \
+    a->type = ACT_ ## type_;                    \
+    a->execute = action_ ## type_ ## _execute;  \
+    a->text = strdup(text)
 
 /////////////////////////////////////////////////////////////////////
 
@@ -71,26 +76,16 @@ struct AddData {
     unsigned len;
 };
 
-static enum ActionResult action_add_execute(struct Action *a, struct PipelineIterator *pi)
+static enum ActionResult action_ADD_execute(struct Action *a, struct PipelineIterator *pi)
 {
     struct AddData *ad = a->action_private;
     packet_add_header(pi->packet, ad->idx, ad->type, ad->len);
     return ACR_CONTINUE;
 }
 
-static void action_add_del(void *action_private)
-{
-    struct AddData *ad = action_private;
-    free(ad);
-}
-
 void create_action_add(struct Action *a, unsigned idx, int type, unsigned len, const char *text)
 {
-    bzero(a, sizeof(*a));
-    a->type = ACT_ADD;
-    a->execute = action_add_execute;
-    a->del = action_add_del;
-    a->text = strdup(text);
+    INIT_ACTION(ADD);
 
     struct AddData *ad = calloc_struct(AddData);
     ad->idx = idx;
@@ -105,26 +100,16 @@ struct DelData {
     unsigned idx;
 };
 
-static enum ActionResult action_del_execute(struct Action *a, struct PipelineIterator *pi)
+static enum ActionResult action_DEL_execute(struct Action *a, struct PipelineIterator *pi)
 {
     struct DelData *dd = a->action_private;
     packet_del_header(pi->packet, dd->idx);
     return ACR_CONTINUE;
 }
 
-static void action_del_del(void *action_private)
-{
-    struct DelData *dd = action_private;
-    free(dd);
-}
-
 void create_action_del(struct Action *a, unsigned idx, const char *text)
 {
-    bzero(a, sizeof(*a));
-    a->type = ACT_DEL;
-    a->execute = action_del_execute;
-    a->del = action_del_del;
-    a->text = strdup(text);
+    INIT_ACTION(DEL);
 
     struct DelData *dd = calloc_struct(DelData);
     dd->idx = idx;
@@ -138,7 +123,7 @@ struct DelayData {
     //struct HeaderField timestamp;
 };
 
-static enum ActionResult action_delay_execute(struct Action *a, struct PipelineIterator *pi)
+static enum ActionResult action_DELAY_execute(struct Action *a, struct PipelineIterator *pi)
 {
     struct DelayData *dd = a->action_private;
     struct Packet *p = pi->packet;
@@ -150,19 +135,9 @@ static enum ActionResult action_delay_execute(struct Action *a, struct PipelineI
     return ACR_HOLD;
 }
 
-static void action_delay_del(void *action_private)
-{
-    struct DelayData *dd = action_private;
-    free(dd);
-}
-
 void create_action_delay(struct Action *a, unsigned delay_ms, const char *text)
 {
-    bzero(a, sizeof(*a));
-    a->type = ACT_DELAY;
-    a->execute = action_delay_execute;
-    a->del = action_delay_del;
-    a->text = strdup(text);
+    INIT_ACTION(DELAY);
 
     struct DelayData *dd = calloc_struct(DelayData);
     dd->delay_ms = delay_ms;
@@ -171,7 +146,7 @@ void create_action_delay(struct Action *a, unsigned delay_ms, const char *text)
 
 /////////////////////////////////////////////////////////////////////
 
-static enum ActionResult action_drop_execute(struct Action *a, struct PipelineIterator *pi)
+static enum ActionResult action_DROP_execute(struct Action *a, struct PipelineIterator *pi)
 {
     (void)a;
     (void)pi;
@@ -180,10 +155,7 @@ static enum ActionResult action_drop_execute(struct Action *a, struct PipelineIt
 
 void create_action_drop(struct Action *a, const char *text)
 {
-    bzero(a, sizeof(*a));
-    a->type = ACT_DROP;
-    a->execute = action_drop_execute;
-    a->text = strdup(text);
+    INIT_ACTION(DROP);
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -193,7 +165,7 @@ struct EditData {
     unsigned assign_count;
 };
 
-static enum ActionResult action_edit_execute(struct Action *a, struct PipelineIterator *pi)
+static enum ActionResult action_EDIT_execute(struct Action *a, struct PipelineIterator *pi)
 {
     struct EditData *ed = a->action_private;
     for (unsigned i=0; i<ed->assign_count; i++) {
@@ -220,16 +192,12 @@ static void action_edit_del(void *action_private)
             free(ed->assigns[i].read_state);
     }
     free(ed->assigns);
-    free(ed);
 }
 
 void create_action_edit(struct Action *a, struct EditAssign *assigns, unsigned assign_count, const char *text)
 {
-    bzero(a, sizeof(*a));
-    a->type = ACT_EDIT;
-    a->execute = action_edit_execute;
+    INIT_ACTION(EDIT);
     a->del = action_edit_del;
-    a->text = strdup(text);
 
     struct EditData *ed = calloc_struct(EditData);
     ed->assigns = assigns;
@@ -243,7 +211,7 @@ struct ElimData {
     struct SequenceRecovery *rcvy;
 };
 
-static enum ActionResult action_elim_execute(struct Action *a, struct PipelineIterator *pi)
+static enum ActionResult action_ELIM_execute(struct Action *a, struct PipelineIterator *pi)
 {
     struct ElimData *ed = a->action_private;
     if (seq_recovery(ed->rcvy, pi->packet)) {
@@ -253,20 +221,9 @@ static enum ActionResult action_elim_execute(struct Action *a, struct PipelineIt
     }
 }
 
-
-static void action_elim_del(void *action_private)
-{
-    struct ElimData *ed = action_private;
-    free(ed);
-}
-
 void create_action_elim(struct Action *a, struct SequenceRecovery *rcvy, const char *text)
 {
-    bzero(a, sizeof(*a));
-    a->type = ACT_ELIM;
-    a->execute = action_elim_execute;
-    a->del = action_elim_del;
-    a->text = strdup(text);
+    INIT_ACTION(ELIM);
 
     struct ElimData *ed = calloc_struct(ElimData);
     ed->rcvy = rcvy;
@@ -279,7 +236,7 @@ struct FilterOamData {
     struct HeaderField field;
 };
 
-static enum ActionResult action_filteroam_execute(struct Action *a, struct PipelineIterator *pi)
+static enum ActionResult action_FILTEROAM_execute(struct Action *a, struct PipelineIterator *pi)
 {
     struct FilterOamData *fd = a->action_private;
 
@@ -296,19 +253,9 @@ static enum ActionResult action_filteroam_execute(struct Action *a, struct Pipel
     }
 }
 
-static void action_filteroam_del(void *action_private)
-{
-    struct FilterOamData *fd = action_private;
-    free(fd);
-}
-
 void create_action_filteroam(struct Action *a, const struct HeaderField *seqfield, const char *text)
 {
-    bzero(a, sizeof(*a));
-    a->type = ACT_FILTEROAM;
-    a->execute = action_filteroam_execute;
-    a->del = action_filteroam_del;
-    a->text = strdup(text);
+    INIT_ACTION(FILTEROAM);
 
     struct FilterOamData *fd = calloc_struct(FilterOamData);
     fd->field = *seqfield;
@@ -321,7 +268,7 @@ struct PofData {
     struct Pof *pof;
 };
 
-static enum ActionResult action_pof_execute(struct Action *a, struct PipelineIterator *pi)
+static enum ActionResult action_POF_execute(struct Action *a, struct PipelineIterator *pi)
 {
     struct PofData *pd = a->action_private;
     if (pof_insert(pd->pof, pi)) {
@@ -331,19 +278,9 @@ static enum ActionResult action_pof_execute(struct Action *a, struct PipelineIte
     }
 }
 
-static void action_pof_del(void *action_private)
-{
-    struct PofData *pd = action_private;
-    free(pd);
-}
-
 void create_action_pof(struct Action *a, struct Pof *pof, const char *text)
 {
-    bzero(a, sizeof(*a));
-    a->type = ACT_POF;
-    a->execute = action_pof_execute;
-    a->del = action_pof_del;
-    a->text = strdup(text);
+    INIT_ACTION(POF);
 
     struct PofData *pd = calloc_struct(PofData);
     pd->pof = pof;
@@ -356,13 +293,7 @@ struct MetaData {
     struct HeaderField field;
 };
 
-static void action_meta_del(void *action_private)
-{
-    struct MetaData *md = action_private;
-    free(md);
-}
-
-static enum ActionResult action_readseq_execute(struct Action *a, struct PipelineIterator *pi)
+static enum ActionResult action_READSEQ_execute(struct Action *a, struct PipelineIterator *pi)
 {
     struct MetaData *md = a->action_private;
     struct Packet *p = pi->packet;
@@ -374,18 +305,14 @@ static enum ActionResult action_readseq_execute(struct Action *a, struct Pipelin
 
 void create_action_readseq(struct Action *a, const struct HeaderField *seqfield, const char *text)
 {
-    bzero(a, sizeof(*a));
-    a->type = ACT_READSEQ;
-    a->execute = action_readseq_execute;
-    a->del = action_meta_del;
-    a->text = strdup(text);
+    INIT_ACTION(READSEQ);
 
     struct MetaData *md = calloc_struct(MetaData);
     md->field = *seqfield;
     a->action_private = md;
 }
 
-static enum ActionResult action_readtstamp_execute(struct Action *a, struct PipelineIterator *pi)
+static enum ActionResult action_READTSTAMP_execute(struct Action *a, struct PipelineIterator *pi)
 {
     struct MetaData *md = a->action_private;
     struct Packet *p = pi->packet;
@@ -397,11 +324,7 @@ static enum ActionResult action_readtstamp_execute(struct Action *a, struct Pipe
 
 void create_action_readtstamp(struct Action *a, const struct HeaderField *tsfield, const char *text)
 {
-    bzero(a, sizeof(*a));
-    a->type = ACT_READTSTAMP;
-    a->execute = action_readtstamp_execute;
-    a->del = action_meta_del;
-    a->text = strdup(text);
+    INIT_ACTION(READTSTAMP);
 
     struct MetaData *md = calloc_struct(MetaData);
     md->field = *tsfield;
@@ -415,7 +338,7 @@ struct ReplData {
     struct Replicate *replobj;
 };
 
-static enum ActionResult action_repl_execute(struct Action *a, struct PipelineIterator *pi)
+static enum ActionResult action_REPL_execute(struct Action *a, struct PipelineIterator *pi)
 {
     struct ReplData *rd = a->action_private;
 
@@ -450,16 +373,12 @@ static void action_repl_del(void *action_private)
         pipeline_unref(del->pipe);
         free(del);
     }
-    free(rd);
 }
 
 void create_action_repl(struct Action *a, struct PipelineList *list, struct Replicate *replobj, const char *text)
 {
-    bzero(a, sizeof(*a));
-    a->type = ACT_REPL;
-    a->execute = action_repl_execute;
+    INIT_ACTION(REPL);
     a->del = action_repl_del;
-    a->text = strdup(text);
 
     struct ReplData *rd = calloc_struct(ReplData);
     rd->pipes = list;
@@ -482,26 +401,16 @@ struct SendData {
     struct Interface *iface;
 };
 
-static enum ActionResult action_send_execute(struct Action *a, struct PipelineIterator *pi)
+static enum ActionResult action_SEND_execute(struct Action *a, struct PipelineIterator *pi)
 {
     struct SendData *sd = a->action_private;
     sd->iface->send(sd->iface, pi->packet);
     return ACR_CONTINUE;
 }
 
-static void action_send_del(void *action_private)
-{
-    struct SendData *sd = action_private;
-    free(sd);
-}
-
 void create_action_send(struct Action *a, struct Interface *iface, const char *text)
 {
-    bzero(a, sizeof(*a));
-    a->type = ACT_SEND;
-    a->execute = action_send_execute;
-    a->del = action_send_del;
-    a->text = strdup(text);
+    INIT_ACTION(SEND);
 
     struct SendData *sd = calloc_struct(SendData);
     sd->iface = iface;
@@ -524,26 +433,16 @@ struct SeqgenData {
     struct SequenceGenerator *gen;
 };
 
-static enum ActionResult action_seqgen_execute(struct Action *a, struct PipelineIterator *pi)
+static enum ActionResult action_SEQGEN_execute(struct Action *a, struct PipelineIterator *pi)
 {
     struct SeqgenData *sd = a->action_private;
     seq_generator(sd->gen, pi->packet);
     return ACR_CONTINUE;
 }
 
-static void action_seqgen_del(void *action_private)
-{
-    struct SeqgenData *sd = action_private;
-    free(sd);
-}
-
 void create_action_seqgen(struct Action *a, struct SequenceGenerator *gen, const char *text)
 {
-    bzero(a, sizeof(*a));
-    a->type = ACT_SEQGEN;
-    a->execute = action_seqgen_execute;
-    a->del = action_seqgen_del;
-    a->text = strdup(text);
+    INIT_ACTION(SEQGEN);
 
     struct SeqgenData *sd = calloc_struct(SeqgenData);
     sd->gen = gen;
@@ -552,7 +451,7 @@ void create_action_seqgen(struct Action *a, struct SequenceGenerator *gen, const
 
 /////////////////////////////////////////////////////////////////////
 
-static enum ActionResult action_ttlcheck_exeute(struct Action *a, struct PipelineIterator *pi)
+static enum ActionResult action_TTLCHECK_execute(struct Action *a, struct PipelineIterator *pi)
 {
     (void)a;
     struct Packet *p = pi->packet;
@@ -562,10 +461,7 @@ static enum ActionResult action_ttlcheck_exeute(struct Action *a, struct Pipelin
 
 void create_action_ttlcheck(struct Action *a, const char *text)
 {
-    bzero(a, sizeof(*a));
-    a->type = ACT_TTLCHECK;
-    a->execute = action_ttlcheck_exeute;
-    a->text = strdup(text);
+    INIT_ACTION(TTLCHECK);
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -574,7 +470,7 @@ struct TtlData {
     struct HeaderField field;
 };
 
-static enum ActionResult action_ttlreduce_exeute(struct Action *a, struct PipelineIterator *pi)
+static enum ActionResult action_TTLREDUCE_execute(struct Action *a, struct PipelineIterator *pi)
 {
     struct TtlData *td = a->action_private;
     struct Packet *p = pi->packet;
@@ -587,19 +483,9 @@ static enum ActionResult action_ttlreduce_exeute(struct Action *a, struct Pipeli
     return ACR_CONTINUE;
 }
 
-static void action_ttlreduce_del(void *action_private)
-{
-    struct TtlData *td = action_private;
-    free(td);
-}
-
 void create_action_ttlreduce(struct Action *a, const struct HeaderField *ttlfield, const char *text)
 {
-    bzero(a, sizeof(*a));
-    a->type = ACT_TTLREDUCE;
-    a->execute = action_ttlreduce_exeute;
-    a->del = action_ttlreduce_del;
-    a->text = strdup(text);
+    INIT_ACTION(TTLREDUCE);
 
     struct TtlData *td = calloc_struct(TtlData);
     td->field = *ttlfield;
@@ -608,7 +494,7 @@ void create_action_ttlreduce(struct Action *a, const struct HeaderField *ttlfiel
 
 /////////////////////////////////////////////////////////////////////
 
-static enum ActionResult action_writeseq_execute(struct Action *a, struct PipelineIterator *pi)
+static enum ActionResult action_WRITESEQ_execute(struct Action *a, struct PipelineIterator *pi)
 {
     struct MetaData *md = a->action_private;
     struct Packet *p = pi->packet;
@@ -629,18 +515,14 @@ static enum ActionResult action_writeseq_execute(struct Action *a, struct Pipeli
 
 void create_action_writeseq(struct Action *a, const struct HeaderField *seqfield, const char *text)
 {
-    bzero(a, sizeof(*a));
-    a->type = ACT_WRITESEQ;
-    a->execute = action_writeseq_execute;
-    a->del = action_meta_del;
-    a->text = strdup(text);
+    INIT_ACTION(WRITESEQ);
 
     struct MetaData *md = calloc_struct(MetaData);
     md->field = *seqfield;
     a->action_private = md;
 }
 
-static enum ActionResult action_writetstamp_execute(struct Action *a, struct PipelineIterator *pi)
+static enum ActionResult action_WRITETSTAMP_execute(struct Action *a, struct PipelineIterator *pi)
 {
     struct MetaData *md = a->action_private;
     struct Packet *p = pi->packet;
@@ -653,11 +535,7 @@ static enum ActionResult action_writetstamp_execute(struct Action *a, struct Pip
 
 void create_action_writetstamp(struct Action *a, const struct HeaderField *tsfield, const char *text)
 {
-    bzero(a, sizeof(*a));
-    a->type = ACT_WRITETSTAMP;
-    a->execute = action_writetstamp_execute;
-    a->del = action_meta_del;
-    a->text = strdup(text);
+    INIT_ACTION(WRITETSTAMP);
 
     struct MetaData *md = calloc_struct(MetaData);
     md->field = *tsfield;
@@ -671,6 +549,7 @@ struct Action *delete_action(struct Action *a)
     if (!a) return NULL;
     if (a->del)
         a->del(a->action_private);
+    free(a->action_private);
     free(a->text);
     //free(a); actions are in an array
     return NULL;
