@@ -47,6 +47,8 @@ struct Packet {
     // packet properties that can be accessed via dedicated read/write actions
     unsigned timestamp; // holds a ttag
     unsigned sequence;  // holds a rtag
+
+    unsigned ttl;
 };
 
 // returns a newly allocated packet that has a buffer

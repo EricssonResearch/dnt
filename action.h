@@ -21,6 +21,8 @@ enum ActionType {
     ACT_REPL,
     ACT_SEND,
     ACT_SEQGEN,
+    ACT_TTLCHECK,
+    ACT_TTLREDUCE,
     ACT_WRITESEQ,
     ACT_WRITETSTAMP,
 };
@@ -109,6 +111,10 @@ void create_action_repl(struct Action *a, struct PipelineList *list, struct Repl
 void create_action_send(struct Action *a, struct Interface *iface, const char *text);
 
 void create_action_seqgen(struct Action *a, struct SequenceGenerator *gen, const char *text);
+
+void create_action_ttlcheck(struct Action *a, const char *text);
+
+void create_action_ttlreduce(struct Action *a, const struct HeaderField *ttlfield, const char *text);
 
 void create_action_writeseq(struct Action *a, const struct HeaderField *seqfield, const char *text);
 

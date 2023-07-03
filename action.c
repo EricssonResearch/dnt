@@ -50,6 +50,10 @@ const char *action_name_from_type(enum ActionType type)
             return "Send";
         case ACT_SEQGEN:
             return "SeqGen";
+        case ACT_TTLCHECK:
+            return "TTLCheck";
+        case ACT_TTLREDUCE:
+            return "TTLReduce";
         case ACT_WRITESEQ:
             return "WriteSeq";
         case ACT_WRITETSTAMP:
@@ -544,6 +548,62 @@ void create_action_seqgen(struct Action *a, struct SequenceGenerator *gen, const
     struct SeqgenData *sd = calloc_struct(SeqgenData);
     sd->gen = gen;
     a->action_private = sd;
+}
+
+/////////////////////////////////////////////////////////////////////
+
+static enum ActionResult action_ttlcheck_exeute(struct Action *a, struct PipelineIterator *pi)
+{
+    (void)a;
+    struct Packet *p = pi->packet;
+
+    return p->ttl == 0 ? ACR_DONE : ACR_CONTINUE;
+}
+
+void create_action_ttlcheck(struct Action *a, const char *text)
+{
+    bzero(a, sizeof(*a));
+    a->type = ACT_TTLCHECK;
+    a->execute = action_ttlcheck_exeute;
+    a->text = strdup(text);
+}
+
+/////////////////////////////////////////////////////////////////////
+
+struct TtlData {
+    struct HeaderField field;
+};
+
+static enum ActionResult action_ttlreduce_exeute(struct Action *a, struct PipelineIterator *pi)
+{
+    struct TtlData *td = a->action_private;
+    struct Packet *p = pi->packet;
+    // we know that in all protocols TTL is 8 bits, byte-aligned
+    uint8_t *ttl = p->buf + p->headers[td->field.header_idx].start + td->field.bitoffset/8;
+
+    p->ttl = *ttl;
+    if (*ttl > 0) *ttl -= 1;
+
+    return ACR_CONTINUE;
+}
+
+static void action_ttlreduce_del(void *action_private)
+{
+    struct TtlData *td = action_private;
+    free(td);
+}
+
+void create_action_ttlreduce(struct Action *a, const struct HeaderField *ttlfield, const char *text)
+{
+    bzero(a, sizeof(*a));
+    a->type = ACT_TTLREDUCE;
+    a->execute = action_ttlreduce_exeute;
+    a->del = action_ttlreduce_del;
+    a->text = strdup(text);
+
+    struct TtlData *td = calloc_struct(TtlData);
+    td->field = *ttlfield;
+    a->action_private = td;
 }
 
 /////////////////////////////////////////////////////////////////////

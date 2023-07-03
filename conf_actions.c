@@ -42,6 +42,8 @@ enum ConfActionType {
     CA_REPL,
     CA_SEND,
     CA_SEQGEN,
+    CA_TTLCHECK,
+    CA_TTLREDUCE,
     CA_WRITESEQ,
     CA_WRITETSTAMP,
     CA_MEPSTART,
@@ -146,6 +148,9 @@ struct ConfAction {
             struct SequenceGenerator *gen;
         } seq;
         struct {
+            struct HeaderField *field;
+        } ttl;
+        struct {
             char *name;
             int level;
             struct ConfObject *obj; // NULL is valid too
@@ -164,6 +169,8 @@ struct StageState {
     struct IniSection *streams_sec;
     bool had_final;
     bool seq_set; // true if we had an action that sets packet->sequence
+    bool ttl_set; // true if we had an action that sets packet->ttl
+    bool needs_ttlcheck; // true if we need to check ttl before sending
 };
 
 
@@ -261,6 +268,10 @@ static const char *confaction_name_from_type(enum ConfActionType type)
             return "Send";
         case CA_SEQGEN:
             return "SeqGen";
+        case CA_TTLCHECK:
+            return "TTLCheck";
+        case CA_TTLREDUCE:
+            return "TTLReduce";
         case CA_WRITESEQ:
             return "WriteSeq";
         case CA_WRITETSTAMP:
@@ -471,6 +482,10 @@ static bool process_token(char *token, void *userdata)
                     stst->actions->type = CA_SEND;
                 } else if (strcmp(token, "seqgen") == 0) {
                     stst->actions->type = CA_SEND;
+                } else if (strcmp(token, "ttlcheck") == 0) {
+                    stst->actions->type = CA_TTLCHECK;
+                } else if (strcmp(token, "ttlreduce") == 0) {
+                    stst->actions->type = CA_TTLREDUCE;
                 } else if (strcmp(token, "writeseq") == 0) {
                     stst->actions->type = CA_WRITESEQ;
                 } else if (strcmp(token, "writetstamp") == 0) {
@@ -757,6 +772,29 @@ static bool process_token(char *token, void *userdata)
                     }
                 } else {
                     THROW("seqgen only takes one argument");
+                }
+                break;
+            case CA_TTLCHECK:
+                THROW("ttlcheck action doesn't take parameters");
+                break;
+            case CA_TTLREDUCE:
+                if (stst->actions->d.ttl.field == NULL) {
+                    struct HeaderDescriptor *hdr = header_list_find_by_name(stst->headers, token);
+                    if (hdr) {
+                        if (header_list_find_by_name(hdr->next, token)) {
+                            THROW("header name '%s' is ambiguous", token);
+                        }
+                        struct HeaderField *field = header_get_field_of_type(hdr,
+                                header_index(stst->headers, hdr), FT_TTL);
+                        if (field == NULL) {
+                            THROW("header '%s' doesn't have a TTL field", hdr->name);
+                        }
+                        stst->actions->d.ttl.field = field;
+                    } else {
+                        THROW("invalid header '%s'", token);
+                    }
+                } else {
+                    THROW("this action only takes one argument");
                 }
                 break;
             case CA_MEPSTART:
@@ -1193,12 +1231,31 @@ static bool process_action(struct StageState *stst)
             if (newaction->d.send.iface == NULL) {
                 THROW("no send interface specified");
             }
+            if (stst->needs_ttlcheck) {
+                struct ConfAction *ttlcheck = new_confaction(stst, CA_TTLCHECK, "auto-check before send");
+                if (!process_action(stst)) // now ttlcheck is the newest action
+                    return false;
+
+                // swap them so we check before send
+                ttlcheck->next = newaction->next;
+                newaction->next = ttlcheck;
+                stst->actions = newaction;
+                stst->needs_ttlcheck = 0;
+            }
             break;
         case CA_SEQGEN:
             if (newaction->d.seq.gen == NULL) {
                 THROW("seqgen needs a sequence generator object");
             }
             stst->seq_set = true;
+            break;
+        case CA_TTLCHECK:
+            if (stst->ttl_set == false) {
+                THROW("can't check undefined TTL, need TTLReduce first");
+            }
+            break;
+        case CA_TTLREDUCE:
+            stst->ttl_set = true;
             break;
         case CA_MEPSTART:
         case CA_MEPSTOP:
@@ -1257,7 +1314,20 @@ struct ConfAction *parse_actions_line(const char *stream, char *line,
         .streams_sec = streams_sec,
         .had_final = false,
         .seq_set = false,
+        .ttl_set = false,
+        .needs_ttlcheck = false,
     };
+
+    // automatically reduce TTL & schedule a check, if the very first header has such a field
+    const struct ProtocolField *ttlfield = protocol_get_field_by_type(headers->id, FT_TTL);
+    if (ttlfield) {
+        new_confaction(&stst, CA_TTLREDUCE, "automatic TTL reduce");
+        struct HeaderField *field = header_get_field_of_type(stst.headers, 0, FT_TTL);
+        stst.actions->d.ttl.field = field;
+        stst.ttl_set = true;
+        stst.needs_ttlcheck = true;
+    }
+
     char *aline = strdup(line);
     if (!foreach_stages(aline, process_stage, &stst)) {
         fprintf(stderr, "failed to process actions line for stream '%s'\n", stream);
@@ -1358,6 +1428,11 @@ struct ConfAction *delete_confaction_list(struct ConfAction *ca_list)
             case CA_SEND:
                 break;
             case CA_SEQGEN:
+                break;
+            case CA_TTLCHECK:
+                break;
+            case CA_TTLREDUCE:
+                free(del->d.ttl.field);
                 break;
             case CA_MEPSTART:
             case CA_MEPSTOP:
@@ -1512,6 +1587,12 @@ struct Action *assemble_actions(const struct ConfAction *ca_list, unsigned *acti
             case CA_SEQGEN:
                 create_action_seqgen(ret+a, ca->d.seq.gen, ca->text);
                 break;
+            case CA_TTLCHECK:
+                create_action_ttlcheck(ret+a, ca->text);
+                break;
+            case CA_TTLREDUCE:
+                create_action_ttlreduce(ret+a, ca->d.ttl.field, ca->text);
+                break;
             case CA_WRITESEQ:
                 create_action_writeseq(ret+a, ca->d.meta.field, ca->text);
                 break;
@@ -1611,6 +1692,12 @@ void confactions_print(const struct ConfAction *ca_list)
                 printf("  iface %s\n", ca->d.send.iface ? ca->d.send.iface->name : "UNKNOWN");
                 break;
             case CA_SEQGEN:
+                break;
+            case CA_TTLCHECK:
+                break;
+            case CA_TTLREDUCE:
+                printf("  field idx %u bitoffset %u bitcount %u\n",
+                        ca->d.ttl.field->header_idx, ca->d.ttl.field->bitoffset, ca->d.ttl.field->bitcount);
                 break;
             case CA_MEPSTART:
             case CA_MEPSTOP:
