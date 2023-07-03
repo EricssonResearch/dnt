@@ -962,7 +962,8 @@ static bool process_action(struct StageState *stst)
                 if (stst->seq_set) {
                     struct ConfAction *writeseq = new_confaction(stst, CA_WRITESEQ, newaction->text);
                     writeseq->d.meta.field = new_headerfield(pos_idx, seq_field);
-                    process_action(stst); // now writeseq is the newest action
+                    if (!process_action(stst)) // now writeseq is the newest action
+                        return false;
                 } else {
                     THROW("can't add header with undefined sequence number");
                 }
@@ -973,7 +974,8 @@ static bool process_action(struct StageState *stst)
             if (tstamp_field) {
                 struct ConfAction *writets = new_confaction(stst, CA_WRITETSTAMP, newaction->text);
                 writets->d.meta.field = new_headerfield(pos_idx, tstamp_field);
-                process_action(stst); // now writets is the newest action
+                if (!process_action(stst)) // now writets is the newest action
+                    return false;
             }
 
             // split off the header assignments into a new edit action
@@ -1022,7 +1024,8 @@ static bool process_action(struct StageState *stst)
                 free(edit->text);
                 free(edit);
             } else {
-                process_action(stst); // now edit is the newest action
+                if (!process_action(stst)) // now edit is the newest action
+                    return false;
             }
             break;
         case CA_DEL:
@@ -1082,7 +1085,8 @@ static bool process_action(struct StageState *stst)
             if (a) {
                 struct ConfAction *dedit = new_confaction(stst, CA_EDIT, newaction->text);
                 dedit->d.edit.assignments = a;
-                process_action(stst); // now dedit is the newest action
+                if (!process_action(stst)) // now dedit is the newest action
+                    return false;
 
                 // swap dedit and delete so we are editing before deleting
                 dedit->next = newaction->next;
