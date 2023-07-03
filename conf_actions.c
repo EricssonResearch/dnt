@@ -130,7 +130,6 @@ struct ConfAction {
             char *pipename;
         } jump;
         struct {
-            struct HeaderDescriptor *hdr;
             struct HeaderField *field;
         } meta; // read/write seq/tstamp
         struct {
@@ -217,6 +216,16 @@ static struct Interface *find_interface(struct StageState *stst, const char *nam
             return stst->ifaces + i;
     }
     return NULL;
+}
+
+static struct HeaderField *header_get_field_of_type(struct HeaderDescriptor *hdr, unsigned hdr_idx,
+        enum ProtocolFieldType type)
+{
+    const struct ProtocolField * field = protocol_get_field_by_type(hdr->id, type);
+    if (field)
+        return new_headerfield(hdr_idx, field);
+    else
+        return NULL;
 }
 
 static const char *confaction_name_from_type(enum ConfActionType type)
@@ -662,13 +671,21 @@ static bool process_token(char *token, void *userdata)
             case CA_READTSTAMP:
             case CA_WRITESEQ:
             case CA_WRITETSTAMP:
-                if (stst->actions->d.meta.hdr == NULL) {
+                if (stst->actions->d.meta.field == NULL) {
                     struct HeaderDescriptor *hdr = header_list_find_by_name(stst->headers, token);
                     if (hdr) {
                         if (header_list_find_by_name(hdr->next, token)) {
                             THROW("header name '%s' is ambiguous", token);
                         }
-                        stst->actions->d.meta.hdr = hdr;
+                        enum ProtocolFieldType fieldtype = (stst->actions->type == CA_READSEQ ||
+                            stst->actions->type == CA_WRITESEQ) ? FT_TSNSEQ : FT_TSNTSTAMP;
+                        struct HeaderField *field = header_get_field_of_type(hdr,
+                                header_index(stst->headers, hdr), fieldtype);
+                        if (field == NULL) {
+                            THROW("header '%s' doesn't have a field of type %s", hdr->name,
+                                    fieldtype_name_from_type(fieldtype));
+                        }
+                        stst->actions->d.meta.field = field;
                     } else {
                         THROW("invalid header '%s'", token);
                     }
@@ -940,11 +957,11 @@ static bool process_action(struct StageState *stst)
             }
 
             // set sequence number if the new header has such a field
-            int seq_field_idx = protocol_get_field_id_by_type(newheader->id, FT_TSNSEQ);
-            if (seq_field_idx >= 0) {
+            const struct ProtocolField *seq_field = protocol_get_field_by_type(newheader->id, FT_TSNSEQ);
+            if (seq_field) {
                 if (stst->seq_set) {
                     struct ConfAction *writeseq = new_confaction(stst, CA_WRITESEQ, newaction->text);
-                    writeseq->d.meta.hdr = newheader;
+                    writeseq->d.meta.field = new_headerfield(pos_idx, seq_field);
                     process_action(stst); // now writeseq is the newest action
                 } else {
                     THROW("can't add header with undefined sequence number");
@@ -952,10 +969,10 @@ static bool process_action(struct StageState *stst)
             }
 
             // set timestamp if the new header has such a field
-            int tstamp_field_idx = protocol_get_field_id_by_type(newheader->id, FT_TSNTSTAMP);
-            if (tstamp_field_idx >= 0) {
+            const struct ProtocolField *tstamp_field = protocol_get_field_by_type(newheader->id, FT_TSNTSTAMP);
+            if (tstamp_field) {
                 struct ConfAction *writets = new_confaction(stst, CA_WRITETSTAMP, newaction->text);
-                writets->d.meta.hdr = newheader;
+                writets->d.meta.field = new_headerfield(pos_idx, tstamp_field);
                 process_action(stst); // now writets is the newest action
             }
 
@@ -1026,11 +1043,10 @@ static bool process_action(struct StageState *stst)
             newaction->d.del.idx = idx;
 
             // if removing a sequence number tag (= end of tunnel), automatically filter OAM packets
-            int seq_field_id = protocol_get_field_id_by_type(del->id, FT_TSNSEQ);
-            if (seq_field_id >= 0) {
+            const struct ProtocolField *dseq_field = protocol_get_field_by_type(del->id, FT_TSNSEQ);
+            if (dseq_field) {
                 struct ConfAction *filter = new_confaction(stst, CA_FILTEROAM, del->name);
-                filter->d.filteroam.field = new_headerfield(
-                        idx, &protocol_list[del->id].header_fields[seq_field_id]);
+                filter->d.filteroam.field = new_headerfield(idx, dseq_field);
                 // swap filter and delete so we are filtering before deleting
                 filter->next = newaction->next;
                 newaction->next = filter;
@@ -1144,51 +1160,22 @@ static bool process_action(struct StageState *stst)
             break;
         case CA_READSEQ:
         case CA_WRITESEQ:
-            do {
-                if (newaction->d.meta.hdr == NULL) {
-                    THROW("no header specified");
+            if (newaction->d.meta.field == NULL) {
+                THROW("no header specified");
+            }
+            if (newaction->type == CA_READSEQ) {
+                stst->seq_set = true;
+            } else {
+                if (!stst->seq_set) {
+                    THROW("can't write undefined sequence number");
                 }
-                int hdrtype = newaction->d.meta.hdr->id;
-                int field_idx = protocol_get_field_id_by_type(hdrtype, FT_TSNSEQ);
-                if (field_idx == -1) {
-                    THROW("header '%s' doesn't have a sequence number field", newaction->d.meta.hdr->name);
-                }
-                newaction->d.meta.field = new_headerfield(
-                        header_index(stst->headers, newaction->d.meta.hdr),
-                        &protocol_list[hdrtype].header_fields[field_idx]);
-                if ((newaction->d.meta.field->bitoffset % 8)
-                        || (newaction->d.meta.field->bitcount != 32)) {
-                    THROW("sequence number field of header '%s' is invalid", newaction->d.meta.hdr->name);
-                }
-                if (newaction->type == CA_READSEQ) {
-                    stst->seq_set = true;
-                } else {
-                    if (!stst->seq_set) {
-                        THROW("can't write undefined sequence number");
-                    }
-                }
-            } while (0);
+            }
             break;
         case CA_READTSTAMP:
         case CA_WRITETSTAMP:
-            //TODO unify this with the SEQ code
-            do {
-                if (newaction->d.meta.hdr == NULL) {
-                    THROW("no header specified");
-                }
-                int hdrtype = newaction->d.meta.hdr->id;
-                int field_idx = protocol_get_field_id_by_type(hdrtype, FT_TSNTSTAMP);
-                if (field_idx == -1) {
-                    THROW("header '%s' doesn't have a timestamp field", newaction->d.meta.hdr->name);
-                }
-                newaction->d.meta.field = new_headerfield(
-                        header_index(stst->headers, newaction->d.meta.hdr),
-                        &protocol_list[hdrtype].header_fields[field_idx]);
-                if ((newaction->d.meta.field->bitoffset % 8)
-                        || (newaction->d.meta.field->bitcount != 32)) {
-                    THROW("timestamp field of header '%s' is invalid", newaction->d.meta.hdr->name);
-                }
-            } while (0);
+            if (newaction->d.meta.field == NULL) {
+                THROW("no header specified");
+            }
             break;
         case CA_REPL:
             //printf("CA_REPL: %s\n", newaction->text);

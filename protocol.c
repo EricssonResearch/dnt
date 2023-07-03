@@ -238,7 +238,7 @@ const char *fieldtype_name_from_type(enum ProtocolFieldType type)
     return NULL;
 }
 
-int protocol_id_from_type(const char *type)
+enum ProtocolID protocol_id_from_type(const char *type)
 {
     if (type == NULL) return -1;
     for (unsigned i=0; i<protocol_count; i++) {
@@ -247,17 +247,17 @@ int protocol_id_from_type(const char *type)
     return -1;
 }
 
-const char *protocol_type_from_id(int id)
+const char *protocol_type_from_id(enum ProtocolID id)
 {
-    if (id >=0 && id < (int)protocol_count) {
+    if (id >=0 && id < protocol_count) {
         return protocol_list[id].name;
     }
     return NULL;
 }
 
-const struct ProtocolField *protocol_get_field_by_name(int id, const char *fieldname)
+const struct ProtocolField *protocol_get_field_by_name(enum ProtocolID id, const char *fieldname)
 {
-    if (id < 0 && id >= (int)protocol_count) return false;
+    if (id < 0 && id >= protocol_count) return false;
 
     for (unsigned i=0; i<protocol_list[id].header_field_count; i++) {
         if (strcmp(fieldname, protocol_list[id].header_fields[i].name) == 0)
@@ -266,25 +266,25 @@ const struct ProtocolField *protocol_get_field_by_name(int id, const char *field
     return NULL;
 }
 
-bool protocol_fieldname_valid(int id, const char *fieldname)
+bool protocol_fieldname_valid(enum ProtocolID id, const char *fieldname)
 {
     const struct ProtocolField *f = protocol_get_field_by_name(id, fieldname);
     return f != NULL;
 }
 
-const struct ProtocolField *protocol_get_field_by_type(int proto_id, enum ProtocolFieldType type)
+const struct ProtocolField *protocol_get_field_by_type(enum ProtocolID id, enum ProtocolFieldType type)
 {
-    for (unsigned i=0; i<protocol_list[proto_id].header_field_count; i++) {
-        if (protocol_list[proto_id].header_fields[i].type == type)
-            return &protocol_list[proto_id].header_fields[i];
+    for (unsigned i=0; i<protocol_list[id].header_field_count; i++) {
+        if (protocol_list[id].header_fields[i].type == type)
+            return &protocol_list[id].header_fields[i];
     }
     return NULL;
 }
 
-int protocol_get_field_id_by_type(int proto_id, enum ProtocolFieldType type)
+int protocol_get_field_idx_by_type(enum ProtocolID id, enum ProtocolFieldType type)
 {
-    for (unsigned i=0; i<protocol_list[proto_id].header_field_count; i++) {
-        if (protocol_list[proto_id].header_fields[i].type == type)
+    for (unsigned i=0; i<protocol_list[id].header_field_count; i++) {
+        if (protocol_list[id].header_fields[i].type == type)
             return i;
     }
     return -1;
