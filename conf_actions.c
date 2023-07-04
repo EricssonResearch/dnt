@@ -170,7 +170,7 @@ struct StageState {
     bool had_final;
     bool seq_set; // true if we had an action that sets packet->sequence
     bool ttl_set; // true if we had an action that sets packet->ttl
-    bool needs_ttlcheck; // true if we need to check ttl before sending
+    struct HeaderDescriptor *needs_ttlcheck; // points to the header we automatically put a TTLReduce on
 };
 
 
@@ -1094,6 +1094,12 @@ static bool process_action(struct StageState *stst)
                 stst->actions = newaction;
             }
 
+            // cancel TTL check if we've removed the header to be checked
+            if (del == stst->needs_ttlcheck) {
+                stst->needs_ttlcheck = NULL;
+                // also cancel the TTLReduce action? no, OAM might need it
+            }
+
             // handle the nexthdr field of prev
             struct ConfAssignment *a = NULL;
             if (prev) {
@@ -1315,7 +1321,7 @@ struct ConfAction *parse_actions_line(const char *stream, char *line,
         .had_final = false,
         .seq_set = false,
         .ttl_set = false,
-        .needs_ttlcheck = false,
+        .needs_ttlcheck = NULL,
     };
 
     // automatically reduce TTL & schedule a check, if the very first header has such a field
@@ -1325,7 +1331,7 @@ struct ConfAction *parse_actions_line(const char *stream, char *line,
         struct HeaderField *field = header_get_field_of_type(stst.headers, 0, FT_TTL);
         stst.actions->d.ttl.field = field;
         stst.ttl_set = true;
-        stst.needs_ttlcheck = true;
+        stst.needs_ttlcheck = stst.headers;
     }
 
     char *aline = strdup(line);

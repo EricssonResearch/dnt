@@ -477,8 +477,8 @@ static enum ActionResult action_TTLREDUCE_execute(struct Action *a, struct Pipel
     // we know that in all protocols TTL is 8 bits, byte-aligned
     uint8_t *ttl = p->buf + p->headers[td->field.header_idx].start + td->field.bitoffset/8;
 
-    p->ttl = *ttl;
     if (*ttl > 0) *ttl -= 1;
+    p->ttl = *ttl;
 
     return ACR_CONTINUE;
 }
