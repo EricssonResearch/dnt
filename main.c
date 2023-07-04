@@ -13,6 +13,7 @@
 #include "protocol.h"
 #include "seq_gen.h"
 #include "time_utils.h"
+#include "oam.h"
 #include "version.h"
 
 #include <stdio.h>
@@ -163,6 +164,12 @@ int main(int argc, char **argv)
     if (!config_add_streams_to_interfaces(config)) {
         delete_config(config);
         return -1;
+    }
+
+    if(!init_oam(config)) {
+      printf("OAM init failed\n");
+      delete_config(config);
+      return -1;
     }
 
     for (unsigned i=0; i<config->ifcount; i++) {
