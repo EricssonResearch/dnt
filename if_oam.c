@@ -30,7 +30,6 @@
 
 void *get_in_addr(struct sockaddr *sa);
 
-
 struct OamIfData {
     //int oam_cmd_fd;
     struct Interface *oam_cmd_iface;
@@ -49,15 +48,15 @@ static struct Packet *oam_recv(struct Interface *iface)
     char buffer[512];
     int n;
 
-    n=recv(iface->recvfd, buffer, sizeof(buffer)-1, 0);
-    if(n>0){
-      buffer[n]=0;
-      if(oid_cmd->oam_cmd_fd != -1){
-        if (send(oid_cmd->oam_cmd_fd, buffer, n+1, 0) == -1)
-            perror("send");
-      }
-      else
-        printf("OAM message, no command channel open: %s\n", buffer);
+    n = recv(iface->recvfd, buffer, sizeof(buffer)-1, 0);
+    if (n>0) {
+        buffer[n]=0;
+        if(oid_cmd->oam_cmd_fd != -1){
+            if (send(oid_cmd->oam_cmd_fd, buffer, n+1, 0) == -1)
+                perror("send");
+        }
+        else
+            printf("OAM message, no command channel open: %s\n", buffer);
     }
 
     return NULL;
@@ -77,10 +76,10 @@ static bool oam_open(struct Interface *iface)
         fprintf(stderr, "open OAM interface %s: already opened\n", iface->name);
         return false;
     }
-//    if (iface->parse_interfacestree == NULL) {
-//        fprintf(stderr, "oam interface %s: no parsetree, expect trouble\n", iface->name);
-        //TODO fatal?
-//    }
+    //    if (iface->parse_interfacestree == NULL) {
+    //        fprintf(stderr, "oam interface %s: no parsetree, expect trouble\n", iface->name);
+    //TODO fatal?
+    //    }
     int sock = socket(oid->family, SOCK_DGRAM, 0);
     if (sock < 0) {
         perror("oam socket");
@@ -95,16 +94,16 @@ static bool oam_open(struct Interface *iface)
     }
 
     struct ifaddrs *ifaddr;
-    if(iface->ifname != 0) {
-      struct ifreq  if_idx;
-      memset(&if_idx, 0, sizeof(struct ifreq));
-      strncpy(if_idx.ifr_name, iface->ifname, IFNAMSIZ-1);
-      if (ioctl(sock, SIOCGIFINDEX, &if_idx) < 0) {
-          perror("oam SIOCGIFINDEX");
-          close(sock);
-          return false;
-      }
-//      oid->ifindex = if_idx.ifr_ifindex;
+    if (iface->ifname != 0) {
+        struct ifreq  if_idx;
+        memset(&if_idx, 0, sizeof(struct ifreq));
+        strncpy(if_idx.ifr_name, iface->ifname, IFNAMSIZ-1);
+        if (ioctl(sock, SIOCGIFINDEX, &if_idx) < 0) {
+            perror("oam SIOCGIFINDEX");
+            close(sock);
+            return false;
+        }
+        //      oid->ifindex = if_idx.ifr_ifindex;
     }
 
     if (getifaddrs(&ifaddr) < 0) {
@@ -193,7 +192,7 @@ static void oam_srcip_producer(void *state, value_consumer *consumer, void *cons
 }
 
 static value_producer *oam_get_property_reader(const struct Interface *iface, const char *property,
-        enum ProtocolFieldType target_type, const struct Value *target)
+                                               enum ProtocolFieldType target_type, const struct Value *target)
 {
     struct OamIfData *oid = iface->iface_private;
 
@@ -228,14 +227,14 @@ static value_producer *oam_get_property_reader(const struct Interface *iface, co
 }
 
 bool init_oam_interface(struct Interface *iface, const char *name, const char *ifname,
-        unsigned port, unsigned ipversion, struct Interface *cmd_iface)
+                        unsigned port, unsigned ipversion, struct Interface *cmd_iface)
 {
     bzero(iface, sizeof(*iface));
     iface->name = strdup(name);
     if(ifname != NULL)
-      iface->ifname = strdup(ifname);
+        iface->ifname = strdup(ifname);
     else
-      iface->ifname = NULL;
+        iface->ifname = NULL;
     iface->type = IF_OAM;
     iface->state = IFS_INIT;
     iface->recv = oam_recv;

@@ -56,49 +56,48 @@ static void *oam_cmd_thread(void *arg)
     if (send(oid->oam_cmd_fd, "OAM ready.\n", 12, 0) == -1)
         perror("send");
 
-    while(true){
-      n=read(oid->oam_cmd_fd, oam_command, sizeof(oam_command));
-      if(n>0){
-        if(strncmp(oam_command, "exit",4) == 0){
-          if (send(oid->oam_cmd_fd, "Exiting.\n", 9, 0) == -1)
-              perror("send");
-          break;
-        }
-        if(strncmp(oam_command, "help",4) == 0){
-          if (send(oid->oam_cmd_fd, help_str, sizeof(help_str), 0) == -1)
-              perror("send");
-        }
-        if(strncmp(oam_command, "ping",4) == 0){
-          sscanf(oam_command, "ping %[^:]:%s %s %d", stream, mep_start, mep_stop, &level);
-          cmd_id++;
-          sprintf(resp, "OK %d, ping %s : %s -> %s, level %d\n", cmd_id, stream, mep_start, mep_stop, level);
-          if (send(oid->oam_cmd_fd, resp, sizeof(resp), 0) == -1)
-              perror("send");
-          // call the OAM ping function
-          oam_ping(cmd_id, stream, mep_start, mep_stop, level);
+    while (true) {
+        n = read(oid->oam_cmd_fd, oam_command, sizeof(oam_command));
+        if (n > 0) {
+            if(strncmp(oam_command, "exit",4) == 0){
+                if (send(oid->oam_cmd_fd, "Exiting.\n", 9, 0) == -1)
+                    perror("send");
+                break;
+            }
+            if(strncmp(oam_command, "help",4) == 0){
+                if (send(oid->oam_cmd_fd, help_str, sizeof(help_str), 0) == -1)
+                    perror("send");
+            }
+            if(strncmp(oam_command, "ping",4) == 0){
+                sscanf(oam_command, "ping %[^:]:%s %s %d", stream, mep_start, mep_stop, &level);
+                cmd_id++;
+                sprintf(resp, "OK %d, ping %s : %s -> %s, level %d\n", cmd_id, stream, mep_start, mep_stop, level);
+                if (send(oid->oam_cmd_fd, resp, sizeof(resp), 0) == -1)
+                    perror("send");
+                // call the OAM ping function
+                oam_ping(cmd_id, stream, mep_start, mep_stop, level);
+            }
+            if(strncmp(oam_command, "trace",5) == 0){
+                sscanf(oam_command, "trace %[^:]:%s %s %d", stream, mep_start, mep_stop, &level);
+                cmd_id++;
+                sprintf(resp, "OK %d, trace %s : %s -> %s, level %d\n", cmd_id, stream, mep_start, mep_stop, level);
+                if (send(oid->oam_cmd_fd, resp, sizeof(resp), 0) == -1)
+                    perror("send");
+                // call the OAM trace function
+                oam_trace(cmd_id, stream, mep_start, mep_stop, level);
+            }
+            if(strncmp(oam_command, "discovery",9) == 0){
+                sscanf(oam_command, "discovery %[^:]:%s %s %d", stream, mep_start, mep_stop, &level);
+                cmd_id++;
+                sprintf(resp, "OK %d, discovery %s : %s -> %s, level %d\n", cmd_id, stream, mep_start, mep_stop, level);
+                if (send(oid->oam_cmd_fd, resp, sizeof(resp), 0) == -1)
+                    perror("send");
+                // call the OAM discovery function
+                oam_discovery(cmd_id, stream, mep_start, mep_stop, level);
+            }
 
         }
-        if(strncmp(oam_command, "trace",5) == 0){
-          sscanf(oam_command, "trace %[^:]:%s %s %d", stream, mep_start, mep_stop, &level);
-          cmd_id++;
-          sprintf(resp, "OK %d, trace %s : %s -> %s, level %d\n", cmd_id, stream, mep_start, mep_stop, level);
-          if (send(oid->oam_cmd_fd, resp, sizeof(resp), 0) == -1)
-              perror("send");
-          // call the OAM trace function
-          oam_trace(cmd_id, stream, mep_start, mep_stop, level);
-        }
-        if(strncmp(oam_command, "discovery",9) == 0){
-          sscanf(oam_command, "discovery %[^:]:%s %s %d", stream, mep_start, mep_stop, &level);
-          cmd_id++;
-          sprintf(resp, "OK %d, discovery %s : %s -> %s, level %d\n", cmd_id, stream, mep_start, mep_stop, level);
-          if (send(oid->oam_cmd_fd, resp, sizeof(resp), 0) == -1)
-              perror("send");
-          // call the OAM discovery function
-          oam_discovery(cmd_id, stream, mep_start, mep_stop, level);
-        }
-
-      }
-      else break;
+        else break;
     }
 
     close(oid->oam_cmd_fd);
@@ -120,16 +119,14 @@ static struct Packet *oam_cmd_recv(struct Interface *iface)
         perror("accept");
     }
 
-    inet_ntop(their_addr.ss_family,
-        get_in_addr((struct sockaddr *)&their_addr),
-        s, sizeof s);
+    inet_ntop(their_addr.ss_family, get_in_addr((struct sockaddr *)&their_addr), s, sizeof s);
     printf("OAM server: got connection from %s\n", s);
 
-    if(oid->oam_cmd_fd != -1){  // can not accept multiple OAM connections
-      if (send(new_fd, "OAM busy.\n", 10, 0) == -1)
-          perror("send");
-      close(new_fd);
-      return NULL;
+    if (oid->oam_cmd_fd != -1) {  // can not accept multiple OAM connections
+        if (send(new_fd, "OAM busy.\n", 10, 0) == -1)
+            perror("send");
+        close(new_fd);
+        return NULL;
     }
 
     oid->oam_cmd_fd = new_fd;
@@ -163,10 +160,10 @@ static bool oam_cmd_open(struct Interface *iface)
         fprintf(stderr, "open OAM cmd interface %s: already opened\n", iface->name);
         return false;
     }
-//    if (iface->parse_interfacestree == NULL) {
-//        fprintf(stderr, "oam interface %s: no parsetree, expect trouble\n", iface->name);
-        //TODO fatal?
-//    }
+    //    if (iface->parse_interfacestree == NULL) {
+    //        fprintf(stderr, "oam interface %s: no parsetree, expect trouble\n", iface->name);
+    //TODO fatal?
+    //    }
     int sock = socket(oid->family, SOCK_STREAM, 0);
     if (sock < 0) {
         perror("oam cmd socket");
@@ -182,15 +179,15 @@ static bool oam_cmd_open(struct Interface *iface)
 
     struct ifaddrs *ifaddr;
     if(iface->ifname != 0) {
-      struct ifreq  if_idx;
-      memset(&if_idx, 0, sizeof(struct ifreq));
-      strncpy(if_idx.ifr_name, iface->ifname, IFNAMSIZ-1);
-      if (ioctl(sock, SIOCGIFINDEX, &if_idx) < 0) {
-          perror("oam cmd SIOCGIFINDEX");
-          close(sock);
-          return false;
-      }
-//      oid->ifindex = if_idx.ifr_ifindex;
+        struct ifreq  if_idx;
+        memset(&if_idx, 0, sizeof(struct ifreq));
+        strncpy(if_idx.ifr_name, iface->ifname, IFNAMSIZ-1);
+        if (ioctl(sock, SIOCGIFINDEX, &if_idx) < 0) {
+            perror("oam cmd SIOCGIFINDEX");
+            close(sock);
+            return false;
+        }
+        //      oid->ifindex = if_idx.ifr_ifindex;
     }
 
     if (getifaddrs(&ifaddr) < 0) {
@@ -269,14 +266,14 @@ static bool oam_cmd_close(struct Interface *iface)
 
 
 bool init_oam_cmd_interface(struct Interface *iface, const char *name, const char *ifname,
-        unsigned port, unsigned ipversion)
+                            unsigned port, unsigned ipversion)
 {
     bzero(iface, sizeof(*iface));
     iface->name = strdup(name);
-    if(ifname != NULL)
-      iface->ifname = strdup(ifname);
+    if (ifname != NULL)
+        iface->ifname = strdup(ifname);
     else
-      iface->ifname = NULL;
+        iface->ifname = NULL;
     iface->type = IF_OAM_CMD;
     iface->state = IFS_INIT;
     iface->recv = oam_cmd_recv;
