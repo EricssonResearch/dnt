@@ -38,6 +38,12 @@ const char *action_name_from_type(enum ActionType type)
             return "Eliminate";
         case ACT_FILTEROAM:
             return "FilterOAM";
+        case ACT_MEPSTART:
+            return "MEPStart";
+        case ACT_MEPSTOP:
+            return "MEPStop";
+        case ACT_MIP:
+            return "MIP";
         case ACT_POF:
             return "POF";
         case ACT_READSEQ:

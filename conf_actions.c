@@ -225,6 +225,15 @@ static struct Interface *find_interface(struct StageState *stst, const char *nam
     return NULL;
 }
 
+static struct Interface *find_interface_by_type(struct StageState *stst, enum IfaceType type)
+{
+    for (unsigned i=0; i<stst->ifcount; i++) {
+        if (stst->ifaces[i].type == type)
+            return stst->ifaces + i;
+    }
+    return NULL;
+}
+
 static struct HeaderField *header_get_field_of_type(struct HeaderDescriptor *hdr, unsigned hdr_idx,
         enum ProtocolFieldType type)
 {
@@ -666,6 +675,34 @@ static bool process_token(char *token, void *userdata)
                     THROW("the only argument is the name of an action pipeline");
                 }
                 break;
+            case CA_MEPSTART:
+            case CA_MEPSTOP:
+            case CA_MIP:
+                if (stst->actions->d.oam.name == NULL) {
+                    stst->actions->d.oam.name = strdup(token);
+                    break;
+                }
+                if (stst->actions->d.oam.level == -1) {
+                    if (sscanf(token, "%d", &stst->actions->d.oam.level) != 1) {
+                        THROW("invalid argument for OAM action '%s'", token);
+                    }
+                    break;
+                }
+                if (stst->actions->d.oam.obj == NULL) {
+                    struct ConfObject *obj = hashmap_find(stst->objects, token);
+                    if (obj) {
+                        if (!(obj->type == CO_SEQGEN || obj->type == CO_SEQREC || obj->type == CO_POF))
+                            THROW("unsupported object argument '%s' for OAM action", token);
+                    } else {
+                        THROW("unknown object '%s' for OAM action", token);
+                    }
+                    stst->actions->d.oam.obj = obj;
+                    break;
+                }
+                if (stst->actions->d.oam.name != NULL && stst->actions->d.oam.level != -1 && stst->actions->d.oam.obj != NULL) {
+                    THROW("action '%s' takes two mandatory and one optional argument", confaction_name_from_type(stst->actions->type));
+                }
+                break;
             case CA_POF:
                 if (stst->actions->d.pof.pof == NULL) {
                     struct ConfObject *obj = hashmap_find(stst->objects, token);
@@ -795,34 +832,6 @@ static bool process_token(char *token, void *userdata)
                     }
                 } else {
                     THROW("this action only takes one argument");
-                }
-                break;
-            case CA_MEPSTART:
-            case CA_MEPSTOP:
-            case CA_MIP:
-                if (stst->actions->d.oam.name == NULL) {
-                    stst->actions->d.oam.name = strdup(token);
-                    break;
-                }
-                if (stst->actions->d.oam.level == -1) {
-                    if (sscanf(token, "%d", &stst->actions->d.oam.level) != 1) {
-                        THROW("invalid argument for OAM action '%s'", token);
-                    }
-                    break;
-                }
-                if (stst->actions->d.oam.obj == NULL) {
-                    struct ConfObject *obj = hashmap_find(stst->objects, token);
-                    if (obj) {
-                        if (!(obj->type == CO_SEQGEN || obj->type == CO_SEQREC || obj->type == CO_POF))
-                            THROW("unsupported object argument '%s' for OAM action", token);
-                    } else {
-                        THROW("unknown object '%s' for OAM action", token);
-                    }
-                    stst->actions->d.oam.obj = obj;
-                    break;
-                }
-                if (stst->actions->d.oam.name != NULL && stst->actions->d.oam.level != -1 && stst->actions->d.oam.obj != NULL) {
-                    THROW("action '%s' takes two mandatory and one optional argument", confaction_name_from_type(stst->actions->type));
                 }
                 break;
         }
@@ -1201,6 +1210,24 @@ static bool process_action(struct StageState *stst)
             }
             stst->had_final = true;
             break;
+        case CA_MEPSTART:
+        case CA_MEPSTOP:
+        case CA_MIP:
+            if (newaction->d.oam.name == NULL) {
+                THROW("unnamed OAM action (name is mandatory)");
+            } else if (newaction->d.oam.level == -1 || newaction) {
+                THROW("no level specified for '%s' OAM action", newaction->d.oam.name);
+            } else if (newaction->d.oam.level < 0 || newaction->d.oam.level > 7) {
+                THROW("invalid OAM level (%d) specified for '%s' action (valid range is 0-7)",
+                      newaction->d.oam.level, newaction->d.oam.name);
+            }
+            struct Interface *oam_iface = find_interface_by_type(stst, IF_OAM);
+            if (oam_iface == NULL) {
+                THROW("OAM action ('%s') usage without OAM interface definition", newaction->d.oam.name);
+            } else {
+                newaction->d.oam.oam_iface = oam_iface;
+            }
+            break;
         case CA_POF:
             if (newaction->d.pof.pof == NULL) {
                 THROW("no POF object specified");
@@ -1289,12 +1316,6 @@ static bool process_action(struct StageState *stst)
             break;
         case CA_TTLREDUCE:
             stst->ttl_set = true;
-            break;
-        case CA_MEPSTART:
-        case CA_MEPSTOP:
-        case CA_MIP:
-            //TODO: alphabetic order
-            //TODO: implement ALL parameter verification
             break;
     }
     return true;
@@ -1581,6 +1602,11 @@ struct Action *assemble_actions(const struct ConfAction *ca_list, unsigned *acti
                 fprintf(stderr, "assemble_actions() jump should have been inlined\n");
                 //TODO cleanup on error
                 return NULL;
+            case CA_MEPSTART:
+            case CA_MEPSTOP:
+            case CA_MIP:
+                //TODO: implement
+                break;
             case CA_POF:
                 create_action_pof(ret+a, ca->d.pof.pof, ca->text);
                 break;
@@ -1631,11 +1657,6 @@ struct Action *assemble_actions(const struct ConfAction *ca_list, unsigned *acti
                 break;
             case CA_WRITETSTAMP:
                 create_action_writetstamp(ret+a, ca->d.meta.field, ca->text);
-                break;
-            case CA_MEPSTART:
-            case CA_MEPSTOP:
-            case CA_MIP:
-                //TODO: implement
                 break;
         }
         a++;

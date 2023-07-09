@@ -5,6 +5,7 @@
 #ifndef R2_IF_OAM_CMD_H
 #define R2_IF_OAM_CMD_H
 
+#include "configfile.h"
 #include <stdbool.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
@@ -22,6 +23,8 @@ struct OamCmdIfData {
         struct in_addr v4;
         struct in6_addr v6;
     } srcip;
+
+    struct R2d2Config *config; //for MEPStart lookups
 };
 
 struct Interface;

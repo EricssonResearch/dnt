@@ -70,6 +70,7 @@ static bool ethertype_from_id(uint16_t *nexthdr, enum ProtocolID id)
         case PROTO_ID_DCW:
         case PROTO_ID_TCW:
         case PROTO_ID_UDP:
+        case PROTO_ID_OAM:
             return false;
     }
     return false;
@@ -189,6 +190,15 @@ static const struct ProtocolField udp_fields[] = {
     {"checksum", 48, 16, FT_CHECKSUM},
 };
 
+static const struct ProtocolField oam_fields[] = {
+    {"oam_nibble",  0, 4, FT_NUMBER},
+    {"resv",  4, 4, FT_NUMBER},
+    {"node_id",  8, 9, FT_NUMBER},
+    {"oam_level",  17, 3, FT_NUMBER},
+    {"session_id",  20, 4, FT_NUMBER},
+    {"oam_seq",  24, 8, FT_TSNSEQ},
+};
+
 //TODO autogenerate this list
 const struct Protocol protocol_list[] = {
     {"payload", payload_fields, 0, 0, 0, NULL, NULL},
@@ -206,6 +216,7 @@ const struct Protocol protocol_list[] = {
     {"ipv6", ipv6_fields, ARRAY_SIZE(ipv6_fields), 40, 0, NULL, NULL}, //TODO next header field
     {"arp", arp_fields, ARRAY_SIZE(arp_fields), 28, 0, NULL, NULL}, //TODO this is variable-length
     {"udp", udp_fields, ARRAY_SIZE(udp_fields), 8, 0, NULL, NULL},
+    {"oam", oam_fields, ARRAY_SIZE(oam_fields), 4, 0, NULL, NULL},
 };
 
 const unsigned protocol_count = ARRAY_SIZE(protocol_list);

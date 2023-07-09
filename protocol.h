@@ -37,6 +37,7 @@ enum ProtocolID {
     PROTO_ID_IPv6,
     PROTO_ID_ARP,
     PROTO_ID_UDP,
+    PROTO_ID_OAM,
 };
 
 // describes one field of a protocol header

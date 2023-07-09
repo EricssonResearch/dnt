@@ -5,12 +5,18 @@
 #ifndef R2_PIPELINE_H
 #define R2_PIPELINE_H
 
+#include "configfile.h"
 #include <stdbool.h>
 
 struct Action;
 struct Packet;
 
-struct Pipeline;
+struct Pipeline {
+    struct Action *actions; // array of actions
+    unsigned action_count;
+    unsigned reference_count;
+};
+
 
 struct PipelineIterator {
     struct Packet *packet;
@@ -36,5 +42,7 @@ struct PipelineIterator *new_pipe_iterator(struct Pipeline *pipe, struct Packet 
 // the iterator will delete itself when it's done
 void pipe_iterator_run(struct PipelineIterator *pi);
 
+// return the assembled pipeline for the given stream name
+struct Pipeline *get_pipeline(const struct R2d2Config *config, const char *stream_name);
 
 #endif // R2_PIPELINE_H

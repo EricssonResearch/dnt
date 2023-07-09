@@ -5,6 +5,7 @@
 #ifndef R2_CONF_STREAMS_H
 #define R2_CONF_STREAMS_H
 
+#include "pipeline.h"
 struct ConfAction;
 struct IniSection;
 struct Interface;
@@ -14,6 +15,7 @@ struct HeaderDescriptor;
 struct ConfStream {
     struct ConfAction *actions;
     struct HeaderDescriptor *packet;
+    struct Pipeline *pipeline; //the final, compiled pipeline
 };
 
 // @returns hash of ConfStream keyed by stream name

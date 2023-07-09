@@ -237,6 +237,7 @@ static int addstream_cb(const char *key, void *value, void *userdata)
             return 0;
         }
         hashmap_insert(state->pipe_cache, strdup(s->stream_name), pipe);
+        s->stream->pipeline = pipe;
     }
 
     return 1;

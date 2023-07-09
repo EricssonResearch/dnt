@@ -7,6 +7,7 @@
 
 #include <stdbool.h>
 #include "configfile.h"
+#include "if_oam_cmd.h"
 
 extern struct Interface *oam_cmd_iface;
 extern int nr_oam_ifaces;

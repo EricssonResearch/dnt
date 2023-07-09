@@ -5,17 +5,13 @@
 #include "pipeline.h"
 #include "action.h"
 #include "interface.h"
+#include "conf_streams.h"
+#include "inifile.h"
 #include "packet.h"
 #include "utils.h"
 
 #include <stdio.h>
 #include <stdlib.h>
-
-struct Pipeline {
-    struct Action *actions; // array of actions
-    unsigned action_count;
-    unsigned reference_count;
-};
 
 // add reference to the outgoing interfaces so they know they are in use
 static void ref_send_interfaces(struct Pipeline *pipe)
@@ -112,4 +108,14 @@ void pipe_iterator_run(struct PipelineIterator *pi)
         }
     }
     delete_iterator(pi);
+}
+
+
+struct Pipeline *get_pipeline(const struct R2d2Config *config, const char *stream_name)
+{
+    struct ConfStream *s = hashmap_find(config->streams, stream_name);
+    if (s) {
+        return s->pipeline;
+    }
+    return NULL;
 }

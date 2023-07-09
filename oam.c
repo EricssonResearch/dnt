@@ -21,7 +21,6 @@
 #include <net/if.h> /* struct ifreq */
 #include <arpa/inet.h> /* ntohs() */
 #include <ifaddrs.h>
-#include <netdb.h> /* getaddrinfo() */
 
 int nr_oam_ifaces = 0;
 struct Interface *oam_ifaces[16];

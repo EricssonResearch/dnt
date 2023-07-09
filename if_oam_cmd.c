@@ -75,7 +75,7 @@ static void *oam_cmd_thread(void *arg)
                 if (send(oid->oam_cmd_fd, resp, sizeof(resp), 0) == -1)
                     perror("send");
                 // call the OAM ping function
-                oam_ping(cmd_id, stream, mep_start, mep_stop, level);
+                oam_ping(iface, cmd_id, stream, mep_start, mep_stop, level);
             }
             if(strncmp(oam_command, "trace",5) == 0){
                 sscanf(oam_command, "trace %[^:]:%s %s %d", stream, mep_start, mep_stop, &level);
@@ -84,7 +84,7 @@ static void *oam_cmd_thread(void *arg)
                 if (send(oid->oam_cmd_fd, resp, sizeof(resp), 0) == -1)
                     perror("send");
                 // call the OAM trace function
-                oam_trace(cmd_id, stream, mep_start, mep_stop, level);
+                oam_trace(iface, cmd_id, stream, mep_start, mep_stop, level);
             }
             if(strncmp(oam_command, "discovery",9) == 0){
                 sscanf(oam_command, "discovery %[^:]:%s %s %d", stream, mep_start, mep_stop, &level);
@@ -93,7 +93,7 @@ static void *oam_cmd_thread(void *arg)
                 if (send(oid->oam_cmd_fd, resp, sizeof(resp), 0) == -1)
                     perror("send");
                 // call the OAM discovery function
-                oam_discovery(cmd_id, stream, mep_start, mep_stop, level);
+                oam_discovery(iface, cmd_id, stream, mep_start, mep_stop, level);
             }
 
         }
