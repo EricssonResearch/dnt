@@ -268,8 +268,7 @@ bool seq_recovery(struct SequenceRecovery *rec, struct Packet *p)
 
 static void seq_recovery_reset(struct SequenceRecovery *rec)
 {
-
-    printf("Seqence recovery reset.\n");
+    printf("Sequence recovery reset.\n");
     rec->seq_recovery_resets += 1;
     rec->take_any = true;
     switch (rec->algorithm) {
