@@ -9,6 +9,7 @@
 #include "action.h"
 #include "hashmap.h"
 #include "header.h"
+#include "if_oam_cmd.h"
 #include "interface.h"
 #include "inifile.h"
 #include "packet.h"
@@ -1604,9 +1605,12 @@ struct Action *assemble_actions(const struct ConfAction *ca_list, unsigned *acti
                 return NULL;
             case CA_MEPSTART:
             case CA_MEPSTOP:
-            case CA_MIP:
+            case CA_MIP: {
                 //TODO: implement
-                break;
+                struct Interface *if_oam_cmd = ca->d.oam.oam_iface;
+                struct OamCmdIfData *oid = if_oam_cmd->iface_private;
+                hashmap_insert(oid->oam_actions, ca->d.oam.name, NULL);
+                break; }
             case CA_POF:
                 create_action_pof(ret+a, ca->d.pof.pof, ca->text);
                 break;

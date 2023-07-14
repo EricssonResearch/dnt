@@ -42,7 +42,4 @@ struct PipelineIterator *new_pipe_iterator(struct Pipeline *pipe, struct Packet 
 // the iterator will delete itself when it's done
 void pipe_iterator_run(struct PipelineIterator *pi);
 
-// return the assembled pipeline for the given stream name
-struct Pipeline *get_pipeline(const struct R2d2Config *config, const char *stream_name);
-
 #endif // R2_PIPELINE_H

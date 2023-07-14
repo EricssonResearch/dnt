@@ -109,13 +109,3 @@ void pipe_iterator_run(struct PipelineIterator *pi)
     }
     delete_iterator(pi);
 }
-
-
-struct Pipeline *get_pipeline(const struct R2d2Config *config, const char *stream_name)
-{
-    struct ConfStream *s = hashmap_find(config->streams, stream_name);
-    if (s) {
-        return s->pipeline;
-    }
-    return NULL;
-}

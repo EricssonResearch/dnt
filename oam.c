@@ -1,16 +1,22 @@
 // Copyright (c) 2023, Ericsson AB and Ericsson Telecommunication Hungary
 // All rights reserved.
 
-
+#include "action.h"
+#include "pipeline.h"
+#include "conf_interface.h"
+#include "conf_streams.h"
 #include "configfile.h"
+#include "hashmap.h"
 #include "oam.h"
 #include "if_oam.h"
 #include "if_oam_cmd.h"
 #include "if_utils.h"
 #include "interface.h"
 #include "packet.h"
+#include "protocol.h"
 #include "utils.h"
 
+#include <asm-generic/errno-base.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -44,11 +50,19 @@ int oam_ping(unsigned id, char *stream, char *mep_start, char *mep_stop, int lev
     if (read == NULL) {
       printf("interface %s has no property named 'ip'", oam_ifaces[0]->name);
     }
-  }else{
-    fprintf(stderr, "no oam interface configured.\n");
-    return -1;
-  }
-  inet_ntop(AF_INET, &saddr.sin_addr, addr, INET_ADDRSTRLEN);
+    unsigned int act_idx;
+    struct Action *a = find_mep_start(oid->config, stream, mep_start, &act_idx);
+    if (!a) {
+        return -EINVAL;
+    }
+    // Using OAM CMD interface as egress, allocating the OAM packet here
+    // The MEP Start action act on source interface type
+    struct Packet *packet = new_packet(if_oam_cmd);
+    unsigned int proto_id = PROTO_ID_MPLS;
+    packet_add_header(packet, 0, proto_id, protocol_list[proto_id].bytelength);
+    proto_id = PROTO_ID_OAM;
+    packet_add_header(packet, 0, proto_id, protocol_list[proto_id].bytelength);
+    struct PipelineIterator *pi = new_pipe_iterator(pipe, packet);
 
   oam_send_reply(addr, msg);
   /*   <- testing   */
