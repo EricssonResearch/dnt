@@ -708,7 +708,7 @@ static bool process_token(char *token, void *userdata)
                     THROW("this action only takes one argument");
                 }
                 break;
-            case CA_REPL:
+            case CA_REPL: {
                 char *pstring = inisection_get(stst->streams_sec, token);
                 if (pstring == NULL) {
                     // first argument can be the name of a state object
@@ -744,7 +744,7 @@ static bool process_token(char *token, void *userdata)
                     REVERSE_LIST(pstst.actions);
                     replicatelist_push(&stst->actions->d.repl.pipelines, strdup(token), pstst.actions);
                 }
-                break;
+                break; }
             case CA_SEND:
                 if (stst->actions->d.send.iface) {
                     THROW("we can only send on one interface at once");
