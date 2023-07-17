@@ -23,5 +23,6 @@ function(add_test_json name)
 endfunction()
 
 add_test_json(test_json_read)
+add_test_json(test_json_write)
 
 

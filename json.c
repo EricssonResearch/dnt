@@ -6,6 +6,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <math.h>
+
+#define BUFFER_INCREMENT 128
 
 static int obj_delete_cb(const char *key, void *value, void *userdata)
 {
@@ -203,7 +206,7 @@ struct JsonValue *json_delete(struct JsonValue *json)
         case JSON_OBJECT:
             delete_hashmap(json->v.object);
             break;
-        case JSON_ARRAY:
+        case JSON_ARRAY: {
             struct JsonArray *a = json->v.array;
             while (a) {
                 struct JsonArray *d = a;
@@ -211,15 +214,135 @@ struct JsonValue *json_delete(struct JsonValue *json)
                 json_delete(d->val);
                 free(d);
             }
-            break;
+            break; }
     }
     free(json);
 
     return NULL;
 }
 
-//TODO
-char *json_serialize(const struct JsonValue *js, unsigned *length);
+
+#define CHECK_BUF(n)                    \
+    while (*buflen - *slen < (n)) {     \
+        *buflen += BUFFER_INCREMENT;    \
+        buf = realloc(buf, *buflen);    \
+    }
+
+struct objparams {
+    char *buf;
+    unsigned *buflen;
+    unsigned *slen;
+};
+
+static char *serialize_value(const struct JsonValue *json, char *buf, unsigned *buflen, unsigned *slen);
+
+static int obj_print_cb(const char *key, void *value, void *userdata)
+{
+    const struct JsonValue *val = value;
+    struct objparams *op = userdata;
+    char *buf = op->buf;
+    unsigned *buflen = op->buflen;
+    unsigned *slen = op->slen;
+
+    unsigned c = strlen(key);
+    CHECK_BUF(c+4);
+    sprintf(buf+*slen, "\"%s\":", key);
+    *slen += c + 3;
+
+    buf = serialize_value(val, buf, buflen, slen);
+
+    CHECK_BUF(2);
+    strcat(buf+*slen, ",");
+    *slen += 1;
+
+    return 1;
+}
+
+static char *serialize_value(const struct JsonValue *json, char *buf, unsigned *buflen, unsigned *slen)
+{
+    switch (json->type) {
+        case JSON_NULL:
+            CHECK_BUF(5);
+            sprintf(buf+*slen, "null");
+            *slen += 4;
+            break;
+        case JSON_TRUE:
+            CHECK_BUF(5);
+            sprintf(buf+*slen, "true");
+            *slen += 4;
+            break;
+        case JSON_FALSE:
+            CHECK_BUF(6);
+            sprintf(buf+*slen, "false");
+            *slen += 5;
+            break;
+        case JSON_NUMBER: {
+            const char *fmt = json->v.number == floor(json->v.number) ? "%.0f" : "%f";
+            unsigned c = snprintf(NULL, 0, fmt, json->v.number);
+            CHECK_BUF(c+1);
+            sprintf(buf+*slen, fmt, json->v.number);
+            *slen += c;
+            break; }
+        case JSON_STRING: {
+            unsigned c = strlen(json->v.string);
+            CHECK_BUF(c+3);
+            sprintf(buf+*slen, "\"%s\"", json->v.string);
+            *slen += c + 2;
+            break; }
+        case JSON_OBJECT: {
+            CHECK_BUF(2);
+            buf[*slen] = 0; // make sure it is terminated
+            strcat(buf+*slen, "{");
+            *slen += 1;
+
+            struct objparams op = {buf, buflen, slen};
+            hashmap_foreach_sorted(json->v.object, obj_print_cb, &op);
+            if (hashmap_count(json->v.object)) {
+                // overwrite the last ','
+                *slen -= 1;
+                buf[*slen] = 0;
+            }
+
+            CHECK_BUF(2);
+            strcat(buf+*slen, "}");
+            *slen += 1;
+            break; }
+        case JSON_ARRAY: {
+            CHECK_BUF(2);
+            buf[*slen] = 0; // make sure it is terminated
+            strcat(buf+*slen, "[");
+            *slen += 1;
+
+            for (struct JsonArray *a = json->v.array; a; a = a->next) {
+                buf = serialize_value(a->val, buf, buflen, slen);
+
+                if (a->next) {
+                    CHECK_BUF(2);
+                    strcat(buf+*slen, ",");
+                    *slen += 1;
+                }
+            }
+
+            CHECK_BUF(2);
+            strcat(buf+*slen, "]");
+            *slen += 1;
+            break; }
+    }
+    return buf;
+}
+
+char *json_serialize(const struct JsonValue *json, unsigned *length)
+{
+    char *buf = NULL;
+    unsigned buflen = 0;
+    unsigned len = 0;
+
+    buf = serialize_value(json, buf, &buflen, &len);
+
+    if (buf)
+        *length = len;
+    return buf;
+}
 
 
 struct JsonValue *json_null(void)

@@ -42,8 +42,8 @@ struct JsonValue *json_delete(struct JsonValue *json);
 // @returns a JSON string representation of @js
 // @returns the length of the returned string as @length
 // allocates the output buffer, the callee has to free it
-// null-terminates the returned string, returned @length includes the null-termination TODO ???
-char *json_serialize(const struct JsonValue *js, unsigned *length);
+// null-terminates the returned string, @length does not include the null-termination
+char *json_serialize(const struct JsonValue *json, unsigned *length);
 
 // helpers for creating stuff
 struct JsonValue *json_null(void);
