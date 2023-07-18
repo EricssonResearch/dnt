@@ -13,6 +13,9 @@
 #include "if_ip.h"
 #include "if_udp_in.h"
 #include "if_udp_out.h"
+#include "if_oam.h"
+#include "if_oam_cmd.h"
+#include "oam.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -178,6 +181,62 @@ static int iface_cb(const char *key, void *value, void *userdata)
         }
         if (!init_udp_out_interface(state->ifaces+state->i, key, tstate.iface, srcport, dst_ip, dstport, priority)) {
             THROW("failed to create udp-out interface");
+        }
+    } else if (strcmp(tstate.type, "oam_cmd") == 0) {
+        unsigned port = OAM_CMD_PORT;
+        unsigned ipver = 4;
+        unsigned u;
+        char err;
+        char *oam_cmd_ip = hashmap_find(tstate.params, "oam_cmd_ip");
+        if (oam_cmd_ip == NULL) {
+            THROW("oam_cmd_ip is unspecified. Use 0.0.0.0 to listen on any interface for commands");
+        }
+        char *port_str = hashmap_find(tstate.params, "oam_cmd_port");
+        if (port_str) {
+            if (sscanf(port_str, "%i%c", &u, &err) != 1)
+                THROW("oam_cmd_port '%s' is invalid", port_str);
+            if (u > 0xffff)
+                THROW("oam_cmd_port '%s' is invalid", port_str);
+            port = u;
+        }
+        char *ipver_str = hashmap_find(tstate.params, "ipv");
+        if (ipver_str) {
+            if (sscanf(ipver_str, "%u%c", &u, &err) != 1)
+                THROW("ip version '%s' is invalid", ipver_str);
+            if (!(u == 4 || u == 6))
+                THROW("ip version '%s' is invalid", ipver_str);
+            ipver = u;
+        }
+        if (!init_oam_cmd_interface(state->ifaces+state->i, key, tstate.iface, oam_cmd_ip, port, ipver)) {
+            THROW("failed to create oam_cmd interface");
+        }
+    } else if (strcmp(tstate.type, "oam") == 0) {
+        unsigned oam_port = OAM_PORT;
+        unsigned ipver = 4;
+        unsigned u;
+        char err;
+        char *oam_ip = hashmap_find(tstate.params, "oam_ip");
+        if (oam_ip == NULL) {
+            THROW("oam_ip is unspecified.");
+        }
+        char *port_str = hashmap_find(tstate.params, "oam_port");
+        if (port_str) {
+            if (sscanf(port_str, "%i%c", &u, &err) != 1)
+                THROW("oam_port '%s' is invalid", port_str);
+            if (u > 0xffff)
+                THROW("oam_port '%s' is invalid", port_str);
+            oam_port = u;
+        }
+        char *ipver_str = hashmap_find(tstate.params, "ipv");
+        if (ipver_str) {
+            if (sscanf(ipver_str, "%u%c", &u, &err) != 1)
+                THROW("ip version '%s' is invalid", ipver_str);
+            if (!(u == 4 || u == 6))
+                THROW("ip version '%s' is invalid", ipver_str);
+            ipver = u;
+        }
+        if (!init_oam_interface(state->ifaces+state->i, key, tstate.iface, oam_ip, oam_port, ipver, oam_cmd_iface)) {
+            THROW("failed to create oam interface");
         }
     } else {
         THROW("unknown interface type '%s'", tstate.type);

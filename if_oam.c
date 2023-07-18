@@ -35,6 +35,7 @@ struct OamIfData {
     struct Interface *oam_cmd_iface;
     unsigned port;
     int family;
+    char *oam_ip;  // hold IP address in text format
     union {
         struct in_addr v4;
         struct in6_addr v6;
@@ -44,15 +45,21 @@ struct OamIfData {
 static struct Packet *oam_recv(struct Interface *iface)
 {
     struct OamIfData *oid = iface->iface_private;
-    struct OamCmdIfData *oid_cmd = oid->oam_cmd_iface->iface_private;
+    struct OamCmdIfData *oid_cmd;
     char buffer[512];
     int n;
+    int oam_cmd_fd = -1;
+
+    if(oid->oam_cmd_iface != NULL){
+      oid_cmd = oid->oam_cmd_iface->iface_private;
+      oam_cmd_fd = oid_cmd->oam_cmd_fd;
+    }
 
     n = recv(iface->recvfd, buffer, sizeof(buffer)-1, 0);
     if (n>0) {
         buffer[n]=0;
-        if(oid_cmd->oam_cmd_fd != -1){
-            if (send(oid_cmd->oam_cmd_fd, buffer, n+1, 0) == -1)
+        if(oam_cmd_fd != -1){
+            if (send(oam_cmd_fd, buffer, n+1, 0) == -1)
                 perror("send");
         }
         else
@@ -183,7 +190,7 @@ static void oam_port_producer(void *state, value_consumer *consumer, void *consu
     consumer(consumer_state, &val, p);
 }
 
-static void oam_srcip_producer(void *state, value_consumer *consumer, void *consumer_state, struct Packet *p)
+static void oam_ip_producer(void *state, value_consumer *consumer, void *consumer_state, struct Packet *p)
 {
     struct Interface *iface = state;
     struct OamIfData *oid = iface->iface_private;
@@ -207,19 +214,19 @@ static value_producer *oam_get_property_reader(const struct Interface *iface, co
             return NULL;
         }
         return oam_port_producer;
-    } else if (strcmp(property, "srcip") == 0) {
+    } else if (strcmp(property, "ip") == 0) {
         enum ProtocolFieldType ftype = oid->family == AF_INET6 ? FT_IPV6ADDRESS : FT_IPV4ADDRESS;
         unsigned bitcount = oid->family == AF_INET6 ? 128 : 32;
         if (target_type != ftype) {
-            fprintf(stderr, "oam_get_property_reader 'srcip' target type %d invalid\n", target_type);
+            fprintf(stderr, "oam_get_property_reader 'ip' target type %d invalid\n", target_type);
             return NULL;
         }
         if ((target->bitoffset % 8) || (target->bitcount != bitcount)) {
-            fprintf(stderr, "oam_get_property_reader 'srcip' target position %u %u invalid\n",
+            fprintf(stderr, "oam_get_property_reader 'ip' target position %u %u invalid\n",
                     target->bitoffset, target->bitcount);
             return NULL;
         }
-        return oam_srcip_producer;
+        return oam_ip_producer;
     }
 
     fprintf(stderr, "oam_get_property_reader unknown property '%s'\n", property);
@@ -227,7 +234,7 @@ static value_producer *oam_get_property_reader(const struct Interface *iface, co
 }
 
 bool init_oam_interface(struct Interface *iface, const char *name, const char *ifname,
-                        unsigned port, unsigned ipversion, struct Interface *cmd_iface)
+                        const char *oam_ip, unsigned port, unsigned ipversion, struct Interface *cmd_iface)
 {
     bzero(iface, sizeof(*iface));
     iface->name = strdup(name);
@@ -245,9 +252,12 @@ bool init_oam_interface(struct Interface *iface, const char *name, const char *i
 
     struct OamIfData *oid = calloc_struct(OamIfData);
     iface->iface_private = oid;
+    oid->oam_ip = strdup(oam_ip);
     oid->port = port;
     oid->family = ipversion == 6 ? AF_INET6 : AF_INET;
     oid->oam_cmd_iface = cmd_iface;
+
+    oam_ifaces[nr_oam_ifaces++] = iface;
 
     return true;
 }

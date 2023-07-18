@@ -26,7 +26,9 @@ struct OamCmdIfData {
 
 struct Interface;
 
+#define OAM_CMD_PORT  8000
+
 bool init_oam_cmd_interface(struct Interface *iface, const char *name, const char *ifname,
-        unsigned port, unsigned ipversion);
+        const char *oam_cmd_ip, unsigned port, unsigned ipversion);
 
 #endif // R2_IF_OAM_CMD_H

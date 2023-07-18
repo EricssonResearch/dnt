@@ -26,7 +26,7 @@
 #include <netinet/in.h>
 #include <netdb.h>
 
-#define BACKLOG 10   // how many pending connections queue will hold
+#define BACKLOG 2   // how many pending connections queue will hold
 
 const char help_str[]="Available commands:\nhelp - get help\nexit - exit OAM\nping <stream:mep-start> <mep-stop/mip/any> <level>\ntrace <stream:mep-start> <mep-stop/mip> <level>\ndiscovery <stream:mep-start> <mep-stop/mip> <level>\n";
 
@@ -266,14 +266,17 @@ static bool oam_cmd_close(struct Interface *iface)
 
 
 bool init_oam_cmd_interface(struct Interface *iface, const char *name, const char *ifname,
-                            unsigned port, unsigned ipversion)
+                            const char *oam_cmd_ip, unsigned port, unsigned ipversion)
 {
     bzero(iface, sizeof(*iface));
     iface->name = strdup(name);
     if (ifname != NULL)
-        iface->ifname = strdup(ifname);
+        if(strcmp(ifname,"any")==0)
+          iface->ifname = NULL;
+        else
+          iface->ifname = strdup(ifname);
     else
-        iface->ifname = NULL;
+      iface->ifname = NULL;
     iface->type = IF_OAM_CMD;
     iface->state = IFS_INIT;
     iface->recv = oam_cmd_recv;
@@ -285,7 +288,13 @@ bool init_oam_cmd_interface(struct Interface *iface, const char *name, const cha
     iface->iface_private = oid;
     oid->port = port;
     oid->family = ipversion == 6 ? AF_INET6 : AF_INET;
+    if(oid->family == AF_INET6){
+      inet_pton(AF_INET6, oam_cmd_ip, &(oid->srcip.v6));
+    } else {
+      inet_pton(AF_INET, oam_cmd_ip, &(oid->srcip.v4));
+    }
     oid->oam_cmd_fd = -1;
+    oam_cmd_iface = iface;
 
     return true;
 }
