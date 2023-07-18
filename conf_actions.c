@@ -1266,25 +1266,25 @@ static bool process_action(struct StageState *stst)
             }
             struct ReplicateList *p = newaction->d.repl.pipelines;
             while (p) {
-                char *pstring = inisection_get(stst->streams_sec, p->string);
+                char *pstring = inisection_get(stst->streams_sec, p->name);
                 if (pstring == NULL) {
-                    THROW("pipeline '%s' not found", p->string);
+                    THROW("pipeline '%s' not found", p->name);
                 }
                 pstring = strdup(pstring);
                 struct StageState pstst = *stst;
-                pstst.stream = p->string;
+                pstst.stream = p->name;
                 pstst.headers = copy_header_list(stst->headers);
                 pstst.actions = NULL;
                 if (!foreach_stages(pstring, process_stage, &pstst)) {
                     free(pstring);
                     delete_header_list(pstst.headers);
                     delete_confaction_list(pstst.actions);
-                    THROW("failed to process pipeline '%s'", p->string);
+                    THROW("failed to process pipeline '%s'", p->name);
                 }
                 free(pstring);
                 if (pstst.actions == NULL) {
                     delete_header_list(pstst.headers);
-                    THROW("no actions in pipeline '%s'", p->string);
+                    THROW("no actions in pipeline '%s'", p->name);
                 }
                 delete_header_list(pstst.headers);
                 p->actions = pstst.actions;
