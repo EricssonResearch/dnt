@@ -34,6 +34,32 @@ struct Interface *oam_cmd_iface = NULL;
 
 unsigned cmd_id = 1000;
 
+/*
+int oam_ping(struct Interface *if_oam_cmd, unsigned id, char *stream, char *mep_start, char *mep_stop, int level){
+    struct OamCmdIfData *oid = if_oam_cmd->iface_private;
+    printf("OAM ping id %d, from %s : %s -> %s, level %d\n", id, stream, mep_start, mep_stop, level);
+    struct Pipeline *pipe = hashmap_find(oid->config->pipelines, stream);
+    if (!pipe)
+        return -EINVAL;
+
+    struct Action *act_mep_start = hashmap_find(oid->oam_actions, mep_start);
+    if (!act_mep_start)
+        return -EINVAL;
+    struct Oam *mep_start_data = act_mep_start->action_private;
+
+    struct Packet *packet = new_packet(NULL);
+    unsigned int proto_id = PROTO_ID_MPLS;
+    packet_add_header(packet, 0, proto_id, protocol_list[proto_id].bytelength);
+    proto_id = PROTO_ID_OAM;
+    packet_add_header(packet, 0, proto_id, protocol_list[proto_id].bytelength);
+    struct PipelineIterator *pi = new_pipe_iterator(pipe, packet);
+    pi->pos = mep_start_data->pos_in_pipeline;
+
+    pipe_iterator_run(pi);
+    return 0;
+}
+*/
+
 int oam_ping(unsigned id, char *stream, char *mep_start, char *mep_stop, int level){
   printf("OAM ping id %d, from %s : %s -> %s, level %d\n", id, stream, mep_start, mep_stop, level);
 
@@ -119,6 +145,32 @@ int oam_send_reply(char *address, char *msg){
   freeaddrinfo(res);
   close(sock);
   return 0;
+}
+
+
+// TODO: This is ugly and broken! This is the consequence of late/implicit OAM initialization
+// Alternative options:
+// 1. Define OAM iface(s) explicitly, and use them in process_actions (like in every other case)
+// 2. Initialize OAM ifaces(s) before everything else (same logic as now, but call init_oam early)
+static int do_oam_action_and_interface_bindings(const char *key, void *value, void *userdata)
+{
+    (void) key;
+    struct R2d2Config *config = userdata;
+    struct Pipeline *pipe = value;
+    struct Interface *oam_cmd_iface = &config->ifaces[config->ifcount - 2];
+    struct Interface *oam_iface = &config->ifaces[config->ifcount - 1];
+    struct OamCmdIfData *oid = oam_cmd_iface->iface_private;
+    for (unsigned i = 0; i < pipe->action_count; ++i) {
+        struct Action *a = &pipe->actions[i];
+        if (a->type == ACT_MEPSTART) {
+            struct Oam *oam_data = a->action_private;
+            hashmap_insert(oid->oam_actions, oam_data->name, a);
+        } else if (a->type == ACT_MEPSTOP || a->type == ACT_MIP) {
+            struct Oam *oam_data = a->action_private;
+            oam_data->if_oam = oam_iface;
+        }
+    }
+    return true;
 }
 
 // Initialize OAM functionality

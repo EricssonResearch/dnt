@@ -75,7 +75,12 @@ static void *oam_cmd_thread(void *arg)
                 if (send(oid->oam_cmd_fd, resp, sizeof(resp), 0) == -1)
                     perror("send");
                 // call the OAM ping function
-                oam_ping(iface, cmd_id, stream, mep_start, mep_stop, level);
+                int ret = oam_ping(iface, cmd_id, stream, mep_start, mep_stop, level);
+                if (ret < 0) {
+                    sprintf(resp, "Err %d: invalid argument\n", cmd_id);
+                    if (send(oid->oam_cmd_fd, resp, sizeof(resp), 0) == -1)
+                        perror("send");
+                }
             }
             if(strncmp(oam_command, "trace",5) == 0){
                 sscanf(oam_command, "trace %[^:]:%s %s %d", stream, mep_start, mep_stop, &level);

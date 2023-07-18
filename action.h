@@ -5,6 +5,7 @@
 #ifndef R2_ACTION_H
 #define R2_ACTION_H
 
+#include "conf_object.h"
 #include "transfer.h"
 
 enum ActionType {
@@ -40,6 +41,7 @@ struct Action;
 struct HeaderField;
 struct HeaderFieldAssign;
 struct Interface;
+struct Oam;
 struct Packet;
 struct PipelineIterator;
 struct Replicate;
@@ -102,6 +104,14 @@ void create_action_edit(struct Action *a, struct EditAssign *assigns, unsigned a
 void create_action_elim(struct Action *a, struct SequenceRecovery *rcvy, const char *text);
 
 void create_action_filteroam(struct Action *a, const struct HeaderField *seqfield, const char *text);
+
+void create_action_mepstart(struct Action *a, int level, const char *name, const char *text);
+
+void create_action_mepstop(struct Action *a, int level, struct ConfObject *target,
+                            const char *name, const char *text);
+
+void create_action_mip(struct Action *a, int level, struct ConfObject *target,
+                        const char *name, const char *text);
 
 void create_action_pof(struct Action *a, struct Pof *pof, const char *text);
 

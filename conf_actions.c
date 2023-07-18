@@ -12,6 +12,7 @@
 #include "if_oam_cmd.h"
 #include "interface.h"
 #include "inifile.h"
+#include "oam.h"
 #include "packet.h"
 #include "parsetree.h"
 #include "pipeline.h"
@@ -155,7 +156,8 @@ struct ConfAction {
             char *name;
             int level;
             struct ConfObject *obj; // NULL is valid too
-            struct Interface *oam_iface;
+            /* struct Interface *oam_iface; */
+            /* struct Interface *oam_iface_cmd; */
         } oam;
     } d;
 };
@@ -226,14 +228,14 @@ static struct Interface *find_interface(struct StageState *stst, const char *nam
     return NULL;
 }
 
-static struct Interface *find_interface_by_type(struct StageState *stst, enum IfaceType type)
-{
-    for (unsigned i=0; i<stst->ifcount; i++) {
-        if (stst->ifaces[i].type == type)
-            return stst->ifaces + i;
-    }
-    return NULL;
-}
+/* static struct Interface *find_interface_by_type(struct StageState *stst, enum IfaceType type) */
+/* { */
+/*     for (unsigned i=0; i<stst->ifcount; i++) { */
+/*         if (stst->ifaces[i].type == type) */
+/*             return stst->ifaces + i; */
+/*     } */
+/*     return NULL; */
+/* } */
 
 static struct HeaderField *header_get_field_of_type(struct HeaderDescriptor *hdr, unsigned hdr_idx,
         enum ProtocolFieldType type)
@@ -1216,18 +1218,22 @@ static bool process_action(struct StageState *stst)
         case CA_MIP:
             if (newaction->d.oam.name == NULL) {
                 THROW("unnamed OAM action (name is mandatory)");
-            } else if (newaction->d.oam.level == -1 || newaction) {
+            } else if (newaction->d.oam.level == -1) {
                 THROW("no level specified for '%s' OAM action", newaction->d.oam.name);
             } else if (newaction->d.oam.level < 0 || newaction->d.oam.level > 7) {
                 THROW("invalid OAM level (%d) specified for '%s' action (valid range is 0-7)",
                       newaction->d.oam.level, newaction->d.oam.name);
             }
-            struct Interface *oam_iface = find_interface_by_type(stst, IF_OAM);
-            if (oam_iface == NULL) {
-                THROW("OAM action ('%s') usage without OAM interface definition", newaction->d.oam.name);
-            } else {
-                newaction->d.oam.oam_iface = oam_iface;
-            }
+            /* //TODO: only single OAM and OAM_CMD supported currently */
+            /* struct Interface *oam_iface = find_interface_by_type(stst, IF_OAM); */
+            /* struct Interface *oam_iface_cmd = find_interface_by_type(stst, IF_OAM_CMD); */
+            /* if ((oam_iface == NULL && (newaction->type == CA_MEPSTOP || newaction->type == CA_MIP)) || */
+            /*    (oam_iface_cmd == NULL && newaction->type == CA_MEPSTART)) { */
+            /*     THROW("OAM action ('%s') usage without proper OAM interface definitions", newaction->d.oam.name); */
+            /* } else { */
+            /*     newaction->d.oam.oam_iface = oam_iface; */
+            /*     newaction->d.oam.oam_iface_cmd = oam_iface_cmd; */
+            /* } */
             break;
         case CA_POF:
             if (newaction->d.pof.pof == NULL) {
@@ -1603,14 +1609,17 @@ struct Action *assemble_actions(const struct ConfAction *ca_list, unsigned *acti
                 fprintf(stderr, "assemble_actions() jump should have been inlined\n");
                 //TODO cleanup on error
                 return NULL;
-            case CA_MEPSTART:
-            case CA_MEPSTOP:
-            case CA_MIP: {
-                //TODO: implement
-                struct Interface *if_oam_cmd = ca->d.oam.oam_iface;
-                struct OamCmdIfData *oid = if_oam_cmd->iface_private;
-                hashmap_insert(oid->oam_actions, ca->d.oam.name, NULL);
+            case CA_MEPSTART: {
+                create_action_mepstart(ret+a, ca->d.oam.level, ca->d.oam.name, ca->text);
+                struct Oam *oam_act = (ret+a)->action_private;
+                oam_act->pos_in_pipeline = a; // for construct iterator
                 break; }
+            case CA_MEPSTOP:
+                create_action_mepstop(ret+a, ca->d.oam.level, ca->d.oam.obj, ca->d.oam.name, ca->text);
+                break;
+            case CA_MIP:
+                create_action_mip(ret+a, ca->d.oam.level, ca->d.oam.obj, ca->d.oam.name, ca->text);
+                break;
             case CA_POF:
                 create_action_pof(ret+a, ca->d.pof.pof, ca->text);
                 break;

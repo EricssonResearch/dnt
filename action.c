@@ -3,9 +3,11 @@
 
 
 #include "action.h"
+#include "conf_object.h"
 #include "delay.h"
 #include "header.h"
 #include "interface.h"
+#include "oam.h"
 #include "packet.h"
 #include "pipeline.h"
 #include "replicate.h"
@@ -548,6 +550,63 @@ void create_action_writetstamp(struct Action *a, const struct HeaderField *tsfie
     a->action_private = md;
 }
 
+/////////////////////////////////////////////////////////////////////
+// Common private data for MEP/MIP types
+static enum ActionResult action_MEPSTART_execute(struct Action *a, struct PipelineIterator *pi)
+{
+    (void) a;
+    (void) pi;
+    return ACR_CONTINUE;
+}
+
+void create_action_mepstart(struct Action *a, int level, const char *name, const char *text)
+{
+    INIT_ACTION(MEPSTART);
+
+    struct Oam *oam = calloc_struct(Oam);
+    oam->name = strdup(name);
+    oam->level = level;
+
+    a->action_private = oam;
+}
+
+static enum ActionResult action_MEPSTOP_execute(struct Action *a, struct PipelineIterator *pi)
+{
+    (void) a;
+    (void) pi;
+    return ACR_CONTINUE;
+}
+
+void create_action_mepstop(struct Action *a, int level, struct ConfObject *target, const char *name, const char *text)
+{
+    INIT_ACTION(MEPSTOP);
+
+    struct Oam *oam = calloc_struct(Oam);
+    oam->target = target;
+    oam->name = strdup(name);
+    oam->level = level;
+
+    a->action_private = oam;
+}
+
+static enum ActionResult action_MIP_execute(struct Action *a, struct PipelineIterator *pi)
+{
+    (void) a;
+    (void) pi;
+    return ACR_CONTINUE;
+}
+
+void create_action_mip(struct Action *a, int level, struct ConfObject *target, const char *name, const char *text)
+{
+    INIT_ACTION(MIP);
+
+    struct Oam *oam = calloc_struct(Oam);
+    oam->target = target;
+    oam->name = strdup(name);
+    oam->level = level;
+
+    a->action_private = oam;
+}
 /////////////////////////////////////////////////////////////////////
 
 struct Action *delete_action(struct Action *a)
