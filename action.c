@@ -551,24 +551,6 @@ void create_action_writetstamp(struct Action *a, const struct HeaderField *tsfie
 }
 
 /////////////////////////////////////////////////////////////////////
-// Common private data for MEP/MIP types
-static enum ActionResult action_MEPSTART_execute(struct Action *a, struct PipelineIterator *pi)
-{
-    (void) a;
-    (void) pi;
-    return ACR_CONTINUE;
-}
-
-void create_action_mepstart(struct Action *a, int level, const char *name, const char *text)
-{
-    INIT_ACTION(MEPSTART);
-
-    struct Oam *oam = calloc_struct(Oam);
-    oam->name = strdup(name);
-    oam->level = level;
-
-    a->action_private = oam;
-}
 
 static enum ActionResult action_MEPSTOP_execute(struct Action *a, struct PipelineIterator *pi)
 {

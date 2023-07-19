@@ -18,7 +18,6 @@ struct Oam {
     int level;
     struct ConfObject *target; // PRF, PEF, POF, etc.
     char *name;
-    unsigned pos_in_pipeline;
 };
 
 bool init_oam(struct R2d2Config *config);
