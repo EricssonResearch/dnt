@@ -157,7 +157,7 @@ struct ConfAction {
             int level;
             struct ConfObject *obj; // NULL is valid too
             /* struct Interface *oam_iface; */
-            /* struct Interface *oam_iface_cmd; */
+            struct Interface *oam_iface_cmd;
         } oam;
     } d;
 };
@@ -1613,6 +1613,14 @@ struct Action *assemble_actions(const struct ConfAction *ca_list, unsigned *acti
                 create_action_mepstart(ret+a, ca->d.oam.level, ca->d.oam.name, ca->text);
                 struct Oam *oam_act = (ret+a)->action_private;
                 oam_act->pos_in_pipeline = a; // for construct iterator
+                struct OamCmdIfData *oid = oam_cmd_iface->iface_private;
+                hashmap_insert(oid->oam_actions, strdup(ca->d.oam.name), ret+a);
+                /* for (int i = 0; i < nr_oam_ifaces; ++i) { */
+                /*     if (oam_ifaces[i]->type == IF_OAM_CMD) { */
+                /*         struct OamCmdIfData *oid = oam_ifaces[i]->iface_private; */
+                /*         hashmap_insert(oid->oam_actions, ca->d.oam.name, ret+a); */
+                /*     } */
+                /* } */
                 break; }
             case CA_MEPSTOP:
                 create_action_mepstop(ret+a, ca->d.oam.level, ca->d.oam.obj, ca->d.oam.name, ca->text);

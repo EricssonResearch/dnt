@@ -27,6 +27,8 @@
 #include <net/if.h> /* struct ifreq */
 #include <arpa/inet.h> /* ntohs() */
 #include <ifaddrs.h>
+#include <sys/types.h>
+#include <netdb.h>
 
 int nr_oam_ifaces = 0;
 struct Interface *oam_ifaces[16];
@@ -34,9 +36,10 @@ struct Interface *oam_cmd_iface = NULL;
 
 unsigned cmd_id = 1000;
 
-/*
+
 int oam_ping(struct Interface *if_oam_cmd, unsigned id, char *stream, char *mep_start, char *mep_stop, int level){
-    struct OamCmdIfData *oid = if_oam_cmd->iface_private;
+    (void) if_oam_cmd;
+    struct OamCmdIfData *oid = oam_cmd_iface->iface_private;
     printf("OAM ping id %d, from %s : %s -> %s, level %d\n", id, stream, mep_start, mep_stop, level);
     struct Pipeline *pipe = hashmap_find(oid->config->pipelines, stream);
     if (!pipe)
@@ -47,6 +50,7 @@ int oam_ping(struct Interface *if_oam_cmd, unsigned id, char *stream, char *mep_
         return -EINVAL;
     struct Oam *mep_start_data = act_mep_start->action_private;
 
+    // TODO: set proper payload/header fields
     struct Packet *packet = new_packet(NULL);
     unsigned int proto_id = PROTO_ID_MPLS;
     packet_add_header(packet, 0, proto_id, protocol_list[proto_id].bytelength);
@@ -58,51 +62,53 @@ int oam_ping(struct Interface *if_oam_cmd, unsigned id, char *stream, char *mep_
     pipe_iterator_run(pi);
     return 0;
 }
-*/
 
-int oam_ping(unsigned id, char *stream, char *mep_start, char *mep_stop, int level){
-  printf("OAM ping id %d, from %s : %s -> %s, level %d\n", id, stream, mep_start, mep_stop, level);
 
+/* int oam_ping(unsigned id, char *stream, char *mep_start, char *mep_stop, int level){ */
+/*   printf("OAM ping id %d, from %s : %s -> %s, level %d\n", id, stream, mep_start, mep_stop, level); */
+/**/
   /* TODO : remove, just for  testing ->  */
-
-  char msg[]="This is an OAM reply test message.\n\0";
-
+/**/
+/*   char msg[]="This is an OAM reply test message.\n\0"; */
+/**/
   // get OAM dest IP */
-  char addr[INET_ADDRSTRLEN];
-  struct sockaddr_in saddr;
-  struct Value ip = {&saddr.sin_addr, 0, 32};
-  if(nr_oam_ifaces > 0){
-    value_producer *read = oam_ifaces[0]->get_property_reader(oam_ifaces[0], "ip", FT_IPV4ADDRESS, &ip);
-    if (read == NULL) {
-      printf("interface %s has no property named 'ip'", oam_ifaces[0]->name);
-    }
-    unsigned int act_idx;
-    struct Action *a = find_mep_start(oid->config, stream, mep_start, &act_idx);
-    if (!a) {
-        return -EINVAL;
-    }
-    // Using OAM CMD interface as egress, allocating the OAM packet here
-    // The MEP Start action act on source interface type
-    struct Packet *packet = new_packet(if_oam_cmd);
-    unsigned int proto_id = PROTO_ID_MPLS;
-    packet_add_header(packet, 0, proto_id, protocol_list[proto_id].bytelength);
-    proto_id = PROTO_ID_OAM;
-    packet_add_header(packet, 0, proto_id, protocol_list[proto_id].bytelength);
-    struct PipelineIterator *pi = new_pipe_iterator(pipe, packet);
-
-  oam_send_reply(addr, msg);
+/*   char addr[INET_ADDRSTRLEN]; */
+/*   struct sockaddr_in saddr; */
+/*   struct Value ip = {&saddr.sin_addr, 0, 32}; */
+/*   if(nr_oam_ifaces > 0){ */
+/*     value_producer *read = oam_ifaces[0]->get_property_reader(oam_ifaces[0], "ip", FT_IPV4ADDRESS, &ip); */
+/*     if (read == NULL) { */
+/*       printf("interface %s has no property named 'ip'", oam_ifaces[0]->name); */
+/*     } */
+/*     unsigned int act_idx; */
+/*     struct Action *a = find_mep_start(oid->config, stream, mep_start, &act_idx); */
+/*     if (!a) { */
+/*         return -EINVAL; */
+/*     } */
+/*     // Using OAM CMD interface as egress, allocating the OAM packet here */
+/*     // The MEP Start action act on source interface type */
+/*     struct Packet *packet = new_packet(if_oam_cmd); */
+/*     unsigned int proto_id = PROTO_ID_MPLS; */
+/*     packet_add_header(packet, 0, proto_id, protocol_list[proto_id].bytelength); */
+/*     proto_id = PROTO_ID_OAM; */
+/*     packet_add_header(packet, 0, proto_id, protocol_list[proto_id].bytelength); */
+/*     struct PipelineIterator *pi = new_pipe_iterator(pipe, packet); */
+/**/
+/*   oam_send_reply(addr, msg); */
   /*   <- testing   */
+/**/
+/**/
+/*   return 0; */
+/* } */
 
-
-  return 0;
-}
-
-int oam_trace(unsigned id, char *stream, char *mep_start, char *mep_stop, int level){
+int oam_trace(struct Interface *if_oam_cmd, unsigned id, char *stream, char *mep_start, char *mep_stop, int level){
+    (void) if_oam_cmd;
   printf("OAM trace id %d, from %s : %s -> %s, level %d\n", id, stream, mep_start, mep_stop, level);
   return 0;
 }
 
-int oam_discovery(unsigned id, char *stream, char *mep_start, char *mep_stop, int level){
+int oam_discovery(struct Interface *if_oam_cmd, unsigned id, char *stream, char *mep_start, char *mep_stop, int level){
+    (void) if_oam_cmd;
   printf("OAM discovery id %d, from %s : %s -> %s, level %d\n", id, stream, mep_start, mep_stop, level);
   return 0;
 }
@@ -157,15 +163,11 @@ static int do_oam_action_and_interface_bindings(const char *key, void *value, vo
     (void) key;
     struct R2d2Config *config = userdata;
     struct Pipeline *pipe = value;
-    struct Interface *oam_cmd_iface = &config->ifaces[config->ifcount - 2];
+    /* struct Interface *oam_cmd_iface = &config->ifaces[config->ifcount - 2]; */
     struct Interface *oam_iface = &config->ifaces[config->ifcount - 1];
-    struct OamCmdIfData *oid = oam_cmd_iface->iface_private;
     for (unsigned i = 0; i < pipe->action_count; ++i) {
         struct Action *a = &pipe->actions[i];
-        if (a->type == ACT_MEPSTART) {
-            struct Oam *oam_data = a->action_private;
-            hashmap_insert(oid->oam_actions, oam_data->name, a);
-        } else if (a->type == ACT_MEPSTOP || a->type == ACT_MIP) {
+        if (a->type == ACT_MEPSTOP || a->type == ACT_MIP) {
             struct Oam *oam_data = a->action_private;
             oam_data->if_oam = oam_iface;
         }
@@ -177,6 +179,9 @@ static int do_oam_action_and_interface_bindings(const char *key, void *value, vo
 bool init_oam(struct R2d2Config *config){
   (void)config;
   printf("Init OAM fuctionality.\n");
+    hashmap_foreach(config->pipelines, do_oam_action_and_interface_bindings, config);
+    struct OamCmdIfData *oid = oam_cmd_iface->iface_private;
+    oid->config = config;
 
   /*  - not needed, init from config
   unsigned port = OAM_CMD_PORT;

@@ -2,6 +2,7 @@
 // All rights reserved.
 
 
+#include "hashmap.h"
 #include "oam.h"
 #include "if_oam_cmd.h"
 #include "if_utils.h"
@@ -299,6 +300,7 @@ bool init_oam_cmd_interface(struct Interface *iface, const char *name, const cha
       inet_pton(AF_INET, oam_cmd_ip, &(oid->srcip.v4));
     }
     oid->oam_cmd_fd = -1;
+    oid->oam_actions = new_hashmap(29, NULL, NULL);
     oam_cmd_iface = iface;
 
     return true;
