@@ -274,7 +274,6 @@ bool config_add_streams_to_interfaces(struct R2d2Config *config)
     }
     /* delete_hashmap(state.pipe_cache); */
     config->pipelines = state.pipe_cache;
-    state.pipe_cache = NULL;
 
     // pipeline actions must be independent of the config's ConfAction list
     // we must not segfault if this line is enabled

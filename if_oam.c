@@ -257,7 +257,7 @@ bool init_oam_interface(struct Interface *iface, const char *name, const char *i
     oid->family = ipversion == 6 ? AF_INET6 : AF_INET;
     oid->oam_cmd_iface = cmd_iface;
 
-    oam_ifaces[nr_oam_ifaces++] = iface;
+    add_oam_if(iface);
 
     return true;
 }

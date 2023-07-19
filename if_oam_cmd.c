@@ -76,7 +76,7 @@ static void *oam_cmd_thread(void *arg)
                 if (send(oid->oam_cmd_fd, resp, sizeof(resp), 0) == -1)
                     perror("send");
                 // call the OAM ping function
-                int ret = oam_ping(iface, cmd_id, stream, mep_start, mep_stop, level);
+                int ret = oam_ping(cmd_id, stream, mep_start, mep_stop, level);
                 if (ret < 0) {
                     sprintf(resp, "Err %d: invalid argument\n", cmd_id);
                     if (send(oid->oam_cmd_fd, resp, sizeof(resp), 0) == -1)
@@ -90,7 +90,7 @@ static void *oam_cmd_thread(void *arg)
                 if (send(oid->oam_cmd_fd, resp, sizeof(resp), 0) == -1)
                     perror("send");
                 // call the OAM trace function
-                oam_trace(iface, cmd_id, stream, mep_start, mep_stop, level);
+                oam_trace(cmd_id, stream, mep_start, mep_stop, level);
             }
             if(strncmp(oam_command, "discovery",9) == 0){
                 sscanf(oam_command, "discovery %[^:]:%s %s %d", stream, mep_start, mep_stop, &level);
@@ -99,7 +99,7 @@ static void *oam_cmd_thread(void *arg)
                 if (send(oid->oam_cmd_fd, resp, sizeof(resp), 0) == -1)
                     perror("send");
                 // call the OAM discovery function
-                oam_discovery(iface, cmd_id, stream, mep_start, mep_stop, level);
+                oam_discovery(cmd_id, stream, mep_start, mep_stop, level);
             }
 
         }
@@ -300,8 +300,7 @@ bool init_oam_cmd_interface(struct Interface *iface, const char *name, const cha
       inet_pton(AF_INET, oam_cmd_ip, &(oid->srcip.v4));
     }
     oid->oam_cmd_fd = -1;
-    oid->oam_actions = new_hashmap(29, NULL, NULL);
-    oam_cmd_iface = iface;
+    set_oam_cmd_if(iface);
 
     return true;
 }

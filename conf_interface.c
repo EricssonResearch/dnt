@@ -235,7 +235,7 @@ static int iface_cb(const char *key, void *value, void *userdata)
                 THROW("ip version '%s' is invalid", ipver_str);
             ipver = u;
         }
-        if (!init_oam_interface(state->ifaces+state->i, key, tstate.iface, oam_ip, oam_port, ipver, oam_cmd_iface)) {
+        if (!init_oam_interface(state->ifaces+state->i, key, tstate.iface, oam_ip, oam_port, ipver, get_oam_if(NULL))) {
             THROW("failed to create oam interface");
         }
     } else {

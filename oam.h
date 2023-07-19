@@ -10,10 +10,7 @@
 #include "configfile.h"
 #include "if_oam_cmd.h"
 #include "interface.h"
-
-extern struct Interface *oam_cmd_iface;
-extern int nr_oam_ifaces;
-extern struct Interface *oam_ifaces[16];
+#include "pipeline.h"
 
 struct Oam {
     struct Interface *if_oam_cmd;
@@ -26,9 +23,16 @@ struct Oam {
 
 bool init_oam(struct R2d2Config *config);
 
-int oam_ping(struct Interface *if_oam_cmd, unsigned id, char *stream, char *mep_start, char *mep_stop, int level);
-int oam_trace(struct Interface *if_oam_cmd, unsigned id, char *stream, char *mep_start, char *mep_stop, int level);
-int oam_discovery(struct Interface *if_oam_cmd, unsigned id, char *stream, char *mep_start, char *mep_stop, int level);
+int oam_ping(unsigned id, char *stream, char *mep_start, char *mep_stop, int level);
+int oam_trace(unsigned id, char *stream, char *mep_start, char *mep_stop, int level);
+int oam_discovery(unsigned id, char *stream, char *mep_start, char *mep_stop, int level);
 int oam_send_reply(char *address, char *msg);
+
+void oam_create_mep_start(const char *name, int level, unsigned idx);
+
+void set_oam_cmd_if(struct Interface *iface);
+void add_oam_if(struct Interface *iface);
+struct Interface *get_oam_cmd_if(const char *name);
+struct Interface *get_oam_if(const char *name);
 
 #endif // R2_OAM_H

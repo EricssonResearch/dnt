@@ -26,7 +26,6 @@ struct OamCmdIfData {
     } srcip;
 
     struct R2d2Config *config;
-    struct HashMap *oam_actions; // name -> struct Action
 };
 
 struct Interface;

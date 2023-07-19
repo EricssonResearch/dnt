@@ -1563,7 +1563,10 @@ struct Action *assemble_actions(const struct ConfAction *ca_list, unsigned *acti
 {
     //TODO define THROW
     unsigned count = 0;
-    for (const struct ConfAction *ca = ca_list; ca; ca=ca->next) count++;
+    for (const struct ConfAction *ca = ca_list; ca; ca=ca->next)
+        if (ca->type != CA_MEPSTART) // do not include MEPStart into the action list
+            count++;
+
     if (count == 0) {
         *action_count = 0;
         return NULL;
@@ -1610,17 +1613,7 @@ struct Action *assemble_actions(const struct ConfAction *ca_list, unsigned *acti
                 //TODO cleanup on error
                 return NULL;
             case CA_MEPSTART: {
-                create_action_mepstart(ret+a, ca->d.oam.level, ca->d.oam.name, ca->text);
-                struct Oam *oam_act = (ret+a)->action_private;
-                oam_act->pos_in_pipeline = a; // for construct iterator
-                struct OamCmdIfData *oid = oam_cmd_iface->iface_private;
-                hashmap_insert(oid->oam_actions, strdup(ca->d.oam.name), ret+a);
-                /* for (int i = 0; i < nr_oam_ifaces; ++i) { */
-                /*     if (oam_ifaces[i]->type == IF_OAM_CMD) { */
-                /*         struct OamCmdIfData *oid = oam_ifaces[i]->iface_private; */
-                /*         hashmap_insert(oid->oam_actions, ca->d.oam.name, ret+a); */
-                /*     } */
-                /* } */
+                oam_create_mep_start(ca->d.oam.name, ca->d.oam.level,a);
                 break; }
             case CA_MEPSTOP:
                 create_action_mepstop(ret+a, ca->d.oam.level, ca->d.oam.obj, ca->d.oam.name, ca->text);
@@ -1680,7 +1673,8 @@ struct Action *assemble_actions(const struct ConfAction *ca_list, unsigned *acti
                 create_action_writetstamp(ret+a, ca->d.meta.field, ca->text);
                 break;
         }
-        a++;
+        if (ca->type != CA_MEPSTART) // 
+            a++;
     }
 
     *action_count = count;

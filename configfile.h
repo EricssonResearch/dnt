@@ -17,7 +17,7 @@ struct R2d2Config {
     struct HashMap *objects; // name -> struct ConfObject
     struct HashMap *streams; // name -> struct ConfStream
     struct HashMap *iface_streams; // ifname -> ConfStreamList
-    struct HashMap *pipelines; // stream_name -> struct Pipeline
+    struct HashMap *pipelines; // name -> struct Pipeline
 };
 
 struct R2d2Config *read_config(const char *filename);

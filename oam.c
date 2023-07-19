@@ -14,6 +14,7 @@
 #include "interface.h"
 #include "packet.h"
 #include "protocol.h"
+#include "seq_gen.h"
 #include "utils.h"
 
 #include <asm-generic/errno-base.h>
@@ -30,25 +31,72 @@
 #include <sys/types.h>
 #include <netdb.h>
 
+
+struct MepStart {
+    char *name;
+    int pipe_pos_idx;
+    struct SequenceGenerator *seqgen;
+    int level;
+};
+
 int nr_oam_ifaces = 0;
 struct Interface *oam_ifaces[16];
 struct Interface *oam_cmd_iface = NULL;
+struct HashMap *mep_starts = NULL; // name -> struct MEPStart
 
 unsigned cmd_id = 1000;
 
+void set_oam_cmd_if(struct Interface *iface)
+{
+    oam_cmd_iface = iface;
+}
 
-int oam_ping(struct Interface *if_oam_cmd, unsigned id, char *stream, char *mep_start, char *mep_stop, int level){
-    (void) if_oam_cmd;
+void add_oam_if(struct Interface *iface)
+{
+    if (nr_oam_ifaces < 16) {
+        oam_ifaces[nr_oam_ifaces] = iface;
+        nr_oam_ifaces++;
+    }
+}
+
+struct Interface *get_oam_cmd_if(const char *name)
+{
+    (void) name;
+    return oam_cmd_iface;
+}
+
+struct Interface *get_oam_if(const char *name)
+{
+    for (int i = 0; i < nr_oam_ifaces; ++i) {
+        if (strcmp(name, oam_ifaces[i]->name) == 0) {
+            return oam_ifaces[i];
+        }
+    }
+    return NULL;
+}
+
+void oam_create_mep_start(const char *name, int level, unsigned idx)
+{
+    if (mep_starts == NULL) {
+        mep_starts = new_hashmap(29, NULL, NULL);
+    }
+    struct MepStart *mepstart = calloc_struct(MepStart);
+    mepstart->name = strdup(name);
+    mepstart->level = level;
+    mepstart->pipe_pos_idx = idx;
+    hashmap_insert(mep_starts, mepstart->name, mepstart);
+}
+
+int oam_ping(unsigned id, char *stream, char *mep_start, char *mep_stop, int level){
     struct OamCmdIfData *oid = oam_cmd_iface->iface_private;
     printf("OAM ping id %d, from %s : %s -> %s, level %d\n", id, stream, mep_start, mep_stop, level);
+
+    struct MepStart *mep = hashmap_find(mep_starts, mep_start);
+    if (!mep)
+        return -EINVAL;
     struct Pipeline *pipe = hashmap_find(oid->config->pipelines, stream);
     if (!pipe)
         return -EINVAL;
-
-    struct Action *act_mep_start = hashmap_find(oid->oam_actions, mep_start);
-    if (!act_mep_start)
-        return -EINVAL;
-    struct Oam *mep_start_data = act_mep_start->action_private;
 
     // TODO: set proper payload/header fields
     struct Packet *packet = new_packet(NULL);
@@ -57,7 +105,7 @@ int oam_ping(struct Interface *if_oam_cmd, unsigned id, char *stream, char *mep_
     proto_id = PROTO_ID_OAM;
     packet_add_header(packet, 0, proto_id, protocol_list[proto_id].bytelength);
     struct PipelineIterator *pi = new_pipe_iterator(pipe, packet);
-    pi->pos = mep_start_data->pos_in_pipeline;
+    pi->pos = mep->pipe_pos_idx;
 
     pipe_iterator_run(pi);
     return 0;
@@ -101,14 +149,12 @@ int oam_ping(struct Interface *if_oam_cmd, unsigned id, char *stream, char *mep_
 /*   return 0; */
 /* } */
 
-int oam_trace(struct Interface *if_oam_cmd, unsigned id, char *stream, char *mep_start, char *mep_stop, int level){
-    (void) if_oam_cmd;
+int oam_trace(unsigned id, char *stream, char *mep_start, char *mep_stop, int level){
   printf("OAM trace id %d, from %s : %s -> %s, level %d\n", id, stream, mep_start, mep_stop, level);
   return 0;
 }
 
-int oam_discovery(struct Interface *if_oam_cmd, unsigned id, char *stream, char *mep_start, char *mep_stop, int level){
-    (void) if_oam_cmd;
+int oam_discovery(unsigned id, char *stream, char *mep_start, char *mep_stop, int level){
   printf("OAM discovery id %d, from %s : %s -> %s, level %d\n", id, stream, mep_start, mep_stop, level);
   return 0;
 }
@@ -154,32 +200,9 @@ int oam_send_reply(char *address, char *msg){
 }
 
 
-// TODO: This is ugly and broken! This is the consequence of late/implicit OAM initialization
-// Alternative options:
-// 1. Define OAM iface(s) explicitly, and use them in process_actions (like in every other case)
-// 2. Initialize OAM ifaces(s) before everything else (same logic as now, but call init_oam early)
-static int do_oam_action_and_interface_bindings(const char *key, void *value, void *userdata)
-{
-    (void) key;
-    struct R2d2Config *config = userdata;
-    struct Pipeline *pipe = value;
-    /* struct Interface *oam_cmd_iface = &config->ifaces[config->ifcount - 2]; */
-    struct Interface *oam_iface = &config->ifaces[config->ifcount - 1];
-    for (unsigned i = 0; i < pipe->action_count; ++i) {
-        struct Action *a = &pipe->actions[i];
-        if (a->type == ACT_MEPSTOP || a->type == ACT_MIP) {
-            struct Oam *oam_data = a->action_private;
-            oam_data->if_oam = oam_iface;
-        }
-    }
-    return true;
-}
-
 // Initialize OAM functionality
 bool init_oam(struct R2d2Config *config){
-  (void)config;
-  printf("Init OAM fuctionality.\n");
-    hashmap_foreach(config->pipelines, do_oam_action_and_interface_bindings, config);
+    printf("Init OAM fuctionality.\n");
     struct OamCmdIfData *oid = oam_cmd_iface->iface_private;
     oid->config = config;
 
