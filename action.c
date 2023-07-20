@@ -367,7 +367,8 @@ static enum ActionResult action_REPL_execute(struct Action *a, struct PipelineIt
         pipe_iterator_run(newpi);
         list = list->next;
     }
-    replicate_packet_passed(rd->replobj);
+    if (rd->replobj)
+        replicate_packet_passed(rd->replobj);
     return ACR_DONE;
 }
 
