@@ -10,6 +10,7 @@
 #include "action.h"
 #include "inifile.h"
 #include "interface.h"
+#include "oam.h"
 #include "parsetree.h"
 #include "pipeline.h"
 #include "utils.h"
@@ -214,7 +215,7 @@ static int addstream_cb(const char *key, void *value, void *userdata)
         } else {
             //printf("  compiling new pipeline\n");
             unsigned action_count;
-            struct Action *actions = assemble_actions(s->stream->actions, &action_count);
+            struct Action *actions = assemble_actions(s->stream_name, s->stream->actions, &action_count);
             if (!actions) {
                 fprintf(stderr, "failed to assemble actions for stream %s\n", s->stream_name);
                 return 0;
@@ -228,6 +229,7 @@ static int addstream_cb(const char *key, void *value, void *userdata)
                 free(actions);
                 return 0;
             }
+            oam_set_pipeline_for_mep_start(s->stream_name, pipe);
         }
 
         if (!parsetree_add_stream(iface->parsetree, s->stream->packet, pipe)) {
@@ -272,8 +274,7 @@ bool config_add_streams_to_interfaces(struct R2d2Config *config)
         delete_hashmap(state.pipe_cache);
         return false;
     }
-    /* delete_hashmap(state.pipe_cache); */
-    config->pipelines = state.pipe_cache;
+    delete_hashmap(state.pipe_cache);
 
     // pipeline actions must be independent of the config's ConfAction list
     // we must not segfault if this line is enabled

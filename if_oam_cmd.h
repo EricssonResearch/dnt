@@ -24,8 +24,6 @@ struct OamCmdIfData {
         struct in_addr v4;
         struct in6_addr v6;
     } srcip;
-
-    struct R2d2Config *config;
 };
 
 struct Interface;

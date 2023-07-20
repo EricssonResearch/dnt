@@ -1,13 +1,13 @@
 // Copyright (c) 2023, Ericsson AB and Ericsson Telecommunication Hungary
 // All rights reserved.
 
+#include "oam.h"
 #include "action.h"
 #include "pipeline.h"
 #include "conf_interface.h"
 #include "conf_streams.h"
 #include "configfile.h"
 #include "hashmap.h"
-#include "oam.h"
 #include "if_oam.h"
 #include "if_oam_cmd.h"
 #include "if_utils.h"
@@ -17,10 +17,10 @@
 #include "seq_gen.h"
 #include "utils.h"
 
-#include <asm-generic/errno-base.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 
 #include <unistd.h>
 #include <sys/socket.h>
@@ -34,6 +34,8 @@
 
 struct MepStart {
     char *name;
+    char *stream_name;
+    struct Pipeline *pipe;
     int pipe_pos_idx;
     struct SequenceGenerator *seqgen;
     int level;
@@ -75,26 +77,50 @@ struct Interface *get_oam_if(const char *name)
     return NULL;
 }
 
-void oam_create_mep_start(const char *name, int level, unsigned idx)
+void oam_create_mep_start(const char *stream_name, const char *mep_name, int level, unsigned idx)
 {
     if (mep_starts == NULL) {
         mep_starts = new_hashmap(29, NULL, NULL);
     }
     struct MepStart *mepstart = calloc_struct(MepStart);
-    mepstart->name = strdup(name);
+    mepstart->name = strdup(mep_name);
+    mepstart->stream_name = strdup(stream_name);
     mepstart->level = level;
     mepstart->pipe_pos_idx = idx;
+    // for mepstart->pipe see oam_set_pipeline_for_mep_start()
     hashmap_insert(mep_starts, mepstart->name, mepstart);
 }
 
+struct SetPipeParam {
+    const char *stream_name;
+    struct Pipeline *pipe;
+};
+
+static int set_pipe_cb(const char *key, void *value, void *userdata)
+{
+    (void)key;
+    struct MepStart *mepstart = value;
+    struct SetPipeParam *params = userdata;
+
+    if (strcmp(mepstart->stream_name, params->stream_name) == 0)
+        mepstart->pipe = params->pipe;
+
+    return 1;
+}
+
+void oam_set_pipeline_for_mep_start(const char *stream_name, struct Pipeline *pipe)
+{
+    struct SetPipeParam params = {stream_name, pipe};
+    hashmap_foreach(mep_starts, set_pipe_cb, &params);
+}
+
 int oam_ping(unsigned id, char *stream, char *mep_start, char *mep_stop, int level){
-    struct OamCmdIfData *oid = oam_cmd_iface->iface_private;
     printf("OAM ping id %d, from %s : %s -> %s, level %d\n", id, stream, mep_start, mep_stop, level);
 
     struct MepStart *mep = hashmap_find(mep_starts, mep_start);
     if (!mep)
         return -EINVAL;
-    struct Pipeline *pipe = hashmap_find(oid->config->pipelines, stream);
+    struct Pipeline *pipe = mep->pipe;
     if (!pipe)
         return -EINVAL;
 
@@ -203,8 +229,7 @@ int oam_send_reply(char *address, char *msg){
 // Initialize OAM functionality
 bool init_oam(struct R2d2Config *config){
     printf("Init OAM fuctionality.\n");
-    struct OamCmdIfData *oid = oam_cmd_iface->iface_private;
-    oid->config = config;
+    (void)config;
 
   /*  - not needed, init from config
   unsigned port = OAM_CMD_PORT;

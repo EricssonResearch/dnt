@@ -27,7 +27,8 @@ int oam_trace(unsigned id, char *stream, char *mep_start, char *mep_stop, int le
 int oam_discovery(unsigned id, char *stream, char *mep_start, char *mep_stop, int level);
 int oam_send_reply(char *address, char *msg);
 
-void oam_create_mep_start(const char *name, int level, unsigned idx);
+void oam_create_mep_start(const char *stream_name, const char *mep_name, int level, unsigned idx);
+void oam_set_pipeline_for_mep_start(const char *stream_name, struct Pipeline *pipe);
 
 void set_oam_cmd_if(struct Interface *iface);
 void add_oam_if(struct Interface *iface);

@@ -1559,7 +1559,7 @@ static struct EditAssign *assemble_fieldassigns(struct ConfAssignment *list, uns
     return ret;
 }
 
-struct Action *assemble_actions(const struct ConfAction *ca_list, unsigned *action_count)
+struct Action *assemble_actions(const char *stream_name, const struct ConfAction *ca_list, unsigned *action_count)
 {
     //TODO define THROW
     unsigned count = 0;
@@ -1613,7 +1613,7 @@ struct Action *assemble_actions(const struct ConfAction *ca_list, unsigned *acti
                 //TODO cleanup on error
                 return NULL;
             case CA_MEPSTART: {
-                oam_create_mep_start(ca->d.oam.name, ca->d.oam.level,a);
+                oam_create_mep_start(stream_name, ca->d.oam.name, ca->d.oam.level,a);
                 break; }
             case CA_MEPSTOP:
                 create_action_mepstop(ret+a, ca->d.oam.level, ca->d.oam.obj, ca->d.oam.name, ca->text);
@@ -1634,7 +1634,7 @@ struct Action *assemble_actions(const struct ConfAction *ca_list, unsigned *acti
                 struct PipelineList *pipes = NULL;
                 for (struct ReplicateList *r=ca->d.repl.pipelines; r; r=r->next) {
                     unsigned r_action_count;
-                    struct Action *r_actions = assemble_actions(r->actions, &r_action_count);
+                    struct Action *r_actions = assemble_actions(r->name, r->actions, &r_action_count);
                     if (!r_actions) {
                         fprintf(stderr, "failed to assemble actions for stream %s\n", r->name);
                         //TODO cleanup on error
@@ -1644,6 +1644,7 @@ struct Action *assemble_actions(const struct ConfAction *ca_list, unsigned *acti
                     if (!pipe) { //TODO this never happens
                     }
                     pipeline_ref(pipe);
+                    oam_set_pipeline_for_mep_start(r->name, pipe);
 
                     struct PipelineList *p = calloc_struct(PipelineList);
                     p->pipe = pipe;
@@ -1673,7 +1674,7 @@ struct Action *assemble_actions(const struct ConfAction *ca_list, unsigned *acti
                 create_action_writetstamp(ret+a, ca->d.meta.field, ca->text);
                 break;
         }
-        if (ca->type != CA_MEPSTART) // 
+        if (ca->type != CA_MEPSTART) //
             a++;
     }
 
