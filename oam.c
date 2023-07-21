@@ -145,13 +145,16 @@ const char help_str[]="Available commands:\nhelp - get help\nexit - exit OAM\npi
 
 int oam_command_loop(int cmd_fd){
     char oam_command[255];
-    char stream[32],mep_start[32], mep_stop[32];
+    char stream[32],mep_start[32], mep_stop[32], ifname[32];
     char resp[255];
     int level;
     int n;
+    struct Interface *oam_if;
 
     if (send(cmd_fd, "OAM ready.\n", 12, 0) == -1)
         perror("send");
+
+    ifname[0]=0;  // init to empty string
 
     while (true) {
         n = read(cmd_fd, oam_command, sizeof(oam_command));
@@ -166,13 +169,27 @@ int oam_command_loop(int cmd_fd){
                     perror("send");
             }
             if(strncmp(oam_command, "ping",4) == 0){
-                sscanf(oam_command, "ping %[^:]:%s %s %d", stream, mep_start, mep_stop, &level);
                 cmd_id++;
-                sprintf(resp, "OK %d, ping %s : %s -> %s, level %d\n", cmd_id, stream, mep_start, mep_stop, level);
+                if(oam_command[4]=='@'){
+                    sscanf(oam_command, "ping@%s %[^:]:%s %s %d", ifname, stream, mep_start, mep_stop, &level);
+                    oam_if = get_oam_if(ifname);
+                    if(oam_if==NULL){
+                        sprintf(resp,"Error: invalid interface name: %s\n", ifname);
+                        if (send(cmd_fd, resp, sizeof(resp), 0) == -1)
+                            perror("send");
+                        continue;
+                    }
+                    sprintf(resp, "OK %d, ping @[%s] %s : %s -> %s, level %d\n", cmd_id, ifname, stream, mep_start, mep_stop, level);
+                }else{
+                    sscanf(oam_command, "ping %[^:]:%s %s %d", stream, mep_start, mep_stop, &level);
+                    oam_if = oam_ifaces[0];
+                    sprintf(resp, "OK %d, ping %s : %s -> %s, level %d\n", cmd_id, stream, mep_start, mep_stop, level);
+                }
+                // acknowledge with session_id
                 if (send(cmd_fd, resp, sizeof(resp), 0) == -1)
                     perror("send");
                 // call the OAM ping function
-                int ret = oam_ping(cmd_id, stream, mep_start, mep_stop, level);
+                int ret = oam_ping(oam_if, cmd_id, stream, mep_start, mep_stop, level);
                 if (ret < 0) {
                     sprintf(resp, "Err %d: invalid argument\n", cmd_id);
                     if (send(cmd_fd, resp, sizeof(resp), 0) == -1)
@@ -180,22 +197,50 @@ int oam_command_loop(int cmd_fd){
                 }
             }
             if(strncmp(oam_command, "trace",5) == 0){
-                sscanf(oam_command, "trace %[^:]:%s %s %d", stream, mep_start, mep_stop, &level);
                 cmd_id++;
-                sprintf(resp, "OK %d, trace %s : %s -> %s, level %d\n", cmd_id, stream, mep_start, mep_stop, level);
+                if(oam_command[5]=='@'){
+                    sscanf(oam_command, "trace@%s %[^:]:%s %s %d", ifname, stream, mep_start, mep_stop, &level);
+                    oam_if = get_oam_if(ifname);
+                    if(oam_if==NULL){
+                        sprintf(resp,"Error: invalid interface name: %s\n", ifname);
+                        if (send(cmd_fd, resp, sizeof(resp), 0) == -1)
+                            perror("send");
+                        continue;
+                    }
+                    sprintf(resp, "OK %d, trace @[%s] %s : %s -> %s, level %d\n", cmd_id, ifname, stream, mep_start, mep_stop, level);
+                }else{
+                    sscanf(oam_command, "trace %[^:]:%s %s %d", stream, mep_start, mep_stop, &level);
+                    oam_if = oam_ifaces[0];
+                    sprintf(resp, "OK %d, trace %s : %s -> %s, level %d\n", cmd_id, stream, mep_start, mep_stop, level);
+                }
+                // acknowledge with session_id
                 if (send(cmd_fd, resp, sizeof(resp), 0) == -1)
                     perror("send");
                 // call the OAM trace function
-                oam_trace(cmd_id, stream, mep_start, mep_stop, level);
+                oam_trace(oam_if, cmd_id, stream, mep_start, mep_stop, level);
             }
             if(strncmp(oam_command, "discovery",9) == 0){
-                sscanf(oam_command, "discovery %[^:]:%s %s %d", stream, mep_start, mep_stop, &level);
                 cmd_id++;
-                sprintf(resp, "OK %d, discovery %s : %s -> %s, level %d\n", cmd_id, stream, mep_start, mep_stop, level);
+                if(oam_command[9]=='@'){
+                    sscanf(oam_command, "discovery@%s %[^:]:%s %s %d", ifname, stream, mep_start, mep_stop, &level);
+                    oam_if = get_oam_if(ifname);
+                    if(oam_if==NULL){
+                        sprintf(resp,"Error: invalid interface name: %s\n", ifname);
+                        if (send(cmd_fd, resp, sizeof(resp), 0) == -1)
+                            perror("send");
+                        continue;
+                    }
+                    sprintf(resp, "OK %d, discovery @[%s] %s : %s -> %s, level %d\n", cmd_id, ifname, stream, mep_start, mep_stop, level);
+                }else{
+                    sscanf(oam_command, "discovery %[^:]:%s %s %d", stream, mep_start, mep_stop, &level);
+                    oam_if = oam_ifaces[0];
+                    sprintf(resp, "OK %d, discovery %s : %s -> %s, level %d\n", cmd_id, stream, mep_start, mep_stop, level);
+                }
+                // acknowledge with session_id          
                 if (send(cmd_fd, resp, sizeof(resp), 0) == -1)
                     perror("send");
                 // call the OAM discovery function
-                oam_discovery(cmd_id, stream, mep_start, mep_stop, level);
+                oam_discovery(oam_if, cmd_id, stream, mep_start, mep_stop, level);
             }
         }
         else break;
@@ -204,8 +249,9 @@ int oam_command_loop(int cmd_fd){
 }
 
 
-int oam_ping(unsigned id, char *stream, char *mep_start, char *mep_stop, int level){
+int oam_ping(struct Interface *iface, unsigned id, char *stream, char *mep_start, char *mep_stop, int level){
     printf("OAM ping id %d, from %s : %s -> %s, level %d\n", id, stream, mep_start, mep_stop, level);
+    printf("OAM resp ip: %s, port: %u\n", oam_get_oam_ip(iface), oam_get_oam_port(iface));
 
     struct MepStart *mep = hashmap_find(mep_starts, mep_start);
     if (!mep)
@@ -265,18 +311,20 @@ int oam_ping(unsigned id, char *stream, char *mep_start, char *mep_stop, int lev
 /*   return 0; */
 /* } */
 
-int oam_trace(unsigned id, char *stream, char *mep_start, char *mep_stop, int level){
+int oam_trace(struct Interface *iface, unsigned id, char *stream, char *mep_start, char *mep_stop, int level){
   printf("OAM trace id %d, from %s : %s -> %s, level %d\n", id, stream, mep_start, mep_stop, level);
+  printf("OAM resp ip: %s, port: %u\n", oam_get_oam_ip(iface), oam_get_oam_port(iface));
 
-  char addr[]="127.0.0.1";
   char msg[]="hello world";
-  oam_send_reply(addr, msg);
+  oam_send_reply(oam_get_oam_ip(iface), oam_get_oam_port(iface), msg);
 
   return 0;
 }
 
-int oam_discovery(unsigned id, char *stream, char *mep_start, char *mep_stop, int level){
+int oam_discovery(struct Interface *iface, unsigned id, char *stream, char *mep_start, char *mep_stop, int level){
   printf("OAM discovery id %d, from %s : %s -> %s, level %d\n", id, stream, mep_start, mep_stop, level);
+  printf("OAM resp ip: %s, port: %u\n", oam_get_oam_ip(iface), oam_get_oam_port(iface));
+
   return 0;
 }
 
@@ -298,13 +346,13 @@ int oam_recv_reply(char *msg){
  * Msg: pointer to the message
  * Return 0 on success
 */
-int oam_send_reply(char *address, char *msg){
+int oam_send_reply(char *address, unsigned port, char *msg){
 
   struct addrinfo hints, *res, *rp;
   int status;
 
   char port_str[15];
-  sprintf(port_str, "%u", OAM_PORT);
+  sprintf(port_str, "%u", port);
   bzero(&hints, sizeof(hints));
   hints.ai_family = AF_INET; // AF_INET to force version
   hints.ai_socktype = SOCK_DGRAM;

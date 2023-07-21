@@ -28,19 +28,35 @@
 #include <netdb.h>
 
 
-void *get_in_addr(struct sockaddr *sa);
+//void *get_in_addr(struct sockaddr *sa);
 
 struct OamIfData {
     //int oam_cmd_fd;
     struct Interface *oam_cmd_iface;
     unsigned port;
     int family;
-    char *oam_ip;  // hold IP address in text format
+    char *oam_ip_str;  // hold IP address in text format
     union {
         struct in_addr v4;
         struct in6_addr v6;
     } srcip;
 };
+
+char *oam_get_oam_ip(struct Interface *iface)
+{
+    struct OamIfData *oid = iface->iface_private;
+    if(iface!=NULL)
+        return oid->oam_ip_str;
+    return NULL;
+}
+
+unsigned oam_get_oam_port(struct Interface *iface)
+{
+    struct OamIfData *oid = iface->iface_private;
+    if(iface!=NULL)
+        return oid->port;
+    return 0;
+}
 
 static struct Packet *oam_recv(struct Interface *iface)
 {
@@ -87,7 +103,7 @@ static bool oam_open(struct Interface *iface)
         return false;
     }
 
-/*
+/*  ... if we want to verify that interface has the right IP, this will be needed
     struct ifaddrs *ifaddr;
     if (iface->ifname != 0) {
         struct ifreq  if_idx;
@@ -190,7 +206,6 @@ static value_producer *oam_get_property_reader(const struct Interface *iface, co
                                                enum ProtocolFieldType target_type, const struct Value *target)
 {
     struct OamIfData *oid = iface->iface_private;
-
     if (strcmp(property, "port") == 0) {
         if (target_type != FT_NUMBER) {
             fprintf(stderr, "oam_get_property_reader 'port' target type %d invalid\n", target_type);
@@ -240,7 +255,7 @@ bool init_oam_interface(struct Interface *iface, const char *name, const char *i
 
     struct OamIfData *oid = calloc_struct(OamIfData);
     iface->iface_private = oid;
-    oid->oam_ip = strdup(oam_ip);
+    oid->oam_ip_str = strdup(oam_ip);
     oid->port = port;
     oid->family = ipversion == 6 ? AF_INET6 : AF_INET;
     oid->oam_cmd_iface = cmd_iface;

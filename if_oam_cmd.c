@@ -260,6 +260,7 @@ bool init_oam_cmd_interface(struct Interface *iface, const char *name, const cha
     iface->iface_private = oid;
     oid->port = port;
     oid->family = ipversion == 6 ? AF_INET6 : AF_INET;
+    printf("Family: %d\n", oid->family );
     if(oid->family == AF_INET6){
       inet_pton(AF_INET6, oam_cmd_ip, &(oid->srcip.v6));
     } else {
