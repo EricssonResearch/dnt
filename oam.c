@@ -15,6 +15,7 @@
 #include "packet.h"
 #include "protocol.h"
 #include "seq_gen.h"
+#include "seq_recov.h"
 #include "utils.h"
 
 #include <stdio.h>
@@ -31,6 +32,7 @@
 #include <sys/types.h>
 #include <netdb.h>
 
+#define OAM_RCVY_RESET_MS 5000
 
 struct MepStart {
     char *name;
@@ -45,6 +47,10 @@ int nr_oam_ifaces = 0;
 struct Interface *oam_ifaces[16];
 struct Interface *oam_cmd_iface = NULL;
 struct HashMap *mep_starts = NULL; // name -> struct MEPStart
+
+// TODO: make struct OamSession if more per-session info needed for MEP/MIP.
+// currently the only state of the session is the seq recovery
+struct HashMap *oam_seq_recoveries = NULL; // session_id -> struct SequenceRecovery
 
 unsigned cmd_id = 1000;
 
@@ -76,6 +82,29 @@ struct Interface *get_oam_if(const char *name)
     }
     return NULL;
 }
+
+
+struct SequenceRecovery *get_oam_rcvy(char *session_id)
+{
+    if (oam_seq_recoveries == NULL)
+        oam_seq_recoveries = new_hashmap(51, NULL, NULL);
+    struct SequenceRecovery *rec = hashmap_find(oam_seq_recoveries, session_id);
+    if (rec == NULL) {
+        rec = new_seq_rec(RCVY_Match, false, false, 0, OAM_RCVY_RESET_MS, 0, session_id);
+        hashmap_insert(oam_seq_recoveries, session_id, rec);
+    }
+    return rec;
+}
+
+void delete_oam_rcvy(char *session_id)
+{
+    struct SequenceRecovery *rec = hashmap_find(oam_seq_recoveries, session_id);
+    if (rec) {
+        hashmap_remove(oam_seq_recoveries, session_id);
+        delete_seq_rec(rec);
+    }
+}
+
 
 void oam_create_mep_start(const char *stream_name, const char *mep_name, int level, unsigned idx)
 {
@@ -113,69 +142,6 @@ void oam_set_pipeline_for_mep_start(const char *stream_name, struct Pipeline *pi
     struct SetPipeParam params = {stream_name, pipe};
     hashmap_foreach(mep_starts, set_pipe_cb, &params);
 }
-
-const char help_str[]="Available commands:\nhelp - get help\nexit - exit OAM\nping <stream:mep-start> <mep-stop/mip/any> <level>\ntrace <stream:mep-start> <mep-stop/mip> <level>\ndiscovery <stream:mep-start> <mep-stop/mip> <level>\n";
-
-int oam_command_loop(int cmd_fd){
-    char oam_command[255];
-    char stream[32],mep_start[32], mep_stop[32];
-    char resp[255];
-    int level;
-    int n;
-
-    if (send(cmd_fd, "OAM ready.\n", 12, 0) == -1)
-        perror("send");
-
-    while (true) {
-        n = read(cmd_fd, oam_command, sizeof(oam_command));
-        if (n > 0) {
-            if(strncmp(oam_command, "exit",4) == 0){
-                if (send(cmd_fd, "Exiting.\n", 9, 0) == -1)
-                    perror("send");
-                break;
-            }
-            if(strncmp(oam_command, "help",4) == 0){
-                if (send(cmd_fd, help_str, sizeof(help_str), 0) == -1)
-                    perror("send");
-            }
-            if(strncmp(oam_command, "ping",4) == 0){
-                sscanf(oam_command, "ping %[^:]:%s %s %d", stream, mep_start, mep_stop, &level);
-                cmd_id++;
-                sprintf(resp, "OK %d, ping %s : %s -> %s, level %d\n", cmd_id, stream, mep_start, mep_stop, level);
-                if (send(cmd_fd, resp, sizeof(resp), 0) == -1)
-                    perror("send");
-                // call the OAM ping function
-                int ret = oam_ping(cmd_id, stream, mep_start, mep_stop, level);
-                if (ret < 0) {
-                    sprintf(resp, "Err %d: invalid argument\n", cmd_id);
-                    if (send(cmd_fd, resp, sizeof(resp), 0) == -1)
-                        perror("send");
-                }
-            }
-            if(strncmp(oam_command, "trace",5) == 0){
-                sscanf(oam_command, "trace %[^:]:%s %s %d", stream, mep_start, mep_stop, &level);
-                cmd_id++;
-                sprintf(resp, "OK %d, trace %s : %s -> %s, level %d\n", cmd_id, stream, mep_start, mep_stop, level);
-                if (send(cmd_fd, resp, sizeof(resp), 0) == -1)
-                    perror("send");
-                // call the OAM trace function
-                oam_trace(cmd_id, stream, mep_start, mep_stop, level);
-            }
-            if(strncmp(oam_command, "discovery",9) == 0){
-                sscanf(oam_command, "discovery %[^:]:%s %s %d", stream, mep_start, mep_stop, &level);
-                cmd_id++;
-                sprintf(resp, "OK %d, discovery %s : %s -> %s, level %d\n", cmd_id, stream, mep_start, mep_stop, level);
-                if (send(cmd_fd, resp, sizeof(resp), 0) == -1)
-                    perror("send");
-                // call the OAM discovery function
-                oam_discovery(cmd_id, stream, mep_start, mep_stop, level);
-            }
-        }
-        else break;
-    }
-    return 0;
-}
-
 
 int oam_ping(unsigned id, char *stream, char *mep_start, char *mep_stop, int level){
     printf("OAM ping id %d, from %s : %s -> %s, level %d\n", id, stream, mep_start, mep_stop, level);
@@ -240,11 +206,6 @@ int oam_ping(unsigned id, char *stream, char *mep_start, char *mep_stop, int lev
 
 int oam_trace(unsigned id, char *stream, char *mep_start, char *mep_stop, int level){
   printf("OAM trace id %d, from %s : %s -> %s, level %d\n", id, stream, mep_start, mep_stop, level);
-
-  char addr[]="127.0.0.1";
-  char msg[]="hello world";
-  oam_send_reply(addr, msg);
-
   return 0;
 }
 
@@ -253,18 +214,6 @@ int oam_discovery(unsigned id, char *stream, char *mep_start, char *mep_stop, in
   return 0;
 }
 
-/*
- * Handle received UDP OAM reply mesage
- * Msg: pointer to the message
- * Return 0 on success
-*/
-int oam_recv_reply(char *msg){
-
-  if(oam_cmd_iface != NULL)
-    return oam_cmd_recv_reply(oam_cmd_iface, msg);
-  else
-    return -1;
-}
 /*
  * Send UDP OAM reply mesage
  * Address: destination address string (can be either IPV4, IPv6, or FQDN)
