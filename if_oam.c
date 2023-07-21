@@ -41,20 +41,16 @@ struct OamIfData {
     } srcip;
 };
 
-char *oam_get_oam_ip(struct Interface *iface)
+const char *oam_get_oam_ip(const struct Interface *iface)
 {
     struct OamIfData *oid = iface->iface_private;
-    if(iface!=NULL)
-        return oid->oam_ip_str;
-    return NULL;
+    return oid->oam_ip_str;
 }
 
-unsigned oam_get_oam_port(struct Interface *iface)
+unsigned oam_get_oam_port(const struct Interface *iface)
 {
     struct OamIfData *oid = iface->iface_private;
-    if(iface!=NULL)
-        return oid->port;
-    return 0;
+    return oid->port;
 }
 
 static struct Packet *oam_recv(struct Interface *iface)

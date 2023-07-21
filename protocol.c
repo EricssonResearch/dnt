@@ -219,7 +219,7 @@ const struct Protocol protocol_list[] = {
     {"ipv6", ipv6_fields, ARRAY_SIZE(ipv6_fields), 40, 0, NULL, NULL}, //TODO next header field
     {"arp", arp_fields, ARRAY_SIZE(arp_fields), 28, 0, NULL, NULL}, //TODO this is variable-length
     {"udp", udp_fields, ARRAY_SIZE(udp_fields), 8, 0, NULL, NULL},
-    {"oam", oam_fields, ARRAY_SIZE(oam_fields), 4, 0, NULL, NULL},
+    {"oam", oam_fields, ARRAY_SIZE(oam_fields), 8, 0, NULL, NULL},
 };
 
 const unsigned protocol_count = ARRAY_SIZE(protocol_list);

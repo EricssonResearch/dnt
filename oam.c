@@ -34,6 +34,8 @@
 #include <netdb.h>
 
 #define OAM_RCVY_RESET_MS 5000
+#define OAM_PING_TTL 64
+#define OAM_CHANNEL 1 /* Management Communication Channel (MCC), similar format to ours */
 
 struct MepStart {
     char *name;
@@ -142,6 +144,33 @@ void oam_set_pipeline_for_mep_start(const char *stream_name, struct Pipeline *pi
     hashmap_foreach(mep_starts, set_pipe_cb, &params);
 }
 
+static int add_fixed_headers(struct Packet *packet, unsigned char ttl,
+        unsigned char seq, unsigned short channel, unsigned short nodeid,
+        unsigned char level, unsigned char session)
+{
+    unsigned int proto_id = PROTO_ID_MPLS;
+    packet_add_header(packet, 0, proto_id, protocol_list[proto_id].bytelength);
+    proto_id = PROTO_ID_OAM;
+    packet_add_header(packet, 1, proto_id, protocol_list[proto_id].bytelength);
+
+    unsigned char *mpls = packet->buf + packet->headers[0].start;
+    mpls[0] = 0;
+    mpls[1] = 0;
+    mpls[2] = 1; // BOS
+    mpls[3] = ttl;
+    unsigned char *oam  = packet->buf + packet->headers[1].start;
+    oam[0] = 0x11; // indicator and version
+    oam[1] = seq;
+    oam[2] = (channel>>8) & 0xff;
+    oam[3] = channel & 0xff;
+    oam[4] = (nodeid>>8) & 0xff;
+    oam[5] = nodeid & 0xff;
+    oam[6] = (level & 0x07) << 1;
+    oam[7] = session & 0x0f;
+
+    return 0;
+}
+
 
 static int oam_ping(struct Interface *iface, unsigned id, char *stream, char *mep_start, char *mep_stop, int level)
 {
@@ -155,12 +184,35 @@ static int oam_ping(struct Interface *iface, unsigned id, char *stream, char *me
     if (!pipe)
         return -EINVAL;
 
-    // TODO: set proper payload/header fields
     struct Packet *packet = new_packet(NULL);
-    unsigned int proto_id = PROTO_ID_MPLS;
-    packet_add_header(packet, 0, proto_id, protocol_list[proto_id].bytelength);
-    proto_id = PROTO_ID_OAM;
-    packet_add_header(packet, 0, proto_id, protocol_list[proto_id].bytelength);
+    const char *return_ip = oam_get_oam_ip(iface);
+    unsigned return_port = oam_get_oam_port(iface);
+    add_fixed_headers(packet, OAM_PING_TTL, 0, OAM_CHANNEL,
+            42, //TODO nodeid is the lower 2 octets of the return address
+            level, id);
+
+    struct JsonValue *js = json_object();
+    json_object_insert(js, "command", json_string("ping"));
+    json_object_insert(js, "target", json_string(mep_stop));
+    //TODO target node id
+    json_object_insert(js, "level", json_number(level));
+    struct JsonValue *jret = json_object();
+    json_object_insert(jret, "ip", json_string(return_ip));
+    json_object_insert(jret, "port", json_number(return_port));
+    json_object_insert(js, "return", jret);
+    unsigned js_length;
+    char *js_string = json_serialize(js, &js_length);
+    json_delete(js);
+    if (js_string == NULL) {
+        //TODO can this happen?
+        delete_packet(packet);
+        return -ENOMSG;
+    }
+    packet_add_header(packet, 2, PROTO_ID_PAYLOAD, js_length);
+    unsigned char *msg = packet->buf + packet->headers[2].start;
+    memcpy(msg, js_string, js_length);
+    free(js_string);
+
     struct PipelineIterator *pi = new_pipe_iterator(pipe, packet);
     pi->pos = mep->pipe_pos_idx;
 
@@ -369,7 +421,7 @@ int oam_recv_reply(char *msg)
  * Msg: pointer to the message
  * Return 0 on success
 */
-int oam_send_reply(char *address, unsigned port, char *msg)
+int oam_send_reply(const char *address, unsigned port, char *msg)
 {
   struct addrinfo hints, *res, *rp;
   int status;
