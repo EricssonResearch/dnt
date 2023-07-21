@@ -114,7 +114,6 @@ static struct Packet *oam_cmd_recv(struct Interface *iface)
         return false;
     }
 
-
     return NULL;
 }
 
@@ -180,18 +179,22 @@ static bool oam_cmd_open(struct Interface *iface)
         if (family == AF_INET6) {
             struct in6_addr *a6 = &((struct sockaddr_in6*)(ifa->ifa_addr))->sin6_addr;
             if (IN6_IS_ADDR_LINKLOCAL(a6)) continue;
-            oid->srcip.v6 = *a6;
+            // If not "INADDR6_ANY" given, check to match IPv6 address
+            if ((!IN6_IS_ADDR_UNSPECIFIED(&oid->srcip.v6)) && (memcmp(&oid->srcip.v6, a6, sizeof(struct in6_addr)) != 0))
+                continue;
             srcip_set = true;
             break;
         } else if (family == AF_INET) {
-            oid->srcip.v4 = ((struct sockaddr_in*)(ifa->ifa_addr))->sin_addr;
+            // If not "INADDR_ANY" given, check to match IPv4 address
+            if( (oid->srcip.v4.s_addr != INADDR_ANY) && (oid->srcip.v4.s_addr != ((struct sockaddr_in*)(ifa->ifa_addr))->sin_addr.s_addr) )
+                continue;
             srcip_set = true;
             break;
         }
     }
     freeifaddrs(ifaddr);
     if (!srcip_set) {
-        fprintf(stderr, "open oam cmd interface %s: no address on interface %s\n", iface->name, iface->ifname);
+        fprintf(stderr, "open oam cmd interface %s: no address or address mismatch on interface\n", iface->name);
         close(sock);
         return false;
     }
@@ -200,7 +203,7 @@ static bool oam_cmd_open(struct Interface *iface)
         struct sockaddr_in6 addr6;
         memset(&addr6, 0, sizeof(addr6));
         addr6.sin6_family = AF_INET6;
-        addr6.sin6_addr = in6addr_any;
+        addr6.sin6_addr = oid->srcip.v6;
         addr6.sin6_port = htons(oid->port);
         if (bind(sock, (struct sockaddr*)&addr6, sizeof(addr6)) < 0) {
             perror("oam bind sock6");
@@ -210,7 +213,7 @@ static bool oam_cmd_open(struct Interface *iface)
         struct sockaddr_in addr;
         memset(&addr, 0, sizeof(addr));
         addr.sin_family = AF_INET;
-        addr.sin_addr.s_addr = htonl(INADDR_ANY);
+        addr.sin_addr = oid->srcip.v4;
         addr.sin_port = htons(oid->port);
         if (bind(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
             perror("oam bind sock");

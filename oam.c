@@ -17,6 +17,7 @@
 #include "seq_gen.h"
 #include "seq_recov.h"
 #include "utils.h"
+#include "json.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -141,7 +142,7 @@ void oam_set_pipeline_for_mep_start(const char *stream_name, struct Pipeline *pi
     hashmap_foreach(mep_starts, set_pipe_cb, &params);
 }
 
-const char help_str[]="Available commands:\nhelp - get help\nexit - exit OAM\nping <stream:mep-start> <mep-stop/mip/any> <level>\ntrace <stream:mep-start> <mep-stop/mip> <level>\ndiscovery <stream:mep-start> <mep-stop/mip> <level>\n";
+const char help_str[]="Available commands:\nhelp - get help\nexit - exit OAM\nping[@if] <stream:mep-start> <mep-stop/mip/any> <level>\ntrace[@if] <stream:mep-start> <mep-stop/mip> <level>\ndiscovery[@if] <stream:mep-start> <mep-stop/mip> <level>\n";
 
 int oam_command_loop(int cmd_fd){
     char oam_command[255];
@@ -236,7 +237,7 @@ int oam_command_loop(int cmd_fd){
                     oam_if = oam_ifaces[0];
                     sprintf(resp, "OK %d, discovery %s : %s -> %s, level %d\n", cmd_id, stream, mep_start, mep_stop, level);
                 }
-                // acknowledge with session_id          
+                // acknowledge with session_id
                 if (send(cmd_fd, resp, sizeof(resp), 0) == -1)
                     perror("send");
                 // call the OAM discovery function
@@ -313,9 +314,8 @@ int oam_ping(struct Interface *iface, unsigned id, char *stream, char *mep_start
 
 int oam_trace(struct Interface *iface, unsigned id, char *stream, char *mep_start, char *mep_stop, int level){
   printf("OAM trace id %d, from %s : %s -> %s, level %d\n", id, stream, mep_start, mep_stop, level);
-  printf("OAM resp ip: %s, port: %u\n", oam_get_oam_ip(iface), oam_get_oam_port(iface));
 
-  char msg[]="hello world";
+  char msg[]="{ \"seq_id\": 1002, \"type\": \"mip\", \"name\": \"mip02\", \"message\": \"ping\", \"object\": { \"type\": \"replicate\", \"name\": \"prf3\", \"passed\": 34 } }\n";
   oam_send_reply(oam_get_oam_ip(iface), oam_get_oam_port(iface), msg);
 
   return 0;
@@ -334,6 +334,15 @@ int oam_discovery(struct Interface *iface, unsigned id, char *stream, char *mep_
  * Return 0 on success
 */
 int oam_recv_reply(char *msg){
+
+  struct JsonValue *j = json_parse(msg, strlen(msg));
+  struct JsonValue *val = hashmap_find(j->v.object, "seq_id");
+  if(val!=NULL)
+      printf("seq_id: %f\n", val->v.number);
+  val = hashmap_find(j->v.object, "type");
+  if(val!=NULL)
+      printf("msg type: %s\n", val->v.string);
+  json_delete(j);
 
   if(oam_cmd_iface != NULL)
     return oam_cmd_recv_reply(oam_cmd_iface, msg);
@@ -354,9 +363,9 @@ int oam_send_reply(char *address, unsigned port, char *msg){
   char port_str[15];
   sprintf(port_str, "%u", port);
   bzero(&hints, sizeof(hints));
-  hints.ai_family = AF_INET; // AF_INET to force version
+  hints.ai_family = PF_UNSPEC;     // can be ipv4 or ipv6
   hints.ai_socktype = SOCK_DGRAM;
-  hints.ai_flags = AI_PASSIVE;     // fill in my IP for me
+  hints.ai_flags = AI_PASSIVE;
   if ((status = getaddrinfo(address, port_str, &hints, &res)) != 0) {
     fprintf(stderr, "oam_send_reply getaddrinfo for address '%s': %s\n", address, gai_strerror(status));
     return -1;
