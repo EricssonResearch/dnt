@@ -23,9 +23,6 @@ struct Oam {
 
 bool init_oam(struct R2d2Config *config);
 
-int oam_ping(struct Interface *iface, unsigned id, char *stream, char *mep_start, char *mep_stop, int level);
-int oam_trace(struct Interface *iface, unsigned id, char *stream, char *mep_start, char *mep_stop, int level);
-int oam_discovery(struct Interface *iface, unsigned id, char *stream, char *mep_start, char *mep_stop, int level);
 int oam_send_reply(char *address, unsigned port, char *msg);
 int oam_recv_reply(char *msg);
 int oam_command_loop(int cmd_fd);

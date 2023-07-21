@@ -11,8 +11,8 @@ struct Interface;
 
 #define OAM_PORT      6634
 
-bool init_oam_interface(struct Interface *iface, const char *name, const char *ifname,
-        const char *oam_ip, unsigned port, unsigned ipversion, struct Interface *cmd_iface);
+bool init_oam_interface(struct Interface *iface, const char *name,
+        const char *oam_ip, unsigned port, unsigned ipversion);
 
 char *oam_get_oam_ip(struct Interface *iface);
 unsigned oam_get_oam_port(struct Interface *iface);

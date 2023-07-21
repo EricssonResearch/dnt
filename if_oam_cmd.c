@@ -228,6 +228,7 @@ static bool oam_cmd_open(struct Interface *iface)
 
     iface->recvfd = sock;
     iface->state = IFS_OPEN;
+    set_oam_cmd_if(iface);
     return true;
 }
 
@@ -270,7 +271,6 @@ bool init_oam_cmd_interface(struct Interface *iface, const char *name, const cha
       inet_pton(AF_INET, oam_cmd_ip, &(oid->srcip.v4));
     }
     oid->oam_cmd_fd = -1;
-    set_oam_cmd_if(iface);
 
     return true;
 }

@@ -142,9 +142,100 @@ void oam_set_pipeline_for_mep_start(const char *stream_name, struct Pipeline *pi
     hashmap_foreach(mep_starts, set_pipe_cb, &params);
 }
 
-const char help_str[]="Available commands:\nhelp - get help\nexit - exit OAM\nping[@if] <stream:mep-start> <mep-stop/mip/any> <level>\ntrace[@if] <stream:mep-start> <mep-stop/mip> <level>\ndiscovery[@if] <stream:mep-start> <mep-stop/mip> <level>\n";
 
-int oam_command_loop(int cmd_fd){
+static int oam_ping(struct Interface *iface, unsigned id, char *stream, char *mep_start, char *mep_stop, int level)
+{
+    printf("OAM ping id %d, from %s : %s -> %s, level %d\n", id, stream, mep_start, mep_stop, level);
+    printf("OAM resp ip: %s, port: %u\n", oam_get_oam_ip(iface), oam_get_oam_port(iface));
+
+    struct MepStart *mep = hashmap_find(mep_starts, mep_start);
+    if (!mep)
+        return -EINVAL;
+    struct Pipeline *pipe = mep->pipe;
+    if (!pipe)
+        return -EINVAL;
+
+    // TODO: set proper payload/header fields
+    struct Packet *packet = new_packet(NULL);
+    unsigned int proto_id = PROTO_ID_MPLS;
+    packet_add_header(packet, 0, proto_id, protocol_list[proto_id].bytelength);
+    proto_id = PROTO_ID_OAM;
+    packet_add_header(packet, 0, proto_id, protocol_list[proto_id].bytelength);
+    struct PipelineIterator *pi = new_pipe_iterator(pipe, packet);
+    pi->pos = mep->pipe_pos_idx;
+
+    pipe_iterator_run(pi);
+    return 0;
+}
+
+
+/* int oam_ping(unsigned id, char *stream, char *mep_start, char *mep_stop, int level){ */
+/*   printf("OAM ping id %d, from %s : %s -> %s, level %d\n", id, stream, mep_start, mep_stop, level); */
+/**/
+  /* TODO : remove, just for  testing ->  */
+/**/
+/*   char msg[]="This is an OAM reply test message.\n\0"; */
+/**/
+  // get OAM dest IP */
+/*   char addr[INET_ADDRSTRLEN]; */
+/*   struct sockaddr_in saddr; */
+/*   struct Value ip = {&saddr.sin_addr, 0, 32}; */
+/*   if(nr_oam_ifaces > 0){ */
+/*     value_producer *read = oam_ifaces[0]->get_property_reader(oam_ifaces[0], "ip", FT_IPV4ADDRESS, &ip); */
+/*     if (read == NULL) { */
+/*       printf("interface %s has no property named 'ip'", oam_ifaces[0]->name); */
+/*     } */
+/*     unsigned int act_idx; */
+/*     struct Action *a = find_mep_start(oid->config, stream, mep_start, &act_idx); */
+/*     if (!a) { */
+/*         return -EINVAL; */
+/*     } */
+/*     // Using OAM CMD interface as egress, allocating the OAM packet here */
+/*     // The MEP Start action act on source interface type */
+/*     struct Packet *packet = new_packet(if_oam_cmd); */
+/*     unsigned int proto_id = PROTO_ID_MPLS; */
+/*     packet_add_header(packet, 0, proto_id, protocol_list[proto_id].bytelength); */
+/*     proto_id = PROTO_ID_OAM; */
+/*     packet_add_header(packet, 0, proto_id, protocol_list[proto_id].bytelength); */
+/*     struct PipelineIterator *pi = new_pipe_iterator(pipe, packet); */
+/**/
+/*   oam_send_reply(addr, msg); */
+  /*   <- testing   */
+/**/
+/**/
+/*   return 0; */
+/* } */
+
+static int oam_trace(struct Interface *iface, unsigned id, char *stream, char *mep_start, char *mep_stop, int level)
+{
+  printf("OAM trace id %d, from %s : %s -> %s, level %d\n", id, stream, mep_start, mep_stop, level);
+
+  char msg[]="{ \"seq_id\": 1002, \"type\": \"mip\", \"name\": \"mip02\", \"message\": \"ping\", \"object\": { \"type\": \"replicate\", \"name\": \"prf3\", \"passed\": 34 } }\n";
+  oam_send_reply(oam_get_oam_ip(iface), oam_get_oam_port(iface), msg);
+
+  return 0;
+}
+
+static int oam_discovery(struct Interface *iface, unsigned id, char *stream, char *mep_start, char *mep_stop, int level)
+{
+  printf("OAM discovery id %d, from %s : %s -> %s, level %d\n", id, stream, mep_start, mep_stop, level);
+  printf("OAM resp ip: %s, port: %u\n", oam_get_oam_ip(iface), oam_get_oam_port(iface));
+
+  return 0;
+}
+
+static const char welcome_str[] = "OAM ready.\n";
+
+static const char help_str[] =
+    "Available commands:\n"
+    "help - get help\n"
+    "exit - exit OAM\n"
+    "ping[@if] <stream:mep-start> <mep-stop/mip/any> <level>\n"
+    "trace[@if] <stream:mep-start> <mep-stop/mip> <level>\n"
+    "discovery[@if] <stream:mep-start> <mep-stop/mip> <level>\n";
+
+int oam_command_loop(int cmd_fd)
+{
     char oam_command[255];
     char stream[32],mep_start[32], mep_stop[32], ifname[32];
     char resp[255];
@@ -152,7 +243,7 @@ int oam_command_loop(int cmd_fd){
     int n;
     struct Interface *oam_if;
 
-    if (send(cmd_fd, "OAM ready.\n", 12, 0) == -1)
+    if (send(cmd_fd, welcome_str, sizeof(welcome_str), 0) == -1)
         perror("send");
 
     ifname[0]=0;  // init to empty string
@@ -250,95 +341,17 @@ int oam_command_loop(int cmd_fd){
 }
 
 
-int oam_ping(struct Interface *iface, unsigned id, char *stream, char *mep_start, char *mep_stop, int level){
-    printf("OAM ping id %d, from %s : %s -> %s, level %d\n", id, stream, mep_start, mep_stop, level);
-    printf("OAM resp ip: %s, port: %u\n", oam_get_oam_ip(iface), oam_get_oam_port(iface));
-
-    struct MepStart *mep = hashmap_find(mep_starts, mep_start);
-    if (!mep)
-        return -EINVAL;
-    struct Pipeline *pipe = mep->pipe;
-    if (!pipe)
-        return -EINVAL;
-
-    // TODO: set proper payload/header fields
-    struct Packet *packet = new_packet(NULL);
-    unsigned int proto_id = PROTO_ID_MPLS;
-    packet_add_header(packet, 0, proto_id, protocol_list[proto_id].bytelength);
-    proto_id = PROTO_ID_OAM;
-    packet_add_header(packet, 0, proto_id, protocol_list[proto_id].bytelength);
-    struct PipelineIterator *pi = new_pipe_iterator(pipe, packet);
-    pi->pos = mep->pipe_pos_idx;
-
-    pipe_iterator_run(pi);
-    return 0;
-}
-
-
-/* int oam_ping(unsigned id, char *stream, char *mep_start, char *mep_stop, int level){ */
-/*   printf("OAM ping id %d, from %s : %s -> %s, level %d\n", id, stream, mep_start, mep_stop, level); */
-/**/
-  /* TODO : remove, just for  testing ->  */
-/**/
-/*   char msg[]="This is an OAM reply test message.\n\0"; */
-/**/
-  // get OAM dest IP */
-/*   char addr[INET_ADDRSTRLEN]; */
-/*   struct sockaddr_in saddr; */
-/*   struct Value ip = {&saddr.sin_addr, 0, 32}; */
-/*   if(nr_oam_ifaces > 0){ */
-/*     value_producer *read = oam_ifaces[0]->get_property_reader(oam_ifaces[0], "ip", FT_IPV4ADDRESS, &ip); */
-/*     if (read == NULL) { */
-/*       printf("interface %s has no property named 'ip'", oam_ifaces[0]->name); */
-/*     } */
-/*     unsigned int act_idx; */
-/*     struct Action *a = find_mep_start(oid->config, stream, mep_start, &act_idx); */
-/*     if (!a) { */
-/*         return -EINVAL; */
-/*     } */
-/*     // Using OAM CMD interface as egress, allocating the OAM packet here */
-/*     // The MEP Start action act on source interface type */
-/*     struct Packet *packet = new_packet(if_oam_cmd); */
-/*     unsigned int proto_id = PROTO_ID_MPLS; */
-/*     packet_add_header(packet, 0, proto_id, protocol_list[proto_id].bytelength); */
-/*     proto_id = PROTO_ID_OAM; */
-/*     packet_add_header(packet, 0, proto_id, protocol_list[proto_id].bytelength); */
-/*     struct PipelineIterator *pi = new_pipe_iterator(pipe, packet); */
-/**/
-/*   oam_send_reply(addr, msg); */
-  /*   <- testing   */
-/**/
-/**/
-/*   return 0; */
-/* } */
-
-int oam_trace(struct Interface *iface, unsigned id, char *stream, char *mep_start, char *mep_stop, int level){
-  printf("OAM trace id %d, from %s : %s -> %s, level %d\n", id, stream, mep_start, mep_stop, level);
-
-  char msg[]="{ \"seq_id\": 1002, \"type\": \"mip\", \"name\": \"mip02\", \"message\": \"ping\", \"object\": { \"type\": \"replicate\", \"name\": \"prf3\", \"passed\": 34 } }\n";
-  oam_send_reply(oam_get_oam_ip(iface), oam_get_oam_port(iface), msg);
-
-  return 0;
-}
-
-int oam_discovery(struct Interface *iface, unsigned id, char *stream, char *mep_start, char *mep_stop, int level){
-  printf("OAM discovery id %d, from %s : %s -> %s, level %d\n", id, stream, mep_start, mep_stop, level);
-  printf("OAM resp ip: %s, port: %u\n", oam_get_oam_ip(iface), oam_get_oam_port(iface));
-
-  return 0;
-}
-
 /*
  * Handle received UDP OAM reply mesage
  * Msg: pointer to the message
  * Return 0 on success
 */
-int oam_recv_reply(char *msg){
-
+int oam_recv_reply(char *msg)
+{
   struct JsonValue *j = json_parse(msg, strlen(msg));
   struct JsonValue *val = hashmap_find(j->v.object, "seq_id");
   if(val!=NULL)
-      printf("seq_id: %f\n", val->v.number);
+      printf("seq_id: %.0f\n", val->v.number);
   val = hashmap_find(j->v.object, "type");
   if(val!=NULL)
       printf("msg type: %s\n", val->v.string);
@@ -349,14 +362,15 @@ int oam_recv_reply(char *msg){
   else
     return -1;
 }
+
 /*
  * Send UDP OAM reply mesage
  * Address: destination address string (can be either IPV4, IPv6, or FQDN)
  * Msg: pointer to the message
  * Return 0 on success
 */
-int oam_send_reply(char *address, unsigned port, char *msg){
-
+int oam_send_reply(char *address, unsigned port, char *msg)
+{
   struct addrinfo hints, *res, *rp;
   int status;
 
@@ -376,6 +390,7 @@ int oam_send_reply(char *address, unsigned port, char *msg){
       sock = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
       if (sock < 0) continue;
 
+      //TODO if getaddrinfo() returns multiple items, this will send to each one
     if (sendto(sock, msg, strlen(msg), 0, rp->ai_addr, rp->ai_addrlen) == 0) {
         perror("oam repy sendto");
         freeaddrinfo(res);
@@ -391,7 +406,8 @@ int oam_send_reply(char *address, unsigned port, char *msg){
 
 
 // Initialize OAM functionality
-bool init_oam(struct R2d2Config *config){
+bool init_oam(struct R2d2Config *config)
+{
     printf("Init OAM fuctionality.\n");
     (void)config;
 

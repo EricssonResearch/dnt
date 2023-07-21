@@ -5,14 +5,6 @@
 #ifndef R2_IF_OAM_CMD_H
 #define R2_IF_OAM_CMD_H
 
-#include "configfile.h"
-#include "hashmap.h"
-#include <stdbool.h>
-#include <sys/socket.h>
-#include <sys/ioctl.h>
-#include <net/if.h> /* struct ifreq */
-#include <arpa/inet.h> /* ntohs() */
-
 struct Interface;
 
 #define OAM_CMD_PORT  8000

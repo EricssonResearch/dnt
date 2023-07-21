@@ -32,7 +32,6 @@
 
 struct OamIfData {
     //int oam_cmd_fd;
-    struct Interface *oam_cmd_iface;
     unsigned port;
     int family;
     char *oam_ip_str;  // hold IP address in text format
@@ -86,10 +85,7 @@ static bool oam_open(struct Interface *iface)
         fprintf(stderr, "open OAM interface %s: already opened\n", iface->name);
         return false;
     }
-    //    if (iface->parse_interfacestree == NULL) {
-    //        fprintf(stderr, "oam interface %s: no parsetree, expect trouble\n", iface->name);
-    //TODO fatal?
-    //    }
+
     int sock = socket(oid->family, SOCK_DGRAM, 0);
     if (sock < 0) {
         perror("oam socket");
@@ -175,6 +171,7 @@ static bool oam_open(struct Interface *iface)
 
     iface->recvfd = sock;
     iface->state = IFS_OPEN;
+    add_oam_if(iface);
     return true;
 }
 
@@ -236,15 +233,11 @@ static value_producer *oam_get_property_reader(const struct Interface *iface, co
     return NULL;
 }
 
-bool init_oam_interface(struct Interface *iface, const char *name, const char *ifname,
-                        const char *oam_ip, unsigned port, unsigned ipversion, struct Interface *cmd_iface)
+bool init_oam_interface(struct Interface *iface, const char *name,
+                        const char *oam_ip, unsigned port, unsigned ipversion)
 {
     bzero(iface, sizeof(*iface));
     iface->name = strdup(name);
-    if(ifname != NULL)
-        iface->ifname = strdup(ifname);
-    else
-        iface->ifname = NULL;
     iface->type = IF_OAM;
     iface->state = IFS_INIT;
     iface->recv = oam_recv;
@@ -257,10 +250,8 @@ bool init_oam_interface(struct Interface *iface, const char *name, const char *i
     iface->iface_private = oid;
     oid->oam_ip_str = strdup(oam_ip);
     oid->port = port;
+    //TODO derive family from ip string with getaddrinfo()
     oid->family = ipversion == 6 ? AF_INET6 : AF_INET;
-    oid->oam_cmd_iface = cmd_iface;
-
-    add_oam_if(iface);
 
     return true;
 }

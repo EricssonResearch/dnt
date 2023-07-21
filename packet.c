@@ -124,7 +124,9 @@ void packet_add_header(struct Packet *p, unsigned idx, int type, unsigned len)
         //TODO error (can we prevent this in the config compiler?)
     }
     if (idx > p->header_count) {
-        //TODO error (this should never happen though)
+        //TODO if this error happens, the config compiler is broken
+        fprintf(stderr, "packet_add_header index too large %u > %u\n", idx, p->header_count);
+        return;
     }
     int start = scratch_alloc(p, len);
     if (start < 0) {
