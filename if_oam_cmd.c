@@ -29,7 +29,16 @@
 
 #define BACKLOG 2   // how many pending connections queue will hold
 
-const char help_str[]="Available commands:\nhelp - get help\nexit - exit OAM\nping <stream:mep-start> <mep-stop/mip/any> <level>\ntrace <stream:mep-start> <mep-stop/mip> <level>\ndiscovery <stream:mep-start> <mep-stop/mip> <level>\n";
+struct OamCmdIfData {
+    int oam_cmd_fd;
+    pthread_t oam_tid;
+    unsigned port;
+    int family;
+    union {
+        struct in_addr v4;
+        struct in6_addr v6;
+    } srcip;
+};
 
 void *get_in_addr(struct sockaddr *sa);
 
@@ -48,68 +57,25 @@ static void *oam_cmd_thread(void *arg)
     struct Interface *iface = (struct Interface *)arg;
     struct OamCmdIfData *oid = iface->iface_private;
 
-    char oam_command[255];
-    char stream[32],mep_start[32], mep_stop[32];
-    char resp[255];
-    int level;
-    int n;
-
-    if (send(oid->oam_cmd_fd, "OAM ready.\n", 12, 0) == -1)
-        perror("send");
-
-    while (true) {
-        n = read(oid->oam_cmd_fd, oam_command, sizeof(oam_command));
-        if (n > 0) {
-            if(strncmp(oam_command, "exit",4) == 0){
-                if (send(oid->oam_cmd_fd, "Exiting.\n", 9, 0) == -1)
-                    perror("send");
-                break;
-            }
-            if(strncmp(oam_command, "help",4) == 0){
-                if (send(oid->oam_cmd_fd, help_str, sizeof(help_str), 0) == -1)
-                    perror("send");
-            }
-            if(strncmp(oam_command, "ping",4) == 0){
-                sscanf(oam_command, "ping %[^:]:%s %s %d", stream, mep_start, mep_stop, &level);
-                cmd_id++;
-                sprintf(resp, "OK %d, ping %s : %s -> %s, level %d\n", cmd_id, stream, mep_start, mep_stop, level);
-                if (send(oid->oam_cmd_fd, resp, sizeof(resp), 0) == -1)
-                    perror("send");
-                // call the OAM ping function
-                int ret = oam_ping(cmd_id, stream, mep_start, mep_stop, level);
-                if (ret < 0) {
-                    sprintf(resp, "Err %d: invalid argument\n", cmd_id);
-                    if (send(oid->oam_cmd_fd, resp, sizeof(resp), 0) == -1)
-                        perror("send");
-                }
-            }
-            if(strncmp(oam_command, "trace",5) == 0){
-                sscanf(oam_command, "trace %[^:]:%s %s %d", stream, mep_start, mep_stop, &level);
-                cmd_id++;
-                sprintf(resp, "OK %d, trace %s : %s -> %s, level %d\n", cmd_id, stream, mep_start, mep_stop, level);
-                if (send(oid->oam_cmd_fd, resp, sizeof(resp), 0) == -1)
-                    perror("send");
-                // call the OAM trace function
-                oam_trace(cmd_id, stream, mep_start, mep_stop, level);
-            }
-            if(strncmp(oam_command, "discovery",9) == 0){
-                sscanf(oam_command, "discovery %[^:]:%s %s %d", stream, mep_start, mep_stop, &level);
-                cmd_id++;
-                sprintf(resp, "OK %d, discovery %s : %s -> %s, level %d\n", cmd_id, stream, mep_start, mep_stop, level);
-                if (send(oid->oam_cmd_fd, resp, sizeof(resp), 0) == -1)
-                    perror("send");
-                // call the OAM discovery function
-                oam_discovery(cmd_id, stream, mep_start, mep_stop, level);
-            }
-
-        }
-        else break;
-    }
+    oam_command_loop(oid->oam_cmd_fd);
 
     close(oid->oam_cmd_fd);
     oid->oam_cmd_fd = -1;
 
     return NULL;
+}
+
+int oam_cmd_recv_reply(struct Interface *iface, char *msg){
+    struct OamCmdIfData *oid = iface->iface_private;
+    int oam_cmd_fd = oid->oam_cmd_fd;
+    if(oam_cmd_fd != -1){
+        if (send(oam_cmd_fd, msg, strlen(msg), 0) == -1)
+            perror("send");
+    }
+    else
+        printf("OAM message, no command channel open: %s\n", msg);
+
+    return 0;
 }
 
 static struct Packet *oam_cmd_recv(struct Interface *iface)

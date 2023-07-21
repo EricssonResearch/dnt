@@ -15,6 +15,7 @@
 #include "packet.h"
 #include "protocol.h"
 #include "seq_gen.h"
+#include "seq_recov.h"
 #include "utils.h"
 
 #include <stdio.h>
@@ -31,6 +32,7 @@
 #include <sys/types.h>
 #include <netdb.h>
 
+#define OAM_RCVY_RESET_MS 5000
 
 struct MepStart {
     char *name;
@@ -45,6 +47,10 @@ int nr_oam_ifaces = 0;
 struct Interface *oam_ifaces[16];
 struct Interface *oam_cmd_iface = NULL;
 struct HashMap *mep_starts = NULL; // name -> struct MEPStart
+
+// TODO: make struct OamSession if more per-session info needed for MEP/MIP.
+// currently the only state of the session is the seq recovery
+struct HashMap *oam_seq_recoveries = NULL; // session_id -> struct SequenceRecovery
 
 unsigned cmd_id = 1000;
 
@@ -75,6 +81,27 @@ struct Interface *get_oam_if(const char *name)
         }
     }
     return NULL;
+}
+
+struct SequenceRecovery *get_oam_rcvy(char *session_id)
+{
+    if (oam_seq_recoveries == NULL)
+        oam_seq_recoveries = new_hashmap(51, NULL, NULL);
+    struct SequenceRecovery *rec = hashmap_find(oam_seq_recoveries, session_id);
+    if (rec == NULL) {
+        rec = new_seq_rec(RCVY_Match, false, false, 0, OAM_RCVY_RESET_MS, 0, session_id);
+        hashmap_insert(oam_seq_recoveries, session_id, rec);
+    }
+    return rec;
+}
+
+void delete_oam_rcvy(char *session_id)
+{
+    struct SequenceRecovery *rec = hashmap_find(oam_seq_recoveries, session_id);
+    if (rec) {
+        hashmap_remove(oam_seq_recoveries, session_id);
+        delete_seq_rec(rec);
+    }
 }
 
 void oam_create_mep_start(const char *stream_name, const char *mep_name, int level, unsigned idx)
@@ -170,7 +197,6 @@ int oam_command_loop(int cmd_fd){
                 // call the OAM discovery function
                 oam_discovery(cmd_id, stream, mep_start, mep_stop, level);
             }
-
         }
         else break;
     }
