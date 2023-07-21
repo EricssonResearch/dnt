@@ -13,24 +13,12 @@
 #include <net/if.h> /* struct ifreq */
 #include <arpa/inet.h> /* ntohs() */
 
-extern unsigned cmd_id;
-
-struct OamCmdIfData {
-    int oam_cmd_fd;
-    pthread_t oam_tid;
-    unsigned port;
-    int family;
-    union {
-        struct in_addr v4;
-        struct in6_addr v6;
-    } srcip;
-};
-
 struct Interface;
 
 #define OAM_CMD_PORT  8000
 
 bool init_oam_cmd_interface(struct Interface *iface, const char *name, const char *ifname,
         const char *oam_cmd_ip, unsigned port, unsigned ipversion);
+int oam_cmd_recv_reply(struct Interface *iface, char *msg);
 
 #endif // R2_IF_OAM_CMD_H

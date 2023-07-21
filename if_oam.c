@@ -44,26 +44,13 @@ struct OamIfData {
 
 static struct Packet *oam_recv(struct Interface *iface)
 {
-    struct OamIfData *oid = iface->iface_private;
-    struct OamCmdIfData *oid_cmd;
     char buffer[512];
     int n;
-    int oam_cmd_fd = -1;
-
-    if(oid->oam_cmd_iface != NULL){
-      oid_cmd = oid->oam_cmd_iface->iface_private;
-      oam_cmd_fd = oid_cmd->oam_cmd_fd;
-    }
 
     n = recv(iface->recvfd, buffer, sizeof(buffer)-1, 0);
     if (n>0) {
         buffer[n]=0;
-        if(oam_cmd_fd != -1){
-            if (send(oam_cmd_fd, buffer, n+1, 0) == -1)
-                perror("send");
-        }
-        else
-            printf("OAM message, no command channel open: %s\n", buffer);
+        oam_recv_reply(buffer);
     }
 
     return NULL;
@@ -100,7 +87,9 @@ static bool oam_open(struct Interface *iface)
         return false;
     }
 
+/*
     struct ifaddrs *ifaddr;
+
     if (iface->ifname != 0) {
         struct ifreq  if_idx;
         memset(&if_idx, 0, sizeof(struct ifreq));
@@ -146,7 +135,7 @@ static bool oam_open(struct Interface *iface)
         close(sock);
         return false;
     }
-
+*/
     if (oid->family == AF_INET6) {
         struct sockaddr_in6 addr6;
         memset(&addr6, 0, sizeof(addr6));
