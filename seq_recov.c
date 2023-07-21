@@ -1,6 +1,7 @@
 // Copyright (c) 2023, Ericsson AB and Ericsson Telecommunication Hungary
 // All rights reserved.
 
+#include "oam.h"
 #include "utils.h"
 #include "seq_recov.h"
 #include "packet.h"
@@ -47,6 +48,7 @@ struct SequenceRecovery {
     int latent_error_resets;
 
     pthread_t reset_thread;
+    char *session_id; // for OAM only
 };
 
 static void *reset_thread(void *arg);
@@ -57,7 +59,7 @@ static void reset_ticks(struct SequenceRecovery *rec)
 }
 
 struct SequenceRecovery *new_seq_rec(enum SequenceRecoveryAlgorithm algo, bool use_reset_flag, bool use_init_flag,
-        unsigned history_length, unsigned reset_msec, unsigned latent_error_paths)
+        unsigned history_length, unsigned reset_msec, unsigned latent_error_paths, char *session_id)
 {
     struct SequenceRecovery *ret = calloc_struct(SequenceRecovery);
 
@@ -71,6 +73,8 @@ struct SequenceRecovery *new_seq_rec(enum SequenceRecoveryAlgorithm algo, bool u
     ret->init_history = calloc(history_length, sizeof(char)); //TODO we only need this when algo==Seamless
     ret->take_any = true;
     ret->init_take_any = true;
+    if (session_id)
+        ret->session_id = strdup(session_id);
     pthread_create(&ret->reset_thread, NULL, reset_thread, ret);
 
     return ret;
@@ -315,8 +319,11 @@ static void decrement_ticks(struct SequenceRecovery *rec)
     if (rec->remaining_ticks == 0)
         return;
     rec->remaining_ticks -= 1;
-    if (rec->remaining_ticks == 0)
+    if (rec->remaining_ticks == 0) {
+        if (rec->session_id)
+            delete_oam_rcvy(rec->session_id);
         seq_recovery_reset(rec);
+    }
 }
 
 // This thread decrement the @remaining_ticks periodically

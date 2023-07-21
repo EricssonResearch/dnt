@@ -11,6 +11,7 @@
 #include "if_oam_cmd.h"
 #include "interface.h"
 #include "pipeline.h"
+#include "seq_recov.h"
 
 struct Oam {
     struct Interface *if_oam_cmd;
@@ -34,5 +35,8 @@ void set_oam_cmd_if(struct Interface *iface);
 void add_oam_if(struct Interface *iface);
 struct Interface *get_oam_cmd_if(const char *name);
 struct Interface *get_oam_if(const char *name);
+
+struct SequenceRecovery *get_oam_rcvy(char *session_id);
+void delete_oam_rcvy(char *session_id);
 
 #endif // R2_OAM_H

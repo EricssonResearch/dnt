@@ -555,6 +555,7 @@ void create_action_writetstamp(struct Action *a, const struct HeaderField *tsfie
 
 static enum ActionResult action_MEPSTOP_execute(struct Action *a, struct PipelineIterator *pi)
 {
+    //TODO: similarly to MIP
     (void) a;
     (void) pi;
     return ACR_CONTINUE;
@@ -576,7 +577,16 @@ static enum ActionResult action_MIP_execute(struct Action *a, struct PipelineIte
 {
     (void) a;
     (void) pi;
-    return ACR_CONTINUE;
+
+    // TODO: extract the proper session_id from the payload
+    // TODO: generate reply headers/payload
+    char *session_id = NULL;
+    struct SequenceRecovery *rec = get_oam_rcvy(session_id);
+    if (seq_recovery(rec, pi->packet)) {
+        return ACR_CONTINUE;
+    } else {
+        return ACR_DONE;
+    }
 }
 
 void create_action_mip(struct Action *a, int level, struct ConfObject *target, const char *name, const char *text)

@@ -237,7 +237,7 @@ static int object_cb(const char *key, void *value, void *userdata)
                     info.p.rec.use_init_flag,
                     info.p.rec.history_length,
                     info.p.rec.reset_msec,
-                    info.p.rec.latent_error_paths);
+                    info.p.rec.latent_error_paths, NULL);
             break;
         case CO_POF:
             obj->object = new_pof(info.p.pof.max_delay,
