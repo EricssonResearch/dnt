@@ -190,13 +190,16 @@ static const struct ProtocolField udp_fields[] = {
     {"checksum", 48, 16, FT_CHECKSUM},
 };
 
+// MPLS OAM Associated Channel Header (ACH)
 static const struct ProtocolField oam_fields[] = {
-    {"oam_nibble",  0, 4, FT_NUMBER},
-    {"resv",  4, 4, FT_NUMBER},
-    {"node_id",  8, 9, FT_NUMBER},
-    {"oam_level",  17, 3, FT_NUMBER},
-    {"session_id",  20, 4, FT_NUMBER},
-    {"oam_seq",  24, 8, FT_TSNSEQ},
+    {"oam_nibble",  0,  4, FT_NUMBER}, // must be 1
+    {"version",     4,  4, FT_NUMBER},
+    {"sequence",    8,  8, FT_NUMBER},
+    {"channel",    16, 16, FT_NUMBER}, // https://www.iana.org/assignments/g-ach-parameters/g-ach-parameters.xhtml
+    {"nodeid",     32, 20, FT_NUMBER},
+    {"level",      52,  3, FT_NUMBER},
+    {"flags",      55,  5, FT_NUMBER}, // all reserved
+    {"session",    60,  4, FT_NUMBER},
 };
 
 //TODO autogenerate this list
