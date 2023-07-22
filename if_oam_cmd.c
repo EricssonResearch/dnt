@@ -2,11 +2,9 @@
 // All rights reserved.
 
 
-#include "hashmap.h"
-#include "oam.h"
 #include "if_oam_cmd.h"
-#include "if_utils.h"
 #include "interface.h"
+#include "oam.h"
 #include "packet.h"
 #include "utils.h"
 
@@ -23,9 +21,7 @@
 #include <ifaddrs.h>
 
 #include <errno.h>
-#include <sys/types.h>
 #include <netinet/in.h>
-#include <netdb.h>
 
 #define BACKLOG 2   // how many pending connections queue will hold
 

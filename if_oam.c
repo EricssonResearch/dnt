@@ -2,11 +2,9 @@
 // All rights reserved.
 
 
-#include "oam.h"
 #include "if_oam.h"
-#include "if_oam_cmd.h"
-#include "if_utils.h"
 #include "interface.h"
+#include "oam.h"
 #include "packet.h"
 #include "utils.h"
 
@@ -15,28 +13,18 @@
 #include <string.h>
 
 #include <unistd.h>
-#include <pthread.h>
 #include <sys/socket.h>
-#include <sys/ioctl.h>
-#include <net/if.h> /* struct ifreq */
 #include <arpa/inet.h> /* ntohs() */
-#include <ifaddrs.h>
 
 #include <errno.h>
-#include <sys/types.h>
 #include <netinet/in.h>
 #include <netdb.h>
 
 
 struct OamIfData {
     unsigned port;
-    int family;
     char *oam_ip_str;  // hold IP address in text format
     unsigned short uid; // unique id of this iface
-    union {
-        struct in_addr v4;
-        struct in6_addr v6;
-    } srcip;
 };
 
 const char *oam_get_ip(const struct Interface *iface)
@@ -86,87 +74,53 @@ static bool oam_open(struct Interface *iface)
         return false;
     }
 
-    int sock = socket(oid->family, SOCK_DGRAM, 0);
-    if (sock < 0) {
-        perror("oam socket");
+    char port_str[15];
+    sprintf(port_str, "%u", oid->port);
+    struct addrinfo hints;
+    struct addrinfo *result, *rp;
+    bzero(&hints, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_DGRAM;
+    hints.ai_flags = 0; //TODO AI_NUMERICHOST?
+    int err = getaddrinfo(oid->oam_ip_str, port_str, &hints, &result);
+    if (err) {
+        fprintf(stderr, "oam interface: invalid ip '%s' : %s\n", oid->oam_ip_str, port_str);
         return false;
     }
 
+    int sock;
     int enable = 1;
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable)) < 0) {
-        perror("oam setsockopt SO_REUSEADDR");
-        close(sock);
-        return false;
-    }
+    for (rp=result; rp!=NULL; rp=rp->ai_next) {
+        sock = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+        if (sock < 0)
+            continue;
 
-/*  ... if we want to verify that interface has the right IP, this will be needed
-    struct ifaddrs *ifaddr;
-    if (iface->ifname != 0) {
-        struct ifreq  if_idx;
-        memset(&if_idx, 0, sizeof(struct ifreq));
-        strncpy(if_idx.ifr_name, iface->ifname, IFNAMSIZ-1);
-        if (ioctl(sock, SIOCGIFINDEX, &if_idx) < 0) {
-            perror("oam SIOCGIFINDEX");
+        if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable)) < 0) {
+            perror("oam setsockopt SO_REUSEADDR");
             close(sock);
             return false;
         }
-        //      oid->ifindex = if_idx.ifr_ifindex;
-    }
 
-    if (getifaddrs(&ifaddr) < 0) {
-        perror("oam getifaddrs");
+        if (bind(sock, rp->ai_addr, rp->ai_addrlen) == 0)
+            break;
+
         close(sock);
+    }
+    int family = rp->ai_family;
+    freeaddrinfo(result);
+    if (rp == NULL) {
+        fprintf(stderr, "oam interface: could not bind to ip '%s' : %s\n", oid->oam_ip_str, port_str);
         return false;
     }
 
-    bool srcip_set = false;
-    for (struct ifaddrs *ifa=ifaddr; ifa!=NULL; ifa=ifa->ifa_next) {
-        if (ifa->ifa_addr == NULL) continue;
-        int family = ifa->ifa_addr->sa_family;
-        if (family != oid->family) continue;
-        if ( (iface->ifname != NULL) && strcmp(ifa->ifa_name, iface->ifname) != 0) continue;
-
-        //print_ifaddrs(ifa);
-
-        if (family == AF_INET6) {
-            struct in6_addr *a6 = &((struct sockaddr_in6*)(ifa->ifa_addr))->sin6_addr;
-            if (IN6_IS_ADDR_LINKLOCAL(a6)) continue;
-            oid->srcip.v6 = *a6;
-            srcip_set = true;
-            break;
-        } else if (family == AF_INET) {
-            oid->srcip.v4 = ((struct sockaddr_in*)(ifa->ifa_addr))->sin_addr;
-            srcip_set = true;
-            break;
-        }
-    }
-    freeifaddrs(ifaddr);
-    if (!srcip_set) {
-        fprintf(stderr, "open oam interface %s: no address on interface %s\n", iface->name, iface->ifname);
-        close(sock);
-        return false;
-    }
-*/
-    if (oid->family == AF_INET6) {
-        struct sockaddr_in6 addr6;
-        memset(&addr6, 0, sizeof(addr6));
-        addr6.sin6_family = AF_INET6;
-        addr6.sin6_addr = in6addr_any;
-        addr6.sin6_port = htons(oid->port);
-        if (bind(sock, (struct sockaddr*)&addr6, sizeof(addr6)) < 0) {
-            perror("oam bind sock6");
-            return false;
-        }
+    if (family == AF_INET6) {
+        struct sockaddr_in6 *i6 = (struct sockaddr_in6 *)(rp->ai_addr);
+        oid->uid = ntohs(i6->sin6_addr.s6_addr16[7]);
+        printf("oam if ip6 '%s' uid %u\n", oid->oam_ip_str, oid->uid);
     } else {
-        struct sockaddr_in addr;
-        memset(&addr, 0, sizeof(addr));
-        addr.sin_family = AF_INET;
-        addr.sin_addr.s_addr = htonl(INADDR_ANY);
-        addr.sin_port = htons(oid->port);
-        if (bind(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
-            perror("oam bind sock");
-            return false;
-        }
+        struct sockaddr_in *i4 = (struct sockaddr_in *)(rp->ai_addr);
+        oid->uid = ntohl(i4->sin_addr.s_addr) & 0xffff;
+        printf("oam if ip4 '%s' uid %u\n", oid->oam_ip_str, oid->uid);
     }
 
     iface->recvfd = sock;
@@ -184,7 +138,7 @@ static bool oam_close(struct Interface *iface)
     return true;
 }
 
-static void oam_port_producer(void *state, value_consumer *consumer, void *consumer_state, struct Packet *p)
+/*static void oam_port_producer(void *state, value_consumer *consumer, void *consumer_state, struct Packet *p)
 {
     struct Interface *iface = state;
     struct OamIfData *oid = iface->iface_private;
@@ -232,10 +186,10 @@ static value_producer *oam_get_property_reader(const struct Interface *iface, co
 
     fprintf(stderr, "oam_get_property_reader unknown property '%s'\n", property);
     return NULL;
-}
+}*/
 
 bool init_oam_interface(struct Interface *iface, const char *name,
-                        const char *oam_ip, unsigned port, unsigned ipversion)
+                        const char *oam_ip, unsigned port)
 {
     bzero(iface, sizeof(*iface));
     iface->name = strdup(name);
@@ -245,15 +199,13 @@ bool init_oam_interface(struct Interface *iface, const char *name,
     iface->send = oam_send;
     iface->open = oam_open;
     iface->close_ = oam_close;
-    iface->get_property_reader = oam_get_property_reader;
+    //iface->get_property_reader = oam_get_property_reader;
 
     struct OamIfData *oid = calloc_struct(OamIfData);
     iface->iface_private = oid;
     oid->oam_ip_str = strdup(oam_ip);
     oid->port = port;
-    oid->uid = 42; //TODO last two octets of the address
-    //TODO derive family from ip string with getaddrinfo()
-    oid->family = ipversion == 6 ? AF_INET6 : AF_INET;
+    //note: oid->uid will be set in open()
 
     return true;
 }

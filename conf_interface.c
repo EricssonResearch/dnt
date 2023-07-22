@@ -212,7 +212,6 @@ static int iface_cb(const char *key, void *value, void *userdata)
         }
     } else if (strcmp(tstate.type, "oam") == 0) {
         unsigned oam_port = OAM_PORT;
-        unsigned ipver = 4;
         unsigned u;
         char err;
         char *oam_ip = hashmap_find(tstate.params, "oam_ip");
@@ -227,15 +226,7 @@ static int iface_cb(const char *key, void *value, void *userdata)
                 THROW("oam_port '%s' is invalid", port_str);
             oam_port = u;
         }
-        char *ipver_str = hashmap_find(tstate.params, "ipv");
-        if (ipver_str) {
-            if (sscanf(ipver_str, "%u%c", &u, &err) != 1)
-                THROW("ip version '%s' is invalid", ipver_str);
-            if (!(u == 4 || u == 6))
-                THROW("ip version '%s' is invalid", ipver_str);
-            ipver = u;
-        }
-        if (!init_oam_interface(state->ifaces+state->i, key, oam_ip, oam_port, ipver)) {
+        if (!init_oam_interface(state->ifaces+state->i, key, oam_ip, oam_port)) {
             THROW("failed to create oam interface");
         }
     } else {

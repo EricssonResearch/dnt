@@ -5,6 +5,8 @@
 #ifndef R2_IF_OAM_CMD_H
 #define R2_IF_OAM_CMD_H
 
+#include <stdbool.h>
+
 struct Interface;
 
 #define OAM_CMD_PORT  8000
