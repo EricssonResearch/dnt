@@ -14,7 +14,8 @@ struct Interface;
 bool init_oam_interface(struct Interface *iface, const char *name,
         const char *oam_ip, unsigned port, unsigned ipversion);
 
-const char *oam_get_oam_ip(const struct Interface *iface);
-unsigned oam_get_oam_port(const struct Interface *iface);
+const char *oam_get_ip(const struct Interface *iface);
+unsigned oam_get_port(const struct Interface *iface);
+unsigned short oam_get_uid(const struct Interface *iface);
 
 #endif // R2_IF_OAM_H

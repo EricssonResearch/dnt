@@ -28,29 +28,33 @@
 #include <netdb.h>
 
 
-//void *get_in_addr(struct sockaddr *sa);
-
 struct OamIfData {
-    //int oam_cmd_fd;
     unsigned port;
     int family;
     char *oam_ip_str;  // hold IP address in text format
+    unsigned short uid; // unique id of this iface
     union {
         struct in_addr v4;
         struct in6_addr v6;
     } srcip;
 };
 
-const char *oam_get_oam_ip(const struct Interface *iface)
+const char *oam_get_ip(const struct Interface *iface)
 {
     struct OamIfData *oid = iface->iface_private;
     return oid->oam_ip_str;
 }
 
-unsigned oam_get_oam_port(const struct Interface *iface)
+unsigned oam_get_port(const struct Interface *iface)
 {
     struct OamIfData *oid = iface->iface_private;
     return oid->port;
+}
+
+unsigned short oam_get_uid(const struct Interface *iface)
+{
+    struct OamIfData *oid = iface->iface_private;
+    return oid->uid;
 }
 
 static struct Packet *oam_recv(struct Interface *iface)
@@ -175,6 +179,7 @@ static bool oam_close(struct Interface *iface)
 {
     struct OamIfData *oid = iface->iface_private;
     close(iface->recvfd);
+    free(oid->oam_ip_str);
     free(oid);
     return true;
 }
@@ -246,6 +251,7 @@ bool init_oam_interface(struct Interface *iface, const char *name,
     iface->iface_private = oid;
     oid->oam_ip_str = strdup(oam_ip);
     oid->port = port;
+    oid->uid = 42; //TODO last two octets of the address
     //TODO derive family from ip string with getaddrinfo()
     oid->family = ipversion == 6 ? AF_INET6 : AF_INET;
 

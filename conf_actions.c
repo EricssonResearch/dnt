@@ -1613,7 +1613,10 @@ struct Action *assemble_actions(const char *stream_name, const struct ConfAction
                 //TODO cleanup on error
                 return NULL;
             case CA_MEPSTART: {
-                oam_create_mep_start(stream_name, ca->d.oam.name, ca->d.oam.level,a);
+                if (oam_create_mep_start(stream_name, ca->d.oam.name, ca->d.oam.level,a) != 0) {
+                    //TODO cleanup on error
+                    return NULL;
+                }
                 break; }
             case CA_MEPSTOP:
                 create_action_mepstop(ret+a, ca->d.oam.level, ca->d.oam.obj, ca->d.oam.name, ca->text);

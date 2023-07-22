@@ -553,6 +553,12 @@ void create_action_writetstamp(struct Action *a, const struct HeaderField *tsfie
 
 /////////////////////////////////////////////////////////////////////
 
+struct OamData {
+    struct ConfObject *target; // PRF, PEF, POF, etc.
+    char *name;
+    int level;
+};
+
 static enum ActionResult action_MEPSTOP_execute(struct Action *a, struct PipelineIterator *pi)
 {
     //TODO: similarly to MIP
@@ -565,7 +571,7 @@ void create_action_mepstop(struct Action *a, int level, struct ConfObject *targe
 {
     INIT_ACTION(MEPSTOP);
 
-    struct Oam *oam = calloc_struct(Oam);
+    struct OamData *oam = calloc_struct(OamData);
     oam->target = target;
     oam->name = strdup(name);
     oam->level = level;
@@ -593,7 +599,7 @@ void create_action_mip(struct Action *a, int level, struct ConfObject *target, c
 {
     INIT_ACTION(MIP);
 
-    struct Oam *oam = calloc_struct(Oam);
+    struct OamData *oam = calloc_struct(OamData);
     oam->target = target;
     oam->name = strdup(name);
     oam->level = level;

@@ -190,7 +190,7 @@ static const struct ProtocolField udp_fields[] = {
     {"checksum", 48, 16, FT_CHECKSUM},
 };
 
-// MPLS OAM Associated Channel Header (ACH)
+// DetNet MPLS PW OAM Associated Channel Header (d-ACH)
 static const struct ProtocolField oam_fields[] = {
     {"oam_nibble",  0,  4, FT_NUMBER}, // must be 1
     {"version",     4,  4, FT_NUMBER},
