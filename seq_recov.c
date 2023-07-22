@@ -1,9 +1,10 @@
 // Copyright (c) 2023, Ericsson AB and Ericsson Telecommunication Hungary
 // All rights reserved.
 
-#include "oam.h"
-#include "utils.h"
 #include "seq_recov.h"
+#include "oam.h"
+#include "time_utils.h"
+#include "utils.h"
 #include "packet.h"
 
 #include <stdio.h>
@@ -341,17 +342,17 @@ static void *reset_thread(void *arg)
     delta.tv_sec = tick_ns / NSEC_PER_SEC;
     delta.tv_nsec = tick_ns % NSEC_PER_SEC;
     clock_gettime(CLOCK_REALTIME, &now);
-    timespec_add(&sleep_until, &now, &delta);
+    timespecadd(&now, &delta, &sleep_until);
     while (true) {
         clock_nanosleep(CLOCK_REALTIME, TIMER_ABSTIME, &sleep_until, NULL);
         clock_gettime(CLOCK_REALTIME, &now);
-        if (timespec_compare(&now, &sleep_until) < 0) {
+        if (timespeccmp(&now, &sleep_until, <)) {
             printf("\tEarly wakeup. continue sleep...\n");
             // Unlikely early wake up, continue with sleeping
             continue;
         }
         decrement_ticks(rec);
-        timespec_add(&sleep_until, &now, &delta);
+        timespecadd(&now, &delta, &sleep_until);
     }
     return rec;
 }

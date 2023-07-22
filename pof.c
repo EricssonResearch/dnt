@@ -5,6 +5,7 @@
 #include "pof.h"
 #include "pipeline.h"
 #include "packet.h"
+#include "time_utils.h"
 #include "utils.h"
 
 #include <stdbool.h>
@@ -75,8 +76,8 @@ struct Pof *new_pof(unsigned pof_max_delay, unsigned pof_take_any_time, unsigned
         perror("calloc");
         goto err_calloc;
     }
-    timespec_from_u64(&ret->pof_max_delay, (uint64_t) pof_max_delay * NSEC_PER_SEC / 1000);
-    timespec_from_u64(&ret->pof_take_any_time, (uint64_t) pof_take_any_time * NSEC_PER_SEC / 1000);
+    timespec_from_msec(&ret->pof_max_delay, pof_max_delay);
+    timespec_from_msec(&ret->pof_take_any_time, pof_take_any_time);
     ret->queue_max_len = queue_max_len;
     ret->queue_len = 0;
     ret->take_any = true;
@@ -121,7 +122,7 @@ static struct PofElem *new_pof_elem(struct Pof *pof, struct PipelineIterator *pi
     ret->seq = ntohl(pi->packet->sequence) & 0xffff;
     struct timespec now;
     clock_gettime(CLOCK_REALTIME, &now);
-    timespec_add(&ret->forward_time, &now, &pof->pof_max_delay);
+    timespecadd(&now, &pof->pof_max_delay, &ret->forward_time);
     return ret;
 }
 
@@ -209,7 +210,7 @@ static struct timespec *get_next_deadline(struct Pof *pof)
     struct timespec *ret = &pof->q_head->forward_time;
     struct PofElem *iter = pof->q_head;
     while (iter) {
-        if (timespec_compare(&iter->forward_time, ret)) {
+        if (timespeccmp(&iter->forward_time, ret, !=)) {
             ret = &iter->forward_time;
             pof->next_to_forward = iter;
         }
@@ -264,8 +265,8 @@ static void *pof_thread(void *arg)
     struct timespec now, timeout;
     struct timespec *next_deadline = get_next_deadline(pof);
     clock_gettime(CLOCK_REALTIME, &now);
-    if (next_deadline && timespec_compare(next_deadline, &now) > 0)
-        timespec_sub(&timeout, next_deadline, &now);
+    if (next_deadline && timespeccmp(next_deadline, &now, >))
+        timespecsub(next_deadline, &now, &timeout);
     else
         timeout = pof->pof_take_any_time;
     while (true) {
@@ -297,8 +298,8 @@ static void *pof_thread(void *arg)
 out:
         next_deadline = get_next_deadline(pof);
         clock_gettime(CLOCK_REALTIME, &now);
-        if (next_deadline && timespec_compare(next_deadline, &now) > 0)
-            timespec_sub(&timeout, next_deadline, &now);
+        if (next_deadline && timespeccmp(next_deadline, &now, >))
+            timespecsub(next_deadline, &now, &timeout);
         else
             timeout = pof->pof_take_any_time;
         pthread_mutex_unlock(&pof->lock);
