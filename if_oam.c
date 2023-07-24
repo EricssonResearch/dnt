@@ -106,14 +106,13 @@ static bool oam_open(struct Interface *iface)
 
         close(sock);
     }
-    int family = rp->ai_family;
-    freeaddrinfo(result);
     if (rp == NULL) {
         fprintf(stderr, "oam interface: could not bind to ip '%s' : %s\n", oid->oam_ip_str, port_str);
+        freeaddrinfo(result);
         return false;
     }
 
-    if (family == AF_INET6) {
+    if (rp->ai_family == AF_INET6) {
         struct sockaddr_in6 *i6 = (struct sockaddr_in6 *)(rp->ai_addr);
         oid->uid = ntohs(i6->sin6_addr.s6_addr16[7]);
         printf("oam if ip6 '%s' uid %u\n", oid->oam_ip_str, oid->uid);
@@ -122,6 +121,7 @@ static bool oam_open(struct Interface *iface)
         oid->uid = ntohl(i4->sin_addr.s_addr) & 0xffff;
         printf("oam if ip4 '%s' uid %u\n", oid->oam_ip_str, oid->uid);
     }
+    freeaddrinfo(result);
 
     iface->recvfd = sock;
     iface->state = IFS_OPEN;

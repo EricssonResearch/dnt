@@ -318,7 +318,7 @@ int oam_command_loop(int cmd_fd)
                 unsigned seq = __atomic_fetch_add(&seq_counter, 1, __ATOMIC_RELAXED);
                 sprintf(resp, "OK %d, ping @[%s] %s : %s -> %s, level %d\n",
                         seq, oam_if->name, stream, mep_start, mep_stop, level);
-                if (send(cmd_fd, resp, sizeof(resp), 0) == -1)
+                if (send(cmd_fd, resp, strlen(resp), 0) == -1)
                     perror("send");
 
                 if (oam_ping(oam_if, session_id, seq, stream, mep_start, mep_stop, level) != 0) {
@@ -347,7 +347,7 @@ int oam_command_loop(int cmd_fd)
                 unsigned seq = __atomic_fetch_add(&seq_counter, 1, __ATOMIC_RELAXED);
                 sprintf(resp, "OK %d, trace @[%s] %s : %s -> %s, level %d\n",
                         seq, oam_if->name, stream, mep_start, mep_stop, level);
-                if (send(cmd_fd, resp, sizeof(resp), 0) == -1)
+                if (send(cmd_fd, resp, strlen(resp), 0) == -1)
                     perror("send");
 
                 if (oam_trace(oam_if, session_id, seq, stream, mep_start, mep_stop, level) != 0) {
@@ -376,7 +376,7 @@ int oam_command_loop(int cmd_fd)
                 if (k != 4) {
                     ERROR("discovery arguments invalid");
                 }
-                if (send(cmd_fd, resp, sizeof(resp), 0) == -1)
+                if (send(cmd_fd, resp, strlen(resp), 0) == -1)
                     perror("send");
 
                 if (oam_discovery(oam_if, session_id, seq, stream, mep_start, mep_stop, level) != 0) {
