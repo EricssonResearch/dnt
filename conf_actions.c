@@ -1013,6 +1013,7 @@ static bool process_action(struct StageState *stst)
                 struct ConfAction *jump = newaction;
                 jump->next = NULL;
                 stst->actions = jstst.actions;
+                stst->headers = jstst.headers;
                 delete_confaction_list(jump);
             } else {
                 THROW("action pipeline '%s' not found", newaction->d.jump.pipename);
