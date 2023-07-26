@@ -22,7 +22,14 @@ void oam_set_pipeline_for_mep_start(const char *stream_name, struct Pipeline *pi
 void set_oam_cmd_if(struct Interface *iface);
 void add_oam_if(struct Interface *iface);
 
-struct SequenceRecovery *get_oam_rcvy(char *session_id);
-void delete_oam_rcvy(char *session_id);
+/* Return a SeqRecovery for the given key, or create it if not exist.
+ * The recommended key is session ID + node ID of the OAM packet
+*/
+struct SequenceRecovery *get_oam_rcvy(char *key);
+
+/* Delete the SeqRecovery with the given key.
+ * The temporary, OAM SeqRecoveries store this key as a member
+ * */
+void delete_oam_rcvy(char *key);
 
 #endif // R2_OAM_H

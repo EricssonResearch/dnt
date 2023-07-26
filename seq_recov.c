@@ -165,10 +165,10 @@ static bool recover(struct SequenceRecovery *rec, unsigned packet_seq, bool init
     return false;
 }
 
-static bool match_seq_recovery(struct SequenceRecovery *rec, struct Packet *p)
+static bool match_seq_recovery(struct SequenceRecovery *rec, unsigned seq)
 {
     /* unsigned flags = ntohl(p->sequence) & 0xffff0000; */
-    unsigned seq = ntohl(p->sequence) & 0xffff;
+    seq = seq & 0xffff;
     if (rec->take_any) {
         rec->take_any = false;
         rec->recv_seq = seq;
@@ -197,18 +197,18 @@ static bool match_seq_recovery(struct SequenceRecovery *rec, struct Packet *p)
     return false;
 }
 
-static bool vector_seq_recovery(struct SequenceRecovery *rec, struct Packet *p)
+static bool vector_seq_recovery(struct SequenceRecovery *rec, unsigned seq)
 {
-    unsigned packet_seq = ntohl(p->sequence) & 0xffff;
+    unsigned packet_seq = seq & 0xffff;
     return recover(rec, packet_seq, false);
 }
 
-static bool seamless_seq_recovery(struct SequenceRecovery *rec, struct Packet *p)
+static bool seamless_seq_recovery(struct SequenceRecovery *rec, unsigned seq)
 {
     int delta = 0;
     // TODO: use proper metadata seq/flags as packet member not rtag format
-    unsigned flags = ntohl(p->sequence) & 0xffff0000;
-    unsigned seq = ntohl(p->sequence) & 0xffff;
+    unsigned flags = seq & 0xffff0000;
+    seq = seq & 0xffff;
     if(rec->use_reset_flag) {
         if(rec->use_init_flag) {
             if(flags & FRER_INIT_FLAG) {
@@ -252,19 +252,19 @@ static void seamless_seq_recovery_reset(struct SequenceRecovery *rec)
 }
 
 //TODO: race condition
-bool seq_recovery(struct SequenceRecovery *rec, struct Packet *p)
+bool seq_recovery(struct SequenceRecovery *rec, unsigned seq)
 {
     bool ret = true;
     //TODO grab mutex
     switch (rec->algorithm) {
         case RCVY_Vector:
-            ret = vector_seq_recovery(rec, p);
+            ret = vector_seq_recovery(rec, seq);
             break;
         case RCVY_SeamlessVector:
-            ret = seamless_seq_recovery(rec, p);
+            ret = seamless_seq_recovery(rec, seq);
             break;
         case RCVY_Match:
-            ret = match_seq_recovery(rec, p);
+            ret = match_seq_recovery(rec, seq);
             break;
     }
     //TODO release mutex
@@ -273,7 +273,7 @@ bool seq_recovery(struct SequenceRecovery *rec, struct Packet *p)
 
 static void seq_recovery_reset(struct SequenceRecovery *rec)
 {
-    printf("Sequence recovery reset.\n");
+    printf("Sequence recovery reset. %s\n", rec->session_id ? "(OAM)" : "");
     rec->seq_recovery_resets += 1;
     rec->take_any = true;
     switch (rec->algorithm) {
@@ -321,9 +321,9 @@ static void decrement_ticks(struct SequenceRecovery *rec)
         return;
     rec->remaining_ticks -= 1;
     if (rec->remaining_ticks == 0) {
+        seq_recovery_reset(rec);
         if (rec->session_id)
             delete_oam_rcvy(rec->session_id);
-        seq_recovery_reset(rec);
     }
 }
 

@@ -89,23 +89,23 @@ static struct Interface *get_oam_if(const char *name)
     return NULL;
 }
 
-struct SequenceRecovery *get_oam_rcvy(char *session_id)
+struct SequenceRecovery *get_oam_rcvy(char *key)
 {
     if (oam_seq_recoveries == NULL)
         oam_seq_recoveries = new_hashmap(51, NULL, NULL);
-    struct SequenceRecovery *rec = hashmap_find(oam_seq_recoveries, session_id);
+    struct SequenceRecovery *rec = hashmap_find(oam_seq_recoveries, key);
     if (rec == NULL) {
-        rec = new_seq_rec(RCVY_Match, false, false, 0, OAM_RCVY_RESET_MS, 0, session_id);
-        hashmap_insert(oam_seq_recoveries, session_id, rec);
+        rec = new_seq_rec(RCVY_Match, false, false, 0, OAM_RCVY_RESET_MS, 0, key);
+        hashmap_insert(oam_seq_recoveries, key, rec);
     }
     return rec;
 }
 
-void delete_oam_rcvy(char *session_id)
+void delete_oam_rcvy(char *key)
 {
-    struct SequenceRecovery *rec = hashmap_find(oam_seq_recoveries, session_id);
+    struct SequenceRecovery *rec = hashmap_find(oam_seq_recoveries, key);
     if (rec) {
-        hashmap_remove(oam_seq_recoveries, session_id);
+        hashmap_remove(oam_seq_recoveries, key);
         delete_seq_rec(rec);
     }
 }

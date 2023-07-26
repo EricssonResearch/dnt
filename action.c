@@ -219,13 +219,39 @@ struct ElimData {
     struct SequenceRecovery *rcvy;
 };
 
+static char *get_oam_key(const struct Packet *p)
+{
+    // TODO: we can assume headers[1] indentified?
+    const uint8_t *g_ach = p->buf + p->headers[1].start;
+    char key[4] = { };
+    key[0] = g_ach[4]; //node ID MSB
+    key[1] = g_ach[5]; //node ID LSB
+    key[2] = g_ach[7] & 0x0f;
+    key[3] = 0;
+    return strdup(key);
+}
+
 static enum ActionResult action_ELIM_execute(struct Action *a, struct PipelineIterator *pi)
 {
     struct ElimData *ed = a->action_private;
-    if (seq_recovery(ed->rcvy, pi->packet)) {
-        return ACR_CONTINUE;
+    const struct Packet *p = pi->packet;
+    uint32_t seq = ntohl(p->sequence);
+    if ((seq & OAM_INDICATOR_MASK) == 0) {
+        if (seq_recovery(ed->rcvy, seq)) {
+            return ACR_CONTINUE;
+        } else {
+            return ACR_DONE;
+        }
     } else {
-        return ACR_DONE;
+        // This is an OAM packet, so we read the node ID and session ID
+        // and create/get the temporary SeqRcvy instance using these as key
+        struct SequenceRecovery *oam_rec = get_oam_rcvy(get_oam_key(pi->packet));
+        const uint8_t oam_seq = (seq >> 16) & 0xff;
+        if (seq_recovery(oam_rec, oam_seq)) {
+            return ACR_CONTINUE;
+        } else {
+            return ACR_DONE;
+        }
     }
 }
 
@@ -586,13 +612,7 @@ static enum ActionResult action_MIP_execute(struct Action *a, struct PipelineIte
 
     // TODO: extract the proper session_id from the payload
     // TODO: generate reply headers/payload
-    char *session_id = NULL;
-    struct SequenceRecovery *rec = get_oam_rcvy(session_id);
-    if (seq_recovery(rec, pi->packet)) {
-        return ACR_CONTINUE;
-    } else {
-        return ACR_DONE;
-    }
+    return ACR_CONTINUE;
 }
 
 void create_action_mip(struct Action *a, int level, struct ConfObject *target, const char *name, const char *text)
