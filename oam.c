@@ -113,7 +113,7 @@ void delete_oam_rcvy(char *key)
 int oam_create_mep_start(const char *stream_name, const char *mep_name, int level, unsigned idx)
 {
     if (mep_starts == NULL) {
-        mep_starts = new_hashmap(29, NULL, NULL);
+        mep_starts = new_hashmap(59, NULL, NULL);
     }
     struct MepStart *mepstart = hashmap_find(mep_starts, mep_name);
     if (mepstart) {

@@ -1587,7 +1587,7 @@ struct Action *assemble_actions(const char *stream_name, const struct ConfAction
                 //TODO cleanup on error
                 return NULL;
             case CA_MEPSTART: {
-                if (oam_create_mep_start(stream_name, ca->d.oam.name, ca->d.oam.level,a) != 0) {
+                if (oam_create_mep_start(stream_name, ca->d.oam.name, ca->d.oam.level, a) != 0) {
                     //TODO cleanup on error
                     return NULL;
                 }
@@ -1597,6 +1597,10 @@ struct Action *assemble_actions(const char *stream_name, const struct ConfAction
                 break;
             case CA_MIP:
                 create_action_mip(ret+a, ca->d.oam.level, ca->d.oam.obj, ca->d.oam.name, ca->text);
+                if (oam_create_mep_start(stream_name, ca->d.oam.name, ca->d.oam.level, a)) {
+                    //TODO: cleanup on error
+                    return NULL;
+                }
                 break;
             case CA_POF:
                 create_action_pof(ret+a, ca->d.pof.pof, ca->text);
