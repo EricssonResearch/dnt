@@ -151,14 +151,55 @@ static void test_write(void)
         json_object_insert(val, "a", json_object());
         CHECK;
     } while (0);
+
+    do {
+        const char *expected = "{\"a\":{},\"key\":13}";
+        struct JsonValue *val = json_parse("{\"key\":13}", 10);
+        //json_object_insert(val, "key", json_number(13));
+        json_object_insert(val, "a", json_object());
+        CHECK;
+    } while (0);
 }
 
 static void test_realloc(void)
 {
-    //TODO generate input such that CHECK_BUF() will realloc the buffer
-    //      we can know that BUFFER_INCREMENT is 128
-    //      we should verify all instances of CHECK_BUF()
-    SKIP("this needs more planning");
+    const char *expected_start = "{\"a\":\"";
+    const char *expected_end = "\",\"array\":[true,\"testing\",42,null],"
+        "\"number\":-41.500000,\"object\":{\"key\":\"value\"}}";
+
+    struct JsonValue *js = json_object();
+    json_object_insert(js, "number", json_number(-41.5));
+    struct JsonValue *o = json_object();
+    json_object_insert(o, "key", json_string("value"));
+    json_object_insert(js, "object", o);
+    struct JsonValue *a = json_array();
+    json_array_unshift(a, json_null());
+    json_array_unshift(a, json_number(42));
+    json_array_unshift(a, json_string("testing"));
+    json_array_unshift(a, json_true());
+    json_object_insert(js, "array", a);
+
+    char aaa[400];
+    for (unsigned i=0; i<400; i++) {
+        if (i > 0) aaa[i-1] = 'a';
+        aaa[i] = 0;
+        json_object_insert(js, "a", json_string(aaa));
+
+        unsigned j_len;
+        char *j_str = json_serialize(js, &j_len);
+        OK_FATAL(j_str != NULL, "got string");
+        OK(j_len == strlen(expected_start) + strlen(expected_end) + i, "length");
+
+        char expected[1024];
+        strcpy(expected, expected_start);
+        strcat(expected, aaa);
+        strcat(expected, expected_end);
+
+        //printf("\nexpected: '%s'\ngot     : '%s'\n", expected, j_str);
+        OK(strcmp(expected, j_str) == 0, "serialize match");
+        free(j_str);
+    }
+    json_delete(js);
 }
 
 TEST_CASES = {
