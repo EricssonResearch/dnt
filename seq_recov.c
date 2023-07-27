@@ -6,6 +6,7 @@
 #include "time_utils.h"
 #include "utils.h"
 #include "packet.h"
+#include "json.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -355,4 +356,13 @@ static void *reset_thread(void *arg)
         timespecadd(&now, &delta, &sleep_until);
     }
     return rec;
+}
+
+struct JsonValue *seqrec_get_state_json(const void *obj)
+{
+    const struct SequenceRecovery *rec = obj;
+    struct JsonValue *js = json_object();
+    json_object_insert(js, "passed_packets", json_number((double) rec->passed_packets));
+    json_object_insert(js, "discarded_packets", json_number((double) rec->discarded_packets));
+    return js;
 }

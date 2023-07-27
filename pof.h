@@ -19,4 +19,7 @@ struct Pof *delete_pof(struct Pof *pof);
 // If the buffer is full, return false, otherwise true
 bool pof_insert(struct Pof *pof, struct PipelineIterator *pi);
 
+// Return JSON value with the internals of the SeqRecv
+struct JsonValue *pof_get_state_json(const void *obj);
+
 #endif // R2_POF_H

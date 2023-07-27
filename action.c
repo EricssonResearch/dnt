@@ -656,6 +656,14 @@ static enum ActionResult action_MIP_execute(struct Action *a, struct PipelineIte
         else
             return ACR_CONTINUE;
 
+        /* struct JsonValue *objinfo = NULL; */
+        /* if (oam->target->object && oam->target->print_state) { */
+        /*     objinfo = oam->target->print_state(oam->target->object); */
+        /* } */
+        /* if (objinfo) { */
+        /*     json_serialize(objinfo, len); */
+        /* } */
+
         //json_object_insert(j, "sequence", json_number(seq));        // Does not work!!!
         //json_object_insert(j, "nodeid", json_number(nodeid));
         //json_object_insert(j, "session", json_number(session));

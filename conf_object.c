@@ -230,6 +230,7 @@ static int object_cb(const char *key, void *value, void *userdata)
             obj->object = new_seq_gen(info.p.gen.use_reset_flag,
                     info.p.gen.use_init_flag,
                     info.p.gen.init_seq);
+            obj->print_state = seqgen_get_state_json;
             break;
         case CO_SEQREC:
             obj->object = new_seq_rec(info.p.rec.algo,
@@ -238,11 +239,13 @@ static int object_cb(const char *key, void *value, void *userdata)
                     info.p.rec.history_length,
                     info.p.rec.reset_msec,
                     info.p.rec.latent_error_paths, NULL);
+            obj->print_state = seqrec_get_state_json;
             break;
         case CO_POF:
             obj->object = new_pof(info.p.pof.max_delay,
                     info.p.pof.take_any_time,
                     info.p.pof.buffer_size);
+            obj->print_state = pof_get_state_json;
             break;
         case CO_REPL:
             obj->object = new_replicate();

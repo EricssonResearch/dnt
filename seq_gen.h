@@ -26,4 +26,7 @@ void seq_generator(struct SequenceGenerator *gen, struct Packet *p);
 // Triggered by manual reset signal (no timer expiration)
 int reset_all_seq_generators(const char *key, void *value, void *udata);
 
+// Return JSON value with internals of the SeqGen
+struct JsonValue *seqgen_get_state_json(const void *);
+
 #endif // R2_SEQ_GEN_H

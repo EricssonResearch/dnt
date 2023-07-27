@@ -17,6 +17,7 @@ enum ConfObjectType {
 
 struct ConfObject {
     enum ConfObjectType type;
+    struct JsonValue *(*print_state)(const void *);
     void *object;
 };
 

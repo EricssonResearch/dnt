@@ -2,6 +2,7 @@
 // All rights reserved.
 
 #define _GNU_SOURCE
+#include "json.h"
 #include "pof.h"
 #include "pipeline.h"
 #include "packet.h"
@@ -306,4 +307,15 @@ out:
     }
 
     return NULL;
+}
+
+struct JsonValue *pof_get_state_json(const void *obj)
+{
+    const struct Pof *pof = obj;
+    struct JsonValue *js = json_object();
+    json_object_insert(js, "pof_conditional_buffer_length", json_number((double) pof->queue_max_len));
+    double max_delay = pof->pof_max_delay.tv_sec * NSEC_PER_SEC + pof->pof_max_delay.tv_nsec;
+    max_delay = (max_delay / NSEC_PER_SEC) * 1000; // millisec
+    json_object_insert(js, "pof_max_delay", json_number(max_delay));
+    return js;
 }

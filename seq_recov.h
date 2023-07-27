@@ -45,4 +45,7 @@ struct SequenceRecovery *delete_seq_rec(struct SequenceRecovery *rec);
 // @returns true if the packet is not a duplicate
 bool seq_recovery(struct SequenceRecovery *rec, unsigned seq);
 
+// Return JSON value with the internals of the SeqRecv
+struct JsonValue *seqrec_get_state_json(const void *rec);
+
 #endif // R2_SEQ_RECOV_H
