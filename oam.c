@@ -89,6 +89,11 @@ static struct Interface *get_oam_if(const char *name)
     return NULL;
 }
 
+unsigned short get_oam_nodeid(void)
+{
+    return oam_get_uid(oam_default_iface);    // shouldn't this be the cmd interface? That is unique...
+}
+
 struct SequenceRecovery *get_oam_rcvy(char *key)
 {
     if (oam_seq_recoveries == NULL)

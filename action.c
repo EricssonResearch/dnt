@@ -15,6 +15,7 @@
 #include "seq_recov.h"
 #include "utils.h"
 #include "pof.h"
+#include "json.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -607,11 +608,64 @@ void create_action_mepstop(struct Action *a, int level, struct ConfObject *targe
 
 static enum ActionResult action_MIP_execute(struct Action *a, struct PipelineIterator *pi)
 {
-    (void) a;
-    (void) pi;
+    struct Packet *p = pi->packet;
+    struct OamData *oam  = a->action_private;
 
-    // TODO: extract the proper session_id from the payload
-    // TODO: generate reply headers/payload
+    unsigned char *mpls = p->buf + p->headers[0].start;
+    unsigned char ttl = mpls[3];
+    unsigned char *oam_hdr = p->buf + p->headers[1].start;
+
+    printf("MIP %s (id %d), level %d, nibble: %x TTL %d\n", oam->name, get_oam_nodeid(), oam->level, oam_hdr[0], ttl);
+
+    if(oam_hdr[0] == 0x11){
+        unsigned char seq = oam_hdr[1];
+        unsigned short channel = (oam_hdr[2]<<8)+oam_hdr[3];
+        unsigned short nodeid = (oam_hdr[4]<<8)+oam_hdr[5];
+        unsigned char level = oam_hdr[6] >> 1;
+        unsigned char session = oam_hdr[7] & 0x0f;
+        char *msg = (char *)(p->buf + p->headers[2].start);
+        int port=6634;
+        char *reply_address=NULL;
+
+        printf("OAM packet, %s\n", protocol_type_from_id(p->headers[1].type));    // honnan tudja hogy OAM?
+        printf("nib_ver %x seq %x ch %x node %x level %x session %x\n", oam_hdr[0], seq, channel, nodeid, level, session);
+        printf("JSON: %s\n", msg);
+
+        // MIP message handling logic
+        if(level < oam->level){
+            printf("MIP %s level %d Warning: dropping lower level (level %d) OAM packet.\n", oam->name, oam->level, level);
+            return ACR_DONE;            // if lower level, DROP packet
+        }
+        if(level > oam->level)
+            return ACR_CONTINUE;        // if lower level, forward packet
+
+        if( (ttl != 0) && (nodeid != get_oam_nodeid()) && (nodeid != 0xFFFF))
+            return ACR_CONTINUE;        // send reply only if TTL expires or nodeid matces or nodeid is "*"
+
+        // send reply
+        struct JsonValue *j = json_parse(msg, strlen(msg));
+        struct JsonValue *jret = hashmap_find(j->v.object, "return");
+        if(jret==NULL)
+            printf("Not found object return");
+        struct JsonValue *val = hashmap_find(jret->v.object, "port");
+        if(val!=NULL)
+            port=val->v.number;
+        val = hashmap_find(jret->v.object, "ip");
+        if(val!=NULL)
+            reply_address = val->v.string;
+        else
+            return ACR_CONTINUE;
+
+        //json_object_insert(j, "sequence", json_number(seq));        // Does not work!!!
+        //json_object_insert(j, "nodeid", json_number(nodeid));
+        //json_object_insert(j, "session", json_number(session));
+        unsigned msg_len=0;
+        char *j_msg = json_serialize(j, &msg_len);
+        printf("Send to %s : %d\nlen %d %s\n", reply_address, port, msg_len, j_msg);
+        oam_send_reply(reply_address, port, j_msg, msg_len);
+        json_delete(j);
+        //free(j_msg);
+    }
     return ACR_CONTINUE;
 }
 

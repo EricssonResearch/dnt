@@ -21,6 +21,7 @@ void oam_set_pipeline_for_mep_start(const char *stream_name, struct Pipeline *pi
 
 void set_oam_cmd_if(struct Interface *iface);
 void add_oam_if(struct Interface *iface);
+unsigned short get_oam_nodeid(void);
 
 /* Return a SeqRecovery for the given key, or create it if not exist.
  * The recommended key is session ID + node ID of the OAM packet
