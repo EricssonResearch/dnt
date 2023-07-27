@@ -8,7 +8,6 @@
 #include <stdlib.h>
 
 #include <unistd.h>
-#include <arpa/inet.h> /* htonl() */
 
 TEST_INIT("Sequence Recovery: Vector");
 
@@ -17,83 +16,77 @@ static const unsigned reset_ms = 30;
 
 static void test_window(void)
 {
-    struct SequenceRecovery *rec = new_seq_rec(RCVY_Vector, false, false, history_length, reset_ms, 2);
+    struct SequenceRecovery *rec = new_seq_rec(RCVY_Vector, false, false, history_length, reset_ms, 2, NULL);
     OK_FATAL(rec, "have object");
 
-    struct Packet *p = new_packet(NULL);
-    OK_FATAL(p, "have packet");
-
     unsigned start = 200;
+    unsigned sequence;
 
-    p->sequence = htonl(start);
-    OK(seq_recovery(rec, p) == true, "in TakeAny");
-    p->sequence = htonl(start+1);
-    OK(seq_recovery(rec, p) == true, "not duplicate and move window");
-    p->sequence = htonl(start-1);
-    OK(seq_recovery(rec, p) == true, "not duplicate");
-    p->sequence = htonl(start);
-    OK(seq_recovery(rec, p) == false, "duplicate");
-    p->sequence = htonl(start+1);
-    OK(seq_recovery(rec, p) == false, "duplicate");
-    p->sequence = htonl(start-1);
-    OK(seq_recovery(rec, p) == false, "duplicate");
+    sequence = start;
+    OK(seq_recovery(rec, sequence) == true, "in TakeAny");
+    sequence = start+1;
+    OK(seq_recovery(rec, sequence) == true, "not duplicate and move window");
+    sequence = start-1;
+    OK(seq_recovery(rec, sequence) == true, "not duplicate");
+    sequence = start;
+    OK(seq_recovery(rec, sequence) == false, "duplicate");
+    sequence = start+1;
+    OK(seq_recovery(rec, sequence) == false, "duplicate");
+    sequence = start-1;
+    OK(seq_recovery(rec, sequence) == false, "duplicate");
 
     // window center is at start+1 now
 
-    p->sequence = htonl(start+1 - history_length);
-    OK(seq_recovery(rec, p) == false, "window edge outside");
-    p->sequence = htonl(start+1 - history_length+1);
-    OK(seq_recovery(rec, p) == true, "window edge inside");
+    sequence = start+1 - history_length;
+    OK(seq_recovery(rec, sequence) == false, "window edge outside");
+    sequence = start+1 - history_length+1;
+    OK(seq_recovery(rec, sequence) == true, "window edge inside");
 
-    p->sequence = htonl(start+1 + history_length);
-    OK(seq_recovery(rec, p) == false, "window edge outside");
-    p->sequence = htonl(start+1 + history_length-1);
-    OK(seq_recovery(rec, p) == true, "window edge inside and move window");
+    sequence = start+1 + history_length;
+    OK(seq_recovery(rec, sequence) == false, "window edge outside");
+    sequence = start+1 + history_length-1;
+    OK(seq_recovery(rec, sequence) == true, "window edge inside and move window");
 
     // window center is at start+history_length now
 
-    p->sequence = htonl(start+history_length - history_length);
-    OK(seq_recovery(rec, p) == false, "window edge outside");
-    p->sequence = htonl(start+history_length - history_length+1); // we already had start+1
-    OK(seq_recovery(rec, p) == false, "duplicate");
-    p->sequence = htonl(start+history_length - history_length+2);
-    OK(seq_recovery(rec, p) == true, "window edge inside");
+    sequence = start+history_length - history_length;
+    OK(seq_recovery(rec, sequence) == false, "window edge outside");
+    sequence = start+history_length - history_length+1; // we already had start+1
+    OK(seq_recovery(rec, sequence) == false, "duplicate");
+    sequence = start+history_length - history_length+2;
+    OK(seq_recovery(rec, sequence) == true, "window edge inside");
 
     // move window center to start+history_length*1.5
-    p->sequence = htonl(start+history_length + history_length/2);
-    OK(seq_recovery(rec, p) == true, "not duplicate and move window");
-    p->sequence = htonl(start+history_length*1.5 - history_length);
-    OK(seq_recovery(rec, p) == false, "window edge outside");
-    p->sequence = htonl(start+history_length*1.5 - history_length+1);
-    OK(seq_recovery(rec, p) == true, "window edge inside");
+    sequence = start+history_length + history_length/2;
+    OK(seq_recovery(rec, sequence) == true, "not duplicate and move window");
+    sequence = start+history_length*1.5 - history_length;
+    OK(seq_recovery(rec, sequence) == false, "window edge outside");
+    sequence = start+history_length*1.5 - history_length+1;
+    OK(seq_recovery(rec, sequence) == true, "window edge inside");
 
     unsigned newstart = 2000;
-    p->sequence = htonl(newstart);
-    OK(seq_recovery(rec, p) == false, "outside");
+    sequence = newstart;
+    OK(seq_recovery(rec, sequence) == false, "outside");
     usleep(1000*(reset_ms+30)); //TODO the needed oversleep depends on cpu speed :(
-    OK(seq_recovery(rec, p) == true, "in TakeAny again");
+    OK(seq_recovery(rec, sequence) == true, "in TakeAny again");
 
     // sequence wrap-around
     usleep(1000*(reset_ms+30));
     newstart = 65535;
-    p->sequence = htonl(newstart);
-    OK(seq_recovery(rec, p) == true, "in TakeAny again");
-    p->sequence = htonl(20);
-    OK(seq_recovery(rec, p) == true, "in window");
-    p->sequence = htonl(65520);
-    OK(seq_recovery(rec, p) == true, "in window");
+    sequence = newstart;
+    OK(seq_recovery(rec, sequence) == true, "in TakeAny again");
+    sequence = 20;
+    OK(seq_recovery(rec, sequence) == true, "in window");
+    sequence = 65520;
+    OK(seq_recovery(rec, sequence) == true, "in window");
 
     OK(delete_seq_rec(rec) == NULL, "delete object");
-    OK(delete_packet(p) == NULL, "delete packet");
 }
 
 static void test_single(void)
 {
-    struct SequenceRecovery *rec = new_seq_rec(RCVY_Vector, false, false, history_length, reset_ms, 2);
+    struct SequenceRecovery *rec = new_seq_rec(RCVY_Vector, false, false, history_length, reset_ms, 2, NULL);
     OK_FATAL(rec, "have object");
-
-    struct Packet *p = new_packet(NULL);
-    OK_FATAL(p, "have packet");
 
     srand(2020); // this seed looks nice
 
@@ -123,15 +116,14 @@ static void test_single(void)
 
         for (unsigned i=0; i<ARRAY_SIZE(indices); i++) {
             unsigned d = start + j + indices[i];
-            p->sequence = htonl(d);
-            results[d] += seq_recovery(rec, p);
+            unsigned sequence = d;
+            results[d] += seq_recovery(rec, sequence);
         }
     }
     for (unsigned i=0; i<ARRAY_SIZE(results); i++)
         OK(results[i] < 2, "duplicate %u", i);
 
     OK(delete_seq_rec(rec) == NULL, "delete object");
-    OK(delete_packet(p) == NULL, "delete packet");
 }
 
 static void test_multi(void)
