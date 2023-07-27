@@ -206,6 +206,7 @@ static int oam_send_request(const char *type, struct Interface *iface, unsigned 
 
     add_fixed_headers(packet, ttl, seq, OAM_CHANNEL,
             node_id, level, session_id);
+    packet->ttl = ttl;
 
     struct JsonValue *js = json_object();
     json_object_insert(js, "request", json_string(type));

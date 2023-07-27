@@ -610,12 +610,9 @@ static enum ActionResult action_MIP_execute(struct Action *a, struct PipelineIte
 {
     struct Packet *p = pi->packet;
     struct OamData *oam  = a->action_private;
-
-    unsigned char *mpls = p->buf + p->headers[0].start;
-    unsigned char ttl = mpls[3];
     unsigned char *oam_hdr = p->buf + p->headers[1].start;
 
-    printf("MIP %s (id %d), level %d, nibble: %x TTL %d\n", oam->name, get_oam_nodeid(), oam->level, oam_hdr[0], ttl);
+    printf("MIP %s (id %d), level %d, nibble: %x TTL %d\n", oam->name, get_oam_nodeid(), oam->level, oam_hdr[0], p->ttl);
 
     if(oam_hdr[0] == 0x11){
         unsigned char seq = oam_hdr[1];
@@ -623,7 +620,11 @@ static enum ActionResult action_MIP_execute(struct Action *a, struct PipelineIte
         unsigned short nodeid = (oam_hdr[4]<<8)+oam_hdr[5];
         unsigned char level = oam_hdr[6] >> 1;
         unsigned char session = oam_hdr[7] & 0x0f;
-        char *msg = (char *)(p->buf + p->headers[2].start + 4);
+        char *msg;
+        if(p->headers[1].type == PROTO_ID_DCW)
+            msg = (char *)(p->buf + p->headers[2].start + 4);
+        else // OAM packet
+            msg = (char *)(p->buf + p->headers[2].start);
         int port=6634;
         char *reply_address=NULL;
 
@@ -652,7 +653,7 @@ static enum ActionResult action_MIP_execute(struct Action *a, struct PipelineIte
             port=val->v.number;
         val = hashmap_find(jret->v.object, "ip");
         if(val!=NULL)
-            reply_address = val->v.string;
+            reply_address = strdup(val->v.string);
         else
             return ACR_CONTINUE;
 
@@ -664,15 +665,17 @@ static enum ActionResult action_MIP_execute(struct Action *a, struct PipelineIte
         /*     json_serialize(objinfo, len); */
         /* } */
 
-        //json_object_insert(j, "sequence", json_number(seq));        // Does not work!!!
-        //json_object_insert(j, "nodeid", json_number(nodeid));
-        //json_object_insert(j, "session", json_number(session));
+        hashmap_remove(j->v.object,"return");
+        json_object_insert(j, "sequence", json_number(seq));
+        json_object_insert(j, "nodeid", json_number(nodeid));
+        json_object_insert(j, "session", json_number(session));
         unsigned msg_len=0;
         char *j_msg = json_serialize(j, &msg_len);
         printf("Send to %s : %d\nlen %d %s\n", reply_address, port, msg_len, j_msg);
         oam_send_reply(reply_address, port, j_msg, msg_len);
         json_delete(j);
-        //free(j_msg);
+        free(reply_address);
+        free(j_msg);
     }
     return ACR_CONTINUE;
 }
