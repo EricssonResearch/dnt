@@ -623,7 +623,7 @@ static enum ActionResult action_MIP_execute(struct Action *a, struct PipelineIte
         unsigned short nodeid = (oam_hdr[4]<<8)+oam_hdr[5];
         unsigned char level = oam_hdr[6] >> 1;
         unsigned char session = oam_hdr[7] & 0x0f;
-        char *msg = (char *)(p->buf + p->headers[2].start);
+        char *msg = (char *)(p->buf + p->headers[2].start + 4);
         int port=6634;
         char *reply_address=NULL;
 
@@ -639,8 +639,8 @@ static enum ActionResult action_MIP_execute(struct Action *a, struct PipelineIte
         if(level > oam->level)
             return ACR_CONTINUE;        // if lower level, forward packet
 
-        if( (ttl != 0) && (nodeid != get_oam_nodeid()) && (nodeid != 0xFFFF))
-            return ACR_CONTINUE;        // send reply only if TTL expires or nodeid matces or nodeid is "*"
+        /* if( (ttl != 0) && (nodeid != get_oam_nodeid()) && (nodeid != 0xFFFF)) */
+        /*     return ACR_CONTINUE;        // send reply only if TTL expires or nodeid matces or nodeid is "*" */
 
         // send reply
         struct JsonValue *j = json_parse(msg, strlen(msg));

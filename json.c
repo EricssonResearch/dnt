@@ -254,6 +254,9 @@ static int obj_print_cb(const char *key, void *value, void *userdata)
     CHECK_BUF(2);
     strcat(buf+*slen, ",");
     *slen += 1;
+    op->buf = buf;
+    op->buflen = buflen;
+    op->slen = slen;
 
     return 1;
 }
@@ -297,6 +300,9 @@ static char *serialize_value(const struct JsonValue *json, char *buf, unsigned *
 
             struct objparams op = {buf, buflen, slen};
             hashmap_foreach_sorted(json->v.object, obj_print_cb, &op);
+            buf = op.buf;
+            buflen = op.buflen;
+            slen = op.slen;
             if (hashmap_count(json->v.object)) {
                 // overwrite the last ','
                 *slen -= 1;
