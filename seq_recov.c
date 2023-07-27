@@ -16,6 +16,8 @@
 #include <arpa/inet.h>
 #include <time.h>
 
+#define OAM_RCVY_RESET_MS 5000
+
 struct SequenceRecovery {
     enum SequenceRecoveryAlgorithm algorithm;
     bool use_reset_flag;
@@ -53,6 +55,31 @@ struct SequenceRecovery {
     char *session_id; // for OAM only
 };
 
+// TODO: make struct OamSession if more per-session info needed for MEP/MIP.
+// currently the only state of the session is the seq recovery
+static struct HashMap *oam_seq_recoveries = NULL; // session_id -> struct SequenceRecovery
+
+struct SequenceRecovery *get_oam_rcvy(char *key)
+{
+    if (oam_seq_recoveries == NULL)
+        oam_seq_recoveries = new_hashmap(51, NULL, NULL);
+    struct SequenceRecovery *rec = hashmap_find(oam_seq_recoveries, key);
+    if (rec == NULL) {
+        rec = new_seq_rec(RCVY_Match, false, false, 0, OAM_RCVY_RESET_MS, 0, key);
+        hashmap_insert(oam_seq_recoveries, key, rec);
+    }
+    return rec;
+}
+
+void delete_oam_rcvy(char *key)
+{
+    struct SequenceRecovery *rec = hashmap_find(oam_seq_recoveries, key);
+    if (rec) {
+        hashmap_remove(oam_seq_recoveries, key);
+        delete_seq_rec(rec);
+    }
+}
+
 static void *reset_thread(void *arg);
 
 static void reset_ticks(struct SequenceRecovery *rec)
@@ -61,7 +88,7 @@ static void reset_ticks(struct SequenceRecovery *rec)
 }
 
 struct SequenceRecovery *new_seq_rec(enum SequenceRecoveryAlgorithm algo, bool use_reset_flag, bool use_init_flag,
-        unsigned history_length, unsigned reset_msec, unsigned latent_error_paths, char *session_id)
+        unsigned history_length, unsigned reset_msec, unsigned latent_error_paths, const char *session_id)
 {
     struct SequenceRecovery *ret = calloc_struct(SequenceRecovery);
 

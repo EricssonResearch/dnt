@@ -49,10 +49,6 @@ static struct Interface *oam_default_iface = NULL;
 static struct Interface *oam_cmd_iface = NULL;
 static struct HashMap *mep_starts = NULL; // name -> struct MEPStart
 
-// TODO: make struct OamSession if more per-session info needed for MEP/MIP.
-// currently the only state of the session is the seq recovery
-static struct HashMap *oam_seq_recoveries = NULL; // session_id -> struct SequenceRecovery
-
 static unsigned session_counter = 0;
 static unsigned seq_counter = 0; // according to the RFC draft this is node-global
 
@@ -92,27 +88,6 @@ static struct Interface *get_oam_if(const char *name)
 unsigned short get_oam_nodeid(void)
 {
     return oam_get_uid(oam_default_iface);    // shouldn't this be the cmd interface? That is unique...
-}
-
-struct SequenceRecovery *get_oam_rcvy(char *key)
-{
-    if (oam_seq_recoveries == NULL)
-        oam_seq_recoveries = new_hashmap(51, NULL, NULL);
-    struct SequenceRecovery *rec = hashmap_find(oam_seq_recoveries, key);
-    if (rec == NULL) {
-        rec = new_seq_rec(RCVY_Match, false, false, 0, OAM_RCVY_RESET_MS, 0, key);
-        hashmap_insert(oam_seq_recoveries, key, rec);
-    }
-    return rec;
-}
-
-void delete_oam_rcvy(char *key)
-{
-    struct SequenceRecovery *rec = hashmap_find(oam_seq_recoveries, key);
-    if (rec) {
-        hashmap_remove(oam_seq_recoveries, key);
-        delete_seq_rec(rec);
-    }
 }
 
 int oam_create_mep_start(const char *stream_name, const char *mep_name, int level, unsigned idx)
