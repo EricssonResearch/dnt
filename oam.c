@@ -11,8 +11,6 @@
 #include "interface.h"
 #include "packet.h"
 #include "protocol.h"
-#include "seq_gen.h"
-#include "seq_recov.h"
 #include "utils.h"
 #include "json.h"
 
@@ -39,7 +37,6 @@ struct MepStart {
     char *stream_name;
     struct Pipeline *pipe;
     int pipe_pos_idx;
-    struct SequenceGenerator *seqgen; //TODO do we need this?
     int level;
 };
 
@@ -87,7 +84,7 @@ static struct Interface *get_oam_if(const char *name)
 
 unsigned short get_oam_nodeid(void)
 {
-    return oam_get_uid(oam_default_iface);    // shouldn't this be the cmd interface? That is unique...
+    return oam_get_uid(oam_default_iface);
 }
 
 int oam_create_mep_start(const char *stream_name, const char *mep_name, int level, unsigned idx)
@@ -102,7 +99,11 @@ int oam_create_mep_start(const char *stream_name, const char *mep_name, int leve
         return -1;
     }
     mepstart = calloc_struct(MepStart);
-    mepstart->name = strdup(mep_name);
+    char *fullname = malloc(strlen(stream_name) + strlen(mep_name) + 2);
+    strcpy(fullname, stream_name);
+    strcat(fullname, ":");
+    strcat(fullname, mep_name);
+    mepstart->name = fullname;
     mepstart->stream_name = strdup(stream_name);
     mepstart->level = level;
     mepstart->pipe_pos_idx = idx;
@@ -161,22 +162,26 @@ static int add_fixed_headers(struct Packet *packet, unsigned char ttl,
     return 0;
 }
 
-static int oam_send_request(const char *type, struct Interface *iface, unsigned session_id, unsigned seq, char *stream, char *mep_start, char *mep_stop, int level, unsigned char ttl)
+static int oam_send_request(FILE *cmd_w, const char *type, struct Interface *iface, unsigned session_id, unsigned seq, const char *mep_start, const char *mep_stop, int level, unsigned char ttl)
 {
     struct MepStart *mep = hashmap_find(mep_starts, mep_start);
-    if (!mep)
+    if (!mep) {
+        fprintf(cmd_w, "invalid mep start name '%s'\n", mep_start);
         return -EINVAL;
+    }
     struct Pipeline *pipe = mep->pipe;
-    if (!pipe)
+    if (!pipe) {
+        fprintf(cmd_w, "mep start '%s' has no pipeline!?!\n", mep_start);
         return -EINVAL;
+    }
 
     struct Packet *packet = new_packet(NULL);
     const char *return_ip = oam_get_ip(iface);
     unsigned return_port = oam_get_port(iface);
     unsigned short node_id = oam_get_uid(iface);
 
-    printf("OAM %s session %u seq %u, %s : %s -> %s, level %d\n resp ip: %s, port: %u\n", type,
-            session_id, seq, stream, mep_start, mep_stop, level,
+    printf("OAM %s session %u seq %u, %s -> %s, level %d\n resp ip: %s, port: %u\n",
+            type, session_id, seq, mep_start, mep_stop, level,
             return_ip, return_port);
 
     add_fixed_headers(packet, ttl, seq, OAM_CHANNEL,
@@ -216,43 +221,57 @@ static int oam_send_request(const char *type, struct Interface *iface, unsigned 
     return 0;
 }
 
-static int oam_ping(struct Interface *iface, unsigned session_id, unsigned seq, char *stream, char *mep_start, char *mep_stop, int level)
+static int oam_ping(FILE *cmd_w, struct Interface *iface, unsigned session_id, unsigned seq, const char *mep_start, const char *mep_stop, int level)
 {
-    return oam_send_request("ping", iface, session_id, seq, stream, mep_start, mep_stop, level, OAM_PING_TTL);
+    return oam_send_request(cmd_w, "ping", iface, session_id, seq, mep_start, mep_stop, level, OAM_PING_TTL);
 }
 
-static int oam_trace(struct Interface *iface, unsigned session_id, unsigned seq, char *stream, char *mep_start, char *mep_stop, int level)
+static int oam_trace(FILE *cmd_w, struct Interface *iface, unsigned session_id, unsigned seq, const char *mep_start, const char *mep_stop, int level)
 {
-    return oam_send_request("trace", iface, session_id, seq, stream, mep_start, mep_stop, level, 1);
+    return oam_send_request(cmd_w, "trace", iface, session_id, seq, mep_start, mep_stop, level, 1);
 }
 
-static int oam_discovery(struct Interface *iface, unsigned session_id, unsigned seq, char *stream, char *mep_start, char *mep_stop, int level)
+static int oam_discovery(FILE *cmd_w, struct Interface *iface, unsigned session_id, unsigned seq, const char *mep_start, const char *mep_stop, int level)
 {
-    return oam_send_request("discovery", iface, session_id, seq, stream, mep_start, mep_stop, level, OAM_PING_TTL);
+    return oam_send_request(cmd_w, "discovery", iface, session_id, seq, mep_start, mep_stop, level, OAM_PING_TTL);
 }
-
-static const char welcome_str[] = "OAM ready.\n";
 
 static const char help_str[] =
     "Available commands:\n"
     "help - get help\n"
     "exit - exit OAM\n"
+    "list - list monitoring start points\n"
     "ping[@if] <stream:mep-start> <mep-stop/mip/any> <level>\n"
     "trace[@if] <stream:mep-start> <mep-stop/mip> <level>\n"
     "discovery[@if] <stream:mep-start> <mep-stop/mip> <level>\n";
 
+struct ListMepParams {
+    FILE *cmd_w;
+};
+static int list_mep_cb(const char *key, void *value, void *userdata)
+{
+    struct MepStart *start = value;
+    struct ListMepParams *params = userdata;
+    fprintf(params->cmd_w, "%s level %d\n", key, start->level);
+    return 1;
+}
+
 int oam_command_loop(int cmd_fd)
 {
 #define ERROR(msg, ...)                             \
-    sprintf(resp, "Error: " msg "\n",               \
-##__VA_ARGS__);                             \
-    if (send(cmd_fd, resp, sizeof(resp), 0) == -1)  \
-    perror("send");                                 \
+    fprintf(cmd_w, "Error: " msg "\n",              \
+        ##__VA_ARGS__);                             \
     continue
 
+    // inverse operation: fd=fileno(file)
+    FILE *cmd_w = fdopen(cmd_fd, "w");
+    setvbuf(cmd_w, NULL, _IOLBF, 0);
+    //TODO if we wand to fread() we need to duplicate the handle
+    //int cmd_fd_dup = dup(cmd_fd);
+    //FILE *cmd_r = fdopen(cmd_fd_dup, "r");
+
     char oam_command[255];
-    char stream[32],mep_start[32], mep_stop[32], ifname[32];
-    char resp[255];
+    char mep_start[32], mep_stop[32], ifname[32];
     int level;
     int n, k;
     struct Interface *oam_if;
@@ -260,27 +279,30 @@ int oam_command_loop(int cmd_fd)
     // each OAM command connection is an unique session
     unsigned session_id = __atomic_fetch_add(&session_counter, 1, __ATOMIC_RELAXED);
 
-    if (send(cmd_fd, welcome_str, sizeof(welcome_str), 0) == -1)
-        perror("send");
+    fprintf(cmd_w, "OAM ready.\n");
 
     while (true) {
         n = read(cmd_fd, oam_command, sizeof(oam_command)-1);
         if (n > 0) {
             oam_command[n] = 0;
-            if(strcmp(oam_command, "exit") == 0){
-                if (send(cmd_fd, "Exiting.\n", 9, 0) == -1)
-                    perror("send");
+            //printf("oam command '%s' length %d\n", oam_command, n);
+            if(strcmp(oam_command, "exit\r\n") == 0){
+                fprintf(cmd_w, "Exiting.\n");
                 break;
             }
-            else if(strcmp(oam_command, "help") == 0){
-                if (send(cmd_fd, help_str, sizeof(help_str), 0) == -1)
-                    perror("send");
+            else if(strcmp(oam_command, "help\r\n") == 0){
+                fprintf(cmd_w, help_str);
+            }
+            else if (strcmp(oam_command, "list\r\n") == 0) {
+                fprintf(cmd_w, "Available MEP Start points:\n");
+                struct ListMepParams params = {cmd_w};
+                hashmap_foreach_sorted(mep_starts, list_mep_cb, &params);
             }
             else if(strncmp(oam_command, "ping",4) == 0){
                 if(oam_command[4]=='@'){
-                    k = sscanf(oam_command, "ping@%s %[^:]:%s %s %d",
-                            ifname, stream, mep_start, mep_stop, &level);
-                    if (k != 5) {
+                    k = sscanf(oam_command, "ping@%s %s %s %d",
+                            ifname, mep_start, mep_stop, &level);
+                    if (k != 4) {
                         ERROR("ping arguments invalid");
                     }
                     oam_if = get_oam_if(ifname);
@@ -288,29 +310,28 @@ int oam_command_loop(int cmd_fd)
                         ERROR("invalid interface name: %s", ifname);
                     }
                 }else{
-                    k = sscanf(oam_command, "ping %[^:]:%s %s %d",
-                            stream, mep_start, mep_stop, &level);
-                    if (k != 4) {
+                    k = sscanf(oam_command, "ping %s %s %d",
+                            mep_start, mep_stop, &level);
+                    if (k != 3) {
                         ERROR("ping arguments invalid");
                     }
                     oam_if = oam_default_iface;
                 }
 
                 unsigned seq = __atomic_fetch_add(&seq_counter, 1, __ATOMIC_RELAXED);
-                sprintf(resp, "OK %d, ping @[%s] %s : %s -> %s, level %d\n",
-                        seq, oam_if->name, stream, mep_start, mep_stop, level);
-                if (send(cmd_fd, resp, strlen(resp), 0) == -1)
-                    perror("send");
+                fprintf(cmd_w, "OK %d, ping @[%s] %s -> %s, level %d\n",
+                        seq, oam_if->name, mep_start, mep_stop, level);
 
-                if (oam_ping(oam_if, session_id, seq, stream, mep_start, mep_stop, level) != 0) {
+                if (oam_ping(cmd_w, oam_if, session_id, seq, mep_start, mep_stop, level) != 0) {
                     ERROR("can't send ping");
                 }
             }
+            //TODO do we need this command?
             else if(strncmp(oam_command, "trace",5) == 0){
                 if(oam_command[5]=='@'){
-                    k = sscanf(oam_command, "trace@%s %[^:]:%s %s %d",
-                            ifname, stream, mep_start, mep_stop, &level);
-                    if (k != 5) {
+                    k = sscanf(oam_command, "trace@%s %s %s %d",
+                            ifname, mep_start, mep_stop, &level);
+                    if (k != 4) {
                         ERROR("trace arguments invalid");
                     }
                     oam_if = get_oam_if(ifname);
@@ -318,28 +339,27 @@ int oam_command_loop(int cmd_fd)
                         ERROR("invalid interface name: %s", ifname);
                     }
                 }else{
-                    k = sscanf(oam_command, "trace %[^:]:%s %s %d", stream, mep_start, mep_stop, &level);
-                    if (k != 4) {
+                    k = sscanf(oam_command, "trace %s %s %d", mep_start, mep_stop, &level);
+                    if (k != 3) {
                         ERROR("trace arguments invalid");
                     }
                     oam_if = oam_default_iface;
                 }
 
                 unsigned seq = __atomic_fetch_add(&seq_counter, 1, __ATOMIC_RELAXED);
-                sprintf(resp, "OK %d, trace @[%s] %s : %s -> %s, level %d\n",
-                        seq, oam_if->name, stream, mep_start, mep_stop, level);
-                if (send(cmd_fd, resp, strlen(resp), 0) == -1)
-                    perror("send");
+                fprintf(cmd_w, "OK %d, trace @[%s] %s -> %s, level %d\n",
+                        seq, oam_if->name, mep_start, mep_stop, level);
 
-                if (oam_trace(oam_if, session_id, seq, stream, mep_start, mep_stop, level) != 0) {
+                if (oam_trace(cmd_w, oam_if, session_id, seq, mep_start, mep_stop, level) != 0) {
                     ERROR("can't send trace");
                 }
             }
+            //TODO do we need this command?
             else if(strncmp(oam_command, "discovery",9) == 0){
                 if(oam_command[9]=='@'){
-                    k = sscanf(oam_command, "discovery@%s %[^:]:%s %s %d",
-                            ifname, stream, mep_start, mep_stop, &level);
-                    if (k != 5) {
+                    k = sscanf(oam_command, "discovery@%s %s %s %d",
+                            ifname, mep_start, mep_stop, &level);
+                    if (k != 4) {
                         ERROR("discovery arguments invalid");
                     }
                     oam_if = get_oam_if(ifname);
@@ -347,20 +367,15 @@ int oam_command_loop(int cmd_fd)
                         ERROR("invalid interface name: %s", ifname);
                     }
                 }else{
-                    sscanf(oam_command, "discovery %[^:]:%s %s %d", stream, mep_start, mep_stop, &level);
+                    k = sscanf(oam_command, "discovery %s %s %d", mep_start, mep_stop, &level);
                     oam_if = oam_default_iface;
                 }
 
                 unsigned seq = __atomic_fetch_add(&seq_counter, 1, __ATOMIC_RELAXED);
-                k = sprintf(resp, "OK %d, discovery @[%s] %s : %s -> %s, level %d\n",
-                        seq, oam_if->name, stream, mep_start, mep_stop, level);
-                if (k != 4) {
-                    ERROR("discovery arguments invalid");
-                }
-                if (send(cmd_fd, resp, strlen(resp), 0) == -1)
-                    perror("send");
+                fprintf(cmd_w, "OK %d, discovery @[%s] %s -> %s, level %d\n",
+                        seq, oam_if->name, mep_start, mep_stop, level);
 
-                if (oam_discovery(oam_if, session_id, seq, stream, mep_start, mep_stop, level) != 0) {
+                if (oam_discovery(cmd_w, oam_if, session_id, seq, mep_start, mep_stop, level) != 0) {
                     ERROR("can't send discovery");
                 }
             }
