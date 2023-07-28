@@ -1,7 +1,9 @@
 #!/usr/bin/python3
 
+from socket import AF_INET, SOCK_STREAM, socket
 from mininet.net import Mininet
 from mininet.cli import CLI
+from pyroute2 import netns
 from utils import *
 # import signal
 # import time
@@ -80,11 +82,32 @@ def config_net(net):
     n3.cmd("ip r a default via 13.0.0.1")
     n4.cmd("ip r a default via 34.0.0.3")
 
+def run_tests(net):
+    # start R2DTWOs
+    for n in ['n1', 'n2', 'n3', 'n4']:
+        node = net.get(n)
+        node.popen(f"../r2dtwo oam/singlestage/{n}.cfg")
+    # list of (sender, message, expected reply)
+    testcases = [
+        ('n1', 'ping stream_uni:mepn1s1 in12 4', None)
+    ]
+    for node, msg, reply in testcases:
+        switch_netns(node)
+        with socket(AF_INET, SOCK_STREAM, 0) as s:
+            s.connect(('10.0.0.1', 8000))
+            _ = s.recv(1024)
+            s.sendall(msg.encode())
+            rcvd_reply = s.recv(2000)
+            print(rcvd_reply)
+            rcvd_reply = s.recv(2000)
+            print(rcvd_reply)
+    switch_netns()
 
 def main():
     print("R2DTWO OAM test")
     net = create_net()
     config_net(net)
+    run_tests(net)
     CLI(net)
     net.stop()
 
