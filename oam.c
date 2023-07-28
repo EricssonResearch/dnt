@@ -20,6 +20,7 @@
 #include <errno.h>
 
 #include <unistd.h>
+#include <pthread.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <net/if.h> /* struct ifreq */
@@ -45,9 +46,6 @@ static struct Interface *oam_ifaces[16];
 static struct Interface *oam_default_iface = NULL;
 static struct Interface *oam_cmd_iface = NULL;
 static struct HashMap *mep_starts = NULL; // name -> struct MEPStart
-
-static unsigned session_counter = 0;
-static unsigned seq_counter = 0; // according to the RFC draft this is node-global
 
 void set_oam_cmd_if(struct Interface *iface)
 {
@@ -80,6 +78,63 @@ static struct Interface *get_oam_if(const char *name)
         }
     }
     return NULL;
+}
+
+static struct SessionTracker {
+    time_t alloc_time;
+    bool live;
+} live_sessions[16] = {0};
+static pthread_mutex_t session_lock;
+static int alloc_session_id(void)
+{
+    static unsigned last_session = 0;
+
+    pthread_mutex_lock(&session_lock);
+    unsigned next_id = (last_session + 1) % 16;
+    unsigned id = next_id;
+    struct timespec now;
+    clock_gettime(CLOCK_REALTIME, &now);
+
+    if (live_sessions[id].live) {
+        if (now.tv_sec > live_sessions[id].alloc_time + 2) {
+            //fprintf(stderr, "session %u timeouted\n", id);
+            live_sessions[id].live = false;
+        } else {
+            id = (id + 1) % 16;
+            while (live_sessions[id].live && id != next_id) {
+                if (now.tv_sec > live_sessions[id].alloc_time + 2) {
+                    //fprintf(stderr, "session %u timeouted\n", id);
+                    live_sessions[id].live = false;
+                    break;
+                }
+                id = (id + 1) % 16;
+            }
+        }
+    }
+
+    if (live_sessions[id].live) {
+        pthread_mutex_unlock(&session_lock);
+        return -1;
+    } else {
+        last_session = id;
+        live_sessions[id].live = true;
+        live_sessions[id].alloc_time = now.tv_sec + 1;
+        pthread_mutex_unlock(&session_lock);
+        return id;
+    }
+}
+
+static void session_finished(unsigned id)
+{
+    if (id >= 16) {
+        fprintf(stderr, "invalid session finish id %u\n", id);
+        return;
+    }
+    if (live_sessions[id].live == false) {
+        fprintf(stderr, "session finish id %u points to inactive session\n", id);
+        return;
+    }
+    live_sessions[id].live = false;
 }
 
 unsigned short get_oam_nodeid(void)
@@ -180,7 +235,7 @@ static int oam_send_request(FILE *cmd_w, const char *type, struct Interface *ifa
     unsigned return_port = oam_get_port(iface);
     unsigned short node_id = oam_get_uid(iface);
 
-    printf("OAM %s session %u seq %u, %s -> %s, level %d\n resp ip: %s, port: %u\n",
+    fprintf(cmd_w, "OAM %s session %u seq %u, %s -> %s, level %d\n resp ip: %s, port: %u\n",
             type, session_id, seq, mep_start, mep_stop, level,
             return_ip, return_port);
 
@@ -226,24 +281,12 @@ static int oam_ping(FILE *cmd_w, struct Interface *iface, unsigned session_id, u
     return oam_send_request(cmd_w, "ping", iface, session_id, seq, mep_start, mep_stop, level, OAM_PING_TTL);
 }
 
-static int oam_trace(FILE *cmd_w, struct Interface *iface, unsigned session_id, unsigned seq, const char *mep_start, const char *mep_stop, int level)
-{
-    return oam_send_request(cmd_w, "trace", iface, session_id, seq, mep_start, mep_stop, level, 1);
-}
-
-static int oam_discovery(FILE *cmd_w, struct Interface *iface, unsigned session_id, unsigned seq, const char *mep_start, const char *mep_stop, int level)
-{
-    return oam_send_request(cmd_w, "discovery", iface, session_id, seq, mep_start, mep_stop, level, OAM_PING_TTL);
-}
-
 static const char help_str[] =
     "Available commands:\n"
     "help - get help\n"
     "exit - exit OAM\n"
     "list - list monitoring start points\n"
-    "ping[@if] <stream:mep-start> <mep-stop/mip/any> <level>\n"
-    "trace[@if] <stream:mep-start> <mep-stop/mip> <level>\n"
-    "discovery[@if] <stream:mep-start> <mep-stop/mip> <level>\n";
+    "ping[@if] <stream:mep-start> <mep-stop/mip/any> <level>\n";
 
 struct ListMepParams {
     FILE *cmd_w;
@@ -275,9 +318,6 @@ int oam_command_loop(int cmd_fd)
     int level;
     int n, k;
     struct Interface *oam_if;
-
-    // each OAM command connection is an unique session
-    unsigned session_id = __atomic_fetch_add(&session_counter, 1, __ATOMIC_RELAXED);
 
     fprintf(cmd_w, "OAM ready.\n");
 
@@ -318,65 +358,17 @@ int oam_command_loop(int cmd_fd)
                     oam_if = oam_default_iface;
                 }
 
-                unsigned seq = __atomic_fetch_add(&seq_counter, 1, __ATOMIC_RELAXED);
-                fprintf(cmd_w, "OK %d, ping @[%s] %s -> %s, level %d\n",
-                        seq, oam_if->name, mep_start, mep_stop, level);
+                int session_id = alloc_session_id();
+                unsigned seq = 0;
+                if (session_id >= 0) {
+                    fprintf(cmd_w, "OK %d, ping @[%s] %s -> %s, level %d\n",
+                            seq, oam_if->name, mep_start, mep_stop, level);
 
-                if (oam_ping(cmd_w, oam_if, session_id, seq, mep_start, mep_stop, level) != 0) {
-                    ERROR("can't send ping");
-                }
-            }
-            //TODO do we need this command?
-            else if(strncmp(oam_command, "trace",5) == 0){
-                if(oam_command[5]=='@'){
-                    k = sscanf(oam_command, "trace@%s %s %s %d",
-                            ifname, mep_start, mep_stop, &level);
-                    if (k != 4) {
-                        ERROR("trace arguments invalid");
+                    if (oam_ping(cmd_w, oam_if, session_id, seq, mep_start, mep_stop, level) != 0) {
+                        ERROR("can't send ping");
                     }
-                    oam_if = get_oam_if(ifname);
-                    if (oam_if == NULL) {
-                        ERROR("invalid interface name: %s", ifname);
-                    }
-                }else{
-                    k = sscanf(oam_command, "trace %s %s %d", mep_start, mep_stop, &level);
-                    if (k != 3) {
-                        ERROR("trace arguments invalid");
-                    }
-                    oam_if = oam_default_iface;
-                }
-
-                unsigned seq = __atomic_fetch_add(&seq_counter, 1, __ATOMIC_RELAXED);
-                fprintf(cmd_w, "OK %d, trace @[%s] %s -> %s, level %d\n",
-                        seq, oam_if->name, mep_start, mep_stop, level);
-
-                if (oam_trace(cmd_w, oam_if, session_id, seq, mep_start, mep_stop, level) != 0) {
-                    ERROR("can't send trace");
-                }
-            }
-            //TODO do we need this command?
-            else if(strncmp(oam_command, "discovery",9) == 0){
-                if(oam_command[9]=='@'){
-                    k = sscanf(oam_command, "discovery@%s %s %s %d",
-                            ifname, mep_start, mep_stop, &level);
-                    if (k != 4) {
-                        ERROR("discovery arguments invalid");
-                    }
-                    oam_if = get_oam_if(ifname);
-                    if (oam_if == NULL) {
-                        ERROR("invalid interface name: %s", ifname);
-                    }
-                }else{
-                    k = sscanf(oam_command, "discovery %s %s %d", mep_start, mep_stop, &level);
-                    oam_if = oam_default_iface;
-                }
-
-                unsigned seq = __atomic_fetch_add(&seq_counter, 1, __ATOMIC_RELAXED);
-                fprintf(cmd_w, "OK %d, discovery @[%s] %s -> %s, level %d\n",
-                        seq, oam_if->name, mep_start, mep_stop, level);
-
-                if (oam_discovery(cmd_w, oam_if, session_id, seq, mep_start, mep_stop, level) != 0) {
-                    ERROR("can't send discovery");
+                } else {
+                    ERROR("too many ongoing OAM sessions");
                 }
             }
         }
@@ -395,11 +387,23 @@ int oam_recv_reply(char *msg)
 {
   struct JsonValue *j = json_parse(msg, strlen(msg));
   struct JsonValue *val = hashmap_find(j->v.object, "seq_id");
+  struct JsonValue *sess = hashmap_find(j->v.object, "session");
   if(val!=NULL)
       printf("seq_id: %.0f\n", val->v.number);
   val = hashmap_find(j->v.object, "type");
   if(val!=NULL)
       printf("msg type: %s\n", val->v.string);
+
+  if (sess) {
+      if (sess->type != JSON_NUMBER) {
+          fprintf(stderr, "session id in reply is not number\n");
+      } else
+      if (sess->v.number < 0 || sess->v.number > 15) {
+          fprintf(stderr, "session id %.0f in reply is invalid\n", sess->v.number);
+      } else
+          session_finished(sess->v.number);
+  }
+
   json_delete(j);
 
   if(oam_cmd_iface != NULL)
@@ -456,6 +460,8 @@ bool init_oam(struct R2d2Config *config)
     printf("Init OAM fuctionality.\n");
     (void)config;
     //TODO what should this function do?
+
+    pthread_mutex_init(&session_lock, NULL);
 
     return true;
 }
