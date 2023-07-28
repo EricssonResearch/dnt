@@ -249,6 +249,7 @@ static int object_cb(const char *key, void *value, void *userdata)
             break;
         case CO_REPL:
             obj->object = new_replicate();
+            obj->print_state = replicate_get_state_json;
             break;
 
     }

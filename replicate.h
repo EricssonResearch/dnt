@@ -5,6 +5,8 @@
 #ifndef R2_REPLICATE_H
 #define R2_REPLICATE_H
 
+#include "json.h"
+
 // state object for replicate action
 struct Replicate;
 
@@ -15,6 +17,6 @@ struct Replicate *delete_replicate(struct Replicate *rep);
 
 void replicate_packet_passed(struct Replicate *rep);
 
-unsigned replicate_get_packets_passed(struct Replicate *rep);
+struct JsonValue *replicate_get_state_json(const void *obj);
 
 #endif // R2_REPLICATE_H

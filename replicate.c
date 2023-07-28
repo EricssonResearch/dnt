@@ -28,7 +28,12 @@ void replicate_packet_passed(struct Replicate *rep)
     __atomic_fetch_add(&rep->packets_passed, 1, __ATOMIC_RELAXED);
 }
 
-unsigned replicate_get_packets_passed(struct Replicate *rep)
+struct JsonValue *replicate_get_state_json(const void *obj)
 {
-    return rep->packets_passed;
+    const struct Replicate *rep = obj;
+    struct JsonValue *js = json_object();
+    json_object_insert(js, "type", json_string("replicate"));
+    json_object_insert(js, "packets_passed", json_number(rep->packets_passed));
+    return js;
 }
+

@@ -389,6 +389,7 @@ struct JsonValue *seqrec_get_state_json(const void *obj)
 {
     const struct SequenceRecovery *rec = obj;
     struct JsonValue *js = json_object();
+    json_object_insert(js, "type", json_string("seqrec"));
     json_object_insert(js, "passed_packets", json_number((double) rec->passed_packets));
     json_object_insert(js, "discarded_packets", json_number((double) rec->discarded_packets));
     return js;

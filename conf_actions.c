@@ -683,27 +683,26 @@ static bool process_token(char *token, void *userdata)
             case CA_MIP:
                 if (stst->actions->d.oam.name == NULL) {
                     stst->actions->d.oam.name = strdup(token);
-                    break;
-                }
-                if (stst->actions->d.oam.level == -1) {
-                    if (sscanf(token, "%d", &stst->actions->d.oam.level) != 1) {
-                        THROW("invalid argument for OAM action '%s'", token);
+                } else if (stst->actions->d.oam.level == -1) {
+                    char err;
+                    if (sscanf(token, "%d%c", &stst->actions->d.oam.level, &err) != 1) {
+                        THROW("invalid OAM level '%s'", token);
+                    }
+                    if (stst->actions->d.oam.level < 0 ||
+                            stst->actions->d.oam.level > 7) {
+                        THROW("invalid OAM level %d (valid range is 0-7)",
+                                stst->actions->d.oam.level);
                     }
                     break;
-                }
-                if (stst->actions->d.oam.obj == NULL) {
+                } else if (stst->actions->d.oam.obj == NULL) {
                     struct ConfObject *obj = hashmap_find(stst->objects, token);
-                    if (obj) {
-                        if (!(obj->type == CO_SEQGEN || obj->type == CO_SEQREC || obj->type == CO_POF))
-                            THROW("unsupported object argument '%s' for OAM action", token);
-                    } else {
+                    if (!obj) {
                         THROW("unknown object '%s' for OAM action", token);
                     }
                     stst->actions->d.oam.obj = obj;
                     break;
-                }
-                if (stst->actions->d.oam.name != NULL && stst->actions->d.oam.level != -1 && stst->actions->d.oam.obj != NULL) {
-                    THROW("action '%s' takes two mandatory and one optional argument", confaction_name_from_type(stst->actions->type));
+                } else {
+                    THROW("too many arguments");
                 }
                 break;
             case CA_POF:
@@ -1221,20 +1220,7 @@ static bool process_action(struct StageState *stst)
                 THROW("unnamed OAM action (name is mandatory)");
             } else if (newaction->d.oam.level == -1) {
                 THROW("no level specified for '%s' OAM action", newaction->d.oam.name);
-            } else if (newaction->d.oam.level < 0 || newaction->d.oam.level > 7) {
-                THROW("invalid OAM level (%d) specified for '%s' action (valid range is 0-7)",
-                      newaction->d.oam.level, newaction->d.oam.name);
             }
-            /* //TODO: only single OAM and OAM_CMD supported currently */
-            /* struct Interface *oam_iface = find_interface_by_type(stst, IF_OAM); */
-            /* struct Interface *oam_iface_cmd = find_interface_by_type(stst, IF_OAM_CMD); */
-            /* if ((oam_iface == NULL && (newaction->type == CA_MEPSTOP || newaction->type == CA_MIP)) || */
-            /*    (oam_iface_cmd == NULL && newaction->type == CA_MEPSTART)) { */
-            /*     THROW("OAM action ('%s') usage without proper OAM interface definitions", newaction->d.oam.name); */
-            /* } else { */
-            /*     newaction->d.oam.oam_iface = oam_iface; */
-            /*     newaction->d.oam.oam_iface_cmd = oam_iface_cmd; */
-            /* } */
             break;
         case CA_POF:
             if (newaction->d.pof.pof == NULL) {
