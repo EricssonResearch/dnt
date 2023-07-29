@@ -482,6 +482,15 @@ static bool process_token(char *token, void *userdata)
                     stst->actions->type = CA_ELIM;
                 } else if (strcmp(token, "jump") == 0) {
                     stst->actions->type = CA_JUMP;
+                } else if (strcmp(token, "mep-start") == 0) {
+                    stst->actions->type = CA_MEPSTART;
+                    stst->actions->d.oam.level = -1;
+                } else if (strcmp(token, "mep-stop") == 0) {
+                    stst->actions->type = CA_MEPSTOP;
+                    stst->actions->d.oam.level = -1;
+                } else if (strcmp(token, "mip") == 0) {
+                    stst->actions->type = CA_MIP;
+                    stst->actions->d.oam.level = -1;
                 } else if (strcmp(token, "pof") == 0) {
                     stst->actions->type = CA_POF;
                 } else if (strcmp(token, "readseq") == 0) {
@@ -502,15 +511,6 @@ static bool process_token(char *token, void *userdata)
                     stst->actions->type = CA_WRITESEQ;
                 } else if (strcmp(token, "writetstamp") == 0) {
                     stst->actions->type = CA_WRITETSTAMP;
-                } else if (strcmp(token, "mep-start") == 0) {
-                    stst->actions->type = CA_MEPSTART;
-                    stst->actions->d.oam.level = -1;
-                } else if (strcmp(token, "mep-stop") == 0) {
-                    stst->actions->type = CA_MEPSTOP;
-                    stst->actions->d.oam.level = -1;
-                } else if (strcmp(token, "mip") == 0) {
-                    stst->actions->type = CA_MIP;
-                    stst->actions->d.oam.level = -1;
                 } else {
                     struct ConfObject *obj = hashmap_find(stst->objects, token);
                     if (obj) {
@@ -939,6 +939,26 @@ static struct ConfAction *new_confaction(struct StageState *stst, enum ConfActio
     return ret;
 }
 
+static bool check_header_stack(struct HeaderDescriptor *headers,
+        enum ProtocolID *expected, unsigned count)
+{
+    for (unsigned i=0; i<count; i++) {
+        if (headers == NULL) {
+            fprintf(stderr, "header %u should be %s\n", i,
+                    protocol_type_from_id(expected[i]));
+            return false;
+        }
+        //TODO use ProtocolID everywhere
+        if ((unsigned)headers->id != expected[i]) {
+            fprintf(stderr, "header %u is %s, expected %s\n", i,
+                    protocol_type_from_id(headers->id), protocol_type_from_id(expected[i]));
+            return false;
+        }
+        headers = headers->next;
+    }
+    return true;
+}
+
 // here we do processing that needs all the parameters of the action
 static bool process_action(struct StageState *stst)
 {
@@ -1218,8 +1238,13 @@ static bool process_action(struct StageState *stst)
         case CA_MIP:
             if (newaction->d.oam.name == NULL) {
                 THROW("unnamed OAM action (name is mandatory)");
-            } else if (newaction->d.oam.level == -1) {
+            }
+            if (newaction->d.oam.level == -1) {
                 THROW("no level specified for '%s' OAM action", newaction->d.oam.name);
+            }
+            enum ProtocolID expected[] = {PROTO_ID_MPLS, PROTO_ID_DCW};
+            if (check_header_stack( stst->headers, expected, 2) == false) {
+                THROW("header stack is not suitable for OAM point");
             }
             break;
         case CA_POF:
