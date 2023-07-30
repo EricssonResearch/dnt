@@ -6,6 +6,7 @@
 #define R2_ACTION_H
 
 #include "conf_object.h"
+#include "protocol.h"
 #include "transfer.h"
 
 enum ActionType {
@@ -89,7 +90,7 @@ struct EditAssign {
 const char *action_name_from_type(enum ActionType type);
 
 // this just adds the header, the fields will be set with an edit action
-void create_action_add(struct Action *a, unsigned idx, int type, unsigned len, const char *text);
+void create_action_add(struct Action *a, unsigned idx, enum ProtocolID type, unsigned len, const char *text);
 
 void create_action_del(struct Action *a, unsigned idx, const char *text);
 

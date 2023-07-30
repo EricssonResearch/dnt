@@ -81,7 +81,7 @@ const char *action_name_from_type(enum ActionType type)
 
 struct AddData {
     unsigned idx;
-    int type;
+    enum ProtocolID type;
     unsigned len;
 };
 
@@ -92,7 +92,7 @@ static enum ActionResult action_ADD_execute(struct Action *a, struct PipelineIte
     return ACR_CONTINUE;
 }
 
-void create_action_add(struct Action *a, unsigned idx, int type, unsigned len, const char *text)
+void create_action_add(struct Action *a, unsigned idx, enum ProtocolID type, unsigned len, const char *text)
 {
     INIT_ACTION(ADD);
 

@@ -5,6 +5,7 @@
 #ifndef R2_PARSETREE_H
 #define R2_PARSETREE_H
 
+#include "protocol.h"
 #include "transfer.h"
 
 #include <stdbool.h>
@@ -23,7 +24,7 @@ struct HeaderMatch {
 
 struct HeaderDescriptor {
     char *name; // format: type[_identifier]
-    int id; // protocol type id
+    enum ProtocolID id;
     struct HeaderMatch *matches; //TODO hash table instead of linked list?
 
     struct HeaderDescriptor *next;
@@ -59,6 +60,6 @@ struct HeaderDescriptor *delete_header_list(struct HeaderDescriptor *headers);
 
 struct HeaderDescriptor *header_list_find_by_name(struct HeaderDescriptor *headers, const char *name);
 
-struct HeaderDescriptor *header_list_find_by_typeid(struct HeaderDescriptor *headers, int id);
+struct HeaderDescriptor *header_list_find_by_typeid(struct HeaderDescriptor *headers, enum ProtocolID id);
 
 #endif // R2_PARSETREE_H

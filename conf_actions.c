@@ -106,7 +106,7 @@ struct ConfAction {
     union {
         struct {
             char *newname;
-            int id;
+            enum ProtocolID id;
             struct HeaderDescriptor *pos; // relative to this header
             enum BeforeAfter beforeafter;
             unsigned pos_idx;
@@ -948,8 +948,7 @@ static bool check_header_stack(struct HeaderDescriptor *headers,
                     protocol_type_from_id(expected[i]));
             return false;
         }
-        //TODO use ProtocolID everywhere
-        if ((unsigned)headers->id != expected[i]) {
+        if (headers->id != expected[i]) {
             fprintf(stderr, "header %u is %s, expected %s\n", i,
                     protocol_type_from_id(headers->id), protocol_type_from_id(expected[i]));
             return false;
@@ -1243,7 +1242,7 @@ static bool process_action(struct StageState *stst)
                 THROW("no level specified for '%s' OAM action", newaction->d.oam.name);
             }
             enum ProtocolID expected[] = {PROTO_ID_MPLS, PROTO_ID_DCW};
-            if (check_header_stack( stst->headers, expected, 2) == false) {
+            if (check_header_stack(stst->headers, expected, 2) == false) {
                 THROW("header stack is not suitable for OAM point");
             }
             break;
