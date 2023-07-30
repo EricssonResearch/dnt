@@ -345,7 +345,7 @@ static const char help_str[] =
     "help - get help\n"
     "exit - exit OAM\n"
     "list - list monitoring start points\n"
-    "ping[@if] <stream:mep-start> <mep-stop/mip/any> <level> [-r] [-n <count>]\n";
+    "ping[@if] <stream:mep-start> <mep-stop/mip/any> <level> [-r] [-o] [-n <count>]\n";
 
 struct ListMepParams {
     FILE *cmd_w;
@@ -372,7 +372,7 @@ int oam_command_loop(int cmd_fd)
     //int cmd_fd_dup = dup(cmd_fd);
     //FILE *cmd_r = fdopen(cmd_fd_dup, "r");
 
-    char oam_command[255];
+    char oam_command[255], last_command[255];
     char mep_start[32], mep_stop[32], ifname[32], opts[32], c;
     int level, rr=0, count=1, os=0;
     int n, k, val;
@@ -384,7 +384,13 @@ int oam_command_loop(int cmd_fd)
         n = read(cmd_fd, oam_command, sizeof(oam_command)-1);
         if (n > 0) {
             oam_command[n] = 0;
-            //printf("oam command '%s' length %d\n", oam_command, n);
+//            printf("oam command '%s' length %d\n", oam_command, n);
+            if((oam_command[0] == 0x1b) &&(oam_command[1] == '[') ){  // uparrow-enter
+                if(oam_command[2] == 'A')
+                    strcpy(oam_command, last_command);
+                else
+                    continue;
+            }
             if(strcmp(oam_command, "exit\r\n") == 0){
                 fprintf(cmd_w, "Exiting.\n");
                 break;
@@ -420,22 +426,27 @@ int oam_command_loop(int cmd_fd)
                 // process options
                 char *po = opts;
                 while(*po == ' ') po++; // skip spaces
-                while(sscanf(po, "-%c %d", &c, &val) != 0){
+                while((k=sscanf(po, "-%c %d", &c, &val)) > 0){
                     if(c=='r'){
-                        while(*po != ' ') po++; // skip -r
+                        while((*po != ' ') && (*po != '\0')) po++; // skip -r
                         rr = 1;
                     } else if(c=='o'){
-                      while(*po != ' ') po++; // skip -r
-                      os = 1;
+                        while((*po != ' ') && (*po != '\0')) po++; // skip -o
+                        os = 1;
                     } else if(c=='n'){
-                        count = val;
-                        while(*po != ' ') po++; // skip -n
-                        while(*po == ' ') po++; // skip any extra spaces
-                        while(*po != ' ') po++; // skip <count>
-                    } else{
-                      printf("unknown option %c \n", c);
-                      while(*po != ' ') po++;
+                        while((*po != ' ') && (*po != '\0')) po++; // skip -n
+                        if(k != 2){
+                            ERROR("no count specified with -n option");
+                        }else{
+                            count = val;
+                            while(*po == ' ') po++; // skip any extra spaces
+                            while((*po != ' ') && (*po != '\0')) po++; // skip <count>
+                        }
+                    } else {
+                        while((*po != ' ') && (*po != '\0')) po++;
+                        ERROR("unknown option -%c\n", c);
                     }
+                    printf("At %s\n", po);
                     while(*po == ' ') po++; // skip spaces
                 }
 
@@ -452,6 +463,7 @@ int oam_command_loop(int cmd_fd)
                     ERROR("too many ongoing OAM sessions");
                 }
             }
+            strcpy(last_command, oam_command);
         }
         else break;
     }

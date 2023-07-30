@@ -612,8 +612,6 @@ static enum ActionResult action_MIP_execute(struct Action *a, struct PipelineIte
     struct OamData *oam  = a->action_private;
     unsigned char *oam_hdr = p->buf + p->headers[1].start;
 
-    printf("MIP %s, level %d, nibble: %x TTL %d\n", oam->name, oam->level, oam_hdr[0], p->ttl);
-
     if(oam_hdr[0] == 0x11){
         unsigned char seq = oam_hdr[1];
         unsigned short channel = (oam_hdr[2]<<8)+oam_hdr[3];
@@ -628,9 +626,8 @@ static enum ActionResult action_MIP_execute(struct Action *a, struct PipelineIte
         int port=6634;
         char *reply_address=NULL;
 
-        printf("OAM packet, %s\n", protocol_type_from_id(p->headers[1].type));    // honnan tudja hogy OAM?
-        printf("nib_ver %x seq %x ch %x node %x level %x session %x\n", oam_hdr[0], seq, channel, nodeid, level, session);
-        printf("JSON: %s\n", msg);
+        printf("OAM packet (%s) at MIP [%s level %d], ttl %d nib_ver %x sequence %x channel %x node %x level %x session %x\njson: %s\n",
+                protocol_type_from_id(p->headers[1].type), oam->name, oam->level, p->ttl, oam_hdr[0], seq, channel, nodeid, level, session, msg);
 
         struct JsonValue *j = json_parse(msg, strlen(msg));
 
@@ -655,7 +652,7 @@ static enum ActionResult action_MIP_execute(struct Action *a, struct PipelineIte
 
         // MIP message handling logic
         if(level < oam->level){
-            printf("MIP %s level %d Warning: dropping lower level (level %d) OAM packet.\n", oam->name, oam->level, level);
+            fprintf(stderr, "MIP %s level %d Warning: dropping lower level (level %d) OAM packet.\n", oam->name, oam->level, level);
             return ACR_DONE;            // if lower level, DROP packet
         }
         if(level > oam->level)
@@ -673,7 +670,7 @@ static enum ActionResult action_MIP_execute(struct Action *a, struct PipelineIte
         // send reply
         struct JsonValue *jret = hashmap_find(j->v.object, "return");
         if(jret==NULL)
-            printf("Not found object return");
+            perror("Not found json object 'return'");
         val = hashmap_find(jret->v.object, "port");
         if(val!=NULL)
             port=val->v.number;
