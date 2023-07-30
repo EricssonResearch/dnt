@@ -612,7 +612,7 @@ static enum ActionResult action_MIP_execute(struct Action *a, struct PipelineIte
     struct OamData *oam  = a->action_private;
     unsigned char *oam_hdr = p->buf + p->headers[1].start;
 
-    printf("MIP %s (id %d), level %d, nibble: %x TTL %d\n", oam->name, get_oam_nodeid(), oam->level, oam_hdr[0], p->ttl);
+    printf("MIP %s, level %d, nibble: %x TTL %d\n", oam->name, oam->level, oam_hdr[0], p->ttl);
 
     if(oam_hdr[0] == 0x11){
         unsigned char seq = oam_hdr[1];
@@ -632,6 +632,27 @@ static enum ActionResult action_MIP_execute(struct Action *a, struct PipelineIte
         printf("nib_ver %x seq %x ch %x node %x level %x session %x\n", oam_hdr[0], seq, channel, nodeid, level, session);
         printf("JSON: %s\n", msg);
 
+        struct JsonValue *j = json_parse(msg, strlen(msg));
+
+        // if record route, add this hop
+        struct JsonValue *jrr = hashmap_find(j->v.object, "rr");
+        if(jrr!=NULL){
+            char hop[32];
+            sprintf(hop, "%d", hashmap_count(jrr->v.object));
+            json_object_insert(jrr, hop, json_string(oam->name));
+            packet_del_header(p, 2);
+
+            unsigned js_length;
+            char *js_string = json_serialize(j, &js_length);
+            if (js_string == NULL) {
+                perror("action_MIP_execute: json string empty");
+                return ACR_DONE;            //  DROP packet
+            }
+            packet_add_header(p, 2, PROTO_ID_PAYLOAD, js_length);
+            memcpy(msg, js_string, js_length);
+            free(js_string);
+        }
+
         // MIP message handling logic
         if(level < oam->level){
             printf("MIP %s level %d Warning: dropping lower level (level %d) OAM packet.\n", oam->name, oam->level, level);
@@ -640,15 +661,20 @@ static enum ActionResult action_MIP_execute(struct Action *a, struct PipelineIte
         if(level > oam->level)
             return ACR_CONTINUE;        // if lower level, forward packet
 
-        /* if( (ttl != 0) && (nodeid != get_oam_nodeid()) && (nodeid != 0xFFFF)) */
-        /*     return ACR_CONTINUE;        // send reply only if TTL expires or nodeid matces or nodeid is "*" */
+        // get target from json
+        struct JsonValue *val = hashmap_find(j->v.object, "target");
+
+        // continue and send response if ttl=0 or target is us or target is "any"
+        if( (p->ttl != 0) && (strcmp(val->v.string, oam->name)!=0) && (strcmp(val->v.string, "any")!=0)){
+            json_delete(j);
+            return ACR_CONTINUE;
+        }
 
         // send reply
-        struct JsonValue *j = json_parse(msg, strlen(msg));
         struct JsonValue *jret = hashmap_find(j->v.object, "return");
         if(jret==NULL)
             printf("Not found object return");
-        struct JsonValue *val = hashmap_find(jret->v.object, "port");
+        val = hashmap_find(jret->v.object, "port");
         if(val!=NULL)
             port=val->v.number;
         val = hashmap_find(jret->v.object, "ip");
@@ -657,21 +683,24 @@ static enum ActionResult action_MIP_execute(struct Action *a, struct PipelineIte
         else
             return ACR_CONTINUE;
 
-        /* struct JsonValue *objinfo = NULL; */
-        /* if (oam->target->object && oam->target->print_state) { */
-        /*     objinfo = oam->target->print_state(oam->target->object); */
-        /* } */
-        /* if (objinfo) { */
-        /*     json_serialize(objinfo, len); */
-        /* } */
+        // if object state is requested
+        struct JsonValue *jos = hashmap_find(j->v.object, "objects");
+        if(jos!=NULL){
+            struct JsonValue *objinfo = NULL;
+            if (oam->target && oam->target->print_state) {
+                objinfo = oam->target->print_state(oam->target->object);
+                json_object_insert(jos, oam->name, objinfo);
+            }
+        }
 
         hashmap_remove(j->v.object,"return");
         json_object_insert(j, "sequence", json_number(seq));
         json_object_insert(j, "nodeid", json_number(nodeid));
+        json_object_insert(j, "node", json_string(oam->name));
         json_object_insert(j, "session", json_number(session));
         unsigned msg_len=0;
         char *j_msg = json_serialize(j, &msg_len);
-        printf("Send to %s : %d\nlen %d %s\n", reply_address, port, msg_len, j_msg);
+        //printf("Send to %s : %d\nlen %d %s\n", reply_address, port, msg_len, j_msg);
         oam_send_reply(reply_address, port, j_msg, msg_len);
         json_delete(j);
         free(reply_address);

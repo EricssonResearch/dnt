@@ -217,7 +217,7 @@ static int add_fixed_headers(struct Packet *packet, unsigned char ttl,
     return 0;
 }
 
-static int oam_send_request(FILE *cmd_w, const char *type, struct Interface *iface, unsigned session_id, unsigned seq, const char *mep_start, const char *mep_stop, int level, unsigned char ttl)
+static int oam_send_request(FILE *cmd_w, const char *type, struct Interface *iface, unsigned session_id, unsigned seq, const char *mep_start, const char *mep_stop, int level, unsigned char ttl, int rr, int os)
 {
     struct MepStart *mep = hashmap_find(mep_starts, mep_start);
     if (!mep) {
@@ -235,8 +235,8 @@ static int oam_send_request(FILE *cmd_w, const char *type, struct Interface *ifa
     unsigned return_port = oam_get_port(iface);
     unsigned short node_id = oam_get_uid(iface);
 
-    fprintf(cmd_w, "OAM %s session %u seq %u, %s -> %s, level %d\n resp ip: %s, port: %u\n",
-            type, session_id, seq, mep_start, mep_stop, level,
+    fprintf(cmd_w, "OAM packet %s session %u seq %u, %s -> %s, level %d, rr: %s os: %s\t[reply to ip: %s, port: %u]\n",
+            type, session_id, seq, mep_start, mep_stop, level, rr?"yes":"no", os?"yes":"no",
             return_ip, return_port);
 
     add_fixed_headers(packet, ttl, seq, OAM_CHANNEL,
@@ -256,6 +256,17 @@ static int oam_send_request(FILE *cmd_w, const char *type, struct Interface *ifa
     json_object_insert(jret, "ip", json_string(return_ip));
     json_object_insert(jret, "port", json_number(return_port));
     json_object_insert(js, "return", jret);
+
+    if(rr == 1){
+        jret = json_object();
+        json_object_insert(jret, "0", json_string(mep_start));
+        json_object_insert(js, "rr", jret);
+    }
+    if(os == 1){
+        jret = json_object();
+        json_object_insert(js, "objects", jret);
+    }
+
     unsigned js_length;
     char *js_string = json_serialize(js, &js_length);
     json_delete(js);
@@ -276,9 +287,57 @@ static int oam_send_request(FILE *cmd_w, const char *type, struct Interface *ifa
     return 0;
 }
 
-static int oam_ping(FILE *cmd_w, struct Interface *iface, unsigned session_id, unsigned seq, const char *mep_start, const char *mep_stop, int level)
+pthread_t ping_tid;
+struct oam_request{                 // needed for the ping thread. Shuld be used in other function calls too
+    FILE *cmd_w;
+    struct Interface *iface;
+    unsigned session_id, seq;
+    const char *mep_start, *mep_stop;
+    int level, rr, os;
+    unsigned count;
+  };
+
+static void *oam_ping_thread(void *arg)
 {
-    return oam_send_request(cmd_w, "ping", iface, session_id, seq, mep_start, mep_stop, level, OAM_PING_TTL);
+    struct oam_request *req = (struct oam_request *)arg;
+    printf("Sending %d packets\n", req->count);
+    for(unsigned seq=0; seq<req->count; seq++){
+        oam_send_request(req->cmd_w, "ping", req->iface, req->session_id, seq, req->mep_start, req->mep_stop, req->level, OAM_PING_TTL, req->rr, req->os);
+        sleep(1);
+    }
+    return NULL;
+}
+
+static int oam_ping(FILE *cmd_w, struct Interface *iface, unsigned session_id, unsigned seq, const char *mep_start, const char *mep_stop, int level, int rr, int os, unsigned count)
+{
+    if(count == 1)
+        return oam_send_request(cmd_w, "ping", iface, session_id, seq, mep_start, mep_stop, level, OAM_PING_TTL, rr, os);
+    else{
+          struct oam_request ping_req;
+          ping_req.cmd_w = cmd_w;
+          ping_req.iface = iface;
+          ping_req.session_id = session_id;
+          ping_req.seq = seq;
+          ping_req.mep_start = mep_start;
+          ping_req.mep_stop = mep_stop;
+          ping_req.level = level;
+          ping_req.rr = rr;
+          ping_req.os = os;
+          ping_req.count = count;
+
+          pthread_attr_t attr;
+          if ((errno = pthread_attr_init(&attr)) != 0) {
+              perror("oam ping thread pthread_attr_init");
+              return -1;
+          }
+
+          if (pthread_create(&ping_tid, &attr, &oam_ping_thread, &ping_req) != 0) {
+              fprintf(stderr, "could not create new ping thread\n");
+              return -1;
+          }
+    }
+
+    return 0;
 }
 
 static const char help_str[] =
@@ -286,7 +345,7 @@ static const char help_str[] =
     "help - get help\n"
     "exit - exit OAM\n"
     "list - list monitoring start points\n"
-    "ping[@if] <stream:mep-start> <mep-stop/mip/any> <level>\n";
+    "ping[@if] <stream:mep-start> <mep-stop/mip/any> <level> [-r] [-n <count>]\n";
 
 struct ListMepParams {
     FILE *cmd_w;
@@ -314,9 +373,9 @@ int oam_command_loop(int cmd_fd)
     //FILE *cmd_r = fdopen(cmd_fd_dup, "r");
 
     char oam_command[255];
-    char mep_start[32], mep_stop[32], ifname[32];
-    int level;
-    int n, k;
+    char mep_start[32], mep_stop[32], ifname[32], opts[32], c;
+    int level, rr=0, count=1, os=0;
+    int n, k, val;
     struct Interface *oam_if;
 
     fprintf(cmd_w, "OAM ready.\n");
@@ -340,9 +399,9 @@ int oam_command_loop(int cmd_fd)
             }
             else if(strncmp(oam_command, "ping",4) == 0){
                 if(oam_command[4]=='@'){
-                    k = sscanf(oam_command, "ping@%s %s %s %d",
-                            ifname, mep_start, mep_stop, &level);
-                    if (k != 4) {
+                    k = sscanf(oam_command, "ping@%s %s %s %d %[^\n]",
+                            ifname, mep_start, mep_stop, &level, opts);
+                    if (k < 4) {
                         ERROR("ping arguments invalid");
                     }
                     oam_if = get_oam_if(ifname);
@@ -350,12 +409,34 @@ int oam_command_loop(int cmd_fd)
                         ERROR("invalid interface name: %s", ifname);
                     }
                 }else{
-                    k = sscanf(oam_command, "ping %s %s %d",
-                            mep_start, mep_stop, &level);
-                    if (k != 3) {
+                    k = sscanf(oam_command, "ping %s %s %d %[^\n]",
+                            mep_start, mep_stop, &level, opts);
+                    if (k < 3) {
                         ERROR("ping arguments invalid");
                     }
                     oam_if = oam_default_iface;
+                }
+
+                // process options
+                char *po = opts;
+                while(*po == ' ') po++; // skip spaces
+                while(sscanf(po, "-%c %d", &c, &val) != 0){
+                    if(c=='r'){
+                        while(*po != ' ') po++; // skip -r
+                        rr = 1;
+                    } else if(c=='o'){
+                      while(*po != ' ') po++; // skip -r
+                      os = 1;
+                    } else if(c=='n'){
+                        count = val;
+                        while(*po != ' ') po++; // skip -n
+                        while(*po == ' ') po++; // skip any extra spaces
+                        while(*po != ' ') po++; // skip <count>
+                    } else{
+                      printf("unknown option %c \n", c);
+                      while(*po != ' ') po++;
+                    }
+                    while(*po == ' ') po++; // skip spaces
                 }
 
                 int session_id = alloc_session_id();
@@ -364,7 +445,7 @@ int oam_command_loop(int cmd_fd)
                     fprintf(cmd_w, "OK %d, ping @[%s] %s -> %s, level %d\n",
                             seq, oam_if->name, mep_start, mep_stop, level);
 
-                    if (oam_ping(cmd_w, oam_if, session_id, seq, mep_start, mep_stop, level) != 0) {
+                    if (oam_ping(cmd_w, oam_if, session_id, seq, mep_start, mep_stop, level, rr, os, count) != 0) {
                         ERROR("can't send ping");
                     }
                 } else {
@@ -378,6 +459,7 @@ int oam_command_loop(int cmd_fd)
 }
 
 
+
 /*
  * Handle received UDP OAM reply mesage
  * Msg: pointer to the message
@@ -385,31 +467,83 @@ int oam_command_loop(int cmd_fd)
 */
 int oam_recv_reply(char *msg)
 {
-  struct JsonValue *j = json_parse(msg, strlen(msg));
-  struct JsonValue *val = hashmap_find(j->v.object, "seq_id");
-  struct JsonValue *sess = hashmap_find(j->v.object, "session");
-  if(val!=NULL)
-      printf("seq_id: %.0f\n", val->v.number);
-  val = hashmap_find(j->v.object, "type");
-  if(val!=NULL)
-      printf("msg type: %s\n", val->v.string);
+    char reply_str[512];
+    struct JsonValue *j = json_parse(msg, strlen(msg));
+    struct JsonValue *nid = hashmap_find(j->v.object, "nodeid");
+    if(nid==NULL) {
+        fprintf(stderr, "No nodeid in reply.\n");
+        return -1;
+    }
+    struct JsonValue *sess = hashmap_find(j->v.object, "session");
+    if(sess == NULL) {
+        fprintf(stderr, "No session id in reply.\n");
+        return -1;
+    } else {
+        if (sess->type != JSON_NUMBER) {
+            fprintf(stderr, "session id in reply is not number\n");
+        } else
+        if (sess->v.number < 0 || sess->v.number > 15) {
+            fprintf(stderr, "session id %.0f in reply is invalid\n", sess->v.number);
+        } else
+            session_finished(sess->v.number);
+    }
+    struct JsonValue *request = hashmap_find(j->v.object, "request");
+    if(request == NULL) {
+        fprintf(stderr, "No request in reply.\n");
+        return -1;
+    }
+    struct JsonValue *target = hashmap_find(j->v.object, "target");
+    if(target == NULL) {
+        fprintf(stderr, "No target in reply.\n");
+        return -1;
+    }
+    struct JsonValue *seq = hashmap_find(j->v.object, "sequence");
+    if(seq == NULL) {
+        fprintf(stderr, "No sequence in reply.\n");
+        return -1;
+    }
+    struct JsonValue *level = hashmap_find(j->v.object, "level");
+    if(level == NULL) {
+        fprintf(stderr, "No level in reply.\n");
+        return -1;
+    }
+    struct JsonValue *node = hashmap_find(j->v.object, "node");
+    if(node == NULL) {
+        fprintf(stderr, "No node in reply.\n");
+        return -1;
+    }
+    sprintf(reply_str,"[session %.0f nodeid %.0f]\t%s level %.0f target %s seq %.0f\treply from %s", sess->v.number, nid->v.number,
+            request->v.string, level->v.number, target->v.string, seq->v.number, node->v.string);
 
-  if (sess) {
-      if (sess->type != JSON_NUMBER) {
-          fprintf(stderr, "session id in reply is not number\n");
-      } else
-      if (sess->v.number < 0 || sess->v.number > 15) {
-          fprintf(stderr, "session id %.0f in reply is invalid\n", sess->v.number);
-      } else
-          session_finished(sess->v.number);
-  }
+    struct JsonValue *jrr = hashmap_find(j->v.object, "rr");
+    if(jrr){
+        strcat(reply_str, "\troute: ");
+        for(unsigned i=0; i<hashmap_count(jrr->v.object); i++){
+            char hop[32];
+            sprintf(hop, "%d",i);
+            struct JsonValue *route = hashmap_find(jrr->v.object, hop);
+            strcat(reply_str, route->v.string);
+            strcat(reply_str, " ");
+        }
+    }
 
-  json_delete(j);
+    struct JsonValue *jos = hashmap_find(j->v.object, "objects");
+    if(jos){
+        // ToDo: formatted printout per object type
+        strcat(reply_str, " os: ");
+        unsigned jos_length;
+        char *jos_string = json_serialize(jos, &jos_length);
+        strcat(reply_str, jos_string);
+        free(jos_string);
+      }
 
-  if(oam_cmd_iface != NULL)
-    return oam_cmd_recv_reply(oam_cmd_iface, msg);
-  else
-    return -1;
+    strcat(reply_str, "\n");
+    json_delete(j);
+
+    if(oam_cmd_iface != NULL)
+        return oam_cmd_recv_reply(oam_cmd_iface, reply_str);
+    else
+        return -1;
 }
 
 /*
