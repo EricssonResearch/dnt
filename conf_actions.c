@@ -38,6 +38,9 @@ enum ConfActionType {
     CA_ELIM,
     CA_FILTEROAM,
     CA_JUMP,
+    CA_MEPSTART,
+    CA_MEPSTOP,
+    CA_MIP,
     CA_POF,
     CA_READSEQ,
     CA_READTSTAMP,
@@ -48,9 +51,6 @@ enum ConfActionType {
     CA_TTLREDUCE,
     CA_WRITESEQ,
     CA_WRITETSTAMP,
-    CA_MEPSTART,
-    CA_MEPSTOP,
-    CA_MIP,
 };
 
 enum BeforeAfter {
@@ -137,6 +137,11 @@ struct ConfAction {
             struct HeaderField *field;
         } meta; // read/write seq/tstamp
         struct {
+            char *name;
+            int level;
+            struct ConfObject *obj; // NULL if no associated object
+        } oam;
+        struct {
             struct Pof *pof;
         } pof;
         struct {
@@ -152,13 +157,6 @@ struct ConfAction {
         struct {
             struct HeaderField *field;
         } ttl;
-        struct {
-            char *name;
-            int level;
-            struct ConfObject *obj; // NULL is valid too
-            /* struct Interface *oam_iface; */
-            struct Interface *oam_iface_cmd;
-        } oam;
     } d;
 };
 
@@ -268,6 +266,12 @@ static const char *confaction_name_from_type(enum ConfActionType type)
             return "FilterOAM";
         case CA_JUMP:
             return "Jump";
+        case CA_MEPSTART:
+            return "MEPStart";
+        case CA_MEPSTOP:
+            return "MEPStop";
+        case CA_MIP:
+            return "MIP";
         case CA_POF:
             return "POF";
         case CA_READSEQ:
@@ -288,12 +292,6 @@ static const char *confaction_name_from_type(enum ConfActionType type)
             return "WriteSeq";
         case CA_WRITETSTAMP:
             return "WriteTstamp";
-        case CA_MEPSTART:
-            return "MEPStart";
-        case CA_MEPSTOP:
-            return "MEPStop";
-        case CA_MIP:
-            return "MIP";
     }
     return NULL;
 }
