@@ -388,9 +388,10 @@ int oam_command_loop(int cmd_fd)
             oam_command[n] = 0;
 //            printf("oam command '%s' length %d\n", oam_command, n);
             if((oam_command[0] == 0x1b) &&(oam_command[1] == '[') ){  // uparrow-enter
-                if(oam_command[2] == 'A')
+                if(oam_command[2] == 'A'){
                     strcpy(oam_command, last_command);
-                else
+                    fprintf(cmd_w, "%s", oam_command);
+                } else
                     continue;
             }
             if(strcmp(oam_command, "exit\r\n") == 0){
@@ -448,7 +449,6 @@ int oam_command_loop(int cmd_fd)
                         while((*po != ' ') && (*po != '\0')) po++;
                         ERROR("unknown option -%c\n", c);
                     }
-                    printf("At %s\n", po);
                     while(*po == ' ') po++; // skip spaces
                 }
 
@@ -472,8 +472,75 @@ int oam_command_loop(int cmd_fd)
     return 0;
 }
 
+/*
+ *  Formatted dump functions for printing object specific json
+ */
+static int dump_seqgen_state(char *str, struct JsonValue *jos){
+    char tmp[128];
+    struct JsonValue *ini = hashmap_find(jos->v.object, "use_init_flag");
+    if(ini == NULL) {
+        fprintf(stderr, "No use_init_flag in object in reply.\n");
+        return -1;
+    }
+    struct JsonValue *rst = hashmap_find(jos->v.object, "use_reset_flag");
+    if(rst == NULL) {
+        fprintf(stderr, "No use_init_flag in object in reply.\n");
+        return -1;
+    }
+    sprintf(tmp, " (use_init_flag: %s, use_reset_flag: %s)\n", (ini->type == JSON_TRUE)? "true":"false", (rst->type == JSON_TRUE)? "true":"false" );
+    strcat(str, tmp);
 
+    return 0;
+}
 
+static int dump_seqrec_state(char *str, struct JsonValue *jos){
+    char tmp[128];
+    struct JsonValue *pass = hashmap_find(jos->v.object, "passed_packets");
+    if(pass == NULL) {
+        fprintf(stderr, "No passed_packets in object in reply.\n");
+        return -1;
+    }
+    struct JsonValue *disc = hashmap_find(jos->v.object, "discarded_packets");
+    if(disc== NULL) {
+        fprintf(stderr, "No discarded_packets in object in reply.\n");
+        return -1;
+    }
+    sprintf(tmp, "\n\t\tpassed_packets: %.0f, discarded_packets: %.0f\n",  pass->v.number, disc->v.number);
+    strcat(str, tmp);
+
+    return 0;
+}
+
+static int dump_repl_state(char *str, struct JsonValue *jos){
+    char tmp[128];
+    struct JsonValue *pass = hashmap_find(jos->v.object, "packets_passed");
+    if(pass == NULL) {
+        fprintf(stderr, "No packets_passed in object in reply.\n");
+        return -1;
+    }
+    sprintf(tmp, "\n\t\tpackets_passed: %.0f\n",  pass->v.number);
+    strcat(str, tmp);
+
+    return 0;
+}
+
+static int dump_pof_state(char *str, struct JsonValue *jos){
+    char tmp[128];
+    struct JsonValue *buff = hashmap_find(jos->v.object, "pof_conditional_buffer_length");
+    if(buff == NULL) {
+        fprintf(stderr, "No pof_conditional_buffer_length in object in reply.\n");
+        return -1;
+    }
+    struct JsonValue *dly = hashmap_find(jos->v.object, "pof_max_delay");
+    if(dly== NULL) {
+        fprintf(stderr, "No pof_max_delay in object in reply.\n");
+        return -1;
+    }
+    sprintf(tmp, "\n\t\tpof_conditional_buffer_length: %.0f, pof_max_delay: %.0f\n",  buff->v.number, dly->v.number);
+    strcat(str, tmp);
+
+    return 0;
+}
 /*
  * Handle received UDP OAM reply mesage
  * Msg: pointer to the message
@@ -526,27 +593,61 @@ int oam_recv_reply(char *msg)
         fprintf(stderr, "No node in reply.\n");
         return -1;
     }
-    sprintf(reply_str,"[session %.0f nodeid %.0f]\t%s level %.0f target %s seq %.0f\treply from %s", sess->v.number, nid->v.number,
-            request->v.string, level->v.number, target->v.string, seq->v.number, node->v.string);
+    struct JsonValue *strm = hashmap_find(j->v.object, "stream");
+    if(strm == NULL) {
+        fprintf(stderr, "No stream in reply.\n");
+        return -1;
+    }
+    sprintf(reply_str,"[session %.0f nodeid %.0f]\t%s level %.0f on stream %s target %s seq %.0f\treply from %s\n", sess->v.number, nid->v.number,
+            request->v.string, level->v.number, strm->v.string, target->v.string, seq->v.number, node->v.string);
 
     struct JsonValue *jrr = hashmap_find(j->v.object, "rr");
     if(jrr){
-        strcat(reply_str, "\troute: ");
+        strcat(reply_str, "\tRecord Route (reverse): [");
         for (struct JsonArray *a = jrr->v.array; a; a = a->next) {
-            strcat(reply_str, a->val->v.string);
             strcat(reply_str, " ");
-
+            strcat(reply_str, a->val->v.string);
         }
+        strcat(reply_str, " ]\n");
     }
 
     struct JsonValue *jos = hashmap_find(j->v.object, "objects");
     if(jos){
         // ToDo: formatted printout per object type
-        strcat(reply_str, " os: ");
-        unsigned jos_length;
-        char *jos_string = json_serialize(jos, &jos_length);
-        strcat(reply_str, jos_string);
-        free(jos_string);
+        strcat(reply_str, "\tObject ");
+        struct JsonValue *val = hashmap_find(jos->v.object, "name");
+        if(val == NULL) {
+            fprintf(stderr, "No name in object in reply.\n");
+            return -1;
+        }
+        strcat(reply_str, val->v.string);
+        strcat(reply_str, " type ");
+        val = hashmap_find(jos->v.object, "type");
+        if(val == NULL) {
+            fprintf(stderr, "No type in object in reply.\n");
+            return -1;
+        }
+        strcat(reply_str, val->v.string);
+
+        // dump according to the type
+        if(strcmp(val->v.string,"seqgen")==0){
+            dump_seqgen_state(reply_str, jos);
+        }
+        else if(strcmp(val->v.string,"seqrec")==0){
+            dump_seqrec_state(reply_str, jos);
+        }
+        else if(strcmp(val->v.string,"replicate")==0){
+            dump_repl_state(reply_str, jos);
+        }
+        else if(strcmp(val->v.string,"pof")==0){
+            dump_pof_state(reply_str, jos);
+        }
+        else {  // unknown type, just dump
+            unsigned jos_length;
+            char *jos_string = json_serialize(jos, &jos_length);
+            strcat(reply_str, jos_string);
+            free(jos_string);
+        }
       }
 
     strcat(reply_str, "\n");
