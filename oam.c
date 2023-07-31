@@ -246,7 +246,7 @@ static int oam_send_request(FILE *cmd_w, const char *type, struct Interface *ifa
     struct JsonValue *js = json_object();
     json_object_insert(js, "request", json_string(type));
     json_object_insert(js, "target", json_string(mep_stop));
-    json_object_insert(js, "stream", json_string(mep_stop));
+    json_object_insert(js, "stream", json_string(mep->stream_name));
     //TODO target node id
     json_object_insert(js, "level", json_number(level));
     struct timespec sendtime;
