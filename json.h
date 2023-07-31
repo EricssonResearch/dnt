@@ -60,5 +60,7 @@ void json_array_unshift(struct JsonValue *array, struct JsonValue *value);
 // @key is copied
 void json_object_insert(struct JsonValue *object, const char *key, struct JsonValue *value);
 
+void json_object_remove(struct JsonValue *object, const char *key);
+
 #endif // JSON_H
 

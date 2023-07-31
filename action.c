@@ -588,17 +588,31 @@ struct OamData {
 
 static enum ActionResult handle_OAM_packet(struct Packet *p, struct OamData *oam, bool is_mep_stop)
 {
+    // note: we made sure that at this point of the pipeline the packet starts with mpls+dcw
+
+    for (unsigned i=1; i<p->header_count-1; i++) {
+        if (p->headers[i+1].start != p->headers[i].start + p->headers[i].len) {
+            fprintf(stderr, "OAM packet is not continuous in memory at header %u type %s\n",
+                    i, protocol_type_from_id(p->headers[i].type));
+            return ACR_DONE;
+        }
+    }
+
+    // let's reinterpret the header structure
+    p->headers[1].type = PROTO_ID_OAM;
+    p->headers[1].len = 8;
+    p->headers[2].type = PROTO_ID_PAYLOAD;
+    p->headers[2].start = p->headers[1].start + 8;
+    p->headers[2].len = p->len - 4 - 8;
+    p->header_count = 3;
+
     unsigned char *oam_hdr = p->buf + p->headers[1].start;
     unsigned char seq = oam_hdr[1];
     unsigned short channel = (oam_hdr[2]<<8)+oam_hdr[3];
     unsigned short nodeid = (oam_hdr[4]<<8)+oam_hdr[5];
     unsigned char level = oam_hdr[6] >> 1;
     unsigned char session = oam_hdr[7] & 0x0f;
-    char *msg;
-    if(p->headers[1].type == PROTO_ID_DCW)
-        msg = (char *)(p->buf + p->headers[2].start + 4);
-    else // OAM packet
-        msg = (char *)(p->buf + p->headers[2].start);
+    char *msg = (char *)(p->buf + p->headers[2].start);
     int port=6634;
     char *reply_address=NULL;
 
@@ -607,42 +621,35 @@ static enum ActionResult handle_OAM_packet(struct Packet *p, struct OamData *oam
 
     struct JsonValue *j = json_parse(msg, strlen(msg));
     if(j==NULL){
-        perror("No json string in incoming OAM packet");
+        fprintf(stderr, "Invalid JSON string in incoming OAM packet\n");
         return ACR_DONE;
     }
 
     // if record route, add this hop
     struct JsonValue *jrr = hashmap_find(j->v.object, "rr");
     if(jrr!=NULL){
-        //char hop[32];
-        //sprintf(hop, "%d", hashmap_count(jrr->v.object));
         json_array_unshift(jrr, json_string(oam->name));
-        //json_object_insert(jrr, hop, json_string(oam->name));
-        /* packet_del_header(p, 2); */
 
         unsigned js_length;
         char *js_string = json_serialize(j, &js_length);
         if (js_string == NULL) {
-            perror("action_MIP_execute: json string empty");
+            fprintf(stderr, "could not add entry to route record\n");
             return ACR_DONE;            //  DROP packet
         }
-        /* packet_add_header(p, 2, PROTO_ID_PAYLOAD, js_length); */
-        /* msg = (char *)(p->buf + p->headers[2].start); */
         memcpy(msg, js_string, js_length);
-        if(p->headers[1].type == PROTO_ID_DCW) js_length += 4;
-        p->len = p->len - p->headers[2].len + js_length;
-        p->headers[2].len = js_length;
-        p->header_count = 3;
         free(js_string);
+        p->len += js_length - p->headers[2].len;
+        p->headers[2].len = js_length;
     }
 
     // MIP message handling logic
     if(level < oam->level){
-        fprintf(stderr, "MIP %s level %d Warning: dropping lower level (level %d) OAM packet.\n", oam->name, oam->level, level);
+        fprintf(stderr, "MIP %s level %d Warning: dropping lower level (level %d) OAM packet.\n",
+                oam->name, oam->level, level);
         return ACR_DONE;            // if lower level, DROP packet
     }
     if(level > oam->level)
-        return ACR_CONTINUE;        // if lower level, forward packet
+        return ACR_CONTINUE;        // if higher level, forward packet
 
     // get target from json
     struct JsonValue *target = hashmap_find(j->v.object, "target");
@@ -656,15 +663,17 @@ static enum ActionResult handle_OAM_packet(struct Packet *p, struct OamData *oam
     // send reply
     struct JsonValue *jret = hashmap_find(j->v.object, "return");
     if(jret==NULL)
-        perror("Not found json object 'return'");
+        fprintf(stderr, "OAM packet has no return address\n");
     struct JsonValue *val = hashmap_find(jret->v.object, "port");
     if(val!=NULL)
         port=val->v.number;
+    else
+        return ACR_DONE;
     val = hashmap_find(jret->v.object, "ip");
     if(val!=NULL)
         reply_address = strdup(val->v.string);
     else
-        return ACR_CONTINUE;
+        return ACR_DONE;
 
     // if object state is requested
     struct JsonValue *jos = hashmap_find(j->v.object, "objects");
@@ -677,7 +686,7 @@ static enum ActionResult handle_OAM_packet(struct Packet *p, struct OamData *oam
         }
     }
 
-    hashmap_remove(j->v.object,"return");
+    json_object_remove(j, "return");
     json_object_insert(j, "sequence", json_number(seq));
     json_object_insert(j, "nodeid", json_number(nodeid));
     json_object_insert(j, "node", json_string(oam->name));
@@ -686,13 +695,14 @@ static enum ActionResult handle_OAM_packet(struct Packet *p, struct OamData *oam
     char *j_msg = json_serialize(j, &msg_len);
     //printf("Send to %s : %d\nlen %d %s\n", reply_address, port, msg_len, j_msg);
     oam_send_reply(reply_address, port, j_msg, msg_len);
-    json_delete(j);
     free(reply_address);
     free(j_msg);
 
-    if( is_mep_stop || (p->ttl == 0) || (strcmp(target->v.string, oam->name)==0) )
+    if( is_mep_stop || (p->ttl == 0) || (strcmp(target->v.string, oam->name)==0) ) {
+        json_delete(j);
         return ACR_DONE;            // drop if mep_stop, ttl 0 or we were the target
-
+    }
+    json_delete(j);
     return ACR_CONTINUE;
 }
 

@@ -415,3 +415,8 @@ void json_object_insert(struct JsonValue *object, const char *key, struct JsonVa
 {
     hashmap_insert(object->v.object, strdup(key), value);
 }
+
+void json_object_remove(struct JsonValue *object, const char *key)
+{
+    hashmap_remove(object->v.object, key);
+}
