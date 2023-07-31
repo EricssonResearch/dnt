@@ -224,6 +224,7 @@ static int object_cb(const char *key, void *value, void *userdata)
 
     struct ConfObject *obj = calloc_struct(ConfObject);
     obj->type = info.type;
+    obj->name = strdup(info.name);
 
     switch (info.type) {
         case CO_SEQGEN:
@@ -281,6 +282,7 @@ static int delete_cb(const char *key, void *value, void *userdata)
             delete_replicate(obj->object);
             break;
     }
+    free(obj->name);
     free(obj);
     return 1;
 }

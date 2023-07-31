@@ -690,6 +690,7 @@ static enum ActionResult action_MIP_execute(struct Action *a, struct PipelineIte
             struct JsonValue *objinfo = NULL;
             if (oam->target && oam->target->print_state) {
                 objinfo = oam->target->print_state(oam->target->object);
+                json_object_insert(objinfo, "name", json_string(oam->target->name));
                 json_object_insert(jos, oam->name, objinfo);
             }
         }
