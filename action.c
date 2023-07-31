@@ -637,7 +637,7 @@ static enum ActionResult action_MIP_execute(struct Action *a, struct PipelineIte
             char hop[32];
             sprintf(hop, "%d", hashmap_count(jrr->v.object));
             json_object_insert(jrr, hop, json_string(oam->name));
-            packet_del_header(p, 2);
+            /* packet_del_header(p, 2); */
 
             unsigned js_length;
             char *js_string = json_serialize(j, &js_length);
@@ -645,8 +645,12 @@ static enum ActionResult action_MIP_execute(struct Action *a, struct PipelineIte
                 perror("action_MIP_execute: json string empty");
                 return ACR_DONE;            //  DROP packet
             }
-            packet_add_header(p, 2, PROTO_ID_PAYLOAD, js_length);
+            /* packet_add_header(p, 2, PROTO_ID_PAYLOAD, js_length); */
+            /* msg = (char *)(p->buf + p->headers[2].start); */
             memcpy(msg, js_string, js_length);
+            p->len = p->len - p->headers[2].len + js_length + 4;
+            p->headers[2].len = js_length + 4;
+            p->header_count = 3;
             free(js_string);
         }
 
