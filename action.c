@@ -630,13 +630,18 @@ static enum ActionResult action_MIP_execute(struct Action *a, struct PipelineIte
                 protocol_type_from_id(p->headers[1].type), oam->name, oam->level, p->ttl, oam_hdr[0], seq, channel, nodeid, level, session, msg);
 
         struct JsonValue *j = json_parse(msg, strlen(msg));
+        if(j==NULL){
+            perror("No json string in incoming OAM packet");
+            return ACR_DONE;
+        }
 
         // if record route, add this hop
         struct JsonValue *jrr = hashmap_find(j->v.object, "rr");
         if(jrr!=NULL){
-            char hop[32];
-            sprintf(hop, "%d", hashmap_count(jrr->v.object));
-            json_object_insert(jrr, hop, json_string(oam->name));
+            //char hop[32];
+            //sprintf(hop, "%d", hashmap_count(jrr->v.object));
+            json_array_unshift(jrr, json_string(oam->name));
+            //json_object_insert(jrr, hop, json_string(oam->name));
             /* packet_del_header(p, 2); */
 
             unsigned js_length;
@@ -648,8 +653,9 @@ static enum ActionResult action_MIP_execute(struct Action *a, struct PipelineIte
             /* packet_add_header(p, 2, PROTO_ID_PAYLOAD, js_length); */
             /* msg = (char *)(p->buf + p->headers[2].start); */
             memcpy(msg, js_string, js_length);
-            p->len = p->len - p->headers[2].len + js_length + 4;
-            p->headers[2].len = js_length + 4;
+            if(p->headers[1].type == PROTO_ID_DCW) js_length += 4;
+            p->len = p->len - p->headers[2].len + js_length;
+            p->headers[2].len = js_length;
             p->header_count = 3;
             free(js_string);
         }
@@ -663,10 +669,10 @@ static enum ActionResult action_MIP_execute(struct Action *a, struct PipelineIte
             return ACR_CONTINUE;        // if lower level, forward packet
 
         // get target from json
-        struct JsonValue *val = hashmap_find(j->v.object, "target");
+        struct JsonValue *target = hashmap_find(j->v.object, "target");
 
         // continue and send response if ttl=0 or target is us or target is "any"
-        if( (p->ttl != 0) && (strcmp(val->v.string, oam->name)!=0) && (strcmp(val->v.string, "any")!=0)){
+        if( (p->ttl != 0) && (strcmp(target->v.string, oam->name)!=0) && (strcmp(target->v.string, "any")!=0)){
             json_delete(j);
             return ACR_CONTINUE;
         }
@@ -675,7 +681,7 @@ static enum ActionResult action_MIP_execute(struct Action *a, struct PipelineIte
         struct JsonValue *jret = hashmap_find(j->v.object, "return");
         if(jret==NULL)
             perror("Not found json object 'return'");
-        val = hashmap_find(jret->v.object, "port");
+        struct JsonValue *val = hashmap_find(jret->v.object, "port");
         if(val!=NULL)
             port=val->v.number;
         val = hashmap_find(jret->v.object, "ip");
@@ -690,7 +696,7 @@ static enum ActionResult action_MIP_execute(struct Action *a, struct PipelineIte
             struct JsonValue *objinfo = NULL;
             if (oam->target && oam->target->print_state) {
                 objinfo = oam->target->print_state(oam->target->object);
-                json_object_insert(jos, oam->name, objinfo);
+                json_object_insert(j, "objects", objinfo);
             }
         }
 
@@ -706,6 +712,10 @@ static enum ActionResult action_MIP_execute(struct Action *a, struct PipelineIte
         json_delete(j);
         free(reply_address);
         free(j_msg);
+
+        if( (p->ttl == 0) || (strcmp(target->v.string, oam->name)==0) )
+            return ACR_DONE;            // drop if ttl 0 or we were the target
+
     }
     return ACR_CONTINUE;
 }

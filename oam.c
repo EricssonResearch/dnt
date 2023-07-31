@@ -246,6 +246,7 @@ static int oam_send_request(FILE *cmd_w, const char *type, struct Interface *ifa
     struct JsonValue *js = json_object();
     json_object_insert(js, "request", json_string(type));
     json_object_insert(js, "target", json_string(mep_stop));
+    json_object_insert(js, "stream", json_string(mep_stop));
     //TODO target node id
     json_object_insert(js, "level", json_number(level));
     struct timespec sendtime;
@@ -258,8 +259,8 @@ static int oam_send_request(FILE *cmd_w, const char *type, struct Interface *ifa
     json_object_insert(js, "return", jret);
 
     if(rr == 1){
-        jret = json_object();
-        json_object_insert(jret, "0", json_string(mep_start));
+        jret = json_array();
+        json_array_unshift(jret, json_string(mep_start));
         json_object_insert(js, "rr", jret);
     }
     if(os == 1){
@@ -381,6 +382,7 @@ int oam_command_loop(int cmd_fd)
     fprintf(cmd_w, "OAM ready.\n");
 
     while (true) {
+        rr=0; count=1; os=0;    // reset to default values
         n = read(cmd_fd, oam_command, sizeof(oam_command)-1);
         if (n > 0) {
             oam_command[n] = 0;
@@ -530,12 +532,10 @@ int oam_recv_reply(char *msg)
     struct JsonValue *jrr = hashmap_find(j->v.object, "rr");
     if(jrr){
         strcat(reply_str, "\troute: ");
-        for(unsigned i=0; i<hashmap_count(jrr->v.object); i++){
-            char hop[32];
-            sprintf(hop, "%d",i);
-            struct JsonValue *route = hashmap_find(jrr->v.object, hop);
-            strcat(reply_str, route->v.string);
+        for (struct JsonArray *a = jrr->v.array; a; a = a->next) {
+            strcat(reply_str, a->val->v.string);
             strcat(reply_str, " ");
+
         }
     }
 
