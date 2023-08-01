@@ -620,13 +620,13 @@ static enum ActionResult handle_OAM_packet(struct Packet *p, struct OamData *oam
             protocol_type_from_id(p->headers[1].type), oam->name, oam->level, p->ttl, oam_hdr[0], seq, channel, nodeid, level, session, msg);
 
     struct JsonValue *j = json_parse(msg, strlen(msg));
-    if(j==NULL){
+    if(j==NULL || j->type != JSON_OBJECT){
         fprintf(stderr, "Invalid JSON string in incoming OAM packet\n");
         return ACR_DONE;
     }
 
     // if record route, add this hop
-    struct JsonValue *jrr = hashmap_find(j->v.object, "rr");
+    struct JsonValue *jrr = json_object_get_array(j, "rr");
     if(jrr!=NULL){
         json_array_unshift(jrr, json_string(oam->name));
 
@@ -651,8 +651,11 @@ static enum ActionResult handle_OAM_packet(struct Packet *p, struct OamData *oam
     if(level > oam->level)
         return ACR_CONTINUE;        // if higher level, forward packet
 
-    // get target from json
-    struct JsonValue *target = hashmap_find(j->v.object, "target");
+    struct JsonValue *target = json_object_get_string(j, "target");
+    if (target == NULL) {
+        json_delete(j);
+        return ACR_DONE;
+    }
 
     // continue and send response if ttl=0 or target is us or target is "any"
     if( (p->ttl != 0) && (strcmp(target->v.string, oam->name)!=0) && (strcmp(target->v.string, "any")!=0)){
@@ -661,22 +664,22 @@ static enum ActionResult handle_OAM_packet(struct Packet *p, struct OamData *oam
     }
 
     // send reply
-    struct JsonValue *jret = hashmap_find(j->v.object, "return");
+    struct JsonValue *jret = json_object_get_object(j, "return");
     if(jret==NULL)
         fprintf(stderr, "OAM packet has no return address\n");
-    struct JsonValue *val = hashmap_find(jret->v.object, "port");
+    struct JsonValue *val = json_object_get_number(jret, "port");
     if(val!=NULL)
         port=val->v.number;
     else
         return ACR_DONE;
-    val = hashmap_find(jret->v.object, "ip");
+    val = json_object_get_string(jret, "ip");
     if(val!=NULL)
         reply_address = strdup(val->v.string);
     else
         return ACR_DONE;
 
     // if object state is requested
-    struct JsonValue *jos = hashmap_find(j->v.object, "objects");
+    struct JsonValue *jos = json_object_get_any(j, "objects");
     if(jos!=NULL){
         struct JsonValue *objinfo = NULL;
         if (oam->target && oam->target->print_state) {

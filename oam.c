@@ -477,12 +477,12 @@ int oam_command_loop(int cmd_fd)
  */
 static int dump_seqgen_state(char *str, struct JsonValue *jos){
     char tmp[128];
-    struct JsonValue *ini = hashmap_find(jos->v.object, "use_init_flag");
+    struct JsonValue *ini = json_object_get_bool(jos, "use_init_flag");
     if(ini == NULL) {
         fprintf(stderr, "No use_init_flag in object in reply.\n");
         return -1;
     }
-    struct JsonValue *rst = hashmap_find(jos->v.object, "use_reset_flag");
+    struct JsonValue *rst = json_object_get_bool(jos, "use_reset_flag");
     if(rst == NULL) {
         fprintf(stderr, "No use_init_flag in object in reply.\n");
         return -1;
@@ -495,12 +495,12 @@ static int dump_seqgen_state(char *str, struct JsonValue *jos){
 
 static int dump_seqrec_state(char *str, struct JsonValue *jos){
     char tmp[128];
-    struct JsonValue *pass = hashmap_find(jos->v.object, "passed_packets");
+    struct JsonValue *pass = json_object_get_number(jos, "passed_packets");
     if(pass == NULL) {
         fprintf(stderr, "No passed_packets in object in reply.\n");
         return -1;
     }
-    struct JsonValue *disc = hashmap_find(jos->v.object, "discarded_packets");
+    struct JsonValue *disc = json_object_get_number(jos, "discarded_packets");
     if(disc== NULL) {
         fprintf(stderr, "No discarded_packets in object in reply.\n");
         return -1;
@@ -513,7 +513,7 @@ static int dump_seqrec_state(char *str, struct JsonValue *jos){
 
 static int dump_repl_state(char *str, struct JsonValue *jos){
     char tmp[128];
-    struct JsonValue *pass = hashmap_find(jos->v.object, "packets_passed");
+    struct JsonValue *pass = json_object_get_number(jos, "packets_passed");
     if(pass == NULL) {
         fprintf(stderr, "No packets_passed in object in reply.\n");
         return -1;
@@ -526,12 +526,12 @@ static int dump_repl_state(char *str, struct JsonValue *jos){
 
 static int dump_pof_state(char *str, struct JsonValue *jos){
     char tmp[128];
-    struct JsonValue *buff = hashmap_find(jos->v.object, "pof_conditional_buffer_length");
+    struct JsonValue *buff = json_object_get_number(jos, "pof_conditional_buffer_length");
     if(buff == NULL) {
         fprintf(stderr, "No pof_conditional_buffer_length in object in reply.\n");
         return -1;
     }
-    struct JsonValue *dly = hashmap_find(jos->v.object, "pof_max_delay");
+    struct JsonValue *dly = json_object_get_number(jos, "pof_max_delay");
     if(dly== NULL) {
         fprintf(stderr, "No pof_max_delay in object in reply.\n");
         return -1;
@@ -550,50 +550,51 @@ int oam_recv_reply(char *msg)
 {
     char reply_str[512];
     struct JsonValue *j = json_parse(msg, strlen(msg));
-    struct JsonValue *nid = hashmap_find(j->v.object, "nodeid");
+    if (j == NULL) {
+        fprintf(stderr, "JSON in reply is invalid.\n");
+        return -1;
+    }
+    struct JsonValue *nid = json_object_get_number(j, "nodeid");
     if(nid==NULL) {
         fprintf(stderr, "No nodeid in reply.\n");
         return -1;
     }
-    struct JsonValue *sess = hashmap_find(j->v.object, "session");
+    struct JsonValue *sess = json_object_get_number(j, "session");
     if(sess == NULL) {
         fprintf(stderr, "No session id in reply.\n");
         return -1;
     } else {
-        if (sess->type != JSON_NUMBER) {
-            fprintf(stderr, "session id in reply is not number\n");
-        } else
         if (sess->v.number < 0 || sess->v.number > 15) {
             fprintf(stderr, "session id %.0f in reply is invalid\n", sess->v.number);
         } else
             session_finished(sess->v.number);
     }
-    struct JsonValue *request = hashmap_find(j->v.object, "request");
+    struct JsonValue *request = json_object_get_string(j, "request");
     if(request == NULL) {
         fprintf(stderr, "No request in reply.\n");
         return -1;
     }
-    struct JsonValue *target = hashmap_find(j->v.object, "target");
+    struct JsonValue *target = json_object_get_string(j, "target");
     if(target == NULL) {
         fprintf(stderr, "No target in reply.\n");
         return -1;
     }
-    struct JsonValue *seq = hashmap_find(j->v.object, "sequence");
+    struct JsonValue *seq = json_object_get_number(j, "sequence");
     if(seq == NULL) {
         fprintf(stderr, "No sequence in reply.\n");
         return -1;
     }
-    struct JsonValue *level = hashmap_find(j->v.object, "level");
+    struct JsonValue *level = json_object_get_number(j, "level");
     if(level == NULL) {
         fprintf(stderr, "No level in reply.\n");
         return -1;
     }
-    struct JsonValue *node = hashmap_find(j->v.object, "node");
+    struct JsonValue *node = json_object_get_string(j, "node");
     if(node == NULL) {
         fprintf(stderr, "No node in reply.\n");
         return -1;
     }
-    struct JsonValue *strm = hashmap_find(j->v.object, "stream");
+    struct JsonValue *strm = json_object_get_string(j, "stream");
     if(strm == NULL) {
         fprintf(stderr, "No stream in reply.\n");
         return -1;
@@ -601,7 +602,7 @@ int oam_recv_reply(char *msg)
     sprintf(reply_str,"[session %.0f nodeid %.0f]\t%s level %.0f on stream %s target %s seq %.0f\treply from %s\n", sess->v.number, nid->v.number,
             request->v.string, level->v.number, strm->v.string, target->v.string, seq->v.number, node->v.string);
 
-    struct JsonValue *jrr = hashmap_find(j->v.object, "rr");
+    struct JsonValue *jrr = json_object_get_array(j, "rr");
     if(jrr){
         strcat(reply_str, "\tRecord Route (reverse): [");
         for (struct JsonArray *a = jrr->v.array; a; a = a->next) {
@@ -611,18 +612,18 @@ int oam_recv_reply(char *msg)
         strcat(reply_str, " ]\n");
     }
 
-    struct JsonValue *jos = hashmap_find(j->v.object, "objects");
+    struct JsonValue *jos = json_object_get_object(j, "objects");
     if(jos){
         // ToDo: formatted printout per object type
         strcat(reply_str, "\tObject ");
-        struct JsonValue *val = hashmap_find(jos->v.object, "name");
+        struct JsonValue *val = json_object_get_string(jos, "name");
         if(val == NULL) {
             fprintf(stderr, "No name in object in reply.\n");
             return -1;
         }
         strcat(reply_str, val->v.string);
         strcat(reply_str, " type ");
-        val = hashmap_find(jos->v.object, "type");
+        val = json_object_get_string(jos, "type");
         if(val == NULL) {
             fprintf(stderr, "No type in object in reply.\n");
             return -1;

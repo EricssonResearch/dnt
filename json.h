@@ -62,5 +62,16 @@ void json_object_insert(struct JsonValue *object, const char *key, struct JsonVa
 
 void json_object_remove(struct JsonValue *object, const char *key);
 
+// helpers for retrieving values, @returns NULL if type mismatches
+struct JsonValue *json_object_get_null(struct JsonValue *object, const char *key);
+struct JsonValue *json_object_get_true(struct JsonValue *object, const char *key);
+struct JsonValue *json_object_get_false(struct JsonValue *object, const char *key);
+struct JsonValue *json_object_get_bool(struct JsonValue *object, const char *key);
+struct JsonValue *json_object_get_number(struct JsonValue *object, const char *key);
+struct JsonValue *json_object_get_string(struct JsonValue *object, const char *key);
+struct JsonValue *json_object_get_array(struct JsonValue *object, const char *key);
+struct JsonValue *json_object_get_object(struct JsonValue *object, const char *key);
+struct JsonValue *json_object_get_any(struct JsonValue *object, const char *key);
+
 #endif // JSON_H
 
