@@ -1,13 +1,13 @@
 #!/usr/bin/python3
 
-from socket import AF_INET, SOCK_STREAM, socket
+from socket import AF_INET, SOCK_STREAM, SocketType, socket
 from mininet.net import Mininet
+from threading import Thread
 from mininet.cli import CLI
-from pyroute2 import netns
+from select import *
 from utils import *
-# import signal
-# import time
-# import sys
+import regex as re
+import time
 
 
 def create_net():
@@ -82,34 +82,111 @@ def config_net(net):
     n3.cmd("ip r a default via 13.0.0.1")
     n4.cmd("ip r a default via 34.0.0.3")
 
-def run_tests(net):
+    # delay
+    n1.cmd("tc qdisc add dev eth12 root netem delay 10ms")
+    n2.cmd("tc qdisc add dev eth23 root netem delay 10ms")
+    n3.cmd("tc qdisc add dev eth34 root netem delay 10ms")
+
+def reply_printer(sock: SocketType):
+    try:
+        sock.setblocking(0)
+        while True:
+            r, _, _ = select([sock], [], [], 0.1)
+            for x in r:
+                print("select returned")
+                msg = x.recv(10000)
+                if not msg:
+                    continue
+                print(msg.decode())
+    finally:
+        print("End")
+
+def start_r2dtwos(net):
     # start R2DTWOs
     for n in ['n1', 'n2', 'n3', 'n4']:
         node = net.get(n)
         node.popen(f"../r2dtwo oam/singlestage/{n}.cfg")
-    # list of (sender, message, expected reply)
-    testcases = [
-        ('n1', 'ping stream_uni:mepn1s1 in12 4', None)
-    ]
-    for node, msg, reply in testcases:
+
+# list of (sender, message, [expected replies])
+# The sender 'node' sending 'message' from telnet and expect the list of replies
+testcases = [
+    ('n1', 'ping s1:mepn1s1 in12 4',
+     ['OK 0, ping @[oam0] s1:mepn1s1 -> in12, level 4\n',
+      'OAM packet ping session 1 seq 0, s1:mepn1s1 -> in12, level 4, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n[session 1 nodeid 1]\tping level 4 on stream s1 target in12 seq 0\treply from in12\n\n']),
+
+    ('n1', 'ping s1:mepn1s1 in23 4',
+     ['OK 0, ping @[oam0] s1:mepn1s1 -> in23, level 4\n',
+      'OAM packet ping session 2 seq 0, s1:mepn1s1 -> in23, level 4, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n[session 2 nodeid 1]\tping level 4 on stream s1 target in23 seq 0\treply from in23\n\n']),
+
+    ('n1', 'ping s1:mepn1s1 in34 4',
+     ['OK 0, ping @[oam0] s1:mepn1s1 -> in34, level 4\n',
+      'OAM packet ping session 3 seq 0, s1:mepn1s1 -> in34, level 4, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n']),
+
+    ('n1', 'ping s1:mepn1s1 mepn4s1 4 -o',
+     ['OK 0, ping @[oam0] s1:mepn1s1 -> mepn4s1, level 4\n',
+      'OAM packet ping session 4 seq 0, s1:mepn1s1 -> mepn4s1, level 4, rr: no os: yes\t[reply to ip: 10.0.0.1, port: 6634]\n']),
+
+    ('n1', 'ping s1:mepn1s1 any 4',
+     ['OK 0, ping @[oam0] s1:mepn1s1 -> any, level 4\n',
+      'OAM packet ping session 5 seq 0, s1:mepn1s1 -> any, level 4, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n[session 5 nodeid 1]\tping level 4 on stream s1 target any seq 0\treply from in13\n\n[session 5 nodeid 1]\tping level 4 on stream s1 target any seq 0\treply from in12\n\n[session 5 nodeid 1]\tping level 4 on stream s1 target any seq 0\treply from in24\n\n[session 5 nodeid 1]\tping level 4 on stream s1 target any seq 0\treply from in23\n\n']),
+
+    ('n1', 'ping s1:mepn1s1 in24 4 -r',
+     ['OK 0, ping @[oam0] s1:mepn1s1 -> in24, level 4\n',
+      'OAM packet ping session 6 seq 0, s1:mepn1s1 -> in24, level 4, rr: yes os: no\t[reply to ip: 10.0.0.1, port: 6634]\n[session 6 nodeid 1]\tping level 4 on stream s1 target in24 seq 0\treply from in24\n\tRecord Route (reverse): [ in24 in12 s1:mepn1s1 ]\n\n']),
+
+    ('n1', 'ping s1:mepn1s1 mepn4s1 4 -r',
+     ['OK 0, ping @[oam0] s1:mepn1s1 -> mepn4s1, level 4\n',
+      'OAM packet ping session 7 seq 0, s1:mepn1s1 -> mepn4s1, level 4, rr: yes os: no\t[reply to ip: 10.0.0.1, port: 6634]\n']),
+]
+
+def run_tests(net, test):
+    raddrs = {
+        'n1' : "10.0.0.1",
+        'n2' : "10.0.0.2",
+        'n3' : "10.0.0.3",
+        'n4' : "10.0.0.4",
+    }
+    success = 0
+    for node, msg, expected_reply in test:
+        time.sleep(0.2)
         switch_netns(node)
         with socket(AF_INET, SOCK_STREAM, 0) as s:
-            s.connect(('10.0.0.1', 8000))
-            _ = s.recv(1024)
-            s.sendall(msg.encode())
-            rcvd_reply = s.recv(2000)
-            print(rcvd_reply)
-            rcvd_reply = s.recv(2000)
-            print(rcvd_reply)
+            try:
+                s.connect((raddrs[node], 8000))
+                _ = s.recv(10000) # swallow first message
+                # t = Thread(target=reply_printer, args=[s])
+                # t.start()
+                s.settimeout(1)
+                s.send(msg.encode())
+                replies = []
+                for msg_part in expected_reply:
+                    reply = s.recv(10000).decode()
+                    replies.append(reply)
+                print(f"Node: {node}\nCommand: {msg}\n")
+                if replies == expected_reply:
+                    success += 1
+                else:
+                    print("FAILED: OAM reply different")
+                    print(f"Actual reply:\n{replies}\nExpected reply:\n{expected_reply}\n")
+            except Exception:
+                print("FAILED: OAM reply parts missing")
+                print(f"Actual reply:\n{replies}\nExpected reply:\n{expected_reply}\n")
+
+        # t.join()
     switch_netns()
+    print(f"Successful tests: {success}/{len(test)}")
 
 def main():
-    print("R2DTWO OAM test")
-    net = create_net()
-    config_net(net)
-    run_tests(net)
-    CLI(net)
-    net.stop()
+    try:
+        print("R2DTWO OAM test")
+        net = create_net()
+        config_net(net)
+        start_r2dtwos(net)
+        # CLI(net)
+        run_tests(net, testcases)
+    finally:
+        print("Cleanup...")
+        net.stop()
 
 if __name__ == "__main__":
     main()
