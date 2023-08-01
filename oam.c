@@ -264,7 +264,7 @@ static int oam_send_request(FILE *cmd_w, const char *type, struct Interface *ifa
         json_object_insert(js, "rr", jret);
     }
     if(os == 1){
-        jret = json_object();
+        jret = json_true();
         json_object_insert(js, "objects", jret);
     }
 
