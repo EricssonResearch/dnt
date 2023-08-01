@@ -217,38 +217,45 @@ static int add_fixed_headers(struct Packet *packet, unsigned char ttl,
     return 0;
 }
 
-static int oam_send_request(FILE *cmd_w, const char *type, struct Interface *iface, unsigned session_id, unsigned seq, const char *mep_start, const char *mep_stop, int level, unsigned char ttl, int rr, int os)
-{
-    struct MepStart *mep = hashmap_find(mep_starts, mep_start);
+pthread_t ping_tid[16];
+
+struct oam_request{                 // needed for the ping thread. Shuld be used in other function calls too
+    FILE *cmd_w;
+    struct Interface *iface;
+    unsigned session_id, seq;
+    const char *type, *mep_start, *mep_stop;
+    int level, rr, os;
+    unsigned count;
+    unsigned char ttl;
+  };
+
+static int oam_send_request(struct oam_request *req){
+    struct MepStart *mep = hashmap_find(mep_starts, req->mep_start);
     if (!mep) {
-        fprintf(cmd_w, "invalid mep start name '%s'\n", mep_start);
+        fprintf(req->cmd_w, "invalid mep start name '%s'\n", req->mep_start);
         return -EINVAL;
     }
     struct Pipeline *pipe = mep->pipe;
     if (!pipe) {
-        fprintf(cmd_w, "mep start '%s' has no pipeline!?!\n", mep_start);
+        fprintf(req->cmd_w, "mep start '%s' has no pipeline!?!\n", req->mep_start);
         return -EINVAL;
     }
 
     struct Packet *packet = new_packet(NULL);
-    const char *return_ip = oam_get_ip(iface);
-    unsigned return_port = oam_get_port(iface);
-    unsigned short node_id = oam_get_uid(iface);
+    const char *return_ip = oam_get_ip(req->iface);
+    unsigned return_port = oam_get_port(req->iface);
+    unsigned short node_id = oam_get_uid(req->iface);
 
-    fprintf(cmd_w, "OAM packet %s session %u seq %u, %s -> %s, level %d, rr: %s os: %s\t[reply to ip: %s, port: %u]\n",
-            type, session_id, seq, mep_start, mep_stop, level, rr?"yes":"no", os?"yes":"no",
-            return_ip, return_port);
-
-    add_fixed_headers(packet, ttl, seq, OAM_CHANNEL,
-            node_id, level, session_id);
-    packet->ttl = ttl;
+    add_fixed_headers(packet, req->ttl, req->seq, OAM_CHANNEL,
+            node_id, req->level, req->session_id);
+    packet->ttl = req->ttl;
 
     struct JsonValue *js = json_object();
-    json_object_insert(js, "request", json_string(type));
-    json_object_insert(js, "target", json_string(mep_stop));
+    json_object_insert(js, "request", json_string(req->type));
+    json_object_insert(js, "target", json_string(req->mep_stop));
     json_object_insert(js, "stream", json_string(mep->stream_name));
     //TODO target node id
-    json_object_insert(js, "level", json_number(level));
+    json_object_insert(js, "level", json_number(req->level));
     struct timespec sendtime;
     clock_gettime(CLOCK_REALTIME, &sendtime);
     json_object_insert(js, "send_s", json_number(sendtime.tv_sec));
@@ -258,12 +265,12 @@ static int oam_send_request(FILE *cmd_w, const char *type, struct Interface *ifa
     json_object_insert(jret, "port", json_number(return_port));
     json_object_insert(js, "return", jret);
 
-    if(rr == 1){
+    if(req->rr == 1){
         jret = json_array();
-        json_array_unshift(jret, json_string(mep_start));
+        json_array_unshift(jret, json_string(req->mep_start));
         json_object_insert(js, "rr", jret);
     }
-    if(os == 1){
+    if(req->os == 1){
         jret = json_true();
         json_object_insert(js, "objects", jret);
     }
@@ -288,51 +295,49 @@ static int oam_send_request(FILE *cmd_w, const char *type, struct Interface *ifa
     return 0;
 }
 
-pthread_t ping_tid;
-struct oam_request{                 // needed for the ping thread. Shuld be used in other function calls too
-    FILE *cmd_w;
-    struct Interface *iface;
-    unsigned session_id, seq;
-    const char *mep_start, *mep_stop;
-    int level, rr, os;
-    unsigned count;
-  };
-
 static void *oam_ping_thread(void *arg)
 {
     struct oam_request *req = (struct oam_request *)arg;
-    printf("Sending %d packets\n", req->count);
     for(unsigned seq=0; seq<req->count; seq++){
-        oam_send_request(req->cmd_w, "ping", req->iface, req->session_id, seq, req->mep_start, req->mep_stop, req->level, OAM_PING_TTL, req->rr, req->os);
+        req->seq = seq;
+        oam_send_request(req);
         sleep(1);
     }
+    free(req);
     return NULL;
 }
 
 static int oam_ping(FILE *cmd_w, struct Interface *iface, unsigned session_id, unsigned seq, const char *mep_start, const char *mep_stop, int level, int rr, int os, unsigned count)
 {
-    if(count == 1)
-        return oam_send_request(cmd_w, "ping", iface, session_id, seq, mep_start, mep_stop, level, OAM_PING_TTL, rr, os);
-    else{
-          struct oam_request ping_req;
-          ping_req.cmd_w = cmd_w;
-          ping_req.iface = iface;
-          ping_req.session_id = session_id;
-          ping_req.seq = seq;
-          ping_req.mep_start = mep_start;
-          ping_req.mep_stop = mep_stop;
-          ping_req.level = level;
-          ping_req.rr = rr;
-          ping_req.os = os;
-          ping_req.count = count;
+    struct oam_request *ping_req = calloc_struct(oam_request);;
+    ping_req->cmd_w = cmd_w;
+    ping_req->iface = iface;
+    ping_req->session_id = session_id;
+    ping_req->seq = seq;
+    ping_req->mep_start = mep_start;
+    ping_req->mep_stop = mep_stop;
+    ping_req->level = level;
+    ping_req->type = "ping";
+    ping_req->ttl = OAM_PING_TTL;
+    ping_req->rr = rr;
+    ping_req->os = os;
+    ping_req->count = count;
 
+    fprintf(cmd_w, "OAM packet %s session %u seq %u, %s -> %s, level %d, count %d, rr: %s os: %s\t[reply to ip: %s, port: %u]\n",
+            ping_req->type, ping_req->session_id, ping_req->seq, ping_req->mep_start, ping_req->mep_stop, ping_req->level, ping_req->count,
+            ping_req->rr?"yes":"no", ping_req->os?"yes":"no", oam_get_ip(iface), oam_get_port(iface));
+
+    if(count == 1){
+          return oam_send_request(ping_req);
+          free(ping_req);
+    } else {
           pthread_attr_t attr;
           if ((errno = pthread_attr_init(&attr)) != 0) {
               perror("oam ping thread pthread_attr_init");
               return -1;
           }
 
-          if (pthread_create(&ping_tid, &attr, &oam_ping_thread, &ping_req) != 0) {
+          if (pthread_create(&ping_tid[session_id], &attr, &oam_ping_thread, ping_req) != 0) {
               fprintf(stderr, "could not create new ping thread\n");
               return -1;
           }
@@ -417,7 +422,7 @@ int oam_command_loop(int cmd_fd)
                     if (oam_if == NULL) {
                         ERROR("invalid interface name: %s", ifname);
                     }
-                }else{
+                } else {
                     k = sscanf(oam_command, "ping %s %s %d %[^\n]",
                             mep_start, mep_stop, &level, opts);
                     if (k < 3) {
@@ -599,8 +604,9 @@ int oam_recv_reply(char *msg)
         fprintf(stderr, "No stream in reply.\n");
         return -1;
     }
-    sprintf(reply_str,"[session %.0f nodeid %.0f]\t%s level %.0f on stream %s target %s seq %.0f\treply from %s\n", sess->v.number, nid->v.number,
-            request->v.string, level->v.number, strm->v.string, target->v.string, seq->v.number, node->v.string);
+    sprintf(reply_str,"[nodeid %.0f session %.0f seq %.0f]\t%s level %.0f on stream %s target %s\treply from %s\n",
+            nid->v.number, sess->v.number, seq->v.number,
+            request->v.string, level->v.number, strm->v.string, target->v.string, node->v.string);
 
     struct JsonValue *jrr = json_object_get_array(j, "rr");
     if(jrr){
@@ -649,9 +655,7 @@ int oam_recv_reply(char *msg)
             strcat(reply_str, jos_string);
             free(jos_string);
         }
-      }
-
-    strcat(reply_str, "\n");
+    }
     json_delete(j);
 
     if(oam_cmd_iface != NULL)
