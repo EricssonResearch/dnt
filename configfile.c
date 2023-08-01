@@ -220,7 +220,7 @@ static int addstream_cb(const char *key, void *value, void *userdata)
                 fprintf(stderr, "failed to assemble actions for stream %s\n", s->stream_name);
                 return 0;
             }
-            pipe = new_pipeline(actions, action_count);
+            pipe = new_pipeline(s->stream_name, actions, action_count);
             if (!pipe) { //TODO this never happens
                 fprintf(stderr, "failed to create action pipeline for stream %s\n", s->stream_name);
                 for (unsigned i=0; i<action_count; i++) {

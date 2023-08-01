@@ -1629,7 +1629,7 @@ struct Action *assemble_actions(const char *stream_name, const struct ConfAction
                         //TODO cleanup on error
                         return NULL;
                     }
-                    struct Pipeline *pipe = new_pipeline(r_actions, r_action_count);
+                    struct Pipeline *pipe = new_pipeline(r->name, r_actions, r_action_count);
                     if (!pipe) { //TODO this never happens
                     }
                     pipeline_ref(pipe);
