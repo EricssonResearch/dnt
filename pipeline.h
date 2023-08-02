@@ -15,6 +15,7 @@ struct Pipeline {
     struct Action *actions; // array of actions
     unsigned action_count;
     unsigned reference_count;
+    char *name;
 };
 
 
@@ -26,7 +27,7 @@ struct PipelineIterator {
 
 // creates a new pipeline
 // doesn't automatically reference it!
-struct Pipeline *new_pipeline(struct Action *actions, unsigned action_count);
+struct Pipeline *new_pipeline(const char *name, struct Action *actions, unsigned action_count);
 
 // add a reference to the pipeline
 void pipeline_ref(struct Pipeline *pipe);

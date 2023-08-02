@@ -115,7 +115,7 @@ static void recv_loop(struct Interface *ifaces, unsigned iface_count)
             } else {
                 // TODO: print the name of the matching stream
 #ifdef VERBOSE_RECV
-                printf("parsetree identified %u headers, pipe = %p\n", p->header_count, pipe);
+                printf("parsetree identified %u headers, pipe %s\n", p->header_count, pipe->name);
                 for (unsigned i=0; i<p->header_count; i++) {
                     printf("  header %u is %s at %u len %u\n", i,
                             protocol_list[p->headers[i].type].name, p->headers[i].start, p->headers[i].len);

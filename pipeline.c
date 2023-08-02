@@ -12,6 +12,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 // add reference to the outgoing interfaces so they know they are in use
 static void ref_send_interfaces(struct Pipeline *pipe)
@@ -33,11 +34,12 @@ static void unref_send_interfaces(struct Pipeline *pipe)
     }
 }
 
-struct Pipeline *new_pipeline(struct Action *actions, unsigned action_count)
+struct Pipeline *new_pipeline(const char *name, struct Action *actions, unsigned action_count)
 {
     struct Pipeline *ret = calloc_struct(Pipeline);
     ret->actions = actions;
     ret->action_count = action_count;
+    ret->name = strdup(name);
     ref_send_interfaces(ret);
     return ret;
 }
@@ -58,6 +60,7 @@ void pipeline_unref(struct Pipeline *pipe)
             delete_action(pipe->actions+i);
         }
         free(pipe->actions);
+        free(pipe->name);
         free(pipe);
     }
 }
