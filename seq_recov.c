@@ -387,10 +387,38 @@ static void *reset_thread(void *arg)
 
 struct JsonValue *seqrec_get_state_json(const void *obj)
 {
+    // TODO: print OAM match recovery child's status too
     const struct SequenceRecovery *rec = obj;
     struct JsonValue *js = json_object();
     json_object_insert(js, "type", json_string("seqrec"));
+    json_object_insert(js, "reset_msec", json_number((double) rec->reset_msec));
+    struct JsonValue *algo = NULL;
+    switch (rec->algorithm) {
+        case RCVY_Match: algo = json_string("match"); break;
+        case RCVY_Vector: algo = json_string("vector"); break;
+        case RCVY_SeamlessVector: algo = json_string("seamless_vector"); break;
+    }
+    json_object_insert(js, "recovery_algorithm", algo);
+    json_object_insert(js, "recovery_seq_num", json_number((double) rec->recv_seq));
     json_object_insert(js, "passed_packets", json_number((double) rec->passed_packets));
     json_object_insert(js, "discarded_packets", json_number((double) rec->discarded_packets));
+    json_object_insert(js, "seq_recovery_resets", json_number((double) rec->seq_recovery_resets));
+    if (rec->algorithm != RCVY_Match) { //only for vector & seamless
+        json_object_insert(js, "history_length", json_number((double) rec->history_length));
+        json_object_insert(js, "use_reset_flag", rec->use_reset_flag ? json_true() : json_false());
+        json_object_insert(js, "use_init_flag", rec->use_init_flag ? json_true() : json_false());
+        json_object_insert(js, "latent_error_paths", json_number((double) rec->latent_error_paths));
+        json_object_insert(js, "latent_error_resets", json_number((double) rec->latent_error_resets));
+        json_object_insert(js, "latent_errors", json_number((double) rec->latent_errors));
+    }
+
+    char *hist_content = calloc(1, rec->history_length + 1);
+    for (int i = 0; i < rec->history_length; ++i) {
+        if (rec->history[i] == 1)
+            hist_content[i] = '1';
+        else if (rec->history[i] == 0)
+            hist_content[i] = '0';
+    }
+    json_object_insert(js, "history", json_string(hist_content));
     return js;
 }

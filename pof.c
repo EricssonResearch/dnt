@@ -314,9 +314,14 @@ struct JsonValue *pof_get_state_json(const void *obj)
     const struct Pof *pof = obj;
     struct JsonValue *js = json_object();
     json_object_insert(js, "type", json_string("pof"));
-    json_object_insert(js, "pof_conditional_buffer_length", json_number((double) pof->queue_max_len));
+    json_object_insert(js, "max_buffer_length", json_number((double) pof->queue_max_len));
     double max_delay = pof->pof_max_delay.tv_sec * NSEC_PER_SEC + pof->pof_max_delay.tv_nsec;
     max_delay = (max_delay / NSEC_PER_SEC) * 1000; // millisec
-    json_object_insert(js, "pof_max_delay", json_number(max_delay));
+    json_object_insert(js, "max_delay", json_number(max_delay));
+    json_object_insert(js, "last_sent", json_number((double) pof->pof_last_sent));
+    json_object_insert(js, "current_buffer_length", json_number((double) pof->queue_len));
+    double take_any_time = pof->pof_take_any_time.tv_sec * NSEC_PER_SEC + pof->pof_take_any_time.tv_nsec;
+    take_any_time = (take_any_time / NSEC_PER_SEC) * 1000; // millisec
+    json_object_insert(js, "take_any_time", json_number(take_any_time));
     return js;
 }

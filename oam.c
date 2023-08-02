@@ -499,20 +499,60 @@ static int dump_seqgen_state(char *str, struct JsonValue *jos){
 }
 
 static int dump_seqrec_state(char *str, struct JsonValue *jos){
-    char tmp[128];
-    struct JsonValue *pass = json_object_get_number(jos, "passed_packets");
-    if(pass == NULL) {
-        fprintf(stderr, "No passed_packets in object in reply.\n");
-        return -1;
-    }
-    struct JsonValue *disc = json_object_get_number(jos, "discarded_packets");
-    if(disc== NULL) {
-        fprintf(stderr, "No discarded_packets in object in reply.\n");
-        return -1;
-    }
-    sprintf(tmp, "\n\t\tpassed_packets: %.0f, discarded_packets: %.0f\n",  pass->v.number, disc->v.number);
-    strcat(str, tmp);
+    char tmp[1000] = { 0 };
+    bool vector = false;
+    struct JsonValue *type = json_object_get_string(jos, "type");
+    struct JsonValue *reset_msec = json_object_get_number(jos, "reset_msec");
+    struct JsonValue *algo = json_object_get_string(jos, "recovery_algorithm");
+    struct JsonValue *seq = json_object_get_number(jos, "recovery_seq_num");
+    struct JsonValue *passed = json_object_get_number(jos, "passed_packets");
+    struct JsonValue *discarded = json_object_get_number(jos, "discarded_packets");
+    struct JsonValue *resets = json_object_get_number(jos, "seq_recovery_resets");
 
+    struct JsonValue *hist_len, *reset_flag, *init_flag, *err_paths, *err_resets, *errs, *hist;
+    if (!(type && reset_msec && algo && seq && passed && discarded && resets)) {
+        fprintf(stderr, "Malformed recovery object state reply\n");
+        return -1;
+    }
+    if (strcmp(type->v.string, "match") != 0) {
+        vector = true;
+        hist_len = json_object_get_number(jos, "history_length");
+        reset_flag = json_object_get_bool(jos, "use_reset_flag");
+        init_flag = json_object_get_bool(jos, "use_init_flag");
+        err_paths = json_object_get_number(jos, "latent_error_paths");
+        err_resets = json_object_get_number(jos, "latent_error_resets");
+        errs = json_object_get_number(jos, "latent_errors");
+        hist = json_object_get_string(jos, "history");
+        if (!(hist_len && reset_flag && init_flag && err_paths && err_resets && errs && hist)) {
+            fprintf(stderr, "Malformed vector recovery object state reply\n");
+            return -1;
+        }
+    }
+    const char *fmt_match = "\n\t\trecovery_algorithm: %s, reset_timer: %.0fms\n" \
+                            "\t\tlatest_valid_sequence_number: %.0f, passed: %.0f, discarded: %.0f\n" \
+                            "\t\tnumber_of_resets: %.0f\n";
+
+    const char *fmt_vector = "\n\t\trecovery_algorithm: %s, use_init_flag: %s, use_reset_flag: %s\n" \
+                            "\t\treset_timer: %.0fms, history_length: %.0f\n" \
+                            "\t\tlatest_valid_sequence_number: %.0f, passed: %.0f, discarded: %.0f\n" \
+                            "\t\thistory_content: %s\n" \
+                            "\t\tlatent_error_paths: %.0f, latent_error_resets: %.0f\n"
+                            "\t\tnumber_of_resets: %.0f\n";
+    if (vector) {
+        bool init = init_flag->type == JSON_TRUE ? true : false;
+        bool reset = reset_flag->type == JSON_TRUE ? true : false;
+        sprintf(tmp, fmt_vector, algo->v.string, init ? "true" : "false", reset ? "true" : "false",
+                reset_msec->v.number, hist_len->v.number,
+                seq->v.number, passed->v.number, discarded->v.number,
+                hist->v.string,
+                err_paths->v.number, errs->v.number,
+                resets->v.number);
+    } else {
+        sprintf(tmp, fmt_match, algo->v.string, reset_msec->v.number,
+                seq->v.number, passed->v.number, discarded->v.number,
+                resets->v.number);
+    }
+    strcat(str, tmp);
     return 0;
 }
 
@@ -530,20 +570,21 @@ static int dump_repl_state(char *str, struct JsonValue *jos){
 }
 
 static int dump_pof_state(char *str, struct JsonValue *jos){
-    char tmp[128];
-    struct JsonValue *buff = json_object_get_number(jos, "pof_conditional_buffer_length");
-    if(buff == NULL) {
-        fprintf(stderr, "No pof_conditional_buffer_length in object in reply.\n");
+    char tmp[128] = { 0 };
+    struct JsonValue *buff_size = json_object_get_number(jos, "max_buffer_length");
+    struct JsonValue *max_delay = json_object_get_number(jos, "max_delay");
+    struct JsonValue *take_any_time = json_object_get_number(jos, "take_any_time");
+    struct JsonValue *buff_len = json_object_get_number(jos, "current_buffer_length");
+    struct JsonValue *last_sent = json_object_get_number(jos, "last_sent");
+    if (!(buff_size && max_delay && take_any_time && buff_len && last_sent)) {
+        fprintf(stderr, "Malformed POF object state reply");
         return -1;
     }
-    struct JsonValue *dly = json_object_get_number(jos, "pof_max_delay");
-    if(dly== NULL) {
-        fprintf(stderr, "No pof_max_delay in object in reply.\n");
-        return -1;
-    }
-    sprintf(tmp, "\n\t\tpof_conditional_buffer_length: %.0f, pof_max_delay: %.0f\n",  buff->v.number, dly->v.number);
+    const char *fmt = "\n\t\tmax_buffer_length: %.0f, max_delay: %.0fms, take_any_time: %.0fms\n" \
+                        "\t\tcurrent_buffer_length: %.0f, last_sent: %.0f\n";
+    sprintf(tmp, fmt, buff_size->v.number, max_delay->v.number, take_any_time->v.number,
+            buff_len->v.number, last_sent->v.number);
     strcat(str, tmp);
-
     return 0;
 }
 /*
