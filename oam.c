@@ -350,6 +350,7 @@ static const char help_str[] =
     "Available commands:\n"
     "help - get help\n"
     "exit - exit OAM\n"
+    "mode <mode> - terminal mode. Mode can be 'dump' or 'json'.\n"
     "list - list monitoring start points\n"
     "ping[@if] <stream:mep-start> <mep-stop/mip/any> <level> [-r] [-o] [-n <count>]\n";
 
@@ -364,19 +365,17 @@ static int list_mep_cb(const char *key, void *value, void *userdata)
     return 1;
 }
 
-int oam_command_loop(int cmd_fd)
+int oam_command_loop(struct Interface *iface)
 {
 #define ERROR(msg, ...)                             \
     fprintf(cmd_w, "Error: " msg "\n",              \
         ##__VA_ARGS__);                             \
     continue
 
-    // inverse operation: fd=fileno(file)
-    FILE *cmd_w = fdopen(cmd_fd, "w");
-    setvbuf(cmd_w, NULL, _IOLBF, 0);
-    //TODO if we wand to fread() we need to duplicate the handle
-    //int cmd_fd_dup = dup(cmd_fd);
-    //FILE *cmd_r = fdopen(cmd_fd_dup, "r");
+    int cmd_fd = oam_get_cmd_fd(iface);
+    FILE *cmd_w = oam_get_cmd_w(iface);
+
+    char mode_str[32];
 
     char oam_command[255], last_command[255];
     char mep_start[32], mep_stop[32], ifname[32], opts[32], c;
@@ -402,6 +401,19 @@ int oam_command_loop(int cmd_fd)
             if(strcmp(oam_command, "exit\r\n") == 0){
                 fprintf(cmd_w, "Exiting.\n");
                 break;
+            }
+            if(strncmp(oam_command, "mode", 4) == 0){
+                k = sscanf(oam_command, "mode %s", mode_str);
+                if(k==1){
+                    if(strcmp(mode_str, "dump") == 0){
+                        oam_cmd_set_mode(iface, DUMP);
+                    }else if(strcmp(mode_str, "json") == 0){
+                        oam_cmd_set_mode(iface, JSON);
+                    }else{
+                        ERROR("mode arguments invalid");
+                    }
+                }
+                fprintf(cmd_w, "Display mode is %s\n", (oam_cmd_get_mode(iface) == DUMP)? "DUMP":"JSON");
             }
             else if(strcmp(oam_command, "help\r\n") == 0){
                 fprintf(cmd_w, help_str);
@@ -470,7 +482,9 @@ int oam_command_loop(int cmd_fd)
                     ERROR("too many ongoing OAM sessions");
                 }
             }
-            strcpy(last_command, oam_command);
+            if(strlen(oam_command)>2){      // empty line is '/r/n'
+                strcpy(last_command, oam_command);
+            }
         }
         else break;
     }
@@ -594,6 +608,14 @@ static int dump_pof_state(char *str, struct JsonValue *jos){
 */
 int oam_recv_reply(char *msg)
 {
+    if(oam_cmd_iface == NULL)
+        return -1;
+
+    if(oam_cmd_get_mode(oam_cmd_iface) == JSON ){           // JSON mode
+        strcat(msg, "\n");
+        return oam_cmd_recv_reply(oam_cmd_iface, msg);
+    }
+                                                            // DUMP mode
     char reply_str[512];
     struct JsonValue *j = json_parse(msg, strlen(msg));
     if (j == NULL) {
@@ -700,10 +722,7 @@ int oam_recv_reply(char *msg)
     }
     json_delete(j);
 
-    if(oam_cmd_iface != NULL)
-        return oam_cmd_recv_reply(oam_cmd_iface, reply_str);
-    else
-        return -1;
+    return oam_cmd_recv_reply(oam_cmd_iface, reply_str);
 }
 
 /*

@@ -27,6 +27,8 @@
 
 struct OamCmdIfData {
     int oam_cmd_fd;
+    FILE *oam_cmd_w;
+    enum TerminalFormat mode;
     pthread_t oam_tid;
     unsigned port;
     int family;
@@ -53,12 +55,33 @@ static void *oam_cmd_thread(void *arg)
     struct Interface *iface = (struct Interface *)arg;
     struct OamCmdIfData *oid = iface->iface_private;
 
-    oam_command_loop(oid->oam_cmd_fd);
+    FILE *cmd_w = fdopen(oid->oam_cmd_fd, "w");
+    //setvbuf(cmd_w, NULL, _IOLBF, 0);
+    //TODO if we wand to fread() we need to duplicate the handle
+    //int cmd_fd_dup = dup(cmd_fd);
+    //FILE *cmd_r = fdopen(cmd_fd_dup, "r");
+
+    setvbuf(cmd_w, NULL, _IOLBF, 0);
+    oid->oam_cmd_w = cmd_w;
+
+    oam_command_loop(iface);
 
     close(oid->oam_cmd_fd);
     oid->oam_cmd_fd = -1;
 
     return NULL;
+}
+
+int oam_get_cmd_fd(struct Interface *iface)
+{
+    struct OamCmdIfData *oid = iface->iface_private;
+    return oid->oam_cmd_fd;
+}
+
+FILE *oam_get_cmd_w(struct Interface *iface)
+{
+    struct OamCmdIfData *oid = iface->iface_private;
+    return oid->oam_cmd_w;
 }
 
 int oam_cmd_recv_reply(struct Interface *iface, char *msg){
@@ -73,6 +96,18 @@ int oam_cmd_recv_reply(struct Interface *iface, char *msg){
 
     return 0;
 }
+
+enum TerminalFormat oam_cmd_get_mode(struct Interface *iface)
+{
+    return ((struct OamCmdIfData *)(iface->iface_private))->mode;
+}
+
+void oam_cmd_set_mode(struct Interface *iface, enum TerminalFormat mode)
+{
+    ((struct OamCmdIfData *)(iface->iface_private))->mode = mode;
+    return;
+}
+
 
 static struct Packet *oam_cmd_recv(struct Interface *iface)
 {
@@ -266,6 +301,7 @@ bool init_oam_cmd_interface(struct Interface *iface, const char *name, const cha
     } else {
       inet_pton(AF_INET, oam_cmd_ip, &(oid->srcip.v4));
     }
+    oid->mode = DUMP;
     oid->oam_cmd_fd = -1;
 
     return true;
