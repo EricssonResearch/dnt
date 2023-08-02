@@ -460,8 +460,8 @@ int oam_command_loop(int cmd_fd)
                 int session_id = alloc_session_id();
                 unsigned seq = 0;
                 if (session_id >= 0) {
-                    fprintf(cmd_w, "OK %d, ping @[%s] %s -> %s, level %d\n",
-                            seq, oam_if->name, mep_start, mep_stop, level);
+//                    fprintf(cmd_w, "OK %d, ping @[%s] %s -> %s, level %d\n",
+//                            seq, oam_if->name, mep_start, mep_stop, level);
 
                     if (oam_ping(cmd_w, oam_if, session_id, seq, mep_start, mep_stop, level, rr, os, count) != 0) {
                         ERROR("can't send ping");
@@ -610,7 +610,8 @@ int oam_recv_reply(char *msg)
 
     struct JsonValue *jrr = json_object_get_array(j, "rr");
     if(jrr){
-        strcat(reply_str, "\tRecord Route (reverse): [");
+        strcat(reply_str, "\tRecord Route: [");
+        REVERSE_LIST(jrr->v.array);
         for (struct JsonArray *a = jrr->v.array; a; a = a->next) {
             strcat(reply_str, " ");
             strcat(reply_str, a->val->v.string);
