@@ -83,9 +83,9 @@ def config_net(net):
     n4.cmd("ip r a default via 34.0.0.3")
 
     # delay
-    n1.cmd("tc qdisc add dev eth12 root netem delay 10ms")
-    n2.cmd("tc qdisc add dev eth23 root netem delay 10ms")
-    n3.cmd("tc qdisc add dev eth34 root netem delay 10ms")
+    n1.cmd("tc qdisc add dev eth13 root netem delay 10ms")
+    n2.cmd("tc qdisc add dev eth24 root netem delay 10ms")
+    # n3.cmd("tc qdisc add dev eth34 root netem delay 10ms")
 
 def reply_printer(sock: SocketType):
     try:
