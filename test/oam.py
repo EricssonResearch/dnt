@@ -81,6 +81,10 @@ def config_net(net):
     n2.cmd("ip r a default via 24.0.0.4")
     n3.cmd("ip r a default via 13.0.0.1")
     n4.cmd("ip r a default via 34.0.0.3")
+    n2.cmd("ip r add 10.0.0.1/32 via 12.0.0.1")
+    n3.cmd("ip r add 10.0.0.1/32 via 13.0.0.1")
+    n4.cmd("ip r add 10.0.0.1/32 via 34.0.0.3")
+
 
     # delay
     n1.cmd("tc qdisc add dev eth13 root netem delay 10ms")
@@ -106,6 +110,8 @@ def start_r2dtwos(net):
     for n in ['n1', 'n2', 'n3', 'n4']:
         node = net.get(n)
         node.popen(f"../r2dtwo oam/singlestage/{n}.cfg")
+        # For debug! Spawns 4 r2dtwo windows in gdb
+        # node.popen(f"xterm -T {n} -e gdb --args ../r2dtwo oam/singlestage/{n}.cfg")
 
 # list of (sender, message, [expected replies])
 # The sender 'node' sending 'message' from telnet and expect the list of replies
@@ -186,6 +192,8 @@ def main():
         run_tests(net, testcases)
     finally:
         print("Cleanup...")
+        exec_fg("killall r2dtwo")
+        #exec_fg("killall gdb")
         net.stop()
 
 if __name__ == "__main__":
