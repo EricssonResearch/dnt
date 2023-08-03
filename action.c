@@ -307,10 +307,15 @@ struct PofData {
 static enum ActionResult action_POF_execute(struct Action *a, struct PipelineIterator *pi)
 {
     struct PofData *pd = a->action_private;
-    if (pof_insert(pd->pof, pi)) {
-        return ACR_HOLD;
+    uint32_t seq = ntohl(pi->packet->sequence);
+    if ((seq & OAM_INDICATOR_MASK) == 0) {
+        if (pof_insert(pd->pof, pi)) {
+            return ACR_HOLD;
+        } else {
+            return ACR_DONE;
+        }
     } else {
-        return ACR_DONE;
+        return ACR_CONTINUE;
     }
 }
 
