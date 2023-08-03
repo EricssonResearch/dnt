@@ -8,6 +8,7 @@ from select import *
 from utils import *
 import regex as re
 import time
+import json
 
 
 def create_net():
@@ -87,17 +88,25 @@ def config_net(net):
 
 
     # delay
-    n1.cmd("tc qdisc add dev eth13 root netem delay 10ms")
-    n2.cmd("tc qdisc add dev eth24 root netem delay 10ms")
+    n1.cmd("tc qdisc add dev eth13 root netem delay 20ms")
+    n1.cmd("tc qdisc add dev eth12 root netem delay 1ms")
+    n2.cmd("tc qdisc add dev eth24 root netem delay 20ms")
+    n2.cmd("tc qdisc add dev eth23 root netem delay 2ms")
+    n2.cmd("tc qdisc add dev eth21 root netem delay 2ms")
+    n3.cmd("tc qdisc add dev eth31 root netem delay 3ms")
+    n4.cmd("tc qdisc add dev eth43 root netem delay 4ms")
     # n3.cmd("tc qdisc add dev eth34 root netem delay 10ms")
 
 def reply_printer(sock: SocketType):
+    # Use it by calling the followings:
+    # t = Thread(target=reply_printer, args=[s])
+    # t.start()
     try:
         sock.setblocking(0)
         while True:
             r, _, _ = select([sock], [], [], 0.1)
             for x in r:
-                print("select returned")
+                # print("select returned")
                 msg = x.recv(10000)
                 if not msg:
                     continue
@@ -113,37 +122,63 @@ def start_r2dtwos(net):
         # For debug! Spawns 4 r2dtwo windows in gdb
         # node.popen(f"xterm -T {n} -e gdb --args ../r2dtwo oam/singlestage/{n}.cfg")
 
-# list of (sender, message, [expected replies])
+# list of (sender, message, [expected JSON replies])
 # The sender 'node' sending 'message' from telnet and expect the list of replies
 testcases = [
     ('n1', 'ping s1:mepn1s1 in12 4',
-     ['OK 0, ping @[oam0] s1:mepn1s1 -> in12, level 4\n',
-      'OAM packet ping session 1 seq 0, s1:mepn1s1 -> in12, level 4, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n[session 1 nodeid 1]\tping level 4 on stream s1 target in12 seq 0\treply from in12\n\n']),
+     ['OAM packet ping session 1 seq 0, s1:mepn1s1 -> in12, level 4, count 1, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n'
+      '{"level":4,"node":"in12","nodeid":1,"request":"ping","sequence":0,"session":1,"stream":"s1","target":"in12"}']),
 
     ('n1', 'ping s1:mepn1s1 in23 4',
-     ['OK 0, ping @[oam0] s1:mepn1s1 -> in23, level 4\n',
-      'OAM packet ping session 2 seq 0, s1:mepn1s1 -> in23, level 4, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n[session 2 nodeid 1]\tping level 4 on stream s1 target in23 seq 0\treply from in23\n\n']),
+     ['OAM packet ping session 2 seq 0, s1:mepn1s1 -> in23, level 4, count 1, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n',
+      '{"level":4,"node":"in23","nodeid":1,"request":"ping","send_ns":206669393,"send_s":1691060339,"sequence":0,"session":2,"stream":"s1","target":"in23"}']),
 
     ('n1', 'ping s1:mepn1s1 in34 4',
-     ['OK 0, ping @[oam0] s1:mepn1s1 -> in34, level 4\n',
-      'OAM packet ping session 3 seq 0, s1:mepn1s1 -> in34, level 4, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n']),
+     ['OAM packet ping session 3 seq 0, s1:mepn1s1 -> in34, level 4, count 1, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n',
+      '{"level":4,"node":"in34","nodeid":1,"request":"ping","send_ns":62649668,"send_s":1691060354,"sequence":0,"session":3,"stream":"s1","target":"in34"}']),
 
     ('n1', 'ping s1:mepn1s1 mepn4s1 4 -o',
-     ['OK 0, ping @[oam0] s1:mepn1s1 -> mepn4s1, level 4\n',
-      'OAM packet ping session 4 seq 0, s1:mepn1s1 -> mepn4s1, level 4, rr: no os: yes\t[reply to ip: 10.0.0.1, port: 6634]\n']),
+     ['OAM packet ping session 4 seq 0, s1:mepn1s1 -> mepn4s1, level 4, count 1, rr: no os: yes\t[reply to ip: 10.0.0.1, port: 6634]\n',
+      '{"level":4,"node":"mepn4s1","nodeid":1,"objects":{"discarded_packets":7,"history":"00","history_length":2,"latent_error_paths":2,"latent_error_resets":68807,' +
+      '"latent_errors":0,"name":"pef4","passed_packets":7,"recovery_algorithm":"vector","recovery_seq_num":65535,"reset_msec":2000,"seq_recovery_resets":5,"type":"seqrec"' +
+      ',"use_init_flag":false,"use_reset_flag":false},"request":"ping","send_ns":694512184,"send_s":1691060361,"sequence":0,"session":4,"stream":"s1","target":"mepn4s1"}']),
 
     ('n1', 'ping s1:mepn1s1 any 4',
-     ['OK 0, ping @[oam0] s1:mepn1s1 -> any, level 4\n',
-      'OAM packet ping session 5 seq 0, s1:mepn1s1 -> any, level 4, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n[session 5 nodeid 1]\tping level 4 on stream s1 target any seq 0\treply from in13\n\n[session 5 nodeid 1]\tping level 4 on stream s1 target any seq 0\treply from in12\n\n[session 5 nodeid 1]\tping level 4 on stream s1 target any seq 0\treply from in24\n\n[session 5 nodeid 1]\tping level 4 on stream s1 target any seq 0\treply from in23\n\n']),
+     ['OAM packet ping session 5 seq 0, s1:mepn1s1 -> any, level 4, count 1, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n',
+     '{"level":4,"node":"in12","nodeid":1,"request":"ping","send_ns":146399386,"send_s":1691060381,"sequence":0,"session":5,"stream":"s1","target":"any"}\n'+
+     '{"level":4,"node":"in23","nodeid":1,"request":"ping","send_ns":146399386,"send_s":1691060381,"sequence":0,"session":5,"stream":"s1","target":"any"}\n'+
+     '{"level":4,"node":"out34","nodeid":1,"request":"ping","send_ns":146399386,"send_s":1691060381,"sequence":0,"session":5,"stream":"s1","target":"any"}\n'+
+     '{"level":4,"node":"in34","nodeid":1,"request":"ping","send_ns":146399386,"send_s":1691060381,"sequence":0,"session":5,"stream":"s1","target":"any"}\n'+
+     '{"level":4,"node":"mepn4s1","nodeid":1,"request":"ping","send_ns":146399386,"send_s":1691060381,"sequence":0,"session":5,"stream":"s1","target":"any"}\n'+
+     '{"level":4,"node":"in13","nodeid":1,"request":"ping","send_ns":146399386,"send_s":1691060381,"sequence":0,"session":5,"stream":"s1","target":"any"}\n'+
+     '{"level":4,"node":"in24","nodeid":1,"request":"ping","send_ns":146399386,"send_s":1691060381,"sequence":0,"session":5,"stream":"s1","target":"any"}']),
 
     ('n1', 'ping s1:mepn1s1 in24 4 -r',
-     ['OK 0, ping @[oam0] s1:mepn1s1 -> in24, level 4\n',
-      'OAM packet ping session 6 seq 0, s1:mepn1s1 -> in24, level 4, rr: yes os: no\t[reply to ip: 10.0.0.1, port: 6634]\n[session 6 nodeid 1]\tping level 4 on stream s1 target in24 seq 0\treply from in24\n\tRecord Route (reverse): [ in24 in12 s1:mepn1s1 ]\n\n']),
+     ['OAM packet ping session 6 seq 0, s1:mepn1s1 -> in24, level 4, count 1, rr: yes os: no\t[reply to ip: 10.0.0.1, port: 6634]\n',
+      '{"level":4,"node":"in24","nodeid":1,"request":"ping","rr":["in24","in12","s1:mepn1s1"],"send_ns":682073488,"send_s":1691060394,"sequence":0,"session":6,"stream":"s1","target":"in24"}']),
 
     ('n1', 'ping s1:mepn1s1 mepn4s1 4 -r',
-     ['OK 0, ping @[oam0] s1:mepn1s1 -> mepn4s1, level 4\n',
-      'OAM packet ping session 7 seq 0, s1:mepn1s1 -> mepn4s1, level 4, rr: yes os: no\t[reply to ip: 10.0.0.1, port: 6634]\n']),
+     ['OAM packet ping session 7 seq 0, s1:mepn1s1 -> mepn4s1, level 4, count 1, rr: yes os: no\t[reply to ip: 10.0.0.1, port: 6634]\n',
+      '{"level":4,"node":"mepn4s1","nodeid":1,"request":"ping","rr":["mepn4s1","in34","out34","in23","in12","s1:mepn1s1"],"send_ns":361302725,"send_s":1691060420,"sequence":0,"session":7,"stream":"s1","target":"mepn4s1"}']),
 ]
+
+def cmp_json(j1s: str, j2s : str):
+    # print('*', j1s, '*')
+    # print('#', j2s, '#')
+    j1 = json.loads(j1s)
+    j2 = json.loads(j2s)
+    for j in [j1, j2]:
+        del j["send_s"]
+        del j["send_ns"]
+        if "objects" in j:
+            del j["objects"] #TODO: rethink
+    return j1 == j2
+
+def prepare_cli(sock):
+    _ = sock.recv(10000) # OAM ready
+    sock.send("mode json\n".encode())
+    _ = sock.recv(10000) # JSON mode ack
+
 
 def run_tests(net, test):
     raddrs = {
@@ -159,17 +194,23 @@ def run_tests(net, test):
         with socket(AF_INET, SOCK_STREAM, 0) as s:
             try:
                 s.connect((raddrs[node], 8000))
-                _ = s.recv(10000) # swallow first message
-                # t = Thread(target=reply_printer, args=[s])
-                # t.start()
+                prepare_cli(s)
                 s.settimeout(1)
                 s.send(msg.encode())
                 replies = []
-                for msg_part in expected_reply:
+                for reply_part in expected_reply:
                     reply = s.recv(10000).decode()
                     replies.append(reply)
                 print(f"Node: {node}\nCommand: {msg}\n")
-                if replies == expected_reply:
+
+                all_ok = True
+                all_ok == all_ok and (replies[0] == expected_reply[0])
+                for i, actual in enumerate(replies[1:]):
+                    act_list = actual.split('\n')
+                    exp_list = expected_reply[i + 1].split('\n')
+                    for act, exp in zip(act_list, exp_list):
+                        all_ok = all_ok and cmp_json(act, exp)
+                if all_ok:
                     success += 1
                 else:
                     print("FAILED: OAM reply different")
@@ -177,8 +218,9 @@ def run_tests(net, test):
             except Exception:
                 print("FAILED: OAM reply parts missing")
                 print(f"Actual reply:\n{replies}\nExpected reply:\n{expected_reply}\n")
-
-        # t.join()
+            finally:
+                s.close()
+        time.sleep(0.5)
     switch_netns()
     print(f"Successful tests: {success}/{len(test)}")
 
