@@ -435,7 +435,7 @@ int oam_command_loop(struct Interface *iface)
             }
             else if(strncmp(oam_command, "ping", 4) == 0){
                 if(oam_command[4]=='@'){
-                    k = sscanf(oam_command, "ping@%s %s %s %d %n",
+                    k = sscanf(oam_command, "ping@%s %s %s %d%n",
                             ifname, mep_start, mep_stop, &level, &l);
                     if (k < 4) {
                         ERROR("ping arguments invalid");
@@ -445,7 +445,7 @@ int oam_command_loop(struct Interface *iface)
                         ERROR("invalid interface name: %s", ifname);
                     }
                 } else {
-                    k = sscanf(oam_command, "ping %s %s %d %n",
+                    k = sscanf(oam_command, "ping %s %s %d%n",
                             mep_start, mep_stop, &level, &l);
                     if (k < 3) {
                         ERROR("ping arguments invalid");
@@ -456,8 +456,12 @@ int oam_command_loop(struct Interface *iface)
                 // process options
                 char *po = oam_command + l;
                 bool opt_err = false;
-                //TODO this doesn't require space between the options
                 while ((k=sscanf(po, " -%c%n", &c, &l)) == 1) {
+                    if (!isspace(*po)) {
+                        fprintf(cmd_w, "Error: ping options must be separated by space\n");
+                        opt_err = true;
+                        break;
+                    }
                     po += l;
                     if (c=='r') {
                         rr = 1;
