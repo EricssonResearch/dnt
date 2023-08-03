@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <ctype.h>
 
 #include <unistd.h>
 #include <pthread.h>
@@ -375,12 +376,10 @@ int oam_command_loop(struct Interface *iface)
     int cmd_fd = oam_get_cmd_fd(iface);
     FILE *cmd_w = oam_get_cmd_w(iface);
 
-    char mode_str[32];
-
     char oam_command[255], last_command[255];
-    char mep_start[32], mep_stop[32], ifname[32], opts[32], c;
+    char mep_start[32], mep_stop[32], ifname[32], c;
     int level, rr=0, count=1, os=0;
-    int n, k, val;
+    int n, k, val, l;
     struct Interface *oam_if;
 
     fprintf(cmd_w, "OAM ready.\n");
@@ -390,43 +389,54 @@ int oam_command_loop(struct Interface *iface)
         n = read(cmd_fd, oam_command, sizeof(oam_command)-1);
         if (n > 0) {
             oam_command[n] = 0;
-//            printf("oam command '%s' length %d\n", oam_command, n);
-            if((oam_command[0] == 0x1b) &&(oam_command[1] == '[') ){  // uparrow-enter
-                if(oam_command[2] == 'A'){
-                    strcpy(oam_command, last_command);
-                    fprintf(cmd_w, "%s", oam_command);
-                } else
+            // cut off "\r\n"
+            while (n > 0 && iscntrl(oam_command[n-1])) oam_command[--n] = 0;
+            //printf("oam command '%s' length %d\n", oam_command, n);
+
+            if (n == 0) continue;
+
+            if (strcmp(oam_command, "\x1b[A") == 0) {
+                strcpy(oam_command, last_command);
+                fprintf(cmd_w, "%s\n", oam_command);
+            } else {
+                char *p = oam_command;
+                while (isspace(*p)) p++;
+                if (*p != 0)
+                    strcpy(last_command, oam_command);
+                else
                     continue;
             }
-            if(strcmp(oam_command, "exit\r\n") == 0){
+
+            if(strcmp(oam_command, "exit") == 0){
                 fprintf(cmd_w, "Exiting.\n");
                 break;
             }
-            if(strncmp(oam_command, "mode", 4) == 0){
-                k = sscanf(oam_command, "mode %s", mode_str);
-                if(k==1){
-                    if(strcmp(mode_str, "dump") == 0){
+            else if(strncmp(oam_command, "mode", 4) == 0){
+                char *mode_str = oam_command + 4;
+                while (isspace(*mode_str)) mode_str++;
+                if (*mode_str) {
+                    if (strcmp(mode_str, "dump") == 0) {
                         oam_cmd_set_mode(iface, DUMP);
-                    }else if(strcmp(mode_str, "json") == 0){
+                    } else if (strcmp(mode_str, "json") == 0) {
                         oam_cmd_set_mode(iface, JSON);
                     }else{
-                        ERROR("mode arguments invalid");
+                        ERROR("mode argument is invalid");
                     }
                 }
                 fprintf(cmd_w, "Display mode is %s\n", (oam_cmd_get_mode(iface) == DUMP)? "DUMP":"JSON");
             }
-            else if(strcmp(oam_command, "help\r\n") == 0){
+            else if(strcmp(oam_command, "help") == 0){
                 fprintf(cmd_w, help_str);
             }
-            else if (strcmp(oam_command, "list\r\n") == 0) {
+            else if (strcmp(oam_command, "list") == 0) {
                 fprintf(cmd_w, "Available MEP Start points:\n");
                 struct ListMepParams params = {cmd_w};
                 hashmap_foreach_sorted(mep_starts, list_mep_cb, &params);
             }
-            else if(strncmp(oam_command, "ping",4) == 0){
+            else if(strncmp(oam_command, "ping", 4) == 0){
                 if(oam_command[4]=='@'){
-                    k = sscanf(oam_command, "ping@%s %s %s %d %[^\n]",
-                            ifname, mep_start, mep_stop, &level, opts);
+                    k = sscanf(oam_command, "ping@%s %s %s %d %n",
+                            ifname, mep_start, mep_stop, &level, &l);
                     if (k < 4) {
                         ERROR("ping arguments invalid");
                     }
@@ -435,8 +445,8 @@ int oam_command_loop(struct Interface *iface)
                         ERROR("invalid interface name: %s", ifname);
                     }
                 } else {
-                    k = sscanf(oam_command, "ping %s %s %d %[^\n]",
-                            mep_start, mep_stop, &level, opts);
+                    k = sscanf(oam_command, "ping %s %s %d %n",
+                            mep_start, mep_stop, &level, &l);
                     if (k < 3) {
                         ERROR("ping arguments invalid");
                     }
@@ -444,29 +454,35 @@ int oam_command_loop(struct Interface *iface)
                 }
 
                 // process options
-                char *po = opts;
-                while(*po == ' ') po++; // skip spaces
-                while((k=sscanf(po, "-%c %d", &c, &val)) > 0){
-                    if(c=='r'){
-                        while((*po != ' ') && (*po != '\0')) po++; // skip -r
+                char *po = oam_command + l;
+                bool opt_err = false;
+                //TODO this doesn't require space between the options
+                while ((k=sscanf(po, " -%c%n", &c, &l)) == 1) {
+                    po += l;
+                    if (c=='r') {
                         rr = 1;
-                    } else if(c=='o'){
-                        while((*po != ' ') && (*po != '\0')) po++; // skip -o
+                    } else if (c=='o') {
                         os = 1;
-                    } else if(c=='n'){
-                        while((*po != ' ') && (*po != '\0')) po++; // skip -n
-                        if(k != 2){
-                            ERROR("no count specified with -n option");
-                        }else{
+                    } else if (c=='n') {
+                        k = sscanf(po, " %d%n", &val, &l);
+                        if (k == 1) {
+                            po += l;
                             count = val;
-                            while(*po == ' ') po++; // skip any extra spaces
-                            while((*po != ' ') && (*po != '\0')) po++; // skip <count>
+                        } else {
+                            fprintf(cmd_w, "Error: ping count is invalid\n");
+                            opt_err = true;
+                            break;
                         }
                     } else {
-                        while((*po != ' ') && (*po != '\0')) po++;
-                        ERROR("unknown option -%c\n", c);
+                        fprintf(cmd_w, "Error: ping option '%c' is invalid\n", c);
+                        opt_err = true;
+                        break;
                     }
-                    while(*po == ' ') po++; // skip spaces
+                }
+                if (opt_err) continue;
+                while(isspace(*po)) po++;
+                if (*po) {
+                    ERROR("ping options '%s' is invalid", po);
                 }
 
                 int session_id = alloc_session_id();
@@ -481,9 +497,8 @@ int oam_command_loop(struct Interface *iface)
                 } else {
                     ERROR("too many ongoing OAM sessions");
                 }
-            }
-            if(strlen(oam_command)>2){      // empty line is '/r/n'
-                strcpy(last_command, oam_command);
+            } else {
+                ERROR("unknown command '%s'", oam_command);
             }
         }
         else break;
@@ -616,7 +631,7 @@ int oam_recv_reply(char *msg)
         return oam_cmd_recv_reply(oam_cmd_iface, msg);
     }
                                                             // DUMP mode
-    char reply_str[512];
+    char reply_str[1000];
     struct JsonValue *j = json_parse(msg, strlen(msg));
     if (j == NULL) {
         fprintf(stderr, "JSON in reply is invalid.\n");

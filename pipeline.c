@@ -91,7 +91,7 @@ static void delete_iterator(struct PipelineIterator *pi)
 void pipe_iterator_run(struct PipelineIterator *pi)
 {
 #ifdef VERBOSE_RECV
-    printf("pipe_iterator_run, action count %u\n", pi->pipe->action_count);
+    printf("pipe_iterator_run %s, action count %u\n", pi->pipe->name, pi->pipe->action_count);
 #endif
     while (!iterator_done(pi)) {
         struct Action *a = &pi->pipe->actions[pi->pos];

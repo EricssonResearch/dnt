@@ -55,9 +55,10 @@ static void *oam_cmd_thread(void *arg)
     struct Interface *iface = (struct Interface *)arg;
     struct OamCmdIfData *oid = iface->iface_private;
 
+    // note: inverse operation is fd=fileno(file)
     FILE *cmd_w = fdopen(oid->oam_cmd_fd, "w");
     //setvbuf(cmd_w, NULL, _IOLBF, 0);
-    //TODO if we wand to fread() we need to duplicate the handle
+    //TODO if we want to fread() we need to duplicate the handle
     //int cmd_fd_dup = dup(cmd_fd);
     //FILE *cmd_r = fdopen(cmd_fd_dup, "r");
 
