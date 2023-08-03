@@ -224,11 +224,12 @@ static char *get_oam_key(const struct Packet *p)
 {
     // TODO: we can assume headers[1] indentified?
     const uint8_t *g_ach = p->buf + p->headers[1].start;
-    char key[4] = { };
-    key[0] = g_ach[4]; //node ID MSB
-    key[1] = g_ach[5]; //node ID LSB
-    key[2] = g_ach[7] & 0x0f;
-    key[3] = 0;
+    /* g_ach[4]; //node ID MSB */
+    /* g_ach[5]; //node ID LSB */
+    /* g_ach[7] & 0x0f; //session id */
+    uint16_t node_id = (g_ach[4] << 8) + g_ach[5];
+    char key[16] = { 0 };
+    sprintf(key, "%d:%d", node_id, g_ach[7] & 0x0f);
     return strdup(key);
 }
 
