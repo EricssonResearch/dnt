@@ -47,7 +47,7 @@ unsigned short oam_get_uid(const struct Interface *iface)
 
 static struct Packet *oam_recv(struct Interface *iface)
 {
-    char buffer[512];
+    char buffer[2000];
     int n;
 
     n = recv(iface->recvfd, buffer, sizeof(buffer)-1, 0);
