@@ -67,7 +67,8 @@ static void *oam_cmd_thread(void *arg)
 
     oam_command_loop(iface);
 
-    close(oid->oam_cmd_fd);
+    fclose(cmd_w);
+    //close(oid->oam_cmd_fd);
     oid->oam_cmd_fd = -1;
 
     return NULL;

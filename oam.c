@@ -353,6 +353,7 @@ static const char help_str[] =
     "exit - exit OAM\n"
     "mode <mode> - terminal mode. Mode can be 'dump' or 'json'.\n"
     "list - list monitoring start points\n"
+    "returns - list return interfaces\n"
     "ping[@if] <stream:mep-start> <mep-stop/mip/any> <level> [-r] [-o] [-n <count>] [-t <ttl>]\n";
 
 struct ListMepParams {
@@ -382,7 +383,12 @@ int oam_command_loop(struct Interface *iface)
     int n, k, val, l;
     struct Interface *oam_if;
 
-    fprintf(cmd_w, "OAM ready.\n");
+    if (oam_default_iface) {
+        fprintf(cmd_w, "OAM ready.\n");
+    } else {
+        fprintf(cmd_w, "OAM has no configured return interface.\n");
+        return -1;
+    }
 
     while (true) {
         rr=0; count=1; os=0;    // reset to default values
@@ -432,6 +438,21 @@ int oam_command_loop(struct Interface *iface)
                 fprintf(cmd_w, "Available MEP Start points:\n");
                 struct ListMepParams params = {cmd_w};
                 hashmap_foreach_sorted(mep_starts, list_mep_cb, &params);
+            }
+            else if (strcmp(oam_command, "returns") == 0) {
+                fprintf(cmd_w, "Available OAM return interfaces:\n");
+                for (int i=0; i<nr_oam_ifaces; i++) {
+                    const char *return_ip = oam_get_ip(oam_ifaces[i]);
+                    unsigned return_port = oam_get_port(oam_ifaces[i]);
+                    fprintf(cmd_w, "%s ip %s port %u",
+                            oam_ifaces[i]->name, return_ip, return_port);
+                    if (oam_ifaces[i] == oam_default_iface) {
+                        unsigned short node_id = oam_get_uid(oam_ifaces[i]);
+                        fprintf(cmd_w, " (default, node id %u)\n", node_id);
+                    } else {
+                        fprintf(cmd_w, "\n");
+                    }
+                }
             }
             else if(strncmp(oam_command, "ping", 4) == 0){
                 if(oam_command[4]=='@'){
