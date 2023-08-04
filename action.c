@@ -707,9 +707,9 @@ static enum ActionResult handle_OAM_packet(struct Packet *p, struct OamData *oam
     free(reply_address);
     free(j_msg);
 
-    if( is_mep_stop || (p->ttl == 0) || (strcmp(target->v.string, oam->name)==0) ) {
+    if( is_mep_stop || (strcmp(target->v.string, oam->name)==0) ) {
         json_delete(j);
-        return ACR_DONE;            // drop if mep_stop, ttl 0 or we were the target
+        return ACR_DONE;            // drop if mep_stop, or we were the target. If ttl expires, it will be droppd by the TTL checker
     }
     json_delete(j);
     return ACR_CONTINUE;
