@@ -308,9 +308,9 @@ static void *oam_ping_thread(void *arg)
     return NULL;
 }
 
-static int oam_ping(FILE *cmd_w, struct Interface *iface, unsigned session_id, unsigned seq, const char *mep_start, const char *mep_stop, int level, int rr, int os, unsigned count)
+static int oam_ping(FILE *cmd_w, struct Interface *iface, unsigned session_id, unsigned seq, const char *mep_start, const char *mep_stop, int level, int rr, int os, unsigned count, unsigned ttl)
 {
-    struct oam_request *ping_req = calloc_struct(oam_request);;
+    struct oam_request *ping_req = calloc_struct(oam_request);
     ping_req->cmd_w = cmd_w;
     ping_req->iface = iface;
     ping_req->session_id = session_id;
@@ -319,7 +319,7 @@ static int oam_ping(FILE *cmd_w, struct Interface *iface, unsigned session_id, u
     ping_req->mep_stop = mep_stop;
     ping_req->level = level;
     ping_req->type = "ping";
-    ping_req->ttl = OAM_PING_TTL;
+    ping_req->ttl = ttl;
     ping_req->rr = rr;
     ping_req->os = os;
     ping_req->count = count;
@@ -353,7 +353,7 @@ static const char help_str[] =
     "exit - exit OAM\n"
     "mode <mode> - terminal mode. Mode can be 'dump' or 'json'.\n"
     "list - list monitoring start points\n"
-    "ping[@if] <stream:mep-start> <mep-stop/mip/any> <level> [-r] [-o] [-n <count>]\n";
+    "ping[@if] <stream:mep-start> <mep-stop/mip/any> <level> [-r] [-o] [-n <count>] [-t <ttl>]\n";
 
 struct ListMepParams {
     FILE *cmd_w;
@@ -378,7 +378,7 @@ int oam_command_loop(struct Interface *iface)
 
     char oam_command[255], last_command[255];
     char mep_start[32], mep_stop[32], ifname[32], c;
-    int level, rr=0, count=1, os=0;
+    int level, rr=0, count=1, os=0, ttl=OAM_PING_TTL;
     int n, k, val, l;
     struct Interface *oam_if;
 
@@ -477,6 +477,16 @@ int oam_command_loop(struct Interface *iface)
                             opt_err = true;
                             break;
                         }
+                    } else if (c=='t') {
+                        k = sscanf(po, " %d%n", &val, &l);
+                        if (k == 1) {
+                            po += l;
+                            ttl = val;
+                        } else {
+                            fprintf(cmd_w, "Error: ping ttl is invalid\n");
+                            opt_err = true;
+                            break;
+                        }
                     } else {
                         fprintf(cmd_w, "Error: ping option '%c' is invalid\n", c);
                         opt_err = true;
@@ -495,7 +505,7 @@ int oam_command_loop(struct Interface *iface)
 //                    fprintf(cmd_w, "OK %d, ping @[%s] %s -> %s, level %d\n",
 //                            seq, oam_if->name, mep_start, mep_stop, level);
 
-                    if (oam_ping(cmd_w, oam_if, session_id, seq, mep_start, mep_stop, level, rr, os, count) != 0) {
+                    if (oam_ping(cmd_w, oam_if, session_id, seq, mep_start, mep_stop, level, rr, os, count, ttl) != 0) {
                         ERROR("can't send ping");
                     }
                 } else {
