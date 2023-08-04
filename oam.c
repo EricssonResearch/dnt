@@ -391,7 +391,7 @@ int oam_command_loop(struct Interface *iface)
     }
 
     while (true) {
-        rr=0; count=1; os=0;    // reset to default values
+        rr=0; count=1; os=0; ttl=OAM_PING_TTL;    // reset to default values
         n = read(cmd_fd, oam_command, sizeof(oam_command)-1);
         if (n > 0) {
             oam_command[n] = 0;
