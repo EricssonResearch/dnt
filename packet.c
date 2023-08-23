@@ -89,7 +89,7 @@ bool packet_dummy(const struct Packet *p)
     return p->buf == dummybuf;
 }
 
-void packet_identify_header(struct Packet *p, int type, unsigned offset, unsigned len)
+void packet_identify_header(struct Packet *p, enum ProtocolID type, unsigned offset, unsigned len)
 {
     if (p->header_count == PACKET_MAX_HEADER_NUM) {
         fprintf(stderr, "packet_identify_header: already at maximum header count\n");
@@ -118,13 +118,15 @@ static int scratch_alloc(struct Packet *p, unsigned len)
 
 //TODO static void scratch_free(struct Packet *p, unsigned char *start)
 
-void packet_add_header(struct Packet *p, unsigned idx, int type, unsigned len)
+void packet_add_header(struct Packet *p, unsigned idx, enum ProtocolID type, unsigned len)
 {
     if (p->header_count == PACKET_MAX_HEADER_NUM) {
         //TODO error (can we prevent this in the config compiler?)
     }
     if (idx > p->header_count) {
-        //TODO error (this should never happen though)
+        //TODO if this error happens, the config compiler is broken
+        fprintf(stderr, "packet_add_header index too large %u > %u\n", idx, p->header_count);
+        return;
     }
     int start = scratch_alloc(p, len);
     if (start < 0) {

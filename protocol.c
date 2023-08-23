@@ -70,6 +70,7 @@ static bool ethertype_from_id(uint16_t *nexthdr, enum ProtocolID id)
         case PROTO_ID_DCW:
         case PROTO_ID_TCW:
         case PROTO_ID_UDP:
+        case PROTO_ID_OAM:
             return false;
     }
     return false;
@@ -189,6 +190,18 @@ static const struct ProtocolField udp_fields[] = {
     {"checksum", 48, 16, FT_CHECKSUM},
 };
 
+// DetNet MPLS PW OAM Associated Channel Header (d-ACH)
+static const struct ProtocolField oam_fields[] = {
+    {"oam_nibble",  0,  4, FT_NUMBER}, // must be 1
+    {"version",     4,  4, FT_NUMBER},
+    {"sequence",    8,  8, FT_NUMBER},
+    {"channel",    16, 16, FT_NUMBER}, // https://www.iana.org/assignments/g-ach-parameters/g-ach-parameters.xhtml
+    {"nodeid",     32, 20, FT_NUMBER},
+    {"level",      52,  3, FT_NUMBER},
+    {"flags",      55,  5, FT_NUMBER}, // all reserved
+    {"session",    60,  4, FT_NUMBER},
+};
+
 //TODO autogenerate this list
 const struct Protocol protocol_list[] = {
     {"payload", payload_fields, 0, 0, 0, NULL, NULL},
@@ -206,6 +219,7 @@ const struct Protocol protocol_list[] = {
     {"ipv6", ipv6_fields, ARRAY_SIZE(ipv6_fields), 40, 0, NULL, NULL}, //TODO next header field
     {"arp", arp_fields, ARRAY_SIZE(arp_fields), 28, 0, NULL, NULL}, //TODO this is variable-length
     {"udp", udp_fields, ARRAY_SIZE(udp_fields), 8, 0, NULL, NULL},
+    {"oam", oam_fields, ARRAY_SIZE(oam_fields), 8, 0, NULL, NULL},
 };
 
 const unsigned protocol_count = ARRAY_SIZE(protocol_list);
@@ -238,7 +252,7 @@ const char *fieldtype_name_from_type(enum ProtocolFieldType type)
     return NULL;
 }
 
-int protocol_id_from_type(const char *type)
+enum ProtocolID protocol_id_from_type(const char *type)
 {
     if (type == NULL) return -1;
     for (unsigned i=0; i<protocol_count; i++) {
@@ -247,17 +261,17 @@ int protocol_id_from_type(const char *type)
     return -1;
 }
 
-const char *protocol_type_from_id(int id)
+const char *protocol_type_from_id(enum ProtocolID id)
 {
-    if (id >=0 && id < (int)protocol_count) {
+    if (id >=0 && id < protocol_count) {
         return protocol_list[id].name;
     }
     return NULL;
 }
 
-const struct ProtocolField *protocol_get_field_by_name(int id, const char *fieldname)
+const struct ProtocolField *protocol_get_field_by_name(enum ProtocolID id, const char *fieldname)
 {
-    if (id < 0 && id >= (int)protocol_count) return false;
+    if (id < 0 && id >= protocol_count) return false;
 
     for (unsigned i=0; i<protocol_list[id].header_field_count; i++) {
         if (strcmp(fieldname, protocol_list[id].header_fields[i].name) == 0)
@@ -266,25 +280,25 @@ const struct ProtocolField *protocol_get_field_by_name(int id, const char *field
     return NULL;
 }
 
-bool protocol_fieldname_valid(int id, const char *fieldname)
+bool protocol_fieldname_valid(enum ProtocolID id, const char *fieldname)
 {
     const struct ProtocolField *f = protocol_get_field_by_name(id, fieldname);
     return f != NULL;
 }
 
-const struct ProtocolField *protocol_get_field_by_type(int proto_id, enum ProtocolFieldType type)
+const struct ProtocolField *protocol_get_field_by_type(enum ProtocolID id, enum ProtocolFieldType type)
 {
-    for (unsigned i=0; i<protocol_list[proto_id].header_field_count; i++) {
-        if (protocol_list[proto_id].header_fields[i].type == type)
-            return &protocol_list[proto_id].header_fields[i];
+    for (unsigned i=0; i<protocol_list[id].header_field_count; i++) {
+        if (protocol_list[id].header_fields[i].type == type)
+            return &protocol_list[id].header_fields[i];
     }
     return NULL;
 }
 
-int protocol_get_field_id_by_type(int proto_id, enum ProtocolFieldType type)
+int protocol_get_field_idx_by_type(enum ProtocolID id, enum ProtocolFieldType type)
 {
-    for (unsigned i=0; i<protocol_list[proto_id].header_field_count; i++) {
-        if (protocol_list[proto_id].header_fields[i].type == type)
+    for (unsigned i=0; i<protocol_list[id].header_field_count; i++) {
+        if (protocol_list[id].header_fields[i].type == type)
             return i;
     }
     return -1;

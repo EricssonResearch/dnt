@@ -6,6 +6,7 @@
 #include "conf_utils.h"
 #include "inifile.h"
 #include "pof.h"
+#include "replicate.h"
 #include "seq_gen.h"
 #include "seq_recov.h"
 #include "utils.h"
@@ -63,6 +64,9 @@ static void set_default_parameters(struct ObjectInfo *info)
             info->p.pof.max_delay = 20;
             info->p.pof.take_any_time = 2000;
             info->p.pof.buffer_size = 2; // = info->p.rec.history_length
+            break;
+        case CO_REPL:
+            // nothing to init
             break;
     }
 }
@@ -176,8 +180,12 @@ static bool token_cb(char *str, void *userdata)
                             THROW("invalid max delay time '%s'", val);
                         }
                         info->p.pof.buffer_size = size;
+                    } else {
+                        THROW("invalid parameter '%s' for packet ordering function", key);
                     }
-
+                    break;
+                case CO_REPL:
+                    THROW("invalid parameter '%s' for replication", key);
                     break;
             }
         } else {
@@ -190,6 +198,8 @@ static bool token_cb(char *str, void *userdata)
             info->type = CO_SEQREC;
         } else if (strcmp(str, "Pof") == 0) {
             info->type = CO_POF;
+        } else if (strcmp(str, "Replicate") == 0) {
+            info->type = CO_REPL;
         } else {
             THROW("invalid type '%s'", str);
         }
@@ -214,12 +224,14 @@ static int object_cb(const char *key, void *value, void *userdata)
 
     struct ConfObject *obj = calloc_struct(ConfObject);
     obj->type = info.type;
+    obj->name = strdup(info.name);
 
     switch (info.type) {
         case CO_SEQGEN:
             obj->object = new_seq_gen(info.p.gen.use_reset_flag,
                     info.p.gen.use_init_flag,
                     info.p.gen.init_seq);
+            obj->print_state = seqgen_get_state_json;
             break;
         case CO_SEQREC:
             obj->object = new_seq_rec(info.p.rec.algo,
@@ -227,12 +239,18 @@ static int object_cb(const char *key, void *value, void *userdata)
                     info.p.rec.use_init_flag,
                     info.p.rec.history_length,
                     info.p.rec.reset_msec,
-                    info.p.rec.latent_error_paths);
+                    info.p.rec.latent_error_paths, NULL);
+            obj->print_state = seqrec_get_state_json;
             break;
         case CO_POF:
             obj->object = new_pof(info.p.pof.max_delay,
                     info.p.pof.take_any_time,
                     info.p.pof.buffer_size);
+            obj->print_state = pof_get_state_json;
+            break;
+        case CO_REPL:
+            obj->object = new_replicate();
+            obj->print_state = replicate_get_state_json;
             break;
 
     }
@@ -260,7 +278,11 @@ static int delete_cb(const char *key, void *value, void *userdata)
         case CO_POF:
             delete_pof(obj->object);
             break;
+        case CO_REPL:
+            delete_replicate(obj->object);
+            break;
     }
+    free(obj->name);
     free(obj);
     return 1;
 }
@@ -288,6 +310,8 @@ const char *confobject_name_from_type(enum ConfObjectType type)
             return "SeqRcvy";
         case CO_POF:
             return "Pof";
+        case CO_REPL:
+            return "Replicate";
     }
     return NULL;
 }

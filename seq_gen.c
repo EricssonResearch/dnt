@@ -7,6 +7,7 @@
 #include "seq_recov.h"
 #include "packet.h"
 #include "utils.h"
+#include "json.h"
 
 #include <netinet/in.h>
 #include <stdlib.h>
@@ -109,4 +110,14 @@ void seq_generator(struct SequenceGenerator *gen, struct Packet *p)
 {
     unsigned new_seq = sequence_generation(gen);
     p->sequence = htonl(new_seq);
+}
+
+struct JsonValue *seqgen_get_state_json(const void *obj)
+{
+    const struct SequenceGenerator *gen = obj;
+    struct JsonValue *js = json_object();
+    json_object_insert(js, "type", json_string("seqgen"));
+    json_object_insert(js, "use_init_flag", gen->use_init_flag ? json_true() : json_false());
+    json_object_insert(js, "use_reset_flag", gen->use_reset_flag ? json_true() : json_false());
+    return js;
 }

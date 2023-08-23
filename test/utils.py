@@ -1,5 +1,5 @@
 from subprocess import Popen, run, run, PIPE, DEVNULL
-from enum import Enum
+from pyroute2.netns import setns
 import platform
 import shlex
 import os
@@ -62,3 +62,36 @@ def exec_fg(cmd, silent=True, timeout=None):
         kwargs["pipesize"] = 10000000
     r = run(shlex.split(cmd), **kwargs)
     return r
+
+def get_mininet_bash_pids():
+    '''
+    Return a ductionary with mininet hostnames and pids
+    Format is { hostname : pid }
+    '''
+    bashs = {}
+    with Popen(['ps', 'a'], stdout=PIPE, text=True) as proc:
+        out, err = proc.communicate()
+        if "mininet" not in out:
+            return None
+        for line in out.splitlines():
+            if "mininet" in line:
+                tmp = line.split()
+                pid, hostname = tmp[0], tmp[-1].split(":")[1]
+                bashs[hostname] = pid
+    return bashs
+
+def switch_netns(hostname = None):
+    '''
+    Switch the network namespace of the process to the
+    namespace of the given mininet host's net namespace.
+    If @hostname == None (default) it will swtich back to
+    the default namespace.
+    Note: Assumes that the caller is in the defalt netns!
+    '''
+    netnspaces = get_mininet_bash_pids()
+    if hostname == None:
+        pid = 1
+    else:
+        pid = netnspaces[hostname]
+    setns(f"/proc/{pid}/ns/net")
+

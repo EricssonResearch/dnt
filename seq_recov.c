@@ -1,9 +1,12 @@
 // Copyright (c) 2023, Ericsson AB and Ericsson Telecommunication Hungary
 // All rights reserved.
 
-#include "utils.h"
 #include "seq_recov.h"
+#include "oam.h"
+#include "time_utils.h"
+#include "utils.h"
 #include "packet.h"
+#include "json.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -12,6 +15,8 @@
 
 #include <arpa/inet.h>
 #include <time.h>
+
+#define OAM_RCVY_RESET_MS 5000
 
 struct SequenceRecovery {
     enum SequenceRecoveryAlgorithm algorithm;
@@ -47,7 +52,33 @@ struct SequenceRecovery {
     int latent_error_resets;
 
     pthread_t reset_thread;
+    char *session_id; // for OAM only
 };
+
+// TODO: make struct OamSession if more per-session info needed for MEP/MIP.
+// currently the only state of the session is the seq recovery
+static struct HashMap *oam_seq_recoveries = NULL; // session_id -> struct SequenceRecovery
+
+struct SequenceRecovery *get_oam_rcvy(char *key)
+{
+    if (oam_seq_recoveries == NULL)
+        oam_seq_recoveries = new_hashmap(51, NULL, NULL);
+    struct SequenceRecovery *rec = hashmap_find(oam_seq_recoveries, key);
+    if (rec == NULL) {
+        rec = new_seq_rec(RCVY_Match, false, false, 0, OAM_RCVY_RESET_MS, 0, key);
+        hashmap_insert(oam_seq_recoveries, key, rec);
+    }
+    return rec;
+}
+
+void delete_oam_rcvy(char *key)
+{
+    struct SequenceRecovery *rec = hashmap_find(oam_seq_recoveries, key);
+    if (rec) {
+        hashmap_remove(oam_seq_recoveries, key);
+        delete_seq_rec(rec);
+    }
+}
 
 static void *reset_thread(void *arg);
 
@@ -57,7 +88,7 @@ static void reset_ticks(struct SequenceRecovery *rec)
 }
 
 struct SequenceRecovery *new_seq_rec(enum SequenceRecoveryAlgorithm algo, bool use_reset_flag, bool use_init_flag,
-        unsigned history_length, unsigned reset_msec, unsigned latent_error_paths)
+        unsigned history_length, unsigned reset_msec, unsigned latent_error_paths, const char *session_id)
 {
     struct SequenceRecovery *ret = calloc_struct(SequenceRecovery);
 
@@ -71,6 +102,8 @@ struct SequenceRecovery *new_seq_rec(enum SequenceRecoveryAlgorithm algo, bool u
     ret->init_history = calloc(history_length, sizeof(char)); //TODO we only need this when algo==Seamless
     ret->take_any = true;
     ret->init_take_any = true;
+    if (session_id)
+        ret->session_id = strdup(session_id);
     pthread_create(&ret->reset_thread, NULL, reset_thread, ret);
 
     return ret;
@@ -160,10 +193,10 @@ static bool recover(struct SequenceRecovery *rec, unsigned packet_seq, bool init
     return false;
 }
 
-static bool match_seq_recovery(struct SequenceRecovery *rec, struct Packet *p)
+static bool match_seq_recovery(struct SequenceRecovery *rec, unsigned seq)
 {
     /* unsigned flags = ntohl(p->sequence) & 0xffff0000; */
-    unsigned seq = ntohl(p->sequence) & 0xffff;
+    seq = seq & 0xffff;
     if (rec->take_any) {
         rec->take_any = false;
         rec->recv_seq = seq;
@@ -192,18 +225,18 @@ static bool match_seq_recovery(struct SequenceRecovery *rec, struct Packet *p)
     return false;
 }
 
-static bool vector_seq_recovery(struct SequenceRecovery *rec, struct Packet *p)
+static bool vector_seq_recovery(struct SequenceRecovery *rec, unsigned seq)
 {
-    unsigned packet_seq = ntohl(p->sequence) & 0xffff;
+    unsigned packet_seq = seq & 0xffff;
     return recover(rec, packet_seq, false);
 }
 
-static bool seamless_seq_recovery(struct SequenceRecovery *rec, struct Packet *p)
+static bool seamless_seq_recovery(struct SequenceRecovery *rec, unsigned seq)
 {
     int delta = 0;
     // TODO: use proper metadata seq/flags as packet member not rtag format
-    unsigned flags = ntohl(p->sequence) & 0xffff0000;
-    unsigned seq = ntohl(p->sequence) & 0xffff;
+    unsigned flags = seq & 0xffff0000;
+    seq = seq & 0xffff;
     if(rec->use_reset_flag) {
         if(rec->use_init_flag) {
             if(flags & FRER_INIT_FLAG) {
@@ -247,19 +280,19 @@ static void seamless_seq_recovery_reset(struct SequenceRecovery *rec)
 }
 
 //TODO: race condition
-bool seq_recovery(struct SequenceRecovery *rec, struct Packet *p)
+bool seq_recovery(struct SequenceRecovery *rec, unsigned seq)
 {
     bool ret = true;
     //TODO grab mutex
     switch (rec->algorithm) {
         case RCVY_Vector:
-            ret = vector_seq_recovery(rec, p);
+            ret = vector_seq_recovery(rec, seq);
             break;
         case RCVY_SeamlessVector:
-            ret = seamless_seq_recovery(rec, p);
+            ret = seamless_seq_recovery(rec, seq);
             break;
         case RCVY_Match:
-            ret = match_seq_recovery(rec, p);
+            ret = match_seq_recovery(rec, seq);
             break;
     }
     //TODO release mutex
@@ -268,8 +301,7 @@ bool seq_recovery(struct SequenceRecovery *rec, struct Packet *p)
 
 static void seq_recovery_reset(struct SequenceRecovery *rec)
 {
-
-    printf("Seqence recovery reset.\n");
+    printf("Sequence recovery reset. %s\n", rec->session_id ? "(OAM)" : "");
     rec->seq_recovery_resets += 1;
     rec->take_any = true;
     switch (rec->algorithm) {
@@ -316,8 +348,11 @@ static void decrement_ticks(struct SequenceRecovery *rec)
     if (rec->remaining_ticks == 0)
         return;
     rec->remaining_ticks -= 1;
-    if (rec->remaining_ticks == 0)
+    if (rec->remaining_ticks == 0) {
         seq_recovery_reset(rec);
+        if (rec->session_id)
+            delete_oam_rcvy(rec->session_id);
+    }
 }
 
 // This thread decrement the @remaining_ticks periodically
@@ -335,17 +370,55 @@ static void *reset_thread(void *arg)
     delta.tv_sec = tick_ns / NSEC_PER_SEC;
     delta.tv_nsec = tick_ns % NSEC_PER_SEC;
     clock_gettime(CLOCK_REALTIME, &now);
-    timespec_add(&sleep_until, &now, &delta);
+    timespecadd(&now, &delta, &sleep_until);
     while (true) {
         clock_nanosleep(CLOCK_REALTIME, TIMER_ABSTIME, &sleep_until, NULL);
         clock_gettime(CLOCK_REALTIME, &now);
-        if (timespec_compare(&now, &sleep_until) < 0) {
+        if (timespeccmp(&now, &sleep_until, <)) {
             printf("\tEarly wakeup. continue sleep...\n");
             // Unlikely early wake up, continue with sleeping
             continue;
         }
         decrement_ticks(rec);
-        timespec_add(&sleep_until, &now, &delta);
+        timespecadd(&now, &delta, &sleep_until);
     }
     return rec;
+}
+
+struct JsonValue *seqrec_get_state_json(const void *obj)
+{
+    // TODO: print OAM match recovery child's status too
+    const struct SequenceRecovery *rec = obj;
+    struct JsonValue *js = json_object();
+    json_object_insert(js, "type", json_string("seqrec"));
+    json_object_insert(js, "reset_msec", json_number((double) rec->reset_msec));
+    struct JsonValue *algo = NULL;
+    switch (rec->algorithm) {
+        case RCVY_Match: algo = json_string("match"); break;
+        case RCVY_Vector: algo = json_string("vector"); break;
+        case RCVY_SeamlessVector: algo = json_string("seamless_vector"); break;
+    }
+    json_object_insert(js, "recovery_algorithm", algo);
+    json_object_insert(js, "recovery_seq_num", json_number((double) rec->recv_seq));
+    json_object_insert(js, "passed_packets", json_number((double) rec->passed_packets));
+    json_object_insert(js, "discarded_packets", json_number((double) rec->discarded_packets));
+    json_object_insert(js, "seq_recovery_resets", json_number((double) rec->seq_recovery_resets));
+    if (rec->algorithm != RCVY_Match) { //only for vector & seamless
+        json_object_insert(js, "history_length", json_number((double) rec->history_length));
+        json_object_insert(js, "use_reset_flag", rec->use_reset_flag ? json_true() : json_false());
+        json_object_insert(js, "use_init_flag", rec->use_init_flag ? json_true() : json_false());
+        json_object_insert(js, "latent_error_paths", json_number((double) rec->latent_error_paths));
+        json_object_insert(js, "latent_error_resets", json_number((double) rec->latent_error_resets));
+        json_object_insert(js, "latent_errors", json_number((double) rec->latent_errors));
+    }
+
+    char *hist_content = calloc(1, rec->history_length + 1);
+    for (int i = 0; i < rec->history_length; ++i) {
+        if (rec->history[i] == 1)
+            hist_content[i] = '1';
+        else if (rec->history[i] == 0)
+            hist_content[i] = '0';
+    }
+    json_object_insert(js, "history", json_string(hist_content));
+    return js;
 }

@@ -13,6 +13,7 @@
 #include "protocol.h"
 #include "seq_gen.h"
 #include "time_utils.h"
+#include "oam.h"
 #include "version.h"
 
 #include <stdio.h>
@@ -114,7 +115,7 @@ static void recv_loop(struct Interface *ifaces, unsigned iface_count)
             } else {
                 // TODO: print the name of the matching stream
 #ifdef VERBOSE_RECV
-                printf("parsetree identified %u headers, pipe = %p\n", p->header_count, pipe);
+                printf("parsetree identified %u headers, pipe %s\n", p->header_count, pipe->name);
                 for (unsigned i=0; i<p->header_count; i++) {
                     printf("  header %u is %s at %u len %u\n", i,
                             protocol_list[p->headers[i].type].name, p->headers[i].start, p->headers[i].len);
@@ -163,6 +164,12 @@ int main(int argc, char **argv)
     if (!config_add_streams_to_interfaces(config)) {
         delete_config(config);
         return -1;
+    }
+
+    if(!init_oam(config)) {
+      printf("OAM init failed\n");
+      delete_config(config);
+      return -1;
     }
 
     for (unsigned i=0; i<config->ifcount; i++) {

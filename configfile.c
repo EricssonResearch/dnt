@@ -10,6 +10,7 @@
 #include "action.h"
 #include "inifile.h"
 #include "interface.h"
+#include "oam.h"
 #include "parsetree.h"
 #include "pipeline.h"
 #include "utils.h"
@@ -214,12 +215,12 @@ static int addstream_cb(const char *key, void *value, void *userdata)
         } else {
             //printf("  compiling new pipeline\n");
             unsigned action_count;
-            struct Action *actions = assemble_actions(s->stream->actions, &action_count);
+            struct Action *actions = assemble_actions(s->stream_name, s->stream->actions, &action_count);
             if (!actions) {
                 fprintf(stderr, "failed to assemble actions for stream %s\n", s->stream_name);
                 return 0;
             }
-            pipe = new_pipeline(actions, action_count);
+            pipe = new_pipeline(s->stream_name, actions, action_count);
             if (!pipe) { //TODO this never happens
                 fprintf(stderr, "failed to create action pipeline for stream %s\n", s->stream_name);
                 for (unsigned i=0; i<action_count; i++) {
@@ -228,6 +229,7 @@ static int addstream_cb(const char *key, void *value, void *userdata)
                 free(actions);
                 return 0;
             }
+            oam_set_pipeline_for_mep_start(s->stream_name, pipe);
         }
 
         if (!parsetree_add_stream(iface->parsetree, s->stream->packet, pipe)) {

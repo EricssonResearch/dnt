@@ -152,8 +152,11 @@ bool init_delay(void)
     }
 
     if (pthread_create(&delay_tid, &attr, &delay_thread, NULL) != 0) {
-        fprintf(stderr, "could not create delay thread\n");
-        return false;
+        if (pthread_create(&delay_tid, NULL, &delay_thread, NULL) != 0) {
+            fprintf(stderr, "could not create delay thread\n");
+            return false;
+        }
+        fprintf(stderr, "WARNING: could not set priority for delay thread, need CAP_SYS_NICE\n");
     }
 
     ev_fds = eventfd(0, EFD_NONBLOCK);

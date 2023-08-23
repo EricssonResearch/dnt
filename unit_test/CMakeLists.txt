@@ -7,11 +7,23 @@ include_directories(../)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -Og -std=gnu99 -Wall -Wextra -Wstrict-prototypes -Wmissing-declarations -Wwrite-strings -Wshadow -Werror")
 
 function(add_test_seqrcvy name)
-    add_executable(${name} ../seq_recov.c ../packet.c ${name}.c)
+    add_executable(${name} ../seq_recov.c ../json.c ../inifile/hashmap.c ${name}.c)
+    target_include_directories(${name} PUBLIC ../inifile)
     target_link_libraries(${name} m pthread)
     target_compile_definitions(${name} PUBLIC TESTING)
 endfunction()
 
 add_test_seqrcvy(test_seq_rcvy_match)
 add_test_seqrcvy(test_seq_rcvy_vector)
+
+function(add_test_json name)
+    add_executable(${name} ../json.c ../inifile/hashmap.c ../utils.c ${name}.c)
+    target_include_directories(${name} PUBLIC ../inifile)
+    #target_link_libraries(${name} m pthread)
+    target_compile_definitions(${name} PUBLIC TESTING)
+endfunction()
+
+add_test_json(test_json_read)
+add_test_json(test_json_write)
+
 

@@ -5,12 +5,19 @@
 #ifndef R2_PIPELINE_H
 #define R2_PIPELINE_H
 
+#include "configfile.h"
 #include <stdbool.h>
 
 struct Action;
 struct Packet;
 
-struct Pipeline;
+struct Pipeline {
+    struct Action *actions; // array of actions
+    unsigned action_count;
+    unsigned reference_count;
+    char *name;
+};
+
 
 struct PipelineIterator {
     struct Packet *packet;
@@ -20,7 +27,7 @@ struct PipelineIterator {
 
 // creates a new pipeline
 // doesn't automatically reference it!
-struct Pipeline *new_pipeline(struct Action *actions, unsigned action_count);
+struct Pipeline *new_pipeline(const char *name, struct Action *actions, unsigned action_count);
 
 // add a reference to the pipeline
 void pipeline_ref(struct Pipeline *pipe);
@@ -35,6 +42,5 @@ struct PipelineIterator *new_pipe_iterator(struct Pipeline *pipe, struct Packet 
 // process the pipeline
 // the iterator will delete itself when it's done
 void pipe_iterator_run(struct PipelineIterator *pi);
-
 
 #endif // R2_PIPELINE_H

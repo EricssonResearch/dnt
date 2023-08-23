@@ -5,6 +5,7 @@
 #ifndef R2_CONF_STREAMS_H
 #define R2_CONF_STREAMS_H
 
+#include "pipeline.h"
 struct ConfAction;
 struct IniSection;
 struct Interface;

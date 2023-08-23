@@ -5,6 +5,8 @@
 #ifndef R2_PACKET_H
 #define R2_PACKET_H
 
+#include "protocol.h"
+
 #include <stdbool.h>
 #include <time.h>
 
@@ -17,7 +19,7 @@
 struct Interface;
 
 struct PacketHeader {
-    int type;
+    enum ProtocolID type;
     unsigned start; // from beginning of buf
     unsigned len;
 };
@@ -47,6 +49,8 @@ struct Packet {
     // packet properties that can be accessed via dedicated read/write actions
     unsigned timestamp; // holds a ttag
     unsigned sequence;  // holds a rtag
+
+    unsigned ttl;
 };
 
 // returns a newly allocated packet that has a buffer
@@ -70,12 +74,12 @@ bool packet_dummy(const struct Packet *p);
 // @offset is counted from p->start not from p->buf!
 // the headers MUST be identified by increasing offset
 // TODO do we prevent the headers from overlapping? do we have to?
-void packet_identify_header(struct Packet *p, int type, unsigned offset, unsigned len);
+void packet_identify_header(struct Packet *p, enum ProtocolID type, unsigned offset, unsigned len);
 
 // adds a new header on the scratch space, adds an entry to @p->headers
 // the position in the header list is @idx
 // all the existing headers after @idx will be shifted in the array
-void packet_add_header(struct Packet *p, unsigned idx, int type, unsigned len);
+void packet_add_header(struct Packet *p, unsigned idx, enum ProtocolID type, unsigned len);
 
 // removes a header and forgets it in @p->headers
 // all the headers after @idx will be shifted in the array

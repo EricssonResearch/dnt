@@ -5,6 +5,8 @@
 #ifndef R2_ACTION_H
 #define R2_ACTION_H
 
+#include "conf_object.h"
+#include "protocol.h"
 #include "transfer.h"
 
 enum ActionType {
@@ -14,12 +16,18 @@ enum ActionType {
     ACT_DROP,
     ACT_EDIT,
     ACT_ELIM,
+    ACT_FILTEROAM,
+    ACT_MEPSTART,
+    ACT_MEPSTOP,
+    ACT_MIP,
     ACT_POF,
     ACT_READSEQ,
     ACT_READTSTAMP,
     ACT_REPL,
     ACT_SEND,
     ACT_SEQGEN,
+    ACT_TTLCHECK,
+    ACT_TTLREDUCE,
     ACT_WRITESEQ,
     ACT_WRITETSTAMP,
 };
@@ -34,8 +42,10 @@ struct Action;
 struct HeaderField;
 struct HeaderFieldAssign;
 struct Interface;
+struct Oam;
 struct Packet;
 struct PipelineIterator;
+struct Replicate;
 struct SequenceGenerator;
 struct SequenceRecovery;
 struct Pof;
@@ -80,7 +90,7 @@ struct EditAssign {
 const char *action_name_from_type(enum ActionType type);
 
 // this just adds the header, the fields will be set with an edit action
-void create_action_add(struct Action *a, unsigned idx, int type, unsigned len, const char *text);
+void create_action_add(struct Action *a, unsigned idx, enum ProtocolID type, unsigned len, const char *text);
 
 void create_action_del(struct Action *a, unsigned idx, const char *text);
 
@@ -94,17 +104,31 @@ void create_action_edit(struct Action *a, struct EditAssign *assigns, unsigned a
 
 void create_action_elim(struct Action *a, struct SequenceRecovery *rcvy, const char *text);
 
+void create_action_filteroam(struct Action *a, const struct HeaderField *seqfield, const char *text);
+
+void create_action_mepstart(struct Action *a, int level, const char *name, const char *text);
+
+void create_action_mepstop(struct Action *a, int level, struct ConfObject *target,
+                            const char *name, const char *text);
+
+void create_action_mip(struct Action *a, int level, struct ConfObject *target,
+                        const char *name, const char *text);
+
 void create_action_pof(struct Action *a, struct Pof *pof, const char *text);
 
 void create_action_readseq(struct Action *a, const struct HeaderField *seqfield, const char *text);
 
 void create_action_readtstamp(struct Action *a, const struct HeaderField *tsfield, const char *text);
 
-void create_action_repl(struct Action *a, struct PipelineList *list, const char *text);
+void create_action_repl(struct Action *a, struct PipelineList *list, struct Replicate *replobj, const char *text);
 
 void create_action_send(struct Action *a, struct Interface *iface, const char *text);
 
 void create_action_seqgen(struct Action *a, struct SequenceGenerator *gen, const char *text);
+
+void create_action_ttlcheck(struct Action *a, const char *text);
+
+void create_action_ttlreduce(struct Action *a, const struct HeaderField *ttlfield, const char *text);
 
 void create_action_writeseq(struct Action *a, const struct HeaderField *seqfield, const char *text);
 

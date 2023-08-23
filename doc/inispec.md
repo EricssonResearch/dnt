@@ -30,6 +30,12 @@ List of interfaces where we can send/receive packets. The keys of the items are 
     * `dstip` the IP address to send to (also determines the IP version, domain names are also accepted)
     * `prio` the IPv4 TOS or IPv6 Traffic Class for the sent packets (default: 0)
 * `internal` a virtual interface within R2DTWO, useful for stream re-classification in decapsulating scenarios, no parameters
+* `oam` receives OAM reply messages out-of-band
+    * `oam_ip` return address (required)
+    * `oam_port` return port (default: 6634)
+* `oam_cmd` OAM command interface, use telnet to connect to it, use the `help` command
+    * `oam_cmd_ip` address (default: 0.0.0.0)
+    * `oam_cmd_port` return port (default: 8000)
 
 Each interface has an accompanying line with key `ifname:streams` that defines the streams received on that interface. The value for this key is a list of stream names separated by space. The ordering of the streams in this line determines the matching order when a received packet is processed. The interface drops all incoming packets if no streams are defined on it. One stream can be listed on multiple interfaces.
 
@@ -40,6 +46,8 @@ Each interface can have read-only properties that can be used as right-hand-side
 * udp-in: srcip, port
 * udp-out: dstip, srcport, dstport
 * internal: (nothing)
+
+The OAM interfaces never send/receive data plane traffic, and they have no readable properties.
 
 Example for a DetNet scenario:
 
@@ -53,6 +61,9 @@ ifNNIout = udp-out iface=enp4s0 dstip=fd03::11
 
 ifUNIin:streams = user_in
 ifNNIin:streams = tunnel_in
+
+cmd0 = oam_cmd oam_cmd_ip=10.0.0.1 oam_cmd_port=8000
+oam0 = oam oam_ip=10.0.0.1 oam_port=6634
 ```
 
 ## streams
@@ -113,13 +124,18 @@ The available actions are the following:
     * these expressions are validated against the size and type of the header field on the left-hand-side
 * `eliminate seq_rec` conditional drop, uses the given sequence recovery object and the packet's sequence number metadata
 * `jump pipeline` continues the processing on the named pipeline, which has to be defined in the *streams* section, it does not return to the current pipeline; useful for breaking up long pipelines or reuse operations for multiple streams; this action is the last one in a pipeline
+* `mep-start name level [object]` Monitoring EndPoint, can initiate OAM messages, can report status information about an object
+* `mep-stop name level [object]` Monitoring EndPoint, terminates an OAM monitoring route, can report status information about an object
+* `mip name level [object]` Monitoring Intermediate Point, answers OAM messages, implicitly a mep-start point, can report status information about an object
 * `pof pofobject` puts the packet in a reorder buffer based on its sequence number metadata, continues the actions on this pipeline when the ordering is okay
 * `readseq header` reads the sequence number from the given header into the packet metadata field (to be used by the `eliminate` and `pof` actions)
 * `readtstamp header` reads the timestamp from the given header into the packet metadata field (to be used by the `delay` action)
-* `replicate pipeline1 [pipeline2]` makes copies of the packet and continues processing them on the given pipelines, which have to be defined in the *streams* section, this can create any number of branches; this action is the last one in a pipeline
+* `replicate pipeline1 [pipeline2]` makes copies of the packet and continues processing them on the given pipelines, which have to be defined in the *streams* section, this can create any number of branches; the first argument can optionally be the name of a Replicate object that stores statistics about the replication; this action is the last one in a pipeline
 * `send iface` sends out the packet on the given interface from the *interfaces* list
 * `seqgen generator` uses the given sequence generator object to set the sequence number metadata of the packet
-* `writeseq header` writes the sequence number from the packet metadata to the given header
+* `ttlcheck` drops the packet if the metadata TTL is 0
+* `ttlreduce header` decreases the TTL in the given header, remembers the value in a packet metadata field
+* `writeseq header` writes the sequence number from the packet metadata to the given header, the metadata has to contain a valid sequence number (from `seqgen` or `readseq`)
 * `writetstamp header` writes the timestamp from the packet metadata to the given header
 
 In these actions `header` refers to any header in the *packet* list by name, using the identifier suffix if there is one. The `newheader` in `add` can also have an identifier suffix. Later actions can refer to newly added headers.
@@ -130,6 +146,12 @@ When the parameter of an action is a header field, it is given in this form: `he
 
 For actions that use stateful objects the name of the action can be omitted, because the type of the object determines the action. These actions are the following: eliminate (sequence recovery object), pof (pof object), seqgen (sequence generator object). Similarly, the `jump` action can be used by only specifying the name of the action pipeline to jump to.
 
+When adding a header that has *TSNSEQ* or *TSNTSTAMP* field, an action that fills that field (`writeseq`/`writetstamp`) is automatically created. The default timestamp is the time the packet was received.
+
+If the first header in the `:packet` line has a TTL field, a `ttlreduce` action is automatically created for it at the beginning of the action pipeline. A `ttlcheck` action is also automatically created before the first `send` action, unless the header has been deleted.
+
+The OAM Monitoring points (`mep-start`, `mep-stop`, `mip`) are only allowed in the action pipeline, where the header structure of the packet starts with `mpls` and `dcw`. The mpls label must be written *after* the start point.
+
 When the action pipeline is finished, the memory used for the packet is automatically reclaimed, there is no need to explicitly drop it with the `drop` action. The `drop` action can be used to explicitly filter out certain types of packets.
 
 Example for a DetNet scenario:
@@ -139,11 +161,11 @@ Example for a DetNet scenario:
 
 user_in:packet = eth, cvlan, ipv6
 user_in:match = ipv6.dst=fd03::42
-user_in:actions = del eth, del cvlan, send ifNNIout
+user_in:actions = del eth, del cvlan, seq_gen2, before ipv6 add dcw, before dcw add mpls bos=1 ttl=64, mep-start tunnelStart 3, edit mpls.label=13, send ifNNIout
 
 tunnel_in:packet = mpls, dcw, ipv6
 tunnel_in:match = mpls.label=42
-tunnel_in:actions = readseq dcw, seq_rcvy2, del mpls, del dcw, send ifUNIout
+tunnel_in:actions = readseq dcw, seq_rcvy2, mep-stop tunnelEnd 3 seq_rcvy2, del mpls, del dcw, send ifUNIout
 ```
 
 ## objects
@@ -167,6 +189,7 @@ The object instantiation is in this format: `name = type parameter=value [parame
     * BufferSize max number of packets in the reorder buffer (default: 2)
     * MaxDelay timeout when waiting for missing packet (default: 20)
     * TakeAnyTime initial time for sequencing (default: 2000)
+* `Replicate` counters for `replicate` action, takes no parameters
 
 All of these objects work on the metadata of the packet instead of the header fields.
 
@@ -175,5 +198,6 @@ Example for a DetNet scenario:
 ```
 [objects]
 
+seq_gen2 = SeqGen
 seq_rcvy2 = SeqRcvy frerSeqRcvyAlgorithm=Vector frerSeqRcvyHistoryLength=1993
 ```

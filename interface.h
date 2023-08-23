@@ -20,6 +20,8 @@ enum IfaceType {
     IF_UDP_IN,
     IF_UDP_OUT,
     IF_INTERNAL,
+    IF_OAM,
+    IF_OAM_CMD,
 };
 
 enum IfaceState {

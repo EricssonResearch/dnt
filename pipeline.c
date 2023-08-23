@@ -5,17 +5,14 @@
 #include "pipeline.h"
 #include "action.h"
 #include "interface.h"
+#include "conf_streams.h"
+#include "inifile.h"
 #include "packet.h"
 #include "utils.h"
 
 #include <stdio.h>
 #include <stdlib.h>
-
-struct Pipeline {
-    struct Action *actions; // array of actions
-    unsigned action_count;
-    unsigned reference_count;
-};
+#include <string.h>
 
 // add reference to the outgoing interfaces so they know they are in use
 static void ref_send_interfaces(struct Pipeline *pipe)
@@ -37,11 +34,12 @@ static void unref_send_interfaces(struct Pipeline *pipe)
     }
 }
 
-struct Pipeline *new_pipeline(struct Action *actions, unsigned action_count)
+struct Pipeline *new_pipeline(const char *name, struct Action *actions, unsigned action_count)
 {
     struct Pipeline *ret = calloc_struct(Pipeline);
     ret->actions = actions;
     ret->action_count = action_count;
+    ret->name = strdup(name);
     ref_send_interfaces(ret);
     return ret;
 }
@@ -62,6 +60,7 @@ void pipeline_unref(struct Pipeline *pipe)
             delete_action(pipe->actions+i);
         }
         free(pipe->actions);
+        free(pipe->name);
         free(pipe);
     }
 }
@@ -92,7 +91,7 @@ static void delete_iterator(struct PipelineIterator *pi)
 void pipe_iterator_run(struct PipelineIterator *pi)
 {
 #ifdef VERBOSE_RECV
-    printf("pipe_iterator_run, action count %u\n", pi->pipe->action_count);
+    printf("pipe_iterator_run %s, action count %u\n", pi->pipe->name, pi->pipe->action_count);
 #endif
     while (!iterator_done(pi)) {
         struct Action *a = &pi->pipe->actions[pi->pos];

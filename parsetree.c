@@ -142,7 +142,7 @@ struct HeaderDescriptor *header_list_find_by_name(struct HeaderDescriptor *heade
     return NULL;
 }
 
-struct HeaderDescriptor *header_list_find_by_typeid(struct HeaderDescriptor *headers, int id)
+struct HeaderDescriptor *header_list_find_by_typeid(struct HeaderDescriptor *headers, enum ProtocolID id)
 {
     struct HeaderDescriptor *h = headers;
     while (h) {

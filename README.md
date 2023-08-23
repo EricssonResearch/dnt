@@ -7,6 +7,7 @@ Highlighted features:
 * Portable with minimal external dependencies
 * Layer 2 TSN virtual switch with IEEE 802.1CB (FRER) support
 * Layer 3 DetNet virtual router with PREOF support
+* DetNet OAM support and built-in command-line interface
 * Generic header matching & editing for many protocols (Ethernet, S-VLAN, C-VLAN, MPLS, IPv4, IPv6, etc.)
 * Extensions to the FRER/PREOF standards for better cloud-native operation support (seamless FRER/PREOF, delay function)
 * Supporting Ethernet, IPv4, IPv6 and MPLS pseudo-wire interfaces for sending/receiving

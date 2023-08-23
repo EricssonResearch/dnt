@@ -37,6 +37,7 @@ enum ProtocolID {
     PROTO_ID_IPv6,
     PROTO_ID_ARP,
     PROTO_ID_UDP,
+    PROTO_ID_OAM,
 };
 
 // describes one field of a protocol header
@@ -81,26 +82,25 @@ const char *fieldtype_name_from_type(enum ProtocolFieldType type);
 
 // @returns -1 if unknown protocol type
 //TODO const struct Protocol *protocol_from_type()
-int protocol_id_from_type(const char *type);
+enum ProtocolID protocol_id_from_type(const char *type);
 
 // @returns the type name of the given protocol
 // @returns NULL if unknown id
-// TODO enum ProtocolID id
-const char *protocol_type_from_id(int id);
+const char *protocol_type_from_id(enum ProtocolID id);
 
 // @returns pointer to the field descriptor
 // @returns NULL if the protocol has no field with the given @fieldname
-const struct ProtocolField *protocol_get_field_by_name(int id, const char *fieldname);
+const struct ProtocolField *protocol_get_field_by_name(enum ProtocolID id, const char *fieldname);
 
 // @returns true if @fieldname is valid for this protocol
-bool protocol_fieldname_valid(int id, const char *fieldname);
+bool protocol_fieldname_valid(enum ProtocolID id, const char *fieldname);
 
 // @returns pointer to the field descriptor
 // @returns NULL if the protocol has no field with the given @type
-const struct ProtocolField *protocol_get_field_by_type(int proto_id, enum ProtocolFieldType type);
+const struct ProtocolField *protocol_get_field_by_type(enum ProtocolID id, enum ProtocolFieldType type);
 
 // @returns index of the field in the protocol header
 // @returns -1 if the protocol has no field with the given @type
-int protocol_get_field_id_by_type(int proto_id, enum ProtocolFieldType type);
+int protocol_get_field_idx_by_type(enum ProtocolID id, enum ProtocolFieldType type);
 
 #endif // R2_PROTOCOL_H
