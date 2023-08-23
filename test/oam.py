@@ -201,7 +201,7 @@ def run_tests(net, test):
                 for reply_part in expected_reply:
                     reply = s.recv(10000).decode()
                     replies.append(reply)
-                print(f"Node: {node}\nCommand: {msg}\n")
+                print(f"Node: {node}, command: {msg}", end=" ")
 
                 all_ok = True
                 all_ok == all_ok and (replies[0] == expected_reply[0])
@@ -211,9 +211,10 @@ def run_tests(net, test):
                     for act, exp in zip(act_list, exp_list):
                         all_ok = all_ok and cmp_json(act, exp)
                 if all_ok:
+                    print("✔")
                     success += 1
                 else:
-                    print("FAILED: OAM reply different")
+                    print("✘ FAILED: OAM reply different")
                     print(f"Actual reply:\n{replies}\nExpected reply:\n{expected_reply}\n")
             except Exception:
                 print("FAILED: OAM reply parts missing")
