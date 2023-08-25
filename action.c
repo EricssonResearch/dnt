@@ -700,6 +700,11 @@ static enum ActionResult handle_OAM_packet(struct Packet *p, struct OamData *oam
     json_object_insert(j, "nodeid", json_number(nodeid));
     json_object_insert(j, "node", json_string(oam->name));
     json_object_insert(j, "session", json_number(session));
+
+    // we know that header 0 contains the label in the first 20 bit
+    uint32_t *label = (uint32_t *) (p->buf + p->headers[0].start);
+    json_object_insert(j, "label", json_number((ntohl(*label) >> 12) & 0xFFFFF));
+
     unsigned msg_len=0;
     char *j_msg = json_serialize(j, &msg_len);
     //printf("Send to %s : %d\nlen %d %s\n", reply_address, port, msg_len, j_msg);
