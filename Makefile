@@ -23,7 +23,7 @@ OBJECTS += configfile.o conf_actions.o conf_interface.o conf_object.o conf_packe
 OBJECTS += inifile/hashmap.o inifile/inifile.o
 
 HEADERS = action.h delay.h header.h interface.h packet.h parsetree.h pipeline.h protocol.h utils.h oam.h
-HEADERS += time_utils.h
+HEADERS += time_utils.h version.h
 HEADERS += if_eth.h if_internal.h if_ip.h if_udp_in.h if_udp_out.h if_utils.h if_oam.h if_oam_cmd.h
 HEADERS += seq_gen.h seq_recov.h pof.h replicate.h
 HEADERS += json.h
