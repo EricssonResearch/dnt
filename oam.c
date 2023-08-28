@@ -48,6 +48,36 @@ static struct Interface *oam_default_iface = NULL;
 static struct Interface *oam_cmd_iface = NULL;
 static struct HashMap *mep_starts = NULL; // name -> struct MEPStart
 
+struct SessionTracker {
+    time_t alloc_time;
+    unsigned request_count;
+    unsigned reply_count;
+    pthread_t tid;
+    bool live;
+};
+
+struct StreamSessions {
+    struct SessionTracker sessions[16];
+    unsigned live_count;
+    unsigned last_session;
+};
+
+static struct HashMap *session_ids = NULL; // stream_name -> struct StreamSessions
+static pthread_mutex_t session_lock;
+
+struct oam_request{                 // needed for the ping thread. Shuld be used in other function calls too
+    FILE *cmd_w;
+    struct Interface *iface;
+    struct MepStart *mep_start;
+    unsigned session_id, seq;
+    const char *type, *mep_stop;
+    int level, rr, os;
+    unsigned count;
+    unsigned interval_ms;
+    unsigned char ttl;
+  };
+
+
 void set_oam_cmd_if(struct Interface *iface)
 {
     if (oam_cmd_iface == NULL)
@@ -81,31 +111,32 @@ static struct Interface *get_oam_if(const char *name)
     return NULL;
 }
 
-static struct SessionTracker {
-    time_t alloc_time;
-    bool live;
-} live_sessions[16] = {0};
-static pthread_mutex_t session_lock;
-static int alloc_session_id(void)
+static int alloc_session_id(const char *stream_name)
 {
-    static unsigned last_session = 0;
-
     pthread_mutex_lock(&session_lock);
-    unsigned next_id = (last_session + 1) % 16;
+    struct StreamSessions *stream = hashmap_find(session_ids, stream_name);
+    if (stream == NULL) {
+        stream = calloc_struct(StreamSessions);
+    }
+    if (stream->live_count >= 16) {
+        return -1;
+    }
+
+    unsigned next_id = (stream->last_session + 1) % 16;
     unsigned id = next_id;
     struct timespec now;
     clock_gettime(CLOCK_REALTIME, &now);
 
-    if (live_sessions[id].live) {
-        if (now.tv_sec > live_sessions[id].alloc_time + 2) {
+    if (stream->sessions[id].live) {
+        if (now.tv_sec > stream->sessions[id].alloc_time + 2) {
             //fprintf(stderr, "session %u timeouted\n", id);
-            live_sessions[id].live = false;
+            stream->sessions[id].live = false;
         } else {
             id = (id + 1) % 16;
-            while (live_sessions[id].live && id != next_id) {
-                if (now.tv_sec > live_sessions[id].alloc_time + 2) {
+            while (stream->sessions[id].live && id != next_id) {
+                if (now.tv_sec > stream->sessions[id].alloc_time + 2) {
                     //fprintf(stderr, "session %u timeouted\n", id);
-                    live_sessions[id].live = false;
+                    stream->sessions[id].live = false;
                     break;
                 }
                 id = (id + 1) % 16;
@@ -113,29 +144,39 @@ static int alloc_session_id(void)
         }
     }
 
-    if (live_sessions[id].live) {
+    if (stream->sessions[id].live) {
         pthread_mutex_unlock(&session_lock);
         return -1;
     } else {
-        last_session = id;
-        live_sessions[id].live = true;
-        live_sessions[id].alloc_time = now.tv_sec + 1;
+        stream->last_session = id;
+        stream->sessions[id].live = true;
+        stream->sessions[id].alloc_time = now.tv_sec + 1;
+        stream->live_count++;
         pthread_mutex_unlock(&session_lock);
         return id;
     }
 }
 
-static void session_finished(unsigned id)
+static void session_finished(const char *stream_name, unsigned id)
 {
     if (id >= 16) {
         fprintf(stderr, "invalid session finish id %u\n", id);
         return;
     }
-    if (live_sessions[id].live == false) {
-        fprintf(stderr, "session finish id %u points to inactive session\n", id);
+    struct StreamSessions *stream = hashmap_find(session_ids, stream_name);
+    if (stream == NULL) {
+        fprintf(stderr, "session finish stream %s id %u but we have no such stream\n", stream_name, id);
         return;
     }
-    live_sessions[id].live = false;
+    pthread_mutex_lock(&session_lock);
+    if (stream->sessions[id].live == false) {
+        pthread_mutex_unlock(&session_lock);
+        fprintf(stderr, "session finish stream %s id %u points to inactive session\n", stream_name, id);
+        return;
+    }
+    stream->sessions[id].live = false;
+    stream->live_count--;
+    pthread_mutex_unlock(&session_lock);
 }
 
 unsigned short get_oam_nodeid(void)
@@ -218,31 +259,7 @@ static int add_fixed_headers(struct Packet *packet, unsigned char ttl,
     return 0;
 }
 
-pthread_t ping_tid[16];
-
-struct oam_request{                 // needed for the ping thread. Shuld be used in other function calls too
-    FILE *cmd_w;
-    struct Interface *iface;
-    unsigned session_id, seq;
-    const char *type, *mep_start, *mep_stop;
-    int level, rr, os;
-    unsigned count;
-    unsigned interval_ms;
-    unsigned char ttl;
-  };
-
 static int oam_send_request(struct oam_request *req){
-    struct MepStart *mep = hashmap_find(mep_starts, req->mep_start);
-    if (!mep) {
-        fprintf(req->cmd_w, "invalid mep start name '%s'\n", req->mep_start);
-        return -EINVAL;
-    }
-    struct Pipeline *pipe = mep->pipe;
-    if (!pipe) {
-        fprintf(req->cmd_w, "mep start '%s' has no pipeline!?!\n", req->mep_start);
-        return -EINVAL;
-    }
-
     struct Packet *packet = new_packet(NULL);
     const char *return_ip = oam_get_ip(req->iface);
     unsigned return_port = oam_get_port(req->iface);
@@ -255,13 +272,8 @@ static int oam_send_request(struct oam_request *req){
     struct JsonValue *js = json_object();
     json_object_insert(js, "request", json_string(req->type));
     json_object_insert(js, "target", json_string(req->mep_stop));
-    json_object_insert(js, "stream", json_string(mep->stream_name));
-    //TODO target node id
+    json_object_insert(js, "stream", json_string(req->mep_start->stream_name));
     json_object_insert(js, "level", json_number(req->level));
-    struct timespec sendtime;
-    clock_gettime(CLOCK_REALTIME, &sendtime);
-    json_object_insert(js, "send_s", json_number(sendtime.tv_sec));
-    json_object_insert(js, "send_ns", json_number(sendtime.tv_nsec));
     struct JsonValue *jret = json_object();
     json_object_insert(jret, "ip", json_string(return_ip));
     json_object_insert(jret, "port", json_number(return_port));
@@ -269,13 +281,17 @@ static int oam_send_request(struct oam_request *req){
 
     if(req->rr == 1){
         jret = json_array();
-        json_array_unshift(jret, json_string(req->mep_start));
+        json_array_unshift(jret, json_string(req->mep_start->name));
         json_object_insert(js, "rr", jret);
     }
     if(req->os == 1){
         jret = json_true();
         json_object_insert(js, "objects", jret);
     }
+    struct timespec sendtime;
+    clock_gettime(CLOCK_REALTIME, &sendtime);
+    json_object_insert(js, "send_s", json_number(sendtime.tv_sec));
+    json_object_insert(js, "send_ns", json_number(sendtime.tv_nsec));
 
     unsigned js_length;
     char *js_string = json_serialize(js, &js_length);
@@ -290,8 +306,8 @@ static int oam_send_request(struct oam_request *req){
     memcpy(msg, js_string, js_length);
     free(js_string);
 
-    struct PipelineIterator *pi = new_pipe_iterator(pipe, packet);
-    pi->pos = mep->pipe_pos_idx;
+    struct PipelineIterator *pi = new_pipe_iterator(req->mep_start->pipe, packet);
+    pi->pos = req->mep_start->pipe_pos_idx;
 
     pipe_iterator_run(pi);
     return 0;
@@ -309,14 +325,31 @@ static void *oam_ping_thread(void *arg)
     return NULL;
 }
 
-static int oam_ping(FILE *cmd_w, struct Interface *iface, unsigned session_id, unsigned seq, const char *mep_start, const char *mep_stop, int level, int rr, int os, int interval_ms, unsigned count, unsigned ttl)
+static int oam_ping(FILE *cmd_w, struct Interface *iface, const char *mep_start, const char *mep_stop, int level, int rr, int os, int interval_ms, unsigned count, unsigned ttl)
 {
+    struct MepStart *mep = hashmap_find(mep_starts, mep_start);
+    if (!mep) {
+        fprintf(cmd_w, "invalid mep start name '%s'\n", mep_start);
+        return -EINVAL; //TODO do we really need this error code?
+    }
+    struct Pipeline *pipe = mep->pipe;
+    if (!pipe) {
+        fprintf(cmd_w, "mep start '%s' has no pipeline!?!\n", mep_start);
+        return -EINVAL;
+    }
+
+    int session_id = alloc_session_id(mep->stream_name);
+    if (session_id < 0) {
+        fprintf(cmd_w, "mep start '%s' has no free session id\n", mep_start);
+        return -EINVAL;
+    }
+
     struct oam_request *ping_req = calloc_struct(oam_request);
     ping_req->cmd_w = cmd_w;
     ping_req->iface = iface;
     ping_req->session_id = session_id;
-    ping_req->seq = seq;
-    ping_req->mep_start = mep_start;
+    ping_req->seq = 0;
+    ping_req->mep_start = mep;
     ping_req->mep_stop = mep_stop;
     ping_req->level = level;
     ping_req->type = "ping";
@@ -327,7 +360,7 @@ static int oam_ping(FILE *cmd_w, struct Interface *iface, unsigned session_id, u
     ping_req->count = count;
 
     fprintf(cmd_w, "OAM packet %s session %u seq %u, %s -> %s, level %d, count %d interval %d, rr: %s os: %s\t[reply to ip: %s, port: %u]\n",
-            ping_req->type, ping_req->session_id, ping_req->seq, ping_req->mep_start, ping_req->mep_stop, ping_req->level, ping_req->count, ping_req->interval_ms,
+            ping_req->type, ping_req->session_id, ping_req->seq, ping_req->mep_start->name, ping_req->mep_stop, ping_req->level, ping_req->count, ping_req->interval_ms,
             ping_req->rr?"yes":"no", ping_req->os?"yes":"no", oam_get_ip(iface), oam_get_port(iface));
 
     if(count == 1){
@@ -340,7 +373,8 @@ static int oam_ping(FILE *cmd_w, struct Interface *iface, unsigned session_id, u
               return -1;
           }
 
-          if (pthread_create(&ping_tid[session_id], &attr, &oam_ping_thread, ping_req) != 0) {
+          struct StreamSessions *stream = hashmap_find(session_ids, mep->stream_name);
+          if (pthread_create(&stream->sessions[session_id].tid, &attr, &oam_ping_thread, ping_req) != 0) {
               fprintf(stderr, "could not create new ping thread\n");
               return -1;
           }
@@ -533,17 +567,8 @@ int oam_command_loop(struct Interface *iface)
                     ERROR("ping options '%s' is invalid", po);
                 }
 
-                int session_id = alloc_session_id();
-                unsigned seq = 0;
-                if (session_id >= 0) {
-//                    fprintf(cmd_w, "OK %d, ping @[%s] %s -> %s, level %d\n",
-//                            seq, oam_if->name, mep_start, mep_stop, level);
-
-                    if (oam_ping(cmd_w, oam_if, session_id, seq, mep_start, mep_stop, level, rr, os, interval_ms, count, ttl) != 0) {
-                        ERROR("can't send ping");
-                    }
-                } else {
-                    ERROR("too many ongoing OAM sessions");
+                if (oam_ping(cmd_w, oam_if, mep_start, mep_stop, level, rr, os, interval_ms, count, ttl) != 0) {
+                    ERROR("can't send ping");
                 }
             } else {
                 ERROR("unknown command '%s'", oam_command);
@@ -690,16 +715,6 @@ int oam_recv_reply(char *msg)
         fprintf(stderr, "No nodeid in reply.\n");
         return -1;
     }
-    struct JsonValue *sess = json_object_get_number(j, "session");
-    if(sess == NULL) {
-        fprintf(stderr, "No session id in reply.\n");
-        return -1;
-    } else {
-        if (sess->v.number < 0 || sess->v.number > 15) {
-            fprintf(stderr, "session id %.0f in reply is invalid\n", sess->v.number);
-        } else
-            session_finished(sess->v.number);
-    }
     struct JsonValue *request = json_object_get_string(j, "request");
     if(request == NULL) {
         fprintf(stderr, "No request in reply.\n");
@@ -730,6 +745,31 @@ int oam_recv_reply(char *msg)
         fprintf(stderr, "No stream in reply.\n");
         return -1;
     }
+    struct JsonValue *sess = json_object_get_number(j, "session");
+    if(sess == NULL) {
+        fprintf(stderr, "No session id in reply.\n");
+        return -1;
+    } else {
+        if (sess->v.number < 0 || sess->v.number > 15) {
+            fprintf(stderr, "session id %.0f in reply is invalid\n", sess->v.number);
+            return -1;
+        } else {
+            struct StreamSessions *stream = hashmap_find(session_ids, strm->v.string);
+            if (stream == NULL) {
+                fprintf(stderr, "Invalid stream name '%s' in reply.\n", strm->v.string);
+                return -1;
+            }
+            struct SessionTracker *session = &stream->sessions[(int)(sess->v.number)];
+            if (!session->live) {
+                fprintf(stderr, "Reply for non-live session %.0f of stream %s.\n", sess->v.number, strm->v.string);
+                return -1;
+            }
+            if (++session->reply_count == session->request_count) {
+                session_finished(strm->v.string, sess->v.number);
+            }
+        }
+    }
+
     sprintf(reply_str,"[nodeid %.0f session %.0f seq %.0f]\t%s level %.0f on stream %s target %s\treply from %s\n",
             nid->v.number, sess->v.number, seq->v.number,
             request->v.string, level->v.number, strm->v.string, target->v.string, node->v.string);
@@ -838,6 +878,7 @@ bool init_oam(struct R2d2Config *config)
     //TODO what should this function do?
 
     pthread_mutex_init(&session_lock, NULL);
+    session_ids = new_hashmap(11, NULL, NULL);
 
     return true;
 }
