@@ -103,7 +103,7 @@ static bool process_match_token(char *token, void *userdata)
             struct HeaderField *hf = new_headerfield(stst->current_idx, f);
             newmatch->field = hf;
             newmatch->value = init_value(f->bitoffset, f->bitcount);
-            if (!read_constant(&newmatch->value, f->type, val)) {
+            if (!read_constant(&newmatch->value, stst->current_header->id, f->type, val)) {
                 THROW("value '%s' doesn't fit into field '%s'", val, key);
             }
             newmatch->comparator = header_get_field_comprator(f, &newmatch->value);
@@ -195,3 +195,26 @@ bool parse_match_line(const char *stream, struct HeaderDescriptor *headers, char
 
     return true;
 }
+
+void confheaders_print(const struct HeaderDescriptor *headers)
+{
+    for (const struct HeaderDescriptor *h=headers; h; h=h->next) {
+        printf("  name %s protocol %s\n", h->name, protocol_type_from_id(h->id));
+
+        if (h->matches) {
+            printf("  matches:\n");
+            for (const struct HeaderMatch *m=h->matches; m; m=m->next) {
+                printf("    field idx %u bitoffset %u bitcount %u value bitoffset %u bitlength %u\n",
+                        m->field->header_idx, m->field->bitoffset, m->field->bitcount,
+                        m->value.bitoffset, m->value.bitcount);
+                unsigned bytes = DIVCEIL(m->value.bitoffset + m->value.bitcount, 8);
+                unsigned char *cst = m->value.value;
+                for (unsigned i=0; i<bytes; i++) {
+                    printf("      0x%.2x", cst[i]);
+                }
+                printf("\n");
+            }
+        }
+    }
+}
+

@@ -58,7 +58,6 @@ static int packetline_cb(const char *key, void *value, void *userdata)
             if (headers == NULL) {
                 THROW("packet line invalid");
             }
-            //TODO print_packets()
 
             // find the corresponding :match line
             int chars = snprintf(NULL, 0, "%s:match", streamname);
@@ -71,7 +70,10 @@ static int packetline_cb(const char *key, void *value, void *userdata)
             if (!parse_match_line(streamname, headers, matchline) > 0) {
                 THROW("match line invalid");
             }
-            //TODO print_matches()
+#ifdef VERBOSE_CONF
+            printf("Stream %s headers:\n", streamname);
+            confheaders_print(headers);
+#endif
 
             // find the corresponding :actions line
             chars = snprintf(NULL, 0, "%s:actions", streamname);

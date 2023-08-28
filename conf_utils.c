@@ -147,85 +147,107 @@ bool prepare_constant_number(struct Value *val, uint64_t num)
     return true;
 }
 
-bool read_constant(struct Value *val, enum ProtocolFieldType type, const char *string)
+bool read_constant(struct Value *val, enum ProtocolID proto, enum ProtocolFieldType type, const char *string)
 {
+#define THROW(msg, ...)                                     \
+    do {                                                    \
+        fprintf(stderr, "read_constant '%s': " msg "\n",    \
+                string, ##__VA_ARGS__);                     \
+        return false;                                       \
+    } while (0)
+
     val->bitoffset %= 8;
 
     switch (type) {
         case FT_UNKNOWN:
-            fprintf(stderr, "constant cannot be unknown type\n");
-            return false;
+            THROW("constant cannot be unknown type");
         case FT_NUMBER: do {
             uint64_t num;
             if (val->bitcount == 1) {
                 int b = read_boolean(string);
                 if (b < 0) {
-                    fprintf(stderr, "invalid boolean '%s'\n", string);
-                    return false;
+                    THROW("invalid boolean");
                 }
                 num = b;
             } else {
                 char c;
                 if (sscanf(string, "%li%c", &num, &c) != 1) {
-                    fprintf(stderr, "invalid number '%s'\n", string);
-                    return false;
+                    THROW("invalid number");
                 }
             }
             if (!prepare_constant_number(val, num)) {
-                fprintf(stderr, "number '%s' doesn't fit into %u bits\n", string, val->bitcount);
-                return false;
+                THROW("number doesn't fit into %u bits", val->bitcount);
             }
             return true; } while (0);
         case FT_MACADDRESS:
             if (val->bitoffset != 0 || val->bitcount != 6*8) {
-                fprintf(stderr, "bitoffset %u bitcount %u invalid for Ethernet address\n",
+                THROW("bitoffset %u bitcount %u invalid for Ethernet address",
                         val->bitoffset, val->bitcount);
-                return false;
             }
             struct ether_addr *a = ether_aton(string);
             if (a == NULL) {
-                fprintf(stderr, "invalid Ethernet address '%s'\n", string);
-                return false;
+                THROW("invalid Ethernet address");
             }
             val->value = malloc(6*sizeof(char));
             memcpy(val->value, a, 6);
             return true;
         case FT_IPV4ADDRESS:
             if (val->bitoffset != 0 || val->bitcount != 4*8) {
-                fprintf(stderr, "bitoffset %u bitcount %u invalid for IPv4 address\n",
+                THROW("bitoffset %u bitcount %u invalid for IPv4 address",
                         val->bitoffset, val->bitcount);
-                return false;
             }
             val->value = malloc(4*sizeof(char));
             if (inet_pton(AF_INET, string, val->value) != 1) {
-                fprintf(stderr, "invalid IPv4 address '%s'\n", string);
-                return false;
+                THROW("invalid IPv4 address '%s'", string);
             }
             return true;
         case FT_IPV6ADDRESS:
             if (val->bitoffset != 0 || val->bitcount != 16*8) {
-                fprintf(stderr, "bitoffset %u bitcount %u invalid for IPv6 address\n",
+                THROW("bitoffset %u bitcount %u invalid for IPv6 address",
                         val->bitoffset, val->bitcount);
-                return false;
             }
             val->value = malloc(16*sizeof(char));
             if (inet_pton(AF_INET6, string, val->value) != 1) {
-                fprintf(stderr, "invalid IPv6 address '%s'\n", string);
-                return false;
+                THROW("invalid IPv6 address '%s'", string);
             }
             return true;
         case FT_TSNSEQ:
             fprintf(stderr, "warning: it's not a good practice to set sequence number from constant\n");
-            return read_constant(val, FT_NUMBER, string);
+            return read_constant(val, proto, FT_NUMBER, string);
         case FT_TSNTSTAMP:
             fprintf(stderr, "warning: it's not a good practice to set timestamp from constant\n");
-            return read_constant(val, FT_NUMBER, string);
-        case FT_NEXTHEADER:
-            return read_constant(val, FT_NUMBER, string);
+            return read_constant(val, proto, FT_NUMBER, string);
+        case FT_NEXTHEADER: {
+            enum ProtocolID val_id = protocol_id_from_type(string);
+            if (val_id < 0) {
+                return read_constant(val, proto, FT_NUMBER, string);
+            } else {
+                if (protocol_list[proto].get_nexthdr) {
+                    uint16_t nexthdr;
+                    if (protocol_list[proto].get_nexthdr(&nexthdr, val_id)) {
+                        if (prepare_constant_number(val, ntohs(nexthdr))) {
+                            return true;
+                        } else {
+                            // if this happens then get_nexthdr() of the protocol is bugged
+                            THROW("invalid nexthdr value 0x%x for protocol %s",
+                                    ntohs(nexthdr), protocol_type_from_id(proto));
+                        }
+                    } else {
+                        THROW("invalid nexthdr type for protocol %s",
+                                protocol_type_from_id(proto));
+                    }
+                } else {
+                    // this should never happen
+                    THROW("protocol %s doesn't have nexthdr setter!?!",
+                            protocol_type_from_id(proto));
+                }
+            }
+        }
         case FT_TTL:
         case FT_CHECKSUM:
-            return read_constant(val, FT_NUMBER, string);
+            return read_constant(val, proto, FT_NUMBER, string);
     }
     return false;
+#undef THROW
 }
 

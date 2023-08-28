@@ -22,4 +22,6 @@ struct HeaderDescriptor *parse_packet_line(const char *stream, char *line);
 // @returns false on error
 bool parse_match_line(const char *stream, struct HeaderDescriptor *headers, char *line);
 
+void confheaders_print(const struct HeaderDescriptor *headers);
+
 #endif // R2_CONF_PACKET_H

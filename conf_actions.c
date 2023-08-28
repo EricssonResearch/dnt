@@ -88,6 +88,7 @@ struct ConfAssignment {
     value_consumer *write;
     value_producer *read;
     char *text;
+    enum ProtocolID lhs_protoid;
     struct ConfAssignment *next;
 };
 
@@ -330,14 +331,15 @@ static void init_confvariable(struct ConfVariable *v,
 
 
 // @returns false on error
-static bool process_assignment_lhs(struct HeaderDescriptor *headers, struct ConfVariable *lhs, char *string)
+static bool process_assignment_lhs(struct HeaderDescriptor *headers, struct ConfAssignment *assign, char *string)
 {
-#define THROW(msg, ...)                                             \
-    do {                                                            \
-        fprintf(stderr, msg "\n", ##__VA_ARGS__);                   \
-        return false;                                               \
+#define THROW(msg, ...)                                                 \
+    do {                                                                \
+        fprintf(stderr, "assignment lhs: " msg "\n", ##__VA_ARGS__);    \
+        return false;                                                   \
     } while (0)
 
+    struct ConfVariable *lhs = &assign->lhs;
     char *hdr, *field;
     if (parse_fieldname(string, &hdr, &field)) {
         struct HeaderDescriptor *h = header_list_find_by_name(headers, hdr);
@@ -353,6 +355,7 @@ static bool process_assignment_lhs(struct HeaderDescriptor *headers, struct Conf
         }
         init_confvariable(lhs, CVT_FIELD, f);
         lhs->v.header.field = new_headerfield(header_index(headers, h), f);
+        assign->lhs_protoid = h->id;
     } else {
         THROW("left-hand-side '%s' of the assignment is invalid", string);
     }
@@ -360,26 +363,17 @@ static bool process_assignment_lhs(struct HeaderDescriptor *headers, struct Conf
 #undef THROW
 }
 
-static void dummy_constant_reader(void *state, value_consumer *consumer, void *consumer_state, struct Packet *p)
+// @returns false on error
+static bool process_assignment_rhs(struct StageState *stst, struct ConfAssignment *assign, char *string)
 {
-    (void)state;
-    (void)consumer;
-    (void)consumer_state;
-    (void)p;
-}
-
-// @returns a value reader function or NULL on error
-// @returns dummy reader for CVT_CONST
-static value_producer *process_assignment_rhs(struct StageState *stst, const struct ConfVariable *lhs,
-        struct ConfVariable *rhs, char *string)
-{
-#define THROW(msg, ...)                                             \
-    do {                                                            \
-        fprintf(stderr, msg "\n", ##__VA_ARGS__);                   \
-        return NULL;                                                \
+#define THROW(msg, ...)                                                 \
+    do {                                                                \
+        fprintf(stderr, "assignment rhs: " msg "\n", ##__VA_ARGS__);    \
+        return false;                                                   \
     } while (0)
 
-    //printf("process_assignment_rhs '%s'\n", string);
+    const struct ConfVariable *lhs = &assign->lhs;
+    struct ConfVariable *rhs = &assign->rhs;
     char *key, *val;
     if (parse_fieldname(string, &key, &val)) {
         //printf("rhs has a dot '%s' . '%s'\n", key, val);
@@ -398,12 +392,19 @@ static value_producer *process_assignment_rhs(struct StageState *stst, const str
                 init_confvariable(rhs, CVT_FIELD, f);
                 struct HeaderField *hf = new_headerfield(header_index(stst->headers, h), f);
                 rhs->v.header.field = hf;
-                value_producer *read = header_get_field_reader(&lhs->value, hf);
-                if (read == NULL) {
+
+                assign->read = header_get_field_reader(&lhs->value, hf);
+                if (assign->read == NULL) {
                     //TODO can we print the name of lhs?
                     THROW("cannot read field %s.%s into the left-hand-side expression", key, val);
                 }
-                return read;
+
+                assign->write = header_get_field_writer(lhs->v.header.field, &rhs->value);
+                if (assign->write == NULL) {
+                    //TODO can we print the name of lhs?
+                    THROW("cannot write field %s.%s into the left-hand-side expression", key, val);
+                }
+                return true;
             } else {
                 THROW("header %s has no field %s", key, val);
             }
@@ -413,15 +414,22 @@ static value_producer *process_assignment_rhs(struct StageState *stst, const str
         if (iface) {
             //printf("rhs is an interface!\n");
             if (iface->get_property_reader) {
-                value_producer *read = iface->get_property_reader(iface, val, lhs->value_type, &lhs->value);
-                if (read == NULL) {
+
+                assign->read = iface->get_property_reader(iface, val, lhs->value_type, &lhs->value);
+                if (assign->read == NULL) {
                     THROW("interface %s has no property named '%s'", iface->name, val);
                 }
                 init_confvariable_full(rhs, CVT_IFACE,
                         lhs->value_type, lhs->value.bitoffset%8, lhs->value.bitcount);
                 rhs->v.iface.iface = iface;
                 rhs->v.iface.property = strdup(val);
-                return read;
+
+                assign->write = header_get_field_writer(lhs->v.header.field, &rhs->value);
+                if (assign->write == NULL) {
+                    //TODO can we print the name of lhs?
+                    THROW("cannot write interface property %s.%s into the left-hand-side expression", key, val);
+                }
+                return true;
             } else {
                 THROW("interface %s has no queryable property", iface->name);
             }
@@ -434,12 +442,18 @@ static value_producer *process_assignment_rhs(struct StageState *stst, const str
     //printf("rhs may be a constant...\n");
     // constant doesn't have a read function just a value
     init_confvariable_full(rhs, CVT_CONST, FT_UNKNOWN, lhs->value.bitoffset, lhs->value.bitcount);
-    if (read_constant(&rhs->value, lhs->value_type, string)) {
+    if (read_constant(&rhs->value, assign->lhs_protoid, lhs->value_type, string)) {
         //printf("rhs is a constant!\n");
         rhs->value_type = lhs->value_type;
-        return dummy_constant_reader;
+        assign->read = NULL;
+
+        assign->write = header_get_field_writer(lhs->v.header.field, &rhs->value);
+        if (assign->write == NULL) {
+            THROW("cannot write constant '%s' into the left-hand-side expression", string);
+        }
+        return true;
     } else {
-        THROW("failed to parse '%s' as a constant", string);
+        THROW("failed to parse '%s' as a header field, interface property, or a constant", string);
     }
 #undef THROW
 }
@@ -581,15 +595,8 @@ static bool process_token(char *token, void *userdata)
                     // we don't yet have a header index here, we fix it in process_action()
                     a->lhs.v.header.field = new_headerfield(0, f);
 
-                    a->read = process_assignment_rhs(stst, &a->lhs, &a->rhs, rhs);
-                    if (a->read == NULL) {
+                    if (! process_assignment_rhs(stst, a, rhs)) {
                         THROW("right-hand-side '%s' invalid", rhs);
-                    }
-
-                    // select consumer function for lhs
-                    a->write = header_get_field_writer(a->lhs.v.header.field, &a->rhs.value);
-                    if (a->write == NULL) {
-                        THROW("header field cannot be written from this rhs");
                     }
                 } else {
                     THROW("invalid field assignment '%s'", token);
@@ -631,19 +638,12 @@ static bool process_token(char *token, void *userdata)
             newaction->d.edit.assignments = a;
             a->text = strdup(token);
             if (parse_assignment(token, &lhs, &rhs)) {
-                if (!process_assignment_lhs(stst->headers, &a->lhs, lhs)) {
+                if (!process_assignment_lhs(stst->headers, a, lhs)) {
                     THROW("left-hand-side '%s' invalid", lhs);
                 }
 
-                a->read = process_assignment_rhs(stst, &a->lhs, &a->rhs, rhs);
-                if (a->read == NULL) {
+                if (! process_assignment_rhs(stst, a, rhs)) {
                     THROW("right-hand-side '%s' invalid", rhs);
-                }
-
-                // select consumer function for lhs
-                a->write = header_get_field_writer(a->lhs.v.header.field, &a->rhs.value);
-                if (a->write == NULL) {
-                    THROW("header field cannot be written from this rhs");
                 }
             } else {
                 THROW("invalid assignment '%s'", token);
@@ -1525,7 +1525,6 @@ static struct EditAssign *assemble_fieldassigns(struct ConfAssignment *list, uns
                 a->constant = l->rhs.value;
                 unsigned len = DIVCEIL(a->constant.bitoffset + a->constant.bitcount, 8);
                 a->constant.value = memdup(l->rhs.value.value, len);
-                a->read = NULL; // this was the dummy_constant_reader
                 break;
             case CVT_IFACE:
                 a->read_state = l->rhs.v.iface.iface;

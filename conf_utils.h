@@ -48,7 +48,6 @@ char *header_type_from_name(const char *name);
 // true values: 1, true, yes
 // false values: 0, false, no
 // @returns -1 if not a valid value
-// TODO case-insensitive?
 int read_boolean(const char *string);
 
 // puts the number @num into the value @val
@@ -60,6 +59,7 @@ bool prepare_constant_number(struct Value *val, uint64_t num);
 
 // reads a constant from @string and stores it such that it's easy to write into a packet
 // interprets @string as a value of @type
+// @proto is the protocol type of the header @val will be written into
 // uses @bitoffset and @bitcount of @val to position the result
 // if the result is shorter than @bitcount, it will be padded
 //   with 0 bits on the left
@@ -67,6 +67,6 @@ bool prepare_constant_number(struct Value *val, uint64_t num);
 // @returns false if the conversion cannot be done
 //      @string is not valid for @type
 //      the number doesn't fit @bitcount
-bool read_constant(struct Value *val, enum ProtocolFieldType type, const char *string);
+bool read_constant(struct Value *val, enum ProtocolID proto, enum ProtocolFieldType type, const char *string);
 
 #endif // R2_CONF_UTILS_H
