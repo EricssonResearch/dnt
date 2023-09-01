@@ -49,16 +49,14 @@ static struct Interface *oam_cmd_iface = NULL;
 static struct HashMap *mep_starts = NULL; // name -> struct MEPStart
 
 struct SessionTracker {
+    FILE* cmd_w; //TODO this is not good if the cmd connection closes before we get the reply
     time_t alloc_time;
-    unsigned request_count;
-    unsigned reply_count;
-    pthread_t tid;
+    pthread_t multireq_tid;
     bool live;
 };
 
 struct StreamSessions {
     struct SessionTracker sessions[16];
-    unsigned live_count;
     unsigned last_session;
 };
 
@@ -111,15 +109,13 @@ static struct Interface *get_oam_if(const char *name)
     return NULL;
 }
 
-static int alloc_session_id(const char *stream_name)
+static int alloc_session_id(const char *stream_name, FILE *cmd_w)
 {
     pthread_mutex_lock(&session_lock);
     struct StreamSessions *stream = hashmap_find(session_ids, stream_name);
     if (stream == NULL) {
         stream = calloc_struct(StreamSessions);
-    }
-    if (stream->live_count >= 16) {
-        return -1;
+        hashmap_insert(session_ids, strdup(stream_name), stream);
     }
 
     unsigned next_id = (stream->last_session + 1) % 16;
@@ -151,32 +147,10 @@ static int alloc_session_id(const char *stream_name)
         stream->last_session = id;
         stream->sessions[id].live = true;
         stream->sessions[id].alloc_time = now.tv_sec + 1;
-        stream->live_count++;
+        stream->sessions[id].cmd_w = cmd_w;
         pthread_mutex_unlock(&session_lock);
         return id;
     }
-}
-
-static void session_finished(const char *stream_name, unsigned id)
-{
-    if (id >= 16) {
-        fprintf(stderr, "invalid session finish id %u\n", id);
-        return;
-    }
-    struct StreamSessions *stream = hashmap_find(session_ids, stream_name);
-    if (stream == NULL) {
-        fprintf(stderr, "session finish stream %s id %u but we have no such stream\n", stream_name, id);
-        return;
-    }
-    pthread_mutex_lock(&session_lock);
-    if (stream->sessions[id].live == false) {
-        pthread_mutex_unlock(&session_lock);
-        fprintf(stderr, "session finish stream %s id %u points to inactive session\n", stream_name, id);
-        return;
-    }
-    stream->sessions[id].live = false;
-    stream->live_count--;
-    pthread_mutex_unlock(&session_lock);
 }
 
 unsigned short get_oam_nodeid(void)
@@ -338,7 +312,7 @@ static int oam_ping(FILE *cmd_w, struct Interface *iface, const char *mep_start,
         return -EINVAL;
     }
 
-    int session_id = alloc_session_id(mep->stream_name);
+    int session_id = alloc_session_id(mep->stream_name, cmd_w);
     if (session_id < 0) {
         fprintf(cmd_w, "mep start '%s' has no free session id\n", mep_start);
         return -EINVAL;
@@ -374,7 +348,7 @@ static int oam_ping(FILE *cmd_w, struct Interface *iface, const char *mep_start,
           }
 
           struct StreamSessions *stream = hashmap_find(session_ids, mep->stream_name);
-          if (pthread_create(&stream->sessions[session_id].tid, &attr, &oam_ping_thread, ping_req) != 0) {
+          if (pthread_create(&stream->sessions[session_id].multireq_tid, &attr, &oam_ping_thread, ping_req) != 0) {
               fprintf(stderr, "could not create new ping thread\n");
               return -1;
           }
@@ -746,6 +720,7 @@ int oam_recv_reply(char *msg)
         return -1;
     }
     struct JsonValue *sess = json_object_get_number(j, "session");
+    struct SessionTracker *session = NULL;
     if(sess == NULL) {
         fprintf(stderr, "No session id in reply.\n");
         return -1;
@@ -759,13 +734,10 @@ int oam_recv_reply(char *msg)
                 fprintf(stderr, "Invalid stream name '%s' in reply.\n", strm->v.string);
                 return -1;
             }
-            struct SessionTracker *session = &stream->sessions[(int)(sess->v.number)];
+            session = &stream->sessions[(int)(sess->v.number)];
             if (!session->live) {
-                fprintf(stderr, "Reply for non-live session %.0f of stream %s.\n", sess->v.number, strm->v.string);
+                fprintf(stderr, "Reply for non-live session %.0f of stream '%s'.\n", sess->v.number, strm->v.string);
                 return -1;
-            }
-            if (++session->reply_count == session->request_count) {
-                session_finished(strm->v.string, sess->v.number);
             }
         }
     }
@@ -825,6 +797,7 @@ int oam_recv_reply(char *msg)
     }
     json_delete(j);
 
+    //TODO print reply to session->cmd_w
     return oam_cmd_recv_reply(oam_cmd_iface, reply_str);
 }
 
