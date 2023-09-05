@@ -367,7 +367,7 @@ static const char help_str[] =
     "stop <stream> <session_id> - stop a running OAM session, identified by stream:session_id\n"
     "returns - list return interfaces\n"
     "ping[@if] <stream:mep-start> <mep-stop/mip/any> <level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]\n"
-    "rping[@if] <remote mep-stop/mip/any> <stream:mep-start> <mep-stop/mip/any> <level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]\n";
+    "rping[@if] <remote mep-stop/mip> <stream:mep-start> <mep-stop/mip/any> <level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]\n";
 
 struct ListMepParams {
     FILE *cmd_w;

@@ -9,7 +9,7 @@ The format of the values given in the config file depend on the type of the para
 
 ## Sections
 
-There are 3 sections in the config: *interfaces*, *streams*, *objects*. The first two are mandatory. Each section can only be present once, their order is arbitrary.
+There are 4 sections in the config: *interfaces*, *streams*, *objects*, *oam*. The first two are mandatory. Each section can only be present once, their order is arbitrary.
 
 ## interfaces
 
@@ -200,4 +200,37 @@ Example for a DetNet scenario:
 
 seq_gen2 = SeqGen
 seq_rcvy2 = SeqRcvy frerSeqRcvyAlgorithm=Vector frerSeqRcvyHistoryLength=1993
+```
+
+
+## oam
+
+Here are the OAM related configurations. This section is not mandatory, but if exists it can not be empty.
+The oam instantiation is in this format: `name = command with parameters`. The valid parameter names and their valid values depend on the type of the oam command, and they are the same as when issued from the command line interface. The currently known oam commands are:
+
+```
+ping[@if] <stream:mep-start> <mep-stop/mip/any> <level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]
+```
+* `ping` ping command
+    * <stream:mep-start> the stream and the mep-start within the stream, from where the ping starts
+    * <mep-stop/mip/any> the destination of this command (it can be a mep-stop, a mip or a any)
+    * <level> is the OAM level
+    * -r record route (default: off)
+    * -o dump objects (default: off)
+    * -i interval in ms (default: 1s)
+    * -t ttl (default: 64)
+    * -n count, for config file this option is invalid (a configured ping always runs)
+```
+rping[@if] <remote mep-stop/mip> <stream:mep-start> <mep-stop/mip/any> <level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]
+```
+* `rping` remote ping command  - coming soon
+    * remote mep-stop/mip is the remote mep/mip which will execute the ping command.
+    * the other parameters are the same as for `ping`.
+
+Example for a DetNet scenario:
+```
+[oam]
+
+oam1 = ping s1:mepn1s1 any 4 -r -o
+oam2 = rping in12 s1:mepn1s1 in12 4
 ```
