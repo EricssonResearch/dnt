@@ -23,6 +23,7 @@
 
 #include <unistd.h>
 #include <pthread.h>
+#include <signal.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <net/if.h> /* struct ifreq */
@@ -242,6 +243,8 @@ static int oam_send_request(struct oam_request *req){
     json_object_insert(js, "target", json_string(req->mep_stop));
     json_object_insert(js, "stream", json_string(mep->stream_name));
     json_object_insert(js, "level", json_number(req->level));
+    if(req->mode == OAM_CFG)
+        json_object_insert(js, "mode", json_string("cfg"));
     struct JsonValue *jret = json_object();
     json_object_insert(jret, "ip", json_string(return_ip));
     json_object_insert(jret, "port", json_number(return_port));
@@ -361,6 +364,7 @@ static const char help_str[] =
     "mode <mode> - terminal mode. Mode can be 'dump' or 'json'.\n"
     "list - list monitoring start points\n"
     "sessions <stream> - list active sessions for stream\n"
+    "stop <stream> <session_id> - stop a running OAM session, identified by stream:session_id\n"
     "returns - list return interfaces\n"
     "ping[@if] <stream:mep-start> <mep-stop/mip/any> <level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]\n"
     "rping[@if] <remote mep-stop/mip/any> <stream:mep-start> <mep-stop/mip/any> <level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]\n";
@@ -376,7 +380,7 @@ static int list_mep_cb(const char *key, void *value, void *userdata)
     return 1;
 }
 
-struct oam_request* oam_parse_ping(char *oam_command, FILE *cmd_w)
+struct oam_request* oam_parse_ping(char *oam_command, int mode, FILE *cmd_w)
 {
     char c;
     int k, val, l;
@@ -390,7 +394,11 @@ struct oam_request* oam_parse_ping(char *oam_command, FILE *cmd_w)
     ping_req->rr = 0;
     ping_req->interval_ms = 1000;
     ping_req->os = 0;
-    ping_req->count = 1;
+    ping_req->mode = mode;
+    if(mode == OAM_CFG)
+        ping_req->count = 0;
+    else
+        ping_req->count = 1;
 
     if(strncmp(oam_command, "ping", 4) == 0){
         if(oam_command[4]=='@'){
@@ -466,6 +474,11 @@ struct oam_request* oam_parse_ping(char *oam_command, FILE *cmd_w)
                 break;
             }
         } else if (c=='n') {
+            if(mode == OAM_CFG){
+                fprintf(cmd_w, "Error: ping count should not be used in config.\n");
+                opt_err = true;
+                break;
+            }
             k = sscanf(po, " %d%n", &val, &l);
             if (k == 1) {
                 po += l;
@@ -584,6 +597,25 @@ int oam_command_loop(struct Interface *iface)
                     }
                 }
             }
+            else if (strncmp(oam_command, "stop", 4) == 0) {
+                int session;
+                sscanf(oam_command, "stop %s %d", streamname, &session);
+                fprintf(cmd_w, "Stopping stream %s:%d ", streamname, session);
+                struct StreamSessions *stream = hashmap_find(session_ids, streamname);
+                if (stream == NULL) {
+                    fprintf(cmd_w, "Invalid stream name '%s'.\n", streamname);
+                } else {
+                    if(stream->sessions[session].live){
+                        if (pthread_cancel(stream->sessions[session].multireq_tid) <  0)
+                            fprintf(cmd_w," - failed.\n");
+                        else{
+                            stream->sessions[session].live = false;
+                            fprintf(cmd_w," - stopped.\n");
+                        }
+                    } else
+                        fprintf(cmd_w," - not running.\n");
+                }
+            }
             else if (strcmp(oam_command, "returns") == 0) {
                 fprintf(cmd_w, "Available OAM return interfaces:\n");
                 for (int i=0; i<nr_oam_ifaces; i++) {
@@ -599,7 +631,7 @@ int oam_command_loop(struct Interface *iface)
                     }
                 }
             }
-            else if( (ping_req = oam_parse_ping(oam_command, cmd_w)) != NULL){
+            else if( (ping_req = oam_parse_ping(oam_command, OAM_CLI, cmd_w)) != NULL){
                 // ping or rping
                 if (oam_ping(ping_req) != 0) {
                     ERROR("can't send ping");
@@ -730,19 +762,25 @@ static int dump_pof_state(char *str, struct JsonValue *jos){
 */
 int oam_recv_reply(char *msg)
 {
-    if(oam_cmd_iface == NULL)
-        return -1;
 
-    if(oam_cmd_get_mode(oam_cmd_iface) == JSON ){           // JSON mode
+    if((oam_cmd_iface != NULL) && (oam_cmd_get_mode(oam_cmd_iface) == JSON) ){           // JSON mode
         strcat(msg, "\n");
         return oam_cmd_recv_reply(oam_cmd_iface, msg);
     }
                                                             // DUMP mode
-    char reply_str[1000];
+    char reply_str[1400];
     struct JsonValue *j = json_parse(msg, strlen(msg));
     if (j == NULL) {
         fprintf(stderr, "JSON in reply is invalid.\n");
         return -1;
+    }
+    struct JsonValue *mode = json_object_get_string(j, "mode");
+    if(mode!=NULL) {
+        if(strcmp(mode->v.string,"cfg") == 0){
+            printf("  background stream, skip reply\n");
+            return -1;
+        }else
+            printf("other stream mode %s\n", mode->v.string);
     }
     struct JsonValue *nid = json_object_get_number(j, "nodeid");
     if(nid==NULL) {
@@ -857,8 +895,13 @@ int oam_recv_reply(char *msg)
     }
     json_delete(j);
 
-    //TODO print reply to session->cmd_w
-    return oam_cmd_recv_reply(oam_cmd_iface, reply_str);
+    // Here Logging is needed
+
+    if(oam_cmd_iface == NULL)
+        return -1;
+    else
+        //TODO print reply to session->cmd_w
+        return oam_cmd_recv_reply(oam_cmd_iface, reply_str);
 }
 
 /*

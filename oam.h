@@ -11,6 +11,10 @@
 #include "seq_recov.h"
 
 #include <stdio.h>
+enum OamReqestMode {
+    OAM_CLI = 1,
+    OAM_CFG,
+};
 
 struct oam_request{                 // needed for the ping thread. Shuld be used in other function calls too
     FILE *cmd_w;
@@ -20,6 +24,7 @@ struct oam_request{                 // needed for the ping thread. Shuld be used
     const char *type;
     char mep_start[32], mep_stop[32], remote_mep[32];
     int level, rr, os;
+    enum OamReqestMode mode;
     unsigned count;
     unsigned interval_ms;
     unsigned char ttl;
@@ -31,7 +36,7 @@ int oam_send_reply(const char *address, unsigned port, const char *msg, unsigned
 int oam_recv_reply(char *msg);
 int oam_command_loop(struct Interface *iface);
 
-struct oam_request* oam_parse_ping(char *cmd_str, FILE *cmd_w);
+struct oam_request* oam_parse_ping(char *cmd_str, int mode, FILE *cmd_w);
 
 int oam_create_mep_start(const char *stream_name, const char *mep_name, int level, unsigned idx);
 void oam_set_pipeline_for_mep_start(const char *stream_name, struct Pipeline *pipe);

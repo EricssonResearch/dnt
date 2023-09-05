@@ -35,7 +35,7 @@ static int oam_cb(const char *key, void *value, void *userdata)
 #endif
 
     // ping or rping
-    ping_req = oam_parse_ping(cmdline, stderr);
+    ping_req = oam_parse_ping(cmdline, OAM_CFG, stderr);
     if(ping_req != NULL){
         ping_req->count = 0;    // force infinite count
         struct ConfOam *oam = calloc_struct(ConfOam);
