@@ -166,12 +166,6 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    if(!init_oam(config)) {
-      printf("OAM init failed\n");
-      delete_config(config);
-      return -1;
-    }
-
     for (unsigned i=0; i<config->ifcount; i++) {
         if (!config->ifaces[i].open(&config->ifaces[i])) {
             fprintf(stderr, "could not open interface %s\n", config->ifaces[i].name);
@@ -183,6 +177,12 @@ int main(int argc, char **argv)
     if (!init_delay()) {
         delete_config(config);
         return -1;
+    }
+
+    if(!init_oam(config)) {
+      printf("OAM init failed\n");
+      delete_config(config);
+      return -1;
     }
 
     recv_loop(config->ifaces, config->ifcount);

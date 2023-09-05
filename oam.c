@@ -5,6 +5,7 @@
 #include "action.h"
 #include "pipeline.h"
 #include "configfile.h"
+#include "conf_oam.h"
 #include "hashmap.h"
 #include "if_oam.h"
 #include "if_oam_cmd.h"
@@ -62,19 +63,6 @@ struct StreamSessions {
 
 static struct HashMap *session_ids = NULL; // stream_name -> struct StreamSessions
 static pthread_mutex_t session_lock;
-
-struct oam_request{                 // needed for the ping thread. Shuld be used in other function calls too
-    FILE *cmd_w;
-    struct Interface *iface;
-    struct MepStart *mep_start;
-    unsigned session_id, seq;
-    const char *type, *mep_stop;
-    int level, rr, os;
-    unsigned count;
-    unsigned interval_ms;
-    unsigned char ttl;
-  };
-
 
 void set_oam_cmd_if(struct Interface *iface)
 {
@@ -243,10 +231,16 @@ static int oam_send_request(struct oam_request *req){
             node_id, req->level, req->session_id);
     packet->ttl = req->ttl;
 
+    struct MepStart *mep = hashmap_find(mep_starts, req->mep_start);
+    if (!mep) {
+        //fprintf(cmd_w, "invalid mep start name '%s'\n", mep_start);
+        return -EINVAL; //TODO do we really need this error code?
+    }
+
     struct JsonValue *js = json_object();
     json_object_insert(js, "request", json_string(req->type));
     json_object_insert(js, "target", json_string(req->mep_stop));
-    json_object_insert(js, "stream", json_string(req->mep_start->stream_name));
+    json_object_insert(js, "stream", json_string(mep->stream_name));
     json_object_insert(js, "level", json_number(req->level));
     struct JsonValue *jret = json_object();
     json_object_insert(jret, "ip", json_string(return_ip));
@@ -255,7 +249,7 @@ static int oam_send_request(struct oam_request *req){
 
     if(req->rr == 1){
         jret = json_array();
-        json_array_unshift(jret, json_string(req->mep_start->name));
+        json_array_unshift(jret, json_string(mep->name));
         json_object_insert(js, "rr", jret);
     }
     if(req->os == 1){
@@ -280,8 +274,8 @@ static int oam_send_request(struct oam_request *req){
     memcpy(msg, js_string, js_length);
     free(js_string);
 
-    struct PipelineIterator *pi = new_pipe_iterator(req->mep_start->pipe, packet);
-    pi->pos = req->mep_start->pipe_pos_idx;
+    struct PipelineIterator *pi = new_pipe_iterator(mep->pipe, packet);
+    pi->pos = mep->pipe_pos_idx;
 
     pipe_iterator_run(pi);
     return 0;
@@ -290,54 +284,57 @@ static int oam_send_request(struct oam_request *req){
 static void *oam_ping_thread(void *arg)
 {
     struct oam_request *req = (struct oam_request *)arg;
-    for(unsigned seq=0; seq<req->count; seq++){
-        req->seq = seq;
+    unsigned seq=0;
+
+    while(1){
+        if((req->count != 0) && (seq >= req->count)) break;
+        req->seq = seq & 0xFF;
         oam_send_request(req);
         usleep(req->interval_ms * 1000);
+        seq++;
     }
     free(req);
     return NULL;
 }
 
-static int oam_ping(FILE *cmd_w, struct Interface *iface, const char *mep_start, const char *mep_stop, int level, int rr, int os, int interval_ms, unsigned count, unsigned ttl)
+static int oam_ping(struct oam_request *ping_req)
 {
-    struct MepStart *mep = hashmap_find(mep_starts, mep_start);
+    FILE *cmd_w = ping_req->cmd_w;
+
+    struct MepStart *mep = hashmap_find(mep_starts, ping_req->mep_start);
     if (!mep) {
-        fprintf(cmd_w, "invalid mep start name '%s'\n", mep_start);
+        fprintf(cmd_w, "invalid mep start name '%s'\n", ping_req->mep_start);
         return -EINVAL; //TODO do we really need this error code?
     }
     struct Pipeline *pipe = mep->pipe;
     if (!pipe) {
-        fprintf(cmd_w, "mep start '%s' has no pipeline!?!\n", mep_start);
+        fprintf(cmd_w, "mep start '%s' has no pipeline!?!\n", ping_req->mep_start);
         return -EINVAL;
     }
 
     int session_id = alloc_session_id(mep->stream_name, cmd_w);
     if (session_id < 0) {
-        fprintf(cmd_w, "mep start '%s' has no free session id\n", mep_start);
+        fprintf(cmd_w, "mep start '%s' has no free session id\n", ping_req->mep_start);
         return -EINVAL;
     }
 
-    struct oam_request *ping_req = calloc_struct(oam_request);
-    ping_req->cmd_w = cmd_w;
-    ping_req->iface = iface;
+    if(strlen(ping_req->iface_name) == 0)
+        ping_req->iface = oam_default_iface;
+    else
+        ping_req->iface = get_oam_if(ping_req->iface_name);
+    if (ping_req->iface == NULL) {
+        fprintf(cmd_w, "invalid interface name: %s", ping_req->iface_name);
+        return -EINVAL;
+    }
+
     ping_req->session_id = session_id;
     ping_req->seq = 0;
-    ping_req->mep_start = mep;
-    ping_req->mep_stop = mep_stop;
-    ping_req->level = level;
-    ping_req->type = "ping";
-    ping_req->ttl = ttl;
-    ping_req->rr = rr;
-    ping_req->interval_ms = interval_ms;
-    ping_req->os = os;
-    ping_req->count = count;
 
     fprintf(cmd_w, "OAM packet %s session %u seq %u, %s -> %s, level %d, count %d interval %d, rr: %s os: %s\t[reply to ip: %s, port: %u]\n",
-            ping_req->type, ping_req->session_id, ping_req->seq, ping_req->mep_start->name, ping_req->mep_stop, ping_req->level, ping_req->count, ping_req->interval_ms,
-            ping_req->rr?"yes":"no", ping_req->os?"yes":"no", oam_get_ip(iface), oam_get_port(iface));
+            ping_req->type, ping_req->session_id, ping_req->seq, ping_req->mep_start, ping_req->mep_stop, ping_req->level, ping_req->count, ping_req->interval_ms,
+            ping_req->rr?"yes":"no", ping_req->os?"yes":"no", oam_get_ip(ping_req->iface), oam_get_port(ping_req->iface));
 
-    if(count == 1){
+    if(ping_req->count == 1){
           return oam_send_request(ping_req);
           free(ping_req);
     } else {
@@ -363,8 +360,10 @@ static const char help_str[] =
     "exit - exit OAM\n"
     "mode <mode> - terminal mode. Mode can be 'dump' or 'json'.\n"
     "list - list monitoring start points\n"
+    "sessions <stream> - list active sessions for stream\n"
     "returns - list return interfaces\n"
-    "ping[@if] <stream:mep-start> <mep-stop/mip/any> <level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]\n";
+    "ping[@if] <stream:mep-start> <mep-stop/mip/any> <level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]\n"
+    "rping[@if] <remote mep-stop/mip/any> <stream:mep-start> <mep-stop/mip/any> <level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]\n";
 
 struct ListMepParams {
     FILE *cmd_w;
@@ -377,6 +376,130 @@ static int list_mep_cb(const char *key, void *value, void *userdata)
     return 1;
 }
 
+struct oam_request* oam_parse_ping(char *oam_command, FILE *cmd_w)
+{
+    char c;
+    int k, val, l;
+    float fval;
+
+    struct oam_request *ping_req = calloc_struct(oam_request);
+    ping_req->cmd_w = cmd_w;
+    ping_req->seq = 0;
+    ping_req->level = 0;
+    ping_req->ttl = OAM_PING_TTL;
+    ping_req->rr = 0;
+    ping_req->interval_ms = 1000;
+    ping_req->os = 0;
+    ping_req->count = 1;
+
+    if(strncmp(oam_command, "ping", 4) == 0){
+        if(oam_command[4]=='@'){
+            k = sscanf(oam_command, "ping@%s %s %s %d%n",
+                    ping_req->iface_name, ping_req->mep_start, ping_req->mep_stop, &ping_req->level, &l);
+            if (k < 4) {
+                fprintf(cmd_w, "ping arguments invalid");
+            }
+            /*ping_req->iface = get_oam_if(ping_req->iface_name);
+            if (ping_req->iface == NULL) {
+                fprintf(cmd_w, "invalid interface name: %s", ping_req->iface_name);
+            }*/
+        } else {
+            k = sscanf(oam_command, "ping %s %s %d%n",
+                    ping_req->mep_start, ping_req->mep_stop, &ping_req->level, &l);
+            if (k < 3) {
+                fprintf(cmd_w, "ping arguments invalid");
+            }
+            ping_req->iface_name[0]=0;
+        }
+        ping_req->type = "ping";
+        ping_req->remote_mep[0]=0;
+    }
+    else if(strncmp(oam_command, "rping", 5) == 0){
+        if(oam_command[5]=='@'){
+            k = sscanf(oam_command, "rping@%s %s %s %s %d%n",
+                    ping_req->iface_name, ping_req->remote_mep, ping_req->mep_start, ping_req->mep_stop, &ping_req->level, &l);
+            if (k < 4) {
+                fprintf(cmd_w, "rping arguments invalid");
+            }
+            /*ping_req->iface = get_oam_if(ping_req->iface_name);
+            if (ping_req->iface == NULL) {
+                fprintf(cmd_w, "invalid interface name: %s", ping_req->iface_name);
+            }*/
+        } else {
+            k = sscanf(oam_command, "rping %s %s %s %d%n",
+                    ping_req->remote_mep, ping_req->mep_start, ping_req->mep_stop, &ping_req->level, &l);
+            if (k < 3) {
+                fprintf(cmd_w, "rping arguments invalid");
+            }
+            ping_req->iface_name[0]=0;
+        }
+        ping_req->type = "rping";
+    }
+    else{
+        fprintf(cmd_w, "invalid command");
+        return NULL;
+    }
+
+    // process options
+    char *po = oam_command + l;
+    bool opt_err = false;
+    while ((k=sscanf(po, " -%c%n", &c, &l)) == 1) {
+        if (!isspace(*po)) {
+            fprintf(cmd_w, "Error: ping options must be separated by space\n");
+            opt_err = true;
+            break;
+        }
+        po += l;
+        if (c=='r') {
+            ping_req->rr = 1;
+        } else if (c=='o') {
+            ping_req->os = 1;
+        } else if (c=='i') {
+            k = sscanf(po, " %f%n", &fval, &l);
+            if (k == 1) {
+                po += l;
+                if (fval < 0.002) fval = 0.002; // 2msec is the minimum
+                ping_req->interval_ms = fval * 1000;
+            } else {
+                fprintf(cmd_w, "Error: ping interval is invalid\n");
+                opt_err = true;
+                break;
+            }
+        } else if (c=='n') {
+            k = sscanf(po, " %d%n", &val, &l);
+            if (k == 1) {
+                po += l;
+                ping_req->count = val;
+            } else {
+                fprintf(cmd_w, "Error: ping count is invalid\n");
+                opt_err = true;
+                break;
+            }
+        } else if (c=='t') {
+            k = sscanf(po, " %d%n", &val, &l);
+            if (k == 1) {
+                po += l;
+                ping_req->ttl = val;
+            } else {
+                fprintf(cmd_w, "Error: ping ttl is invalid\n");
+                opt_err = true;
+                break;
+            }
+        } else {
+            fprintf(cmd_w, "Error: ping option '%c' is invalid\n", c);
+            opt_err = true;
+            break;
+        }
+    }
+    if (opt_err) return NULL;
+    while(isspace(*po)) po++;
+    if (*po) {
+        fprintf(cmd_w, "ping options '%s' is invalid", po);
+    }
+    return ping_req;
+}
+
+
 int oam_command_loop(struct Interface *iface)
 {
 #define ERROR(msg, ...)                             \
@@ -388,10 +511,9 @@ int oam_command_loop(struct Interface *iface)
     FILE *cmd_w = oam_get_cmd_w(iface);
 
     char oam_command[255], last_command[255];
-    char mep_start[32], mep_stop[32], ifname[32], c;
-    int k, val, l;
-    float fval;
-    struct Interface *oam_if;
+    char streamname[32];
+
+    struct oam_request *ping_req = NULL;
 
     if (oam_default_iface) {
         fprintf(cmd_w, "OAM ready.\n");
@@ -401,7 +523,7 @@ int oam_command_loop(struct Interface *iface)
     }
 
     while (true) {
-        int level=0, rr=0, count=1, interval_ms=1000, os=0, ttl=OAM_PING_TTL;
+        //int level=0, rr=0, count=1, interval_ms=1000, os=0, ttl=OAM_PING_TTL;
         int n = read(cmd_fd, oam_command, sizeof(oam_command)-1);
         if (n > 0) {
             oam_command[n] = 0;
@@ -449,6 +571,19 @@ int oam_command_loop(struct Interface *iface)
                 struct ListMepParams params = {cmd_w};
                 hashmap_foreach_sorted(mep_starts, list_mep_cb, &params);
             }
+            else if (strncmp(oam_command, "sessions", 8) == 0) {
+                sscanf(oam_command, "sessions %s", streamname);
+                fprintf(cmd_w, "Sessions for stream %s:\n", streamname);
+                struct StreamSessions *stream = hashmap_find(session_ids, streamname);
+                if (stream == NULL) {
+                    fprintf(cmd_w, "Invalid stream name '%s'.\n", streamname);
+                } else {
+                    for(int i=0; i<16; i++){
+                        if(stream->sessions[i].live)
+                            fprintf(cmd_w,"\t%s:%d\n", streamname, i);
+                    }
+                }
+            }
             else if (strcmp(oam_command, "returns") == 0) {
                 fprintf(cmd_w, "Available OAM return interfaces:\n");
                 for (int i=0; i<nr_oam_ifaces; i++) {
@@ -464,84 +599,9 @@ int oam_command_loop(struct Interface *iface)
                     }
                 }
             }
-            else if(strncmp(oam_command, "ping", 4) == 0){
-                if(oam_command[4]=='@'){
-                    k = sscanf(oam_command, "ping@%s %s %s %d%n",
-                            ifname, mep_start, mep_stop, &level, &l);
-                    if (k < 4) {
-                        ERROR("ping arguments invalid");
-                    }
-                    oam_if = get_oam_if(ifname);
-                    if (oam_if == NULL) {
-                        ERROR("invalid interface name: %s", ifname);
-                    }
-                } else {
-                    k = sscanf(oam_command, "ping %s %s %d%n",
-                            mep_start, mep_stop, &level, &l);
-                    if (k < 3) {
-                        ERROR("ping arguments invalid");
-                    }
-                    oam_if = oam_default_iface;
-                }
-
-                // process options
-                char *po = oam_command + l;
-                bool opt_err = false;
-                while ((k=sscanf(po, " -%c%n", &c, &l)) == 1) {
-                    if (!isspace(*po)) {
-                        fprintf(cmd_w, "Error: ping options must be separated by space\n");
-                        opt_err = true;
-                        break;
-                    }
-                    po += l;
-                    if (c=='r') {
-                        rr = 1;
-                    } else if (c=='o') {
-                        os = 1;
-                    } else if (c=='i') {
-                        k = sscanf(po, " %f%n", &fval, &l);
-                        if (k == 1) {
-                            po += l;
-                            if (fval < 0.002) fval = 0.002; // 2msec is the minimum
-                            interval_ms = fval * 1000;
-                        } else {
-                            fprintf(cmd_w, "Error: ping interval is invalid\n");
-                            opt_err = true;
-                            break;
-                        }
-                    } else if (c=='n') {
-                        k = sscanf(po, " %d%n", &val, &l);
-                        if (k == 1) {
-                            po += l;
-                            count = val;
-                        } else {
-                            fprintf(cmd_w, "Error: ping count is invalid\n");
-                            opt_err = true;
-                            break;
-                        }
-                    } else if (c=='t') {
-                        k = sscanf(po, " %d%n", &val, &l);
-                        if (k == 1) {
-                            po += l;
-                            ttl = val;
-                        } else {
-                            fprintf(cmd_w, "Error: ping ttl is invalid\n");
-                            opt_err = true;
-                            break;
-                        }
-                    } else {
-                        fprintf(cmd_w, "Error: ping option '%c' is invalid\n", c);
-                        opt_err = true;
-                        break;
-                    }
-                }
-                if (opt_err) continue;
-                while(isspace(*po)) po++;
-                if (*po) {
-                    ERROR("ping options '%s' is invalid", po);
-                }
-
-                if (oam_ping(cmd_w, oam_if, mep_start, mep_stop, level, rr, os, interval_ms, count, ttl) != 0) {
+            else if( (ping_req = oam_parse_ping(oam_command, cmd_w)) != NULL){
+                // ping or rping
+                if (oam_ping(ping_req) != 0) {
                     ERROR("can't send ping");
                 }
             } else {
@@ -843,15 +903,28 @@ int oam_send_reply(const char *address, unsigned port, const char *msg, unsigned
 }
 
 
+static int oam_start_ping_cb(const char *key, void *value, void *userdata)
+{
+    (void) userdata;
+    (void) key;
+    struct ConfOam *oam = value;
+    printf("starting command: %s\n", oam->name);
+    return (oam_ping(oam->request) == 0);
+}
+
 // Initialize OAM functionality
 bool init_oam(struct R2d2Config *config)
 {
     printf("Init OAM fuctionality.\n");
-    (void)config;
     //TODO what should this function do?
 
     pthread_mutex_init(&session_lock, NULL);
     session_ids = new_hashmap(11, NULL, NULL);
 
+    // Start OAM background streams
+    if (!hashmap_foreach(config->oam, oam_start_ping_cb, NULL)) {
+        fprintf(stderr, "failed to start oam command\n");
+        return NULL;
+    }
     return true;
 }

@@ -7,6 +7,7 @@
 #include "conf_interface.h"
 #include "conf_object.h"
 #include "conf_streams.h"
+#include "conf_oam.h"
 #include "action.h"
 #include "inifile.h"
 #include "interface.h"
@@ -89,7 +90,10 @@ static const char *find_unknown_section(struct IniSection *ini)
             i = i->next;
             continue;
         }
-
+        if (strcmp(i->name, "oam") == 0) {
+            i = i->next;
+            continue;
+        }
         return i->name;
     }
 
@@ -116,6 +120,7 @@ struct R2d2Config *read_config(const char *filename)
     struct IniSection *interfaces_sec = inisection_find_section(ini, "interfaces");
     struct IniSection *objects_sec = inisection_find_section(ini, "objects");
     struct IniSection *streams_sec = inisection_find_section(ini, "streams");
+    struct IniSection *oam_sec = inisection_find_section(ini, "oam");
 
     if (interfaces_sec == NULL) {
         THROW("no interfaces section");
@@ -159,6 +164,16 @@ struct R2d2Config *read_config(const char *filename)
         THROW("interface stream lists are invalid");
     }
 
+    if (oam_sec) {
+        ret->oam = parse_oam(oam_sec, ret->streams);
+        if (ret->oam == NULL) {
+            THROW("oam section is invalid");
+        }
+    } else {
+        // the other stuff expects an existing hash here
+        ret->oam = new_hashmap(1, NULL, NULL);
+    }
+
     delete_inisection(ini);
     return ret;
 }
@@ -170,6 +185,7 @@ struct R2d2Config *delete_config(struct R2d2Config *config)
     delete_hashmap(config->streams);
     delete_hashmap(config->objects);
     delete_hashmap(config->iface_streams);
+    delete_hashmap(config->oam);
 
     if (config->ifaces) {
         for (unsigned i=0; i<config->ifcount; i++) {
@@ -283,4 +299,3 @@ bool config_add_streams_to_interfaces(struct R2d2Config *config)
 
     return true;
 }
-
