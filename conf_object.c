@@ -34,6 +34,8 @@ struct ObjectInfo {
             unsigned history_length;
             unsigned reset_msec;
             unsigned latent_error_paths;
+            unsigned latent_error_period;
+            unsigned latent_error_diff;
             enum SequenceRecoveryAlgorithm algo;
         } rec;
         struct {
@@ -58,6 +60,7 @@ static void set_default_parameters(struct ObjectInfo *info)
             info->p.rec.history_length = 2;
             info->p.rec.reset_msec = 2000;
             info->p.rec.latent_error_paths = 2;
+            info->p.rec.latent_error_period = 0;
             info->p.rec.algo = RCVY_Vector;
             break;
         case CO_POF:
@@ -144,6 +147,20 @@ static bool token_cb(char *str, void *userdata)
                             THROW("invalid latent error paths '%s'", val);
                         }
                         info->p.rec.latent_error_paths = path;
+                    } else if (strcmp(key, "frerSeqRcvyLatentErrorPeriod") == 0) {
+                        unsigned msec;
+                        char err;
+                        if (sscanf(val, "%i%c", &msec, &err) != 1) {
+                            THROW("invalid latent error period '%s'", val);
+                        }
+                        info->p.rec.latent_error_period = msec;
+                    } else if (strcmp(key, "frerSeqRcvyLatentErrorDifference") == 0) {
+                        unsigned pkts;
+                        char err;
+                        if (sscanf(val, "%i%c", &pkts, &err) != 1) {
+                            THROW("invalid latent error period '%s'", val);
+                        }
+                        info->p.rec.latent_error_diff = pkts;
                     } else if (strcmp(key, "frerSeqRcvyAlgorithm") == 0) {
                         if (strcmp(val, "Vector") == 0) {
                             info->p.rec.algo = RCVY_Vector;
@@ -239,7 +256,9 @@ static int object_cb(const char *key, void *value, void *userdata)
                     info.p.rec.use_init_flag,
                     info.p.rec.history_length,
                     info.p.rec.reset_msec,
-                    info.p.rec.latent_error_paths, NULL);
+                    info.p.rec.latent_error_paths,
+                    info.p.rec.latent_error_period,
+                    info.p.rec.latent_error_diff, NULL);
             obj->print_state = seqrec_get_state_json;
             break;
         case CO_POF:

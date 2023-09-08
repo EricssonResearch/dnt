@@ -32,12 +32,14 @@ enum SequenceRecoveryAlgorithm {
  * @history_legth: seq history length
  * @reset_msec: reset after reset_msec millisec if no packet seen
  * @latent_error_paths: expected healthy paths at normal operation
+ * @latent_error_period: periodicity of latent error testing in millisecs
  * @session_id: identifies the ah-hoc created instance for the OAM.
  *              note: must be NULL for non-OAM cases! The instance
  *              self-destruct after reset_msec millisec if session_id != NULL*/
 struct SequenceRecovery *new_seq_rec(enum SequenceRecoveryAlgorithm algo,
         bool use_reset_flag, bool use_init_flag,
-        unsigned history_length, unsigned reset_msec, unsigned latent_error_paths, const char *session_id);
+        unsigned history_length, unsigned reset_msec, unsigned latent_error_paths,
+        unsigned latent_error_period, unsigned latent_error_diff, const char *session_id);
 
 // always returns NULL
 struct SequenceRecovery *delete_seq_rec(struct SequenceRecovery *rec);
