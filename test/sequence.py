@@ -19,6 +19,7 @@ def create_ifaces():
         exec_fg(f"ip link add {nicpair[0]} type veth peer name {nicpair[1]}")
 
 def cleanup_ifaces():
+    print("Cleanup interfaces")
     for nicpair in nics:
         exec_fg(f"ip link del {nicpair[0]} type veth peer name {nicpair[1]}")
 
@@ -241,27 +242,34 @@ def match_path_fail():
 
 def main():
     print("R2DTWO sequence generator and recovery test\n")
-    create_ifaces()
-    config_ifaces()
-    if len(sys.argv) == 2 and "debug" in sys.argv[1]:
+    try:
+        create_ifaces()
+        config_ifaces()
+        if len(sys.argv) == 2 and "debug" in sys.argv[1]:
+            print("Press Ctrl+C to cleanup the test network...")
+            while True:
+                time.sleep(1000)
+        ret = 0
+        tests = [ping, reset, flapping_bad, flapping_good, resetonly_good, resetonly_bad, seamless_good, seamless_bad,
+                match_good, match_path_fail]
+        for test in tests:
+            result = test()
+            ret += result
+            if result == 1:
+                print("✔")
+            else:
+                print("✘")
+            exec_fg("killall r2dtwo")
+            time.sleep(0.5)
+        print(f'All test completed, {ret}/{len(tests)} successfully')
+        cleanup_ifaces()
+        if ret != len(tests):
+            exit(1)
         exit(0)
-    ret = 0
-    tests = [ping, reset, flapping_bad, flapping_good, resetonly_good, resetonly_bad, seamless_good, seamless_bad,
-             match_good, match_path_fail]
-    for test in tests:
-        result = test()
-        ret += result
-        if result == 1:
-            print("✔")
-        else:
-            print("✘")
-        exec_fg("killall r2dtwo")
-        time.sleep(0.5)
-    print(f'All test completed, {ret}/{len(tests)} successfully')
-    cleanup_ifaces()
-    if ret != len(tests):
-        exit(1)
-    exit(0)
+    except KeyboardInterrupt:
+        cleanup_ifaces()
+        exit(0)
+
 
 if __name__ == "__main__":
     main()
