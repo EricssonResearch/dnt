@@ -4,14 +4,12 @@
 #include "oam.h"
 #include "action.h"
 #include "pipeline.h"
-#include "configfile.h"
 #include "conf_oam.h"
 #include "hashmap.h"
 #include "if_oam.h"
 #include "if_oam_cmd.h"
 #include "interface.h"
 #include "packet.h"
-#include "protocol.h"
 #include "utils.h"
 #include "json.h"
 
@@ -25,11 +23,6 @@
 #include <pthread.h>
 #include <signal.h>
 #include <sys/socket.h>
-#include <sys/ioctl.h>
-#include <net/if.h> /* struct ifreq */
-#include <arpa/inet.h> /* ntohs() */
-#include <ifaddrs.h>
-#include <sys/types.h>
 #include <netdb.h>
 
 #define OAM_RCVY_RESET_MS 5000
@@ -65,13 +58,16 @@ struct StreamSessions {
 static struct HashMap *session_ids = NULL; // stream_name -> struct StreamSessions
 static pthread_mutex_t session_lock;
 
-void set_oam_cmd_if(struct Interface *iface)
+bool set_oam_cmd_if(struct Interface *iface)
 {
-    if (oam_cmd_iface == NULL)
+    if (oam_cmd_iface == NULL) {
         oam_cmd_iface = iface;
-    else
+        return true;
+    } else {
         fprintf(stderr, "only one OAM command interface is supported, config has '%s' and '%s'\n",
                 oam_cmd_iface->name, iface->name);
+        return false;
+    }
 }
 
 void add_oam_if(struct Interface *iface)
@@ -774,6 +770,11 @@ int oam_recv_reply(char *msg)
         fprintf(stderr, "JSON in reply is invalid.\n");
         return -1;
     }
+    if (j->type != JSON_OBJECT) {
+        fprintf(stderr, "JSON in reply is not an object.\n");
+        return -1;
+    }
+
     struct JsonValue *mode = json_object_get_string(j, "mode");
     if(mode!=NULL) {
         if(strcmp(mode->v.string,"cfg") == 0){

@@ -260,9 +260,12 @@ static bool oam_cmd_open(struct Interface *iface)
     }
 
     iface->recvfd = sock;
-    iface->state = IFS_OPEN;
-    set_oam_cmd_if(iface);
-    return true;
+    if (set_oam_cmd_if(iface)) {
+        iface->state = IFS_OPEN;
+        return true;
+    } else {
+        return false;
+    }
 }
 
 static bool oam_cmd_close(struct Interface *iface)

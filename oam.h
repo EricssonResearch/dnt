@@ -41,7 +41,7 @@ struct oam_request* oam_parse_ping(char *cmd_str, int mode, FILE *cmd_w);
 int oam_create_mep_start(const char *stream_name, const char *mep_name, int level, unsigned idx);
 void oam_set_pipeline_for_mep_start(const char *stream_name, struct Pipeline *pipe);
 
-void set_oam_cmd_if(struct Interface *iface);
+bool set_oam_cmd_if(struct Interface *iface);
 void add_oam_if(struct Interface *iface);
 unsigned short get_oam_nodeid(void);
 
