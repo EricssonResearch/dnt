@@ -12,6 +12,7 @@
 #include "packet.h"
 #include "utils.h"
 #include "json.h"
+#include "log.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -273,6 +274,10 @@ static int oam_send_request(struct oam_request *req){
     memcpy(msg, js_string, js_length);
     free(js_string);
 
+    log_packet(OAM, "Packet type %s stream %s id %d seq %d target %s level %d mode %s",
+                    "ping", mep->stream_name, req->session_id, req->seq,
+                    req->mep_stop, req->level, (req->mode==OAM_CFG)?"cfg":"cli");
+
     struct PipelineIterator *pi = new_pipe_iterator(mep->pipe, packet);
     pi->pos = mep->pipe_pos_idx;
 
@@ -328,6 +333,10 @@ static int oam_ping(struct oam_request *ping_req)
 
     ping_req->session_id = session_id;
     ping_req->seq = 0;
+
+    log_info(OAM, "OAM packet %s session %u seq %u, %s -> %s, level %d, count %d interval %d, rr: %s os: %s\t[reply to ip: %s, port: %u]\n",
+            ping_req->type, ping_req->session_id, ping_req->seq, ping_req->mep_start, ping_req->mep_stop, ping_req->level, ping_req->count, ping_req->interval_ms,
+            ping_req->rr?"yes":"no", ping_req->os?"yes":"no", oam_get_ip(ping_req->iface), oam_get_port(ping_req->iface));
 
     fprintf(cmd_w, "OAM packet %s session %u seq %u, %s -> %s, level %d, count %d interval %d, rr: %s os: %s\t[reply to ip: %s, port: %u]\n",
             ping_req->type, ping_req->session_id, ping_req->seq, ping_req->mep_start, ping_req->mep_stop, ping_req->level, ping_req->count, ping_req->interval_ms,
@@ -759,29 +768,20 @@ static int dump_pof_state(char *str, struct JsonValue *jos){
 int oam_recv_reply(char *msg)
 {
 
-    if((oam_cmd_iface != NULL) && (oam_cmd_get_mode(oam_cmd_iface) == JSON) ){           // JSON mode
-        strcat(msg, "\n");
-        return oam_cmd_recv_reply(oam_cmd_iface, msg);
-    }
-                                                            // DUMP mode
-    char reply_str[1400];
+    // We need to parse for logging, even if JSON mode is used.
+    bool cfg_mode = false;
+
+    char reply_str[1400], rr_str[512], obj_str[1000];
     struct JsonValue *j = json_parse(msg, strlen(msg));
     if (j == NULL) {
         fprintf(stderr, "JSON in reply is invalid.\n");
         return -1;
     }
-    if (j->type != JSON_OBJECT) {
-        fprintf(stderr, "JSON in reply is not an object.\n");
-        return -1;
-    }
-
     struct JsonValue *mode = json_object_get_string(j, "mode");
     if(mode!=NULL) {
         if(strcmp(mode->v.string,"cfg") == 0){
-            printf("  background stream, skip reply\n");
-            return -1;
-        }else
-            printf("other stream mode %s\n", mode->v.string);
+            cfg_mode = true;
+        }
     }
     struct JsonValue *nid = json_object_get_number(j, "nodeid");
     if(nid==NULL) {
@@ -841,68 +841,83 @@ int oam_recv_reply(char *msg)
         }
     }
 
-    sprintf(reply_str,"[nodeid %.0f session %.0f seq %.0f]\t%s level %.0f on stream %s target %s\treply from %s\n",
+    sprintf(reply_str,"[nodeid %.0f session %.0f seq %.0f]\t%s level %.0f on stream %s target %s\treply from %s",
             nid->v.number, sess->v.number, seq->v.number,
             request->v.string, level->v.number, strm->v.string, target->v.string, node->v.string);
 
     struct JsonValue *jrr = json_object_get_array(j, "rr");
     if(jrr){
-        strcat(reply_str, "\tRecord Route: [");
+        sprintf(rr_str, "Record Route: [");
         REVERSE_LIST(jrr->v.array);
         for (struct JsonArray *a = jrr->v.array; a; a = a->next) {
-            strcat(reply_str, " ");
-            strcat(reply_str, a->val->v.string);
+            strcat(rr_str, " ");
+            strcat(rr_str, a->val->v.string);
         }
-        strcat(reply_str, " ]\n");
+        strcat(rr_str, " ]");
     }
 
     struct JsonValue *jos = json_object_get_object(j, "objects");
     if(jos){
         // ToDo: formatted printout per object type
-        strcat(reply_str, "\tObject ");
+        sprintf(obj_str, "\tObject ");
         struct JsonValue *val = json_object_get_string(jos, "name");
         if(val == NULL) {
             fprintf(stderr, "No name in object in reply.\n");
             return -1;
         }
-        strcat(reply_str, val->v.string);
-        strcat(reply_str, " type ");
+        strcat(obj_str, val->v.string);
+        strcat(obj_str, " type ");
         val = json_object_get_string(jos, "type");
         if(val == NULL) {
             fprintf(stderr, "No type in object in reply.\n");
             return -1;
         }
-        strcat(reply_str, val->v.string);
+        strcat(obj_str, val->v.string);
 
         // dump according to the type
         if(strcmp(val->v.string,"seqgen")==0){
-            dump_seqgen_state(reply_str, jos);
+            dump_seqgen_state(obj_str, jos);
         }
         else if(strcmp(val->v.string,"seqrec")==0){
-            dump_seqrec_state(reply_str, jos);
+            dump_seqrec_state(obj_str, jos);
         }
         else if(strcmp(val->v.string,"replicate")==0){
-            dump_repl_state(reply_str, jos);
+            dump_repl_state(obj_str, jos);
         }
         else if(strcmp(val->v.string,"pof")==0){
-            dump_pof_state(reply_str, jos);
+            dump_pof_state(obj_str, jos);
         }
         else {  // unknown type, just dump
             unsigned jos_length;
             char *jos_string = json_serialize(jos, &jos_length);
-            strcat(reply_str, jos_string);
+            strcat(obj_str, jos_string);
             free(jos_string);
         }
     }
     json_delete(j);
 
-    // Here Logging is needed
+    // Logging
+    log_info(OAM, "%s %s\n", reply_str, rr_str);
 
     if(oam_cmd_iface == NULL)
         return -1;
     else
-        //TODO print reply to session->cmd_w
-        return oam_cmd_recv_reply(oam_cmd_iface, reply_str);
+    {
+        if(cfg_mode) return -1;         // silent, no reply needed
+
+        if(oam_cmd_get_mode(oam_cmd_iface) == JSON){           // JSON mode
+            strcat(msg, "\n");
+            return oam_cmd_recv_reply(oam_cmd_iface, msg);
+        } else {                                               // DUMP mode
+            strcat(reply_str, "\n\t");
+            strcat(reply_str, rr_str);
+            strcat(reply_str, "\n");
+            if(jos)
+                strcat(reply_str, obj_str);
+            //TODO print reply to session->cmd_w
+            return oam_cmd_recv_reply(oam_cmd_iface, reply_str);
+        }
+    }
 }
 
 /*

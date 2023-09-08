@@ -14,11 +14,15 @@
 #include "seq_gen.h"
 #include "time_utils.h"
 #include "oam.h"
+#include "log.h"
 #include "version.h"
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <errno.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #include <signal.h>
 #include <sys/epoll.h>
@@ -150,6 +154,24 @@ int main(int argc, char **argv)
         return -1;
     }
 
+    char log_filename[64];
+    pid_t pid = getpid();
+    char *cfg_name=strdup(argv[1]);
+    char *cc;
+    char *c=strtok(cfg_name, "/");
+    while(c != NULL){
+        cc=c;
+        c=strtok(NULL, "/");
+    }
+    c=strtok(cc, ".");
+    sprintf(log_filename, "r2dtwo-log-%u-%s.log", pid, c);
+    if(!init_log(0x0FF, LOG_ALL, log_filename)) {
+      printf("Log init failed\n");
+      return -1;
+    }
+    free(cfg_name);
+    log_info(MAIN, "Logfile opened.");
+
     config = read_config(argv[1]);
     if (config == NULL) {
         fprintf(stderr, "the config is invalid\n");
@@ -191,6 +213,8 @@ int main(int argc, char **argv)
     fini_delay();
 
     delete_config(config);
+
+    close_log();
 
     return 0;
 }
