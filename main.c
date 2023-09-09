@@ -23,6 +23,7 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <limits.h>
 
 #include <signal.h>
 #include <sys/epoll.h>
@@ -154,7 +155,7 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    char log_filename[64];
+    char log_filename[PATH_MAX];
     pid_t pid = getpid();
     char *cfg_name=strdup(argv[1]);
     char *cc;

@@ -5,7 +5,7 @@
 #ifndef R2_LOG_H
 #define R2_LOG_H
 
-#include <stdio.h>
+//#include <stdio.h>
 #include <stdbool.h>
 
 #define DEFAULT_LOG_PATH "/var/log/logger.log"

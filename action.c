@@ -669,7 +669,7 @@ static enum ActionResult handle_OAM_packet(struct Packet *p, struct OamData *oam
         return ACR_CONTINUE;
     }
 
-    // send reply
+    // it's for us
     struct JsonValue *jret = json_object_get_object(j, "return");
     if(jret==NULL)
         fprintf(stderr, "OAM packet has no return address\n");
@@ -684,6 +684,19 @@ static enum ActionResult handle_OAM_packet(struct Packet *p, struct OamData *oam
     else
         return ACR_DONE;
 
+    // check for rping
+    jret = json_object_get_string(j, "request");
+    if(jret==NULL)
+        fprintf(stderr, "OAM packet has no request type\n");
+    if(strcmp(jret->v.string, "rping") == 0){
+        struct JsonValue *cmd = json_object_get_string(j, "command");
+
+        // CLI vagy CFG???
+        oam_start_ping(cmd->v.string, reply_address, port, OAM_CLI, stderr);
+        free(reply_address);
+        json_delete(j);
+        return ACR_DONE;            // drop rping reqest packet
+    }
     // if object state is requested
     struct JsonValue *jos = json_object_get_any(j, "objects");
     if(jos!=NULL){

@@ -221,8 +221,6 @@ static int add_fixed_headers(struct Packet *packet, unsigned char ttl,
 
 static int oam_send_request(struct oam_request *req){
     struct Packet *packet = new_packet(NULL);
-    const char *return_ip = oam_get_ip(req->iface);
-    unsigned return_port = oam_get_port(req->iface);
     unsigned short node_id = oam_get_uid(req->iface);
 
     add_fixed_headers(packet, req->ttl, req->seq, OAM_CHANNEL,
@@ -237,32 +235,46 @@ static int oam_send_request(struct oam_request *req){
 
     struct JsonValue *js = json_object();
     json_object_insert(js, "request", json_string(req->type));
-    json_object_insert(js, "target", json_string(req->mep_stop));
     json_object_insert(js, "stream", json_string(mep->stream_name));
     json_object_insert(js, "level", json_number(req->level));
-    if(req->mode == OAM_CFG)
-        json_object_insert(js, "mode", json_string("cfg"));
     struct JsonValue *jret = json_object();
-    json_object_insert(jret, "ip", json_string(return_ip));
-    json_object_insert(jret, "port", json_number(return_port));
+    json_object_insert(jret, "ip", json_string(req->return_ip));
+    json_object_insert(jret, "port", json_number(req->return_port));
     json_object_insert(js, "return", jret);
 
-    if(req->rr == 1){
-        jret = json_array();
-        json_array_unshift(jret, json_string(mep->name));
-        json_object_insert(js, "rr", jret);
+    if(strcmp(req->type, "ping")==0){
+        json_object_insert(js, "target", json_string(req->mep_stop));
+        if(req->rr == 1){
+            jret = json_array();
+            json_array_unshift(jret, json_string(mep->name));
+            json_object_insert(js, "rr", jret);
+        }
+        if(req->os == 1){
+            jret = json_true();
+            json_object_insert(js, "objects", jret);
+        }
+        if(req->mode == OAM_CFG)
+            json_object_insert(js, "mode", json_string("cfg"));
+        struct timespec sendtime;
+        clock_gettime(CLOCK_REALTIME, &sendtime);
+        json_object_insert(js, "send_s", json_number(sendtime.tv_sec));
+        json_object_insert(js, "send_ns", json_number(sendtime.tv_nsec));
     }
-    if(req->os == 1){
-        jret = json_true();
-        json_object_insert(js, "objects", jret);
+    else if(strcmp(req->type, "rping")==0){
+        json_object_insert(js, "target", json_string(req->remote_mep));
+        char cmd_str[128];  // restriction: for remote ping the default interface must be used (here ping@iface is invalid)
+        sprintf(cmd_str, "ping %s:%s %s %d", req->remote_strm,req->remote_mep, req->mep_stop, req->level);
+        if(req->rr == 1) strcat(cmd_str, " -r");
+        if(req->os == 1) strcat(cmd_str, " -o");
+        json_object_insert(js, "command", json_string(cmd_str));
+    } else {
+        //fprintf(cmd_w, "invalid request '%s'\n", req->type);
+        return -EINVAL; //TODO do we really need this error code?
     }
-    struct timespec sendtime;
-    clock_gettime(CLOCK_REALTIME, &sendtime);
-    json_object_insert(js, "send_s", json_number(sendtime.tv_sec));
-    json_object_insert(js, "send_ns", json_number(sendtime.tv_nsec));
 
     unsigned js_length;
-    char *js_string = json_serialize(js, &js_length);
+    char *js_string;
+    js_string = json_serialize(js, &js_length);
     json_delete(js);
     if (js_string == NULL) {
         //TODO can this happen?
@@ -331,6 +343,11 @@ static int oam_ping(struct oam_request *ping_req)
         return -EINVAL;
     }
 
+    if(ping_req->return_ip == NULL){    // in case of rping this is not NULL
+        ping_req->return_ip = oam_get_ip(ping_req->iface);
+        ping_req->return_port = oam_get_port(ping_req->iface);
+    }
+
     ping_req->session_id = session_id;
     ping_req->seq = 0;
 
@@ -362,29 +379,6 @@ static int oam_ping(struct oam_request *ping_req)
     return 0;
 }
 
-static const char help_str[] =
-    "Available commands:\n"
-    "help - get help\n"
-    "exit - exit OAM\n"
-    "mode <mode> - terminal mode. Mode can be 'dump' or 'json'.\n"
-    "list - list monitoring start points\n"
-    "sessions <stream> - list active sessions for stream\n"
-    "stop <stream> <session_id> - stop a running OAM session, identified by stream:session_id\n"
-    "returns - list return interfaces\n"
-    "ping[@if] <stream:mep-start> <mep-stop/mip/any> <level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]\n"
-    "rping[@if] <remote mep-stop/mip> <stream:mep-start> <mep-stop/mip/any> <level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]\n";
-
-struct ListMepParams {
-    FILE *cmd_w;
-};
-static int list_mep_cb(const char *key, void *value, void *userdata)
-{
-    struct MepStart *start = value;
-    struct ListMepParams *params = userdata;
-    fprintf(params->cmd_w, "%s level %d\n", key, start->level);
-    return 1;
-}
-
 struct oam_request* oam_parse_ping(char *oam_command, int mode, FILE *cmd_w)
 {
     char c;
@@ -400,6 +394,10 @@ struct oam_request* oam_parse_ping(char *oam_command, int mode, FILE *cmd_w)
     ping_req->interval_ms = 1000;
     ping_req->os = 0;
     ping_req->mode = mode;
+    // Init return_ip to NULL
+    ping_req->return_ip = NULL;
+    ping_req->return_port = 0;
+
     if(mode == OAM_CFG)
         ping_req->count = 0;
     else
@@ -428,9 +426,10 @@ struct oam_request* oam_parse_ping(char *oam_command, int mode, FILE *cmd_w)
         ping_req->remote_mep[0]=0;
     }
     else if(strncmp(oam_command, "rping", 5) == 0){
+        char remote_strm_mep[32];
         if(oam_command[5]=='@'){
             k = sscanf(oam_command, "rping@%s %s %s %s %d%n",
-                    ping_req->iface_name, ping_req->remote_mep, ping_req->mep_start, ping_req->mep_stop, &ping_req->level, &l);
+                    ping_req->iface_name, remote_strm_mep, ping_req->mep_start, ping_req->mep_stop, &ping_req->level, &l);
             if (k < 4) {
                 fprintf(cmd_w, "rping arguments invalid");
             }
@@ -440,12 +439,18 @@ struct oam_request* oam_parse_ping(char *oam_command, int mode, FILE *cmd_w)
             }*/
         } else {
             k = sscanf(oam_command, "rping %s %s %s %d%n",
-                    ping_req->remote_mep, ping_req->mep_start, ping_req->mep_stop, &ping_req->level, &l);
+                    remote_strm_mep, ping_req->mep_start, ping_req->mep_stop, &ping_req->level, &l);
             if (k < 3) {
                 fprintf(cmd_w, "rping arguments invalid");
             }
             ping_req->iface_name[0]=0;
         }
+        char *ch=strtok(remote_strm_mep,":");
+        if(ch == NULL)
+            fprintf(cmd_w, "rping remote stream:mep invalid");
+        ch=strtok(NULL,":");
+        strcpy(ping_req->remote_mep, ch);
+        strcpy(ping_req->remote_strm, remote_strm_mep);
         ping_req->type = "rping";
     }
     else{
@@ -517,6 +522,44 @@ struct oam_request* oam_parse_ping(char *oam_command, int mode, FILE *cmd_w)
     return ping_req;
 }
 
+// any better name for this function??
+int oam_start_ping(char *command, char *dest_ip, int dest_port, int mode, FILE *cmd_w)
+{
+    struct oam_request *ping_req = NULL;
+
+    if( (ping_req = oam_parse_ping(command, mode, cmd_w)) == NULL)
+        return -EINVAL;
+
+    // for rping, these should be containing the return address
+    ping_req->return_ip = dest_ip;
+    ping_req->return_port = dest_port;
+
+    return oam_ping(ping_req);
+
+}
+
+static const char help_str[] =
+    "Available commands:\n"
+    "help - get help\n"
+    "exit - exit OAM\n"
+    "mode <mode> - terminal mode. Mode can be 'dump' or 'json'.\n"
+    "list - list monitoring start points\n"
+    "sessions <stream> - list active sessions for stream\n"
+    "stop <stream> <session_id> - stop a running OAM session, identified by stream:session_id\n"
+    "returns - list return interfaces\n"
+    "ping[@if] <stream:mep-start> <mep-stop/mip/any> <level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]\n"
+    "rping[@if] <remote stream:mep-stop/mip> <stream:mep-start> <mep-stop/mip/any> <level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]\n";
+
+struct ListMepParams {
+    FILE *cmd_w;
+};
+static int list_mep_cb(const char *key, void *value, void *userdata)
+{
+    struct MepStart *start = value;
+    struct ListMepParams *params = userdata;
+    fprintf(params->cmd_w, "%s level %d\n", key, start->level);
+    return 1;
+}
 
 int oam_command_loop(struct Interface *iface)
 {
@@ -530,8 +573,6 @@ int oam_command_loop(struct Interface *iface)
 
     char oam_command[255], last_command[255];
     char streamname[32];
-
-    struct oam_request *ping_req = NULL;
 
     if (oam_default_iface) {
         fprintf(cmd_w, "OAM ready.\n");
@@ -636,12 +677,7 @@ int oam_command_loop(struct Interface *iface)
                     }
                 }
             }
-            else if( (ping_req = oam_parse_ping(oam_command, OAM_CLI, cmd_w)) != NULL){
-                // ping or rping
-                if (oam_ping(ping_req) != 0) {
-                    ERROR("can't send ping");
-                }
-            } else {
+            else if( oam_start_ping(oam_command, NULL, 0, OAM_CLI, cmd_w) != 0){
                 ERROR("unknown command '%s'", oam_command);
             }
         }

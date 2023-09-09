@@ -20,9 +20,13 @@ struct oam_request{                 // needed for the ping thread. Shuld be used
     FILE *cmd_w;
     char iface_name[32];
     struct Interface *iface;
+    const char *return_ip;
+    unsigned return_port;
     unsigned session_id, seq;
     const char *type;
-    char mep_start[32], mep_stop[32], remote_mep[32];
+    char mep_start[32];              // local stream:mep from where rping starts
+    char remote_mep[32], remote_strm[32];       // remote stream:mep from where ping starts
+    char mep_stop[32];               // dest mep/mip
     int level, rr, os;
     enum OamReqestMode mode;
     unsigned count;
@@ -37,6 +41,7 @@ int oam_recv_reply(char *msg);
 int oam_command_loop(struct Interface *iface);
 
 struct oam_request* oam_parse_ping(char *cmd_str, int mode, FILE *cmd_w);
+int oam_start_ping(char *command, char *dest_ip, int dest_port, int mode, FILE *cmd_w);
 
 int oam_create_mep_start(const char *stream_name, const char *mep_name, int level, unsigned idx);
 void oam_set_pipeline_for_mep_start(const char *stream_name, struct Pipeline *pipe);
