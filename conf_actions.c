@@ -161,6 +161,12 @@ struct ConfAction {
     } d;
 };
 
+struct MustWriteField {
+    const struct HeaderDescriptor *header;
+    const struct ProtocolField *field;
+    struct MustWriteField *next;
+};
+
 struct StageState {
     const char *stream;
     struct ConfAction *actions;
@@ -173,6 +179,7 @@ struct StageState {
     bool seq_set; // true if we had an action that sets packet->sequence
     bool ttl_set; // true if we had an action that sets packet->ttl
     struct HeaderDescriptor *needs_ttlcheck; // points to the header we automatically put a TTLReduce on
+    struct MustWriteField *must_write;
 };
 
 
@@ -209,6 +216,45 @@ static struct HeaderDescriptor *copy_header_list(const struct HeaderDescriptor *
     return ret;
 }
 
+// make a copy of @stst->must_write list, adjusting the header references to @newheaders
+// we assume that @newheaders = copy_header_list(@stst->headers)
+static struct MustWriteField *copy_mustwrite_list(const struct StageState *stst, const struct HeaderDescriptor *newheaders)
+{
+    struct MustWriteField *ret = NULL;
+
+    for (struct MustWriteField *mw=stst->must_write; mw; mw=mw->next) {
+        struct MustWriteField *n = calloc_struct(MustWriteField);
+        n->field = mw->field;
+        n->next = ret;
+        ret = n;
+
+        const struct HeaderDescriptor *oh = stst->headers;
+        const struct HeaderDescriptor *nh = newheaders;
+        while (oh) {
+            if (oh == mw->header) {
+                n->header = nh;
+                break;
+            }
+            oh = oh->next;
+            nh = nh->next;
+        }
+        if (!oh) {
+            fprintf(stderr, "stream %s has a must_write entry referencing non-existing header (field %s)\n",
+                    stst->stream, mw->field->name);
+            struct MustWriteField *k = ret;
+            while (k) {
+                struct MustWriteField *d = k;
+                k = k->next;
+                free(d);
+            }
+            return NULL;
+        }
+    }
+
+    REVERSE_LIST(ret);
+    return ret;
+}
+
 // @returns the position of @pos in the linked list @headers
 // @pos must be in the linked list!
 static unsigned header_index(const struct HeaderDescriptor *headers, const struct HeaderDescriptor *pos)
@@ -226,15 +272,6 @@ static struct Interface *find_interface(struct StageState *stst, const char *nam
     }
     return NULL;
 }
-
-/* static struct Interface *find_interface_by_type(struct StageState *stst, enum IfaceType type) */
-/* { */
-/*     for (unsigned i=0; i<stst->ifcount; i++) { */
-/*         if (stst->ifaces[i].type == type) */
-/*             return stst->ifaces + i; */
-/*     } */
-/*     return NULL; */
-/* } */
 
 static struct HeaderField *header_get_field_of_type(struct HeaderDescriptor *hdr, unsigned hdr_idx,
         enum ProtocolFieldType type)
@@ -331,7 +368,7 @@ static void init_confvariable(struct ConfVariable *v,
 
 
 // @returns false on error
-static bool process_assignment_lhs(struct HeaderDescriptor *headers, struct ConfAssignment *assign, char *string)
+static bool process_assignment_lhs(struct StageState *stst, struct ConfAssignment *assign, char *string)
 {
 #define THROW(msg, ...)                                                 \
     do {                                                                \
@@ -342,7 +379,7 @@ static bool process_assignment_lhs(struct HeaderDescriptor *headers, struct Conf
     struct ConfVariable *lhs = &assign->lhs;
     char *hdr, *field;
     if (parse_fieldname(string, &hdr, &field)) {
-        struct HeaderDescriptor *h = header_list_find_by_name(headers, hdr);
+        struct HeaderDescriptor *h = header_list_find_by_name(stst->headers, hdr);
         if (h == NULL) {
             THROW("no header named '%s' in the packet", hdr);
         }
@@ -354,8 +391,27 @@ static bool process_assignment_lhs(struct HeaderDescriptor *headers, struct Conf
             THROW("header '%s' has no field named '%s'", hdr, field);
         }
         init_confvariable(lhs, CVT_FIELD, f);
-        lhs->v.header.field = new_headerfield(header_index(headers, h), f);
+        lhs->v.header.field = new_headerfield(header_index(stst->headers, h), f);
         assign->lhs_protoid = h->id;
+
+        struct MustWriteField *mw_last = NULL;
+        struct MustWriteField *mw = stst->must_write;
+        while (mw) {
+            if (h == mw->header && f == mw->field) {
+                if (mw_last) {
+                    mw_last->next = mw->next;
+                    free(mw);
+                    mw = mw_last->next;
+                } else {
+                    stst->must_write = mw->next;
+                    free(mw);
+                    mw = stst->must_write;
+                }
+            } else {
+                mw_last = mw;
+                mw = mw->next;
+            }
+        }
     } else {
         THROW("left-hand-side '%s' of the assignment is invalid", string);
     }
@@ -638,7 +694,7 @@ static bool process_token(char *token, void *userdata)
             newaction->d.edit.assignments = a;
             a->text = strdup(token);
             if (parse_assignment(token, &lhs, &rhs)) {
-                if (!process_assignment_lhs(stst->headers, a, lhs)) {
+                if (!process_assignment_lhs(stst, a, lhs)) {
                     THROW("left-hand-side '%s' invalid", lhs);
                 }
 
@@ -765,6 +821,10 @@ static bool process_token(char *token, void *userdata)
                 pstst.stream = token;
                 pstst.headers = copy_header_list(stst->headers);
                 pstst.actions = NULL;
+                pstst.must_write = copy_mustwrite_list(stst, pstst.headers);
+                if (stst->must_write && !pstst.must_write) {
+                    THROW("failed to copy the must_write list?!?");
+                }
                 if (!foreach_stages(pstring, process_stage, &pstst)) {
                     free(pstring);
                     delete_header_list(pstst.headers);
@@ -1127,6 +1187,13 @@ static bool process_action(struct StageState *stst)
                 // also cancel the TTLReduce action? no, OAM might need it
             }
 
+            for (struct MustWriteField *mw=stst->must_write; mw; mw=mw->next) {
+                if (mw->header == del) {
+                    THROW("deleting header that is on the must_write list (field %s)",
+                            mw->field->name);
+                }
+            }
+
             // handle the nexthdr field of prev
             struct ConfAssignment *a = NULL;
             if (prev) {
@@ -1242,6 +1309,14 @@ static bool process_action(struct StageState *stst)
             if (check_header_stack(stst->headers, expected, 2) == false) {
                 THROW("header stack is not suitable for OAM point");
             }
+            if (newaction->type == CA_MEPSTART) { //TODO also for CA_MIP?
+                struct MustWriteField *mw = calloc_struct(MustWriteField);
+                mw->header = stst->headers;
+                mw->field = protocol_get_field_by_name(PROTO_ID_MPLS, "label");
+
+                mw->next = stst->must_write;
+                stst->must_write = mw;
+            }
             break;
         case CA_POF:
             if (newaction->d.pof.pof == NULL) {
@@ -1289,6 +1364,13 @@ static bool process_action(struct StageState *stst)
                 newaction->next = ttlcheck;
                 stst->actions = newaction;
                 stst->needs_ttlcheck = 0;
+            }
+            if (stst->must_write) {
+                for (struct MustWriteField *mw=stst->must_write; mw; mw=mw->next) {
+                    fprintf(stderr, "stream %s must write field %s:%s before sending\n",
+                            stst->stream, mw->header->name, mw->field->name);
+                }
+                return false;
             }
             break;
         case CA_SEQGEN:
@@ -1358,6 +1440,7 @@ struct ConfAction *parse_actions_line(const char *stream, char *line,
         .seq_set = false,
         .ttl_set = false,
         .needs_ttlcheck = NULL,
+        .must_write = NULL,
     };
 
     // automatically reduce TTL & schedule a check, if the very first header has such a field
