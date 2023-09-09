@@ -74,8 +74,7 @@ void log_func(int level, LOGGING_MODULE module, const char *frmt, ...)
     date[strlen(date) - 1] = '\0';
     fprintf(logfile,"%s [%s] %s ", date, log_module_strings[module], log_level_strings[level]);
 
-    char *format = strdup(frmt);
-    strcat(format, "\n");
+    char *format = strdup_printf("%s\n", frmt);
     va_list argp;
     va_start(argp, frmt);
     vfprintf(logfile, format, argp);
