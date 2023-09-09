@@ -160,7 +160,20 @@ testcases = [
     ('n1', 'ping s1:mepn1s1 mepn4s1 4 -r',
      ['OAM packet ping session 7 seq 0, s1:mepn1s1 -> mepn4s1, level 4, count 1, rr: yes os: no\t[reply to ip: 10.0.0.1, port: 6634]\n',
       '{"label":34,"level":4,"node":"mepn4s1","nodeid":1,"request":"ping","rr":["mepn4s1","in34","out34","in23","in12","s1:mepn1s1"],"send_ns":361302725,"send_s":1691060420,"sequence":0,"session":7,"stream":"s1","target":"mepn4s1"}']),
+
+    ('n1', 'rping rx12:in12 s1:mepn1s1 mepn4s1 4',
+     ['OAM packet rping session 8 seq 0, s1:mepn1s1 -> mepn4s1, level 4, count 1 interval 1000, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n',
+      '{"label":344,"level":4,"node":"mepn4s1","nodeid":2,"request":"ping","send_ns":133040181,"send_s":1694296246,"sequence":0,"session":1,"stream":"rx12","target":"mepn4s1"}']),
+
 ]
+
+def ordered(obj):
+    if isinstance(obj, dict):
+        return sorted((k, ordered(v)) for k, v in obj.items())
+    if isinstance(obj, list):
+        return sorted(ordered(x) for x in obj)
+    else:
+        return obj
 
 def cmp_json(j1s: str, j2s : str):
     # print('*', j1s, '*')
@@ -172,7 +185,7 @@ def cmp_json(j1s: str, j2s : str):
         del j["send_ns"]
         if "objects" in j:
             del j["objects"] #TODO: rethink
-    return j1 == j2
+    return ordered(j1) == ordered(j2)
 
 def prepare_cli(sock):
     _ = sock.recv(10000) # OAM ready

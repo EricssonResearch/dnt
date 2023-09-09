@@ -16,6 +16,7 @@
 #include "utils.h"
 #include "pof.h"
 #include "json.h"
+#include "log.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -614,7 +615,7 @@ static enum ActionResult handle_OAM_packet(struct Packet *p, struct OamData *oam
 
     unsigned char *oam_hdr = p->buf + p->headers[1].start;
     unsigned char seq = oam_hdr[1];
-    unsigned short channel = (oam_hdr[2]<<8)+oam_hdr[3];
+    //unsigned short channel = (oam_hdr[2]<<8)+oam_hdr[3];
     unsigned short nodeid = (oam_hdr[4]<<8)+oam_hdr[5];
     unsigned char level = oam_hdr[6] >> 1;
     unsigned char session = oam_hdr[7] & 0x0f;
@@ -622,8 +623,8 @@ static enum ActionResult handle_OAM_packet(struct Packet *p, struct OamData *oam
     int port=6634;
     char *reply_address=NULL;
 
-    printf("OAM packet (%s) at MIP [%s level %d], ttl %d nib_ver %x sequence %x channel %x node %x level %x session %x\njson: %s\n",
-            protocol_type_from_id(p->headers[1].type), oam->name, oam->level, p->ttl, oam_hdr[0], seq, channel, nodeid, level, session, msg);
+    //log_packet(OAM, "packet (%s) at [%s level %d], ttl %d nib_ver %x sequence %x channel %x node %x level %x session %x\njson: %s",
+    //        protocol_type_from_id(p->headers[1].type), oam->name, oam->level, p->ttl, oam_hdr[0], seq, channel, nodeid, level, session, msg);
 
     struct JsonValue *j = json_parse(msg, strlen(msg));
     if(j==NULL || j->type != JSON_OBJECT){
@@ -665,6 +666,7 @@ static enum ActionResult handle_OAM_packet(struct Packet *p, struct OamData *oam
 
     // continue and send response if ttl=0 or target is us or target is "any"
     if( (p->ttl != 0) && (strcmp(target->v.string, oam->name)!=0) && (strcmp(target->v.string, "any")!=0)){
+        log_warn(OAM, "dropped, %s != %s", target->v.string, oam->name);
         json_delete(j);
         return ACR_CONTINUE;
     }
@@ -720,7 +722,7 @@ static enum ActionResult handle_OAM_packet(struct Packet *p, struct OamData *oam
 
     unsigned msg_len=0;
     char *j_msg = json_serialize(j, &msg_len);
-    //printf("Send to %s : %d\nlen %d %s\n", reply_address, port, msg_len, j_msg);
+    log_info(OAM, "Send to %s : %d\nlen %d %s\n", reply_address, port, msg_len, j_msg);
     oam_send_reply(reply_address, port, j_msg, msg_len);
     free(reply_address);
     free(j_msg);

@@ -39,7 +39,7 @@ static void sigint_handler(int sig, siginfo_t *si, void *uc)
     (void)si;
     (void)uc;
 
-    printf("SIGINT caught\n");
+    printf("SIGINT or SIGTERM caught\n");
     sigint_count++;
 }
 
@@ -63,6 +63,10 @@ static void recv_loop(struct Interface *ifaces, unsigned iface_count)
     sa.sa_sigaction = sigint_handler;
     sigemptyset(&sa.sa_mask);
     if (sigaction(SIGINT, &sa, NULL) < 0) {
+        perror("sigaction");
+        return;
+    }
+    if (sigaction(SIGTERM, &sa, NULL) < 0) {    // SIGTERM is received when terminated via kill
         perror("sigaction");
         return;
     }

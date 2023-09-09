@@ -229,7 +229,7 @@ static int oam_send_request(struct oam_request *req){
 
     struct MepStart *mep = hashmap_find(mep_starts, req->mep_start);
     if (!mep) {
-        //fprintf(cmd_w, "invalid mep start name '%s'\n", mep_start);
+        log_error(OAM, "Invalid mep_start: %s", req->mep_start);
         return -EINVAL; //TODO do we really need this error code?
     }
 
@@ -351,7 +351,7 @@ static int oam_ping(struct oam_request *ping_req)
     ping_req->session_id = session_id;
     ping_req->seq = 0;
 
-    log_info(OAM, "OAM packet %s session %u seq %u, %s -> %s, level %d, count %d interval %d, rr: %s os: %s\t[reply to ip: %s, port: %u]\n",
+    log_info(OAM, "OAM packet %s session %u seq %u, %s -> %s, level %d, count %d interval %d, rr: %s os: %s\t[reply to ip: %s, port: %u]",
             ping_req->type, ping_req->session_id, ping_req->seq, ping_req->mep_start, ping_req->mep_stop, ping_req->level, ping_req->count, ping_req->interval_ms,
             ping_req->rr?"yes":"no", ping_req->os?"yes":"no", oam_get_ip(ping_req->iface), oam_get_port(ping_req->iface));
 
@@ -810,7 +810,8 @@ int oam_recv_reply(char *msg)
     char reply_str[1400], rr_str[512], obj_str[1000];
     struct JsonValue *j = json_parse(msg, strlen(msg));
     if (j == NULL) {
-        fprintf(stderr, "JSON in reply is invalid.\n");
+        //fprintf(stderr, "JSON in reply is invalid.\n");
+        log_error(OAM, "JSON in reply is invalid.");
         return -1;
     }
     struct JsonValue *mode = json_object_get_string(j, "mode");
@@ -821,58 +822,62 @@ int oam_recv_reply(char *msg)
     }
     struct JsonValue *nid = json_object_get_number(j, "nodeid");
     if(nid==NULL) {
-        fprintf(stderr, "No nodeid in reply.\n");
+        log_error(OAM, "No nodeid in reply.");
         return -1;
     }
     struct JsonValue *request = json_object_get_string(j, "request");
     if(request == NULL) {
-        fprintf(stderr, "No request in reply.\n");
+        log_error(OAM, "No request in reply.");
         return -1;
     }
     struct JsonValue *target = json_object_get_string(j, "target");
     if(target == NULL) {
-        fprintf(stderr, "No target in reply.\n");
+        log_error(OAM, "No target in reply.");
         return -1;
     }
     struct JsonValue *seq = json_object_get_number(j, "sequence");
     if(seq == NULL) {
-        fprintf(stderr, "No sequence in reply.\n");
+        log_error(OAM, "No sequence in reply.");
         return -1;
     }
     struct JsonValue *level = json_object_get_number(j, "level");
     if(level == NULL) {
-        fprintf(stderr, "No level in reply.\n");
+        log_error(OAM, "No level in reply.");
         return -1;
     }
     struct JsonValue *node = json_object_get_string(j, "node");
     if(node == NULL) {
-        fprintf(stderr, "No node in reply.\n");
+        log_error(OAM, "No node in reply.");
         return -1;
     }
     struct JsonValue *strm = json_object_get_string(j, "stream");
     if(strm == NULL) {
-        fprintf(stderr, "No stream in reply.\n");
+        log_error(OAM, "No stream in reply.");
         return -1;
     }
+
     struct JsonValue *sess = json_object_get_number(j, "session");
     struct SessionTracker *session = NULL;
     if(sess == NULL) {
-        fprintf(stderr, "No session id in reply.\n");
+        log_error(OAM, "No session id in reply.");
         return -1;
     } else {
         if (sess->v.number < 0 || sess->v.number > 15) {
-            fprintf(stderr, "session id %.0f in reply is invalid\n", sess->v.number);
+            log_error(OAM, "session id %.0f in reply is invalid", sess->v.number);
             return -1;
         } else {
+            // ToDo: for rping this will not find the stream. Either don't check, or config the streams to check.
+            // For now, we get an error but it will work as the session is not used anywhere.
             struct StreamSessions *stream = hashmap_find(session_ids, strm->v.string);
             if (stream == NULL) {
-                fprintf(stderr, "Invalid stream name '%s' in reply.\n", strm->v.string);
-                return -1;
-            }
-            session = &stream->sessions[(int)(sess->v.number)];
-            if (!session->live) {
-                fprintf(stderr, "Reply for non-live session %.0f of stream '%s'.\n", sess->v.number, strm->v.string);
-                return -1;
+                log_error(OAM, "Invalid stream name '%s' in reply.", strm->v.string);
+                //return -1;
+            } else {
+                session = &stream->sessions[(int)(sess->v.number)];
+                if (!session->live) {
+                    log_error(OAM, "Reply for non-live session %.0f of stream '%s'.", sess->v.number, strm->v.string);
+                    //return -1;
+                }
             }
         }
     }
