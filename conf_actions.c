@@ -818,20 +818,25 @@ static bool process_token(char *token, void *userdata)
             } else {
                 pstring = strdup(pstring);
                 struct StageState pstst = *stst;
-                pstst.stream = token;
+                char *replname = strdup_printf("%s.%s", stst->stream, token);
+                pstst.stream = replname;
                 pstst.headers = copy_header_list(stst->headers);
                 pstst.actions = NULL;
                 pstst.must_write = copy_mustwrite_list(stst, pstst.headers);
                 if (stst->must_write && !pstst.must_write) {
+                    free(pstring);
+                    free(replname);
                     THROW("failed to copy the must_write list?!?");
                 }
                 if (!foreach_stages(pstring, process_stage, &pstst)) {
                     free(pstring);
+                    free(replname);
                     delete_header_list(pstst.headers);
                     delete_confaction_list(pstst.actions);
                     THROW("failed to process pipeline '%s'", token);
                 }
                 free(pstring);
+                free(replname);
                 if (pstst.actions == NULL) {
                     delete_header_list(pstst.headers);
                     THROW("no actions in pipeline '%s'", token);
@@ -1269,15 +1274,18 @@ static bool process_action(struct StageState *stst)
             if (pipestring) {
                 pipestring = strdup(pipestring);
                 struct StageState jstst = *stst;
-                jstst.stream = newaction->d.jump.pipename;
+                char *jumpname = strdup_printf("%s.%s", stst->stream, newaction->d.jump.pipename);
+                jstst.stream = jumpname;
                 jstst.actions = NULL;
                 //TODO limit recursion depth with a counter in stst
                 if (!foreach_stages(pipestring, process_stage, &jstst)) {
                     free(pipestring);
+                    free(jumpname);
                     delete_confaction_list(jstst.actions);
                     THROW("failed to process pipeline '%s'", newaction->d.jump.pipename);
                 }
                 free(pipestring);
+                free(jumpname);
                 if (jstst.actions == NULL) {
                     THROW("no actions in pipeline '%s'", newaction->d.jump.pipename);
                 }

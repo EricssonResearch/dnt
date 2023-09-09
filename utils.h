@@ -35,6 +35,13 @@
     } while (0)
 
 // @src cannot be NULL!
-void *memdup(const void *src, unsigned size);
+void *memdup(const void *src, unsigned size) __attribute__((nonnull(1)));
+
+// creates a new string, and prints into it according to @format
+// returns pointer to the newly created string
+// the format string cannot be NULL
+char *strdup_printf(const char *format, ...)
+    __attribute__((format(printf, 1, 2)))
+    __attribute__((nonnull(1)));
 
 #endif // R2_UTILS_H
