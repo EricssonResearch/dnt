@@ -578,7 +578,7 @@ static int list_session_cb(const char *key, void *value, void *userdata)
     return 1;
 }
 
-static void stop_session(char *streamname, int session, FILE *cmd_w)
+static void stop_session(const char *streamname, int session, FILE *cmd_w)
 {
     struct StreamSessions *stream = hashmap_find(session_ids, streamname);
     if (stream == NULL) {
@@ -597,6 +597,18 @@ static void stop_session(char *streamname, int session, FILE *cmd_w)
         } else
             fprintf(cmd_w," - not running.\n");
     }
+}
+
+static int close_sessions_cb(const char *key, void *value, void *userdata)
+{
+    struct ListParams *params = userdata;       // NULL value for cmd_w means close all
+    struct StreamSessions *stream = value;
+    for(int i=0; i<16; i++){
+        if(stream->sessions[i].live && ((params->cmd_w==NULL) || (stream->sessions[i].cmd_w == params->cmd_w)) ){
+            stop_session(key, i, stderr);
+        }
+    }
+    return 1;
 }
 
 int oam_command_loop(struct Interface *iface)
@@ -643,7 +655,7 @@ int oam_command_loop(struct Interface *iface)
                     continue;
             }
 
-            if(strcmp(oam_command, "exit") == 0){
+            if( (strcmp(oam_command, "exit") == 0) || (strcmp(oam_command, "quit") == 0) ){
                 fprintf(cmd_w, "Exiting.\n");
                 break;
             }
@@ -675,7 +687,7 @@ int oam_command_loop(struct Interface *iface)
                 if(k==-1){
                     fprintf(cmd_w, "Sessions:\n");
                     if (!hashmap_foreach(session_ids, list_session_cb, &params))
-                        fprintf(stderr, "failed to start oam command\n");
+                        fprintf(stderr, "failed to get session.\n");
                 }
                 else if(k==1){
                     struct StreamSessions *stream = hashmap_find(session_ids, streamname);
@@ -721,8 +733,15 @@ int oam_command_loop(struct Interface *iface)
                 ERROR("unknown command '%s'", oam_command);
             }
         }
-        else break;
+        else {
+            break;
+        }
     }
+    printf("Telnet closed.\n");
+    // cleanup
+    struct ListParams params = {cmd_w};
+    hashmap_foreach(session_ids, close_sessions_cb, &params);
+
     return 0;
 }
 
@@ -1066,5 +1085,13 @@ bool init_oam(struct R2d2Config *config)
         fprintf(stderr, "failed to start oam command\n");
         return NULL;
     }
+    return true;
+}
+
+// Close OAM functionality
+bool close_oam(void)
+{
+    struct ListParams params = {NULL};
+    hashmap_foreach(session_ids, close_sessions_cb, &params);
     return true;
 }

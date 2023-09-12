@@ -215,6 +215,8 @@ int main(int argc, char **argv)
     recv_loop(config->ifaces, config->ifcount);
     printf("receive loop ended\n");
 
+    close_oam();
+
     fini_delay();
 
     delete_config(config);

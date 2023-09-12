@@ -35,6 +35,7 @@ struct oam_request{                 // needed for the ping thread. Shuld be used
   };
 
 bool init_oam(struct R2d2Config *config);
+bool close_oam(void);
 
 int oam_send_reply(const char *address, unsigned port, const char *msg, unsigned msg_len);
 int oam_recv_reply(char *msg);
