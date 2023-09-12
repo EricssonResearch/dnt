@@ -20,8 +20,8 @@ The available commands are:
 * exit - exit OAM
 * list - list monitoring start points
 * mode <mode> - terminal mode. Mode can be 'dump' or 'json'.
-* sessions <stream> - list active sessions for stream
-* stop <stream> <session_id> - stop a running OAM session, identified by stream:session_id
+* sessions [stream] - list active sessions for stream. If no 'stream' specified, lists all sessions
+* stop [stream session_id] - stop a running OAM session, identified by 'stream:session_id'. Without parameters it stops the last session
 * returns - list return interfaces
 * ping[@if] <stream:mep-start> <mep-stop/mip/any> <level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]
 * rping[@if] <remote stream:mep-stop/mip> <stream:mep-start> <mep-stop/mip/any> <level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]

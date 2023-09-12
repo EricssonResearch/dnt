@@ -48,9 +48,11 @@ struct SessionTracker {
     FILE* cmd_w; //TODO this is not good if the cmd connection closes before we get the reply
     time_t alloc_time;
     pthread_t multireq_tid;
+    struct oam_request *req;
     bool live;
 };
 
+char *last_stream=NULL;                       // the last stream
 struct StreamSessions {
     struct SessionTracker sessions[16];
     unsigned last_session;
@@ -95,7 +97,7 @@ static struct Interface *get_oam_if(const char *name)
     return NULL;
 }
 
-static int alloc_session_id(const char *stream_name, FILE *cmd_w)
+static int alloc_session_id(const char *stream_name, struct oam_request *req, FILE *cmd_w)
 {
     pthread_mutex_lock(&session_lock);
     struct StreamSessions *stream = hashmap_find(session_ids, stream_name);
@@ -133,6 +135,7 @@ static int alloc_session_id(const char *stream_name, FILE *cmd_w)
         stream->last_session = id;
         stream->sessions[id].live = true;
         stream->sessions[id].alloc_time = now.tv_sec + 1;
+        stream->sessions[id].req = req;
         stream->sessions[id].cmd_w = cmd_w;
         pthread_mutex_unlock(&session_lock);
         return id;
@@ -328,11 +331,13 @@ static int oam_ping(struct oam_request *ping_req)
         return -EINVAL;
     }
 
-    int session_id = alloc_session_id(mep->stream_name, cmd_w);
+    int session_id = alloc_session_id(mep->stream_name, ping_req, cmd_w);
     if (session_id < 0) {
         fprintf(cmd_w, "mep start '%s' has no free session id\n", ping_req->mep_start);
         return -EINVAL;
     }
+    if(ping_req->mode == OAM_CLI)               // update only for CLI streams
+        last_stream = mep->stream_name;
 
     if(strlen(ping_req->iface_name) == 0)
         ping_req->iface = oam_default_iface;
@@ -544,21 +549,54 @@ static const char help_str[] =
     "exit - exit OAM\n"
     "mode <mode> - terminal mode. Mode can be 'dump' or 'json'.\n"
     "list - list monitoring start points\n"
-    "sessions <stream> - list active sessions for stream\n"
-    "stop <stream> <session_id> - stop a running OAM session, identified by stream:session_id\n"
+    "sessions [stream] - list active sessions for 'stream'. List all sessions if no 'stream' specified.\n"
+    "stop [stream session_id] - stop a running OAM session, identified by stream:session_id. Stops the last session if no parameters given.\n"
     "returns - list return interfaces\n"
     "ping[@if] <stream:mep-start> <mep-stop/mip/any> <level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]\n"
     "rping[@if] <remote stream:mep-stop/mip> <stream:mep-start> <mep-stop/mip/any> <level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]\n";
 
-struct ListMepParams {
+struct ListParams {
     FILE *cmd_w;
 };
 static int list_mep_cb(const char *key, void *value, void *userdata)
 {
     struct MepStart *start = value;
-    struct ListMepParams *params = userdata;
+    struct ListParams *params = userdata;
     fprintf(params->cmd_w, "%s level %d\n", key, start->level);
     return 1;
+}
+static int list_session_cb(const char *key, void *value, void *userdata)
+{
+    struct ListParams *params = userdata;
+    struct StreamSessions *stream = value;
+    for(int i=0; i<16; i++){
+        if(stream->sessions[i].live){
+            struct oam_request *req = stream->sessions[i].req;
+            fprintf(params->cmd_w,"\t%s:%d\t %s %s -> %s level %d\n", key, i, req->type, req->mep_start, req->mep_stop, req->level);
+        }
+    }
+    return 1;
+}
+
+static void stop_session(char *streamname, int session, FILE *cmd_w)
+{
+    struct StreamSessions *stream = hashmap_find(session_ids, streamname);
+    if (stream == NULL) {
+        fprintf(cmd_w, "Invalid stream name '%s'.\n", streamname);
+    } else {
+        if(session==-1)
+            session = stream->last_session;
+        fprintf(cmd_w, "Stopping stream:session %s:%d ", streamname, session);
+        if(stream->sessions[session].live){
+            if (pthread_cancel(stream->sessions[session].multireq_tid) <  0)
+                fprintf(cmd_w," - failed.\n");
+            else{
+                stream->sessions[session].live = false;
+                fprintf(cmd_w," - stopped.\n");
+            }
+        } else
+            fprintf(cmd_w," - not running.\n");
+    }
 }
 
 int oam_command_loop(struct Interface *iface)
@@ -570,6 +608,7 @@ int oam_command_loop(struct Interface *iface)
 
     int cmd_fd = oam_get_cmd_fd(iface);
     FILE *cmd_w = oam_get_cmd_w(iface);
+    int k,l;
 
     char oam_command[255], last_command[255];
     char streamname[32];
@@ -627,40 +666,41 @@ int oam_command_loop(struct Interface *iface)
             }
             else if (strcmp(oam_command, "list") == 0) {
                 fprintf(cmd_w, "Available MEP Start points:\n");
-                struct ListMepParams params = {cmd_w};
+                struct ListParams params = {cmd_w};
                 hashmap_foreach_sorted(mep_starts, list_mep_cb, &params);
             }
             else if (strncmp(oam_command, "sessions", 8) == 0) {
-                sscanf(oam_command, "sessions %s", streamname);
-                fprintf(cmd_w, "Sessions for stream %s:\n", streamname);
-                struct StreamSessions *stream = hashmap_find(session_ids, streamname);
-                if (stream == NULL) {
-                    fprintf(cmd_w, "Invalid stream name '%s'.\n", streamname);
-                } else {
-                    for(int i=0; i<16; i++){
-                        if(stream->sessions[i].live)
-                            fprintf(cmd_w,"\t%s:%d\n", streamname, i);
+                struct ListParams params = {cmd_w};
+                k=sscanf(oam_command, "sessions %s%n", streamname, &l);
+                if(k==-1){
+                    fprintf(cmd_w, "Sessions:\n");
+                    if (!hashmap_foreach(session_ids, list_session_cb, &params))
+                        fprintf(stderr, "failed to start oam command\n");
+                }
+                else if(k==1){
+                    struct StreamSessions *stream = hashmap_find(session_ids, streamname);
+                    fprintf(cmd_w, "Sessions for stream %s:\n", streamname);
+                    if (stream == NULL) {
+                        fprintf(cmd_w, "Invalid stream name '%s'.\n", streamname);
+                    } else {
+                        list_session_cb(streamname, stream, &params);
                     }
                 }
+                else
+                    fprintf(cmd_w, "Invalid parameters for 'sessions' command.\n");
             }
             else if (strncmp(oam_command, "stop", 4) == 0) {
                 int session;
-                sscanf(oam_command, "stop %s %d", streamname, &session);
-                fprintf(cmd_w, "Stopping stream %s:%d ", streamname, session);
-                struct StreamSessions *stream = hashmap_find(session_ids, streamname);
-                if (stream == NULL) {
-                    fprintf(cmd_w, "Invalid stream name '%s'.\n", streamname);
-                } else {
-                    if(stream->sessions[session].live){
-                        if (pthread_cancel(stream->sessions[session].multireq_tid) <  0)
-                            fprintf(cmd_w," - failed.\n");
-                        else{
-                            stream->sessions[session].live = false;
-                            fprintf(cmd_w," - stopped.\n");
-                        }
-                    } else
-                        fprintf(cmd_w," - not running.\n");
-                }
+                k=sscanf(oam_command, "stop %s %d", streamname, &session);
+                if(k==-1){
+                    if(last_stream == NULL)
+                        fprintf(cmd_w,"No previous command to stop.\n");
+                    else
+                        stop_session(last_stream, -1, cmd_w);
+                } else if(k==2){
+                    stop_session(streamname, session, cmd_w);
+                } else
+                    fprintf(cmd_w,"invalid parameters for stop.\n");
             }
             else if (strcmp(oam_command, "returns") == 0) {
                 fprintf(cmd_w, "Available OAM return interfaces:\n");
