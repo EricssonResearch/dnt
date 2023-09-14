@@ -13,6 +13,7 @@
 #include "utils.h"
 #include "json.h"
 #include "log.h"
+#include "time_utils.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -37,6 +38,24 @@ struct MepStart {
     int pipe_pos_idx;
     int level;
 };
+
+struct oam_request{                 // needed for the ping thread. Shuld be used in other function calls too
+    FILE *cmd_w;
+    char iface_name[32];
+    struct Interface *iface;
+    const char *return_ip;
+    unsigned return_port;
+    unsigned session_id, seq;
+    const char *type;
+    char mep_start[32];              // local stream:mep from where rping starts
+    char remote_mep[32], remote_strm[32];       // remote stream:mep from where ping starts
+    char mep_stop[32];               // dest mep/mip
+    int level, rr, os, dly;
+    enum OamReqestMode mode;
+    unsigned count;
+    unsigned interval_ms;
+    unsigned char ttl;
+  };
 
 static int nr_oam_ifaces = 0;
 static struct Interface *oam_ifaces[16];
@@ -230,6 +249,11 @@ static int oam_send_request(struct oam_request *req){
             node_id, req->level, req->session_id);
     packet->ttl = req->ttl;
 
+    // set the packet receive time the same (needed if further MIP/MEP is on pipeline)
+    struct timespec sendtime;
+    clock_gettime(CLOCK_REALTIME, &sendtime);
+    packet->recv_time = sendtime;
+
     struct MepStart *mep = hashmap_find(mep_starts, req->mep_start);
     if (!mep) {
         log_error(OAM, "Invalid mep_start: %s", req->mep_start);
@@ -238,6 +262,7 @@ static int oam_send_request(struct oam_request *req){
 
     struct JsonValue *js = json_object();
     json_object_insert(js, "request", json_string(req->type));
+    json_object_insert(js, "req_type", json_string("request"));
     json_object_insert(js, "stream", json_string(mep->stream_name));
     json_object_insert(js, "level", json_number(req->level));
     struct JsonValue *jret = json_object();
@@ -256,10 +281,13 @@ static int oam_send_request(struct oam_request *req){
             jret = json_true();
             json_object_insert(js, "objects", jret);
         }
+        if(req->dly == 1){
+            jret = json_true();
+            json_object_insert(js, "delay", jret);
+        }
         if(req->mode == OAM_CFG)
             json_object_insert(js, "mode", json_string("cfg"));
-        struct timespec sendtime;
-        clock_gettime(CLOCK_REALTIME, &sendtime);
+
         json_object_insert(js, "send_s", json_number(sendtime.tv_sec));
         json_object_insert(js, "send_ns", json_number(sendtime.tv_nsec));
     }
@@ -287,11 +315,12 @@ static int oam_send_request(struct oam_request *req){
     packet_add_header(packet, 2, PROTO_ID_PAYLOAD, js_length);
     unsigned char *msg = packet->buf + packet->headers[2].start;
     memcpy(msg, js_string, js_length);
-    free(js_string);
 
-    log_packet(OAM, "Packet type %s stream %s id %d seq %d target %s level %d mode %s",
-                    "ping", mep->stream_name, req->session_id, req->seq,
-                    req->mep_stop, req->level, (req->mode==OAM_CFG)?"cfg":"cli");
+    log_packet(OAM, "%s:%d seq %d lvl %d S - %s",
+                    mep->stream_name, req->session_id, req->seq, req->level,
+                    js_string);
+
+    free(js_string);
 
     struct PipelineIterator *pi = new_pipe_iterator(mep->pipe, packet);
     pi->pos = mep->pipe_pos_idx;
@@ -396,9 +425,10 @@ struct oam_request* oam_parse_ping(char *oam_command, int mode, FILE *cmd_w)
     ping_req->level = 0;
     ping_req->ttl = OAM_PING_TTL;
     ping_req->rr = 0;
-    ping_req->interval_ms = 1000;
     ping_req->os = 0;
+    ping_req->dly = 0;
     ping_req->mode = mode;
+    ping_req->interval_ms = 1000;
     // Init return_ip to NULL
     ping_req->return_ip = NULL;
     ping_req->return_port = 0;
@@ -477,6 +507,8 @@ struct oam_request* oam_parse_ping(char *oam_command, int mode, FILE *cmd_w)
             ping_req->rr = 1;
         } else if (c=='o') {
             ping_req->os = 1;
+        } else if (c=='d') {
+            ping_req->dly = 1;
         } else if (c=='i') {
             k = sscanf(po, " %f%n", &fval, &l);
             if (k == 1) {
@@ -941,9 +973,27 @@ int oam_recv_reply(char *msg)
         }
     }
 
-    sprintf(reply_str,"[nodeid %.0f session %.0f seq %.0f]\t%s level %.0f on stream %s target %s\treply from %s",
-            nid->v.number, sess->v.number, seq->v.number,
-            request->v.string, level->v.number, strm->v.string, target->v.string, node->v.string);
+    log_packet(OAM, "%s:%.0f seq %.0f lvl %.0f D - %s", strm->v.string, sess->v.number, seq->v.number, level->v.number, msg);
+
+    struct JsonValue *dly = json_object_get_bool(j, "delay");
+    if(dly != NULL){
+        // calculate delay
+        struct timespec sendtime, receivetime, delay_diff;
+        sendtime.tv_sec = json_object_get_number(j, "send_s")->v.number;
+        sendtime.tv_nsec = json_object_get_number(j, "send_ns")->v.number;
+        receivetime.tv_sec = json_object_get_number(j, "recv_s")->v.number;
+        receivetime.tv_nsec = json_object_get_number(j, "recv_ns")->v.number;
+        timespecsub(&receivetime, &sendtime, &delay_diff);
+
+        sprintf(reply_str,"[nodeid %.0f session %.0f seq %.0f]\t%s level %.0f on stream %s target %s\treply from %s delay %ld.%ld",
+                nid->v.number, sess->v.number, seq->v.number,
+                request->v.string, level->v.number, strm->v.string, target->v.string, node->v.string, delay_diff.tv_sec, delay_diff.tv_nsec);
+    }
+    else
+        sprintf(reply_str,"[nodeid %.0f session %.0f seq %.0f]\t%s level %.0f on stream %s target %s\treply from %s",
+                nid->v.number, sess->v.number, seq->v.number,
+                request->v.string, level->v.number, strm->v.string, target->v.string, node->v.string);
+
 
     struct JsonValue *jrr = json_object_get_array(j, "rr");
     if(jrr){
@@ -1068,7 +1118,15 @@ static int oam_start_ping_cb(const char *key, void *value, void *userdata)
     (void) key;
     struct ConfOam *oam = value;
     printf("starting command: %s\n", oam->name);
-    return (oam_ping(oam->request) == 0);
+
+    struct oam_request *ping_req = NULL;
+
+    if( (ping_req = oam_parse_ping(oam->request, OAM_CFG, stderr)) == NULL)
+        return -EINVAL;
+
+    ping_req->count = 0;    // force infinite count
+
+    return (oam_ping(ping_req) == 0);
 }
 
 // Initialize OAM functionality

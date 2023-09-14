@@ -17,6 +17,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define MAX_OAM_SESSIONS    14
+
 struct ConfOamState {
     struct HashMap *oam;
     struct IniSection *oam_section;
@@ -28,25 +30,23 @@ static int oam_cb(const char *key, void *value, void *userdata)
     char *cmdline = value;
     struct ConfOamState *state = userdata;
 
-    struct oam_request *ping_req = NULL;
-
 #ifdef VERBOSE_CONF
-    printf("  parsing %s -> %s\n", key, cmdline);
+    printf("  new OAM session %s -> %s\n", key, cmdline);
 #endif
 
-    // ping or rping
-    ping_req = oam_parse_ping(cmdline, OAM_CFG, stderr);
-    if(ping_req != NULL){
-        ping_req->count = 0;    // force infinite count
-        struct ConfOam *oam = calloc_struct(ConfOam);
-        oam->type = COA_PING;
-        oam->request = ping_req;
-        oam->name = strdup(key);
-        hashmap_insert(state->oam, oam->name, oam);
-        return 1;
-    }
-    else
+    if(hashmap_count(state->oam) >= MAX_OAM_SESSIONS){
+#ifdef VERBOSE_CONF
+        printf("  Too many configured OAM sessions. Maximum %d configured sessions are permitted.\n", MAX_OAM_SESSIONS);
+#endif
         return 0;
+    }
+    // ping command
+    struct ConfOam *oam = calloc_struct(ConfOam);
+    oam->type = COA_PING;
+    oam->request = strdup(cmdline);
+    oam->name = strdup(key);
+    hashmap_insert(state->oam, oam->name, oam);
+    return 1;
 }
 /*
 static int checkoam_cb(const char *key, void *value, void *userdata)
@@ -62,7 +62,7 @@ static int deloam_cb(const char *key, void *value, void *userdata)
     (void)userdata;
     printf("Deleting OAM stuff\n");
     struct ConfOam *oam = value;
-    // ToDo: stop this thread if running
+
     free(oam->name);
     free(oam->request);
     delete_confoam(oam);
@@ -84,14 +84,12 @@ struct HashMap *parse_oam(struct IniSection *oam_section, struct HashMap *stream
 
     if (!hashmap_foreach(oam_section->contents, oam_cb, &state)) {
         fprintf(stderr, "failed to parse oam\n");
-        delete_hashmap(state.oam);
         return NULL;
     }
 /*  TODO
     // search for stream:mep and mepstop names to see if ping line is valid
     if (!hashmap_foreach(oam_section->contents, checkoam_cb, &state)) {
         fprintf(stderr, "failed to parse oam\n");
-        delete_hashmap(state.oam);
         return NULL;
     }
 

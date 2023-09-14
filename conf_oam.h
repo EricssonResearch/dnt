@@ -11,7 +11,6 @@ struct IniSection;
 struct Interface;
 struct HashMap;
 struct HeaderDescriptor;
-struct oam_request;
 
 enum ConfOamType {
     COA_PING = 1,
@@ -20,7 +19,7 @@ enum ConfOamType {
 
 struct ConfOam {
     enum ConfOamType type;
-    struct oam_request *request;
+    char *request;
     char *name;
 };
 

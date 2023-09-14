@@ -686,6 +686,8 @@ static enum ActionResult handle_OAM_packet(struct Packet *p, struct OamData *oam
     else
         return ACR_DONE;
 
+    const char *req_type = "response";
+
     // check for rping
     jret = json_object_get_string(j, "request");
     if(jret==NULL)
@@ -694,10 +696,13 @@ static enum ActionResult handle_OAM_packet(struct Packet *p, struct OamData *oam
         struct JsonValue *cmd = json_object_get_string(j, "command");
 
         // CLI vagy CFG???
-        oam_start_ping(cmd->v.string, reply_address, port, OAM_CLI, stderr);
-        free(reply_address);
-        json_delete(j);
-        return ACR_DONE;            // drop rping reqest packet
+        if(oam_start_ping(cmd->v.string, reply_address, port, OAM_CLI, stderr) == 0){
+            free(reply_address);
+            json_delete(j);
+            return ACR_DONE;            // drop rping reqest packet
+        } else {
+            req_type = "error";
+        }
     }
     // if object state is requested
     struct JsonValue *jos = json_object_get_any(j, "objects");
@@ -711,18 +716,29 @@ static enum ActionResult handle_OAM_packet(struct Packet *p, struct OamData *oam
     }
 
     json_object_remove(j, "return");
+    json_object_remove(j, "req_type");
+    json_object_insert(j, "req_type", json_string(req_type));
     json_object_insert(j, "sequence", json_number(seq));
     json_object_insert(j, "nodeid", json_number(nodeid));
     json_object_insert(j, "node", json_string(oam->name));
     json_object_insert(j, "session", json_number(session));
-
+    struct JsonValue *stream = json_object_get_string(j, "stream");
+    if(stream==NULL)
+        fprintf(stderr, "OAM packet has no stream\n");
     // we know that header 0 contains the label in the first 20 bit
     uint32_t *label = (uint32_t *) (p->buf + p->headers[0].start);
     json_object_insert(j, "label", json_number((ntohl(*label) >> 12) & 0xFFFFF));
 
+    // add receive timestamp
+    json_object_insert(j, "recv_s", json_number(p->recv_time.tv_sec));
+    json_object_insert(j, "recv_ns", json_number(p->recv_time.tv_nsec));
+
     unsigned msg_len=0;
     char *j_msg = json_serialize(j, &msg_len);
-    log_info(OAM, "Send to %s : %d\nlen %d %s\n", reply_address, port, msg_len, j_msg);
+
+    log_packet(OAM, "%s:%d seq %d lvl %d T (to %s %d) - %s", stream->v.string, session, seq, level,
+            reply_address, port, j_msg);
+
     oam_send_reply(reply_address, port, j_msg, msg_len);
     free(reply_address);
     free(j_msg);

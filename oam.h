@@ -16,24 +16,6 @@ enum OamReqestMode {
     OAM_CFG,
 };
 
-struct oam_request{                 // needed for the ping thread. Shuld be used in other function calls too
-    FILE *cmd_w;
-    char iface_name[32];
-    struct Interface *iface;
-    const char *return_ip;
-    unsigned return_port;
-    unsigned session_id, seq;
-    const char *type;
-    char mep_start[32];              // local stream:mep from where rping starts
-    char remote_mep[32], remote_strm[32];       // remote stream:mep from where ping starts
-    char mep_stop[32];               // dest mep/mip
-    int level, rr, os;
-    enum OamReqestMode mode;
-    unsigned count;
-    unsigned interval_ms;
-    unsigned char ttl;
-  };
-
 bool init_oam(struct R2d2Config *config);
 bool close_oam(void);
 

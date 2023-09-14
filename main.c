@@ -161,20 +161,21 @@ int main(int argc, char **argv)
 
     char log_filename[PATH_MAX];
     pid_t pid = getpid();
-    char *cfg_name=strdup(argv[1]);
-    char *cc;
-    char *c=strtok(cfg_name, "/");
-    while(c != NULL){
-        cc=c;
-        c=strtok(NULL, "/");
+    char *start = argv[1];
+    for (char *c=argv[1]; *c; c++) {
+      if (*c == '/') start = ++c;
     }
-    c=strtok(cc, ".");
-    sprintf(log_filename, "r2dtwo-log-%u-%s.log", pid, c);
+    char *end = NULL;
+    for (char *c=start; *c; c++) {
+      if (*c == '.') end = c;
+    }
+    char *confname = end ? strndup(start, end-start) : strdup(start);
+    sprintf(log_filename, "r2dtwo-log-%u-%s.log", pid, confname);
     if(!init_log(0x0FF, LOG_ALL, log_filename)) {
       printf("Log init failed\n");
       return -1;
     }
-    free(cfg_name);
+    free(confname);
     log_info(MAIN, "Logfile opened.");
 
     config = read_config(argv[1]);
