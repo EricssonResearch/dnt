@@ -9,8 +9,8 @@ import signal
 import time
 import sys
 
-# LONG_RUN_DURATION_SEC = 24 * 60 * 60
-LONG_RUN_DURATION_SEC = 30
+LONG_RUN_DURATION_SEC = 10 * 60 * 60
+# LONG_RUN_DURATION_SEC = 60 * 60
 
 # Tell if ping ICMP sequences in order (true) or not (false)
 def ping_check_out_of_order(ping_output):
@@ -20,8 +20,8 @@ def ping_check_out_of_order(ping_output):
 
 def long_run(net):
     t, l, a, b = [net.get(n) for n in ["t", "l", "a", "b"]]
-    rtwo1 = a.popen(f"../r2dtwo stress/a.ini")
-    rtwo2 = b.popen(f"../r2dtwo stress/b.ini")
+    rtwo1 = a.popen(f"screen -S r1 -d -m gdb -ex=r --args ../r2dtwo stress/a.ini")
+    rtwo2 = b.popen(f"screen -S r2 -d -m gdb -ex=r --args ../r2dtwo stress/b.ini")
     time.sleep(2)
     # CLI(net)
     switch_netns("t")
@@ -33,6 +33,7 @@ def long_run(net):
         stop = now + LONG_RUN_DURATION_SEC
         while now < stop:
             sock.sendall("ping s1:start1 any 4 -r -o".encode())
+            _ = sock.recv(10000)
             time.sleep(2)
             now = time.time()
 
