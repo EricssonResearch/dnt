@@ -51,4 +51,9 @@ bool seq_recovery(struct SequenceRecovery *rec, unsigned seq);
 // Return JSON value with the internals of the SeqRecv
 struct JsonValue *seqrec_get_state_json(const void *rec);
 
+/* Return a SeqRecovery for the given key, or create it if not exist.
+ * The recommended key is session ID + node ID of the OAM packet
+ */
+struct SequenceRecovery *get_oam_rcvy(char *key);
+
 #endif // R2_SEQ_RECOV_H

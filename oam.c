@@ -413,7 +413,7 @@ static int oam_ping(struct oam_request *ping_req)
     return 0;
 }
 
-struct oam_request* oam_parse_ping(char *oam_command, int mode, FILE *cmd_w)
+static struct oam_request* oam_parse_ping(const char *oam_command, int mode, FILE *cmd_w)
 {
     char c;
     int k, val, l;
@@ -494,7 +494,7 @@ struct oam_request* oam_parse_ping(char *oam_command, int mode, FILE *cmd_w)
     }
 
     // process options
-    char *po = oam_command + l;
+    const char *po = oam_command + l;
     bool opt_err = false;
     while ((k=sscanf(po, " -%c%n", &c, &l)) == 1) {
         if (!isspace(*po)) {
@@ -560,7 +560,7 @@ struct oam_request* oam_parse_ping(char *oam_command, int mode, FILE *cmd_w)
 }
 
 // any better name for this function??
-int oam_start_ping(char *command, char *dest_ip, int dest_port, int mode, FILE *cmd_w)
+int oam_start_ping(const char *command, const char *dest_ip, int dest_port, int mode, FILE *cmd_w)
 {
     struct oam_request *ping_req = NULL;
 
@@ -792,7 +792,7 @@ static int dump_seqgen_state(char *str, struct JsonValue *jos){
         fprintf(stderr, "No use_init_flag in object in reply.\n");
         return -1;
     }
-    sprintf(tmp, " (use_init_flag: %s, use_reset_flag: %s)\n", (ini->type == JSON_TRUE)? "true":"false", (rst->type == JSON_TRUE)? "true":"false" );
+    snprintf(tmp, sizeof(tmp), " (use_init_flag: %s, use_reset_flag: %s)\n", (ini->type == JSON_TRUE)? "true":"false", (rst->type == JSON_TRUE)? "true":"false" );
     strcat(str, tmp);
 
     return 0;
@@ -841,14 +841,14 @@ static int dump_seqrec_state(char *str, struct JsonValue *jos){
     if (vector) {
         bool init = init_flag->type == JSON_TRUE ? true : false;
         bool reset = reset_flag->type == JSON_TRUE ? true : false;
-        sprintf(tmp, fmt_vector, algo->v.string, init ? "true" : "false", reset ? "true" : "false",
+        snprintf(tmp, sizeof(tmp), fmt_vector, algo->v.string, init ? "true" : "false", reset ? "true" : "false",
                 reset_msec->v.number, hist_len->v.number,
                 seq->v.number, passed->v.number, discarded->v.number,
                 hist->v.string,
                 err_paths->v.number, errs->v.number,
                 resets->v.number);
     } else {
-        sprintf(tmp, fmt_match, algo->v.string, reset_msec->v.number,
+        snprintf(tmp, sizeof(tmp), fmt_match, algo->v.string, reset_msec->v.number,
                 seq->v.number, passed->v.number, discarded->v.number,
                 resets->v.number);
     }
@@ -863,7 +863,7 @@ static int dump_repl_state(char *str, struct JsonValue *jos){
         fprintf(stderr, "No packets_passed in object in reply.\n");
         return -1;
     }
-    sprintf(tmp, "\n\t\tpackets_passed: %.0f\n",  pass->v.number);
+    snprintf(tmp, sizeof(tmp), "\n\t\tpackets_passed: %.0f\n",  pass->v.number);
     strcat(str, tmp);
 
     return 0;
@@ -882,7 +882,7 @@ static int dump_pof_state(char *str, struct JsonValue *jos){
     }
     const char *fmt = "\n\t\tmax_buffer_length: %.0f, max_delay: %.0fms, take_any_time: %.0fms\n" \
                         "\t\tcurrent_buffer_length: %.0f, last_sent: %.0f\n";
-    sprintf(tmp, fmt, buff_size->v.number, max_delay->v.number, take_any_time->v.number,
+    snprintf(tmp, sizeof(tmp), fmt, buff_size->v.number, max_delay->v.number, take_any_time->v.number,
             buff_len->v.number, last_sent->v.number);
     strcat(str, tmp);
     return 0;
@@ -892,7 +892,7 @@ static int dump_pof_state(char *str, struct JsonValue *jos){
  * Msg: pointer to the message
  * Return 0 on success
 */
-int oam_recv_reply(char *msg)
+int oam_recv_reply(const char *msg)
 {
 
     // We need to parse for logging, even if JSON mode is used.
@@ -959,6 +959,8 @@ int oam_recv_reply(char *msg)
         } else {
             // ToDo: for rping this will not find the stream. Either don't check, or config the streams to check.
             // For now, we get an error but it will work as the session is not used anywhere.
+            // TODO for rping we should have two stream id/session: the originator and the source
+            //      here we are either the originator or a third party
             struct StreamSessions *stream = hashmap_find(session_ids, strm->v.string);
             if (stream == NULL) {
                 log_error(OAM, "Invalid stream name '%s' in reply.", strm->v.string);
@@ -976,7 +978,7 @@ int oam_recv_reply(char *msg)
     log_packet(OAM, "%s:%.0f seq %.0f lvl %.0f D - %s", strm->v.string, sess->v.number, seq->v.number, level->v.number, msg);
 
     struct JsonValue *dly = json_object_get_bool(j, "delay");
-    if(dly != NULL){
+    if(dly != NULL && dly->type == JSON_TRUE){
         // calculate delay
         struct timespec sendtime, receivetime, delay_diff;
         sendtime.tv_sec = json_object_get_number(j, "send_s")->v.number;
@@ -996,6 +998,7 @@ int oam_recv_reply(char *msg)
 
 
     struct JsonValue *jrr = json_object_get_array(j, "rr");
+    rr_str[0] = 0;
     if(jrr){
         sprintf(rr_str, "Record Route: [");
         REVERSE_LIST(jrr->v.array);
@@ -1056,12 +1059,14 @@ int oam_recv_reply(char *msg)
         if(cfg_mode) return -1;         // silent, no reply needed
 
         if(oam_cmd_get_mode(oam_cmd_iface) == JSON){           // JSON mode
-            strcat(msg, "\n");
+            //strcat(msg, "\n"); //TODO this is buffer overflow
             return oam_cmd_recv_reply(oam_cmd_iface, msg);
         } else {                                               // DUMP mode
-            strcat(reply_str, "\n\t");
-            strcat(reply_str, rr_str);
-            strcat(reply_str, "\n");
+            if (rr_str[0]) {
+                strcat(reply_str, "\n\t");
+                strcat(reply_str, rr_str);
+                strcat(reply_str, "\n");
+            }
             if(jos)
                 strcat(reply_str, obj_str);
             //TODO print reply to session->cmd_w

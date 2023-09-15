@@ -67,10 +67,19 @@ struct SequenceRecovery {
 // currently the only state of the session is the seq recovery
 static struct HashMap *oam_seq_recoveries = NULL; // session_id -> struct SequenceRecovery
 
+static int oam_rcvy_del_cb(const char *key, void *value, void *userdata)
+{
+    (void)userdata;
+    struct SequenceRecovery *rec = value;
+    free((char*)key);
+    delete_seq_rec(rec);
+    return 1;
+}
+
 struct SequenceRecovery *get_oam_rcvy(char *key)
 {
     if (oam_seq_recoveries == NULL)
-        oam_seq_recoveries = new_hashmap(51, NULL, NULL);
+        oam_seq_recoveries = new_hashmap(5, oam_rcvy_del_cb, NULL);
     struct SequenceRecovery *rec = hashmap_find(oam_seq_recoveries, key);
     if (rec == NULL) {
         rec = new_seq_rec(RCVY_Match, false, false, 0, OAM_RCVY_RESET_MS, 0, 0, 0, key);
@@ -79,13 +88,9 @@ struct SequenceRecovery *get_oam_rcvy(char *key)
     return rec;
 }
 
-void delete_oam_rcvy(char *key)
+static void delete_oam_rcvy(const char *key)
 {
-    struct SequenceRecovery *rec = hashmap_find(oam_seq_recoveries, key);
-    if (rec) {
-        hashmap_remove(oam_seq_recoveries, key);
-        delete_seq_rec(rec);
-    }
+    hashmap_remove(oam_seq_recoveries, key);
 }
 
 static void *reset_thread(void *arg);

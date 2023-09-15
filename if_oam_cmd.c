@@ -86,7 +86,7 @@ FILE *oam_get_cmd_w(struct Interface *iface)
     return oid->oam_cmd_w;
 }
 
-int oam_cmd_recv_reply(struct Interface *iface, char *msg){
+int oam_cmd_recv_reply(struct Interface *iface, const char *msg){
     struct OamCmdIfData *oid = iface->iface_private;
     int oam_cmd_fd = oid->oam_cmd_fd;
     if(oam_cmd_fd != -1){
