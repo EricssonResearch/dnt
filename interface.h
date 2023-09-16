@@ -71,6 +71,8 @@ struct Interface {
     iface_close *close_; // private TODO mark all private members
     iface_get_property_reader *get_property_reader;
     void *iface_private;
+    int dropstat_cntr;
+    int dropstat_last_warn;
 
     struct ParseTree *parsetree;
 };

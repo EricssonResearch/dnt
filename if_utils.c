@@ -22,6 +22,10 @@
 #include <ifaddrs.h>
 #include <netdb.h> /* getnameinfo() */
 #include <linux/errqueue.h>
+#include <linux/if_packet.h> /* PACKET_STATISTICS */
+
+#define PKT_DROP_WARNING_THRESHOLD 10
+#define PKT_DROP_WARNING_INTERVAL_SEC 5
 
 // copied from the code of the other TSN project
 void enable_rx_tstamp(int sock, const char *sockname,
@@ -144,6 +148,27 @@ struct Packet *iface_common_recv(struct Interface *iface, msghdr_process_cb *msg
     return p;
 }
 
+static void dropstat(struct Interface *iface, int socket)
+{
+    if (iface->dropstat_cntr > 5000) {
+        struct tpacket_stats stats;
+        unsigned optlen = sizeof(stats);
+        if (getsockopt(socket, SOL_PACKET, PACKET_STATISTICS, &stats, &optlen) < 0) {
+            fprintf(stderr, "eth %s send: can't get packet statistics\n", iface->name);
+        } else {
+            if (stats.tp_drops >= PKT_DROP_WARNING_THRESHOLD) {
+                struct timespec now;
+                clock_gettime(CLOCK_REALTIME, &now);
+                if (now.tv_sec - iface->dropstat_last_warn >= PKT_DROP_WARNING_INTERVAL_SEC) {
+                    fprintf(stderr, "eth %s send: drop count %d\n", iface->name, stats.tp_drops); //TODO log_warn()?
+                    iface->dropstat_last_warn = now.tv_sec;
+                }
+            }
+        }
+        iface->dropstat_cntr = 0;
+    }
+}
+
 bool iface_common_send(struct Interface *iface, struct Packet *p, int socket, void *dst, unsigned dstlen)
 {
     if (iface->state != IFS_OPEN) {
@@ -174,6 +199,8 @@ bool iface_common_send(struct Interface *iface, struct Packet *p, int socket, vo
         perror("sendmsg");
         return false;
     }
+
+    dropstat(iface, socket);
 
     return true;
 }
