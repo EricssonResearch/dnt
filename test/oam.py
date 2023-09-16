@@ -9,6 +9,7 @@ from utils import *
 import regex as re
 import time
 import json
+import sys
 
 
 def create_net():
@@ -114,13 +115,15 @@ def reply_printer(sock: SocketType):
     finally:
         print("End")
 
-def start_r2dtwos(net):
+def start_r2dtwos(net, debug):
     # start R2DTWOs
     for n in ['n1', 'n2', 'n3', 'n4']:
         node = net.get(n)
-        node.popen(f"../r2dtwo oam/singlestage/{n}.cfg")
-        # For debug! Spawns 4 r2dtwo windows in gdb
-        # node.popen(f"xterm -T {n} -e gdb --args ../r2dtwo oam/singlestage/{n}.cfg")
+        if debug:
+            # For debug! Spawns 4 r2dtwo windows in gdb
+            node.popen(f"xterm -T {n} -e gdb --args ../r2dtwo oam/singlestage/{n}.cfg")
+        else:
+            node.popen(f"../r2dtwo oam/singlestage/{n}.cfg")
 
 # list of (sender, message, [expected JSON replies])
 # The sender 'node' sending 'message' from telnet and expect the list of replies
@@ -241,12 +244,20 @@ def run_tests(net, test):
 
 def main():
     try:
-        print("R2DTWO OAM test")
+        debug = False
+        if len(sys.argv) >= 2 and sys.argv[1] == "debug":
+            debug = True
+        if debug:
+            print("R2DTWO OAM debug")
+        else:
+            print("R2DTWO OAM test")
         net = create_net()
         config_net(net)
-        start_r2dtwos(net)
-        # CLI(net)
-        run_tests(net, testcases)
+        start_r2dtwos(net, debug)
+        if debug:
+            CLI(net)
+        else:
+            run_tests(net, testcases)
     finally:
         print("Cleanup...")
         exec_fg("killall r2dtwo")
