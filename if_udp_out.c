@@ -118,6 +118,8 @@ static bool udpout_open(struct Interface *iface)
 
     uid->errq_monitor = monitor_error_queue(sock, uid->family, iface->name);
 
+    iface->dropstat_cntr = 0;
+    iface->dropstat_last_warn = 0;
     iface->state = IFS_OPEN;
     return true;
 }

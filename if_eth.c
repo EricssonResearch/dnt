@@ -231,6 +231,8 @@ static bool eth_open(struct Interface *iface)
     }
 
     iface->recvfd = eid->sockfd[0];
+    iface->dropstat_cntr = 0;
+    iface->dropstat_last_warn = 0;
     iface->state = IFS_OPEN;
     return true;
 }

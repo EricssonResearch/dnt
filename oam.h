@@ -29,6 +29,5 @@ void oam_set_pipeline_for_mep_start(const char *stream_name, struct Pipeline *pi
 
 bool set_oam_cmd_if(struct Interface *iface);
 void add_oam_if(struct Interface *iface);
-unsigned short get_oam_nodeid(void);
 
 #endif // R2_OAM_H

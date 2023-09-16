@@ -173,6 +173,8 @@ static bool ip_open(struct Interface *iface)
 
     iid->sock4 = sock4;
     iid->sock6 = sock6;
+    iface->dropstat_cntr = 0;
+    iface->dropstat_last_warn = 0;
     iface->state = IFS_OPEN;
 
     return true;

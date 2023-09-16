@@ -27,19 +27,19 @@ struct OamIfData {
     unsigned short uid; // unique id of this iface
 };
 
-const char *oam_get_ip(const struct Interface *iface)
+const char *oamif_get_ip(const struct Interface *iface)
 {
     struct OamIfData *oid = iface->iface_private;
     return oid->oam_ip_str;
 }
 
-unsigned oam_get_port(const struct Interface *iface)
+unsigned oamif_get_port(const struct Interface *iface)
 {
     struct OamIfData *oid = iface->iface_private;
     return oid->port;
 }
 
-unsigned short oam_get_uid(const struct Interface *iface)
+unsigned short oamif_get_uid(const struct Interface *iface)
 {
     struct OamIfData *oid = iface->iface_private;
     return oid->uid;

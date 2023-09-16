@@ -161,11 +161,6 @@ static int alloc_session_id(const char *stream_name, struct oam_request *req, FI
     }
 }
 
-unsigned short get_oam_nodeid(void)
-{
-    return oam_get_uid(oam_default_iface);
-}
-
 int oam_create_mep_start(const char *stream_name, const char *mep_name, int level, unsigned idx)
 {
     if (mep_starts == NULL) {
@@ -243,7 +238,7 @@ static int add_fixed_headers(struct Packet *packet, unsigned char ttl,
 
 static int oam_send_request(struct oam_request *req){
     struct Packet *packet = new_packet(NULL);
-    unsigned short node_id = oam_get_uid(req->iface);
+    unsigned short node_id = oamif_get_uid(req->iface);
 
     add_fixed_headers(packet, req->ttl, req->seq, OAM_CHANNEL,
             node_id, req->level, req->session_id);
@@ -378,8 +373,8 @@ static int oam_ping(struct oam_request *ping_req)
     }
 
     if(ping_req->return_ip == NULL){    // in case of rping this is not NULL
-        ping_req->return_ip = oam_get_ip(ping_req->iface);
-        ping_req->return_port = oam_get_port(ping_req->iface);
+        ping_req->return_ip = oamif_get_ip(ping_req->iface);
+        ping_req->return_port = oamif_get_port(ping_req->iface);
     }
 
     ping_req->session_id = session_id;
@@ -387,11 +382,11 @@ static int oam_ping(struct oam_request *ping_req)
 
     log_info(OAM, "OAM packet %s session %u seq %u, %s -> %s, level %d, count %d interval %d, rr: %s os: %s\t[reply to ip: %s, port: %u]",
             ping_req->type, ping_req->session_id, ping_req->seq, ping_req->mep_start, ping_req->mep_stop, ping_req->level, ping_req->count, ping_req->interval_ms,
-            ping_req->rr?"yes":"no", ping_req->os?"yes":"no", oam_get_ip(ping_req->iface), oam_get_port(ping_req->iface));
+            ping_req->rr?"yes":"no", ping_req->os?"yes":"no", oamif_get_ip(ping_req->iface), oamif_get_port(ping_req->iface));
 
     fprintf(cmd_w, "OAM packet %s session %u seq %u, %s -> %s, level %d, count %d interval %d, rr: %s os: %s\t[reply to ip: %s, port: %u]\n",
             ping_req->type, ping_req->session_id, ping_req->seq, ping_req->mep_start, ping_req->mep_stop, ping_req->level, ping_req->count, ping_req->interval_ms,
-            ping_req->rr?"yes":"no", ping_req->os?"yes":"no", oam_get_ip(ping_req->iface), oam_get_port(ping_req->iface));
+            ping_req->rr?"yes":"no", ping_req->os?"yes":"no", oamif_get_ip(ping_req->iface), oamif_get_port(ping_req->iface));
 
     if(ping_req->count == 1){
           return oam_send_request(ping_req);
@@ -749,12 +744,12 @@ int oam_command_loop(struct Interface *iface)
             else if (strcmp(oam_command, "returns") == 0) {
                 fprintf(cmd_w, "Available OAM return interfaces:\n");
                 for (int i=0; i<nr_oam_ifaces; i++) {
-                    const char *return_ip = oam_get_ip(oam_ifaces[i]);
-                    unsigned return_port = oam_get_port(oam_ifaces[i]);
+                    const char *return_ip = oamif_get_ip(oam_ifaces[i]);
+                    unsigned return_port = oamif_get_port(oam_ifaces[i]);
                     fprintf(cmd_w, "%s ip %s port %u",
                             oam_ifaces[i]->name, return_ip, return_port);
                     if (oam_ifaces[i] == oam_default_iface) {
-                        unsigned short node_id = oam_get_uid(oam_ifaces[i]);
+                        unsigned short node_id = oamif_get_uid(oam_ifaces[i]);
                         fprintf(cmd_w, " (default, node id %u)\n", node_id);
                     } else {
                         fprintf(cmd_w, "\n");
