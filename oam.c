@@ -653,6 +653,64 @@ static int close_sessions_cb(const char *key, void *value, void *userdata)
     return 1;
 }
 
+#define TELNET_IAC         0xff /* Interpret As Command */
+#define TELNET_INTERRUPT   0xf4 /* interrupt process */
+#define TELNET_WILL        0xfb
+#define TELNET_WONT        0xfc
+#define TELNET_DO          0xfd
+#define TELNET_DONT        0xfe
+#define TELNET_TIMING_MARK    6 /* see RFC 860 */
+static void handle_telnet_command(unsigned char *oam_command, int *n, FILE *cmd_w)
+{
+    int k = 0;
+    bool stop = false;
+
+    while (oam_command[k] == TELNET_IAC) {
+        if (*n > k+1) {
+            if (oam_command[k+1] == TELNET_INTERRUPT) {
+                stop = true;
+                k += 2;
+            } else if (oam_command[k+1] == TELNET_DO) {
+                if (*n > k+2) {
+                    if (oam_command[k+2] == TELNET_TIMING_MARK) {
+                        // we must reply with this or the telnet client gets stuck (see RFC 860)
+                        char reply[] = {TELNET_IAC, TELNET_WILL, TELNET_TIMING_MARK, 0};
+                        fprintf(cmd_w, reply);
+                        k += 3;
+                    } else {
+                        fprintf(stderr, "unhandled telnet DO command %d\n", oam_command[k+2]);
+                        k += 3;
+                    }
+                } else {
+                    fprintf(stderr, "incomplete 2 byte telnet DO command %d received\n", oam_command[k+2]);
+                    k += 2;
+                }
+            } else {
+                fprintf(stderr, "unhandled telnet command %d\n", oam_command[k+1]);
+                k += 2; //TODO we don't know how long this command is
+            }
+        } else {
+            fprintf(stderr, "incomplete 1 byte telnet command received\n");
+            k += 1;
+        }
+        if (k >= *n) break;
+    }
+
+    // remove the processed commands by moving everything forward
+    if (k > 0) {
+        memmove(oam_command, oam_command+k, *n-k+1); // include the closing 0
+        *n -= k;
+    }
+
+    // interpret the interrupt command (ctrl+C) as "stop"
+    if (stop) {
+        memmove(oam_command+4, oam_command, *n+1); // include the closing 0
+        const char *stop_s = "stop";
+        memcpy(oam_command, stop_s, 4);
+        *n += 4;
+    }
+}
+
 int oam_command_loop(struct Interface *iface)
 {
 #define ERROR(msg, ...)                             \
@@ -679,6 +737,12 @@ int oam_command_loop(struct Interface *iface)
         int n = read(cmd_fd, oam_command, sizeof(oam_command)-1);
         if (n > 0) {
             oam_command[n] = 0;
+
+            if ((unsigned char)(oam_command[0]) == TELNET_IAC) {
+                handle_telnet_command((unsigned char*)oam_command, &n, cmd_w);
+                if (n == 0) continue;
+            }
+
             // cut off "\r\n"
             while (n > 0 && iscntrl(oam_command[n-1])) oam_command[--n] = 0;
             //printf("oam command '%s' length %d\n", oam_command, n);
@@ -726,7 +790,7 @@ int oam_command_loop(struct Interface *iface)
             else if (strncmp(oam_command, "sessions", 8) == 0) {
                 struct ListParams params = {cmd_w};
                 k=sscanf(oam_command, "sessions %s%n", streamname, &l);
-                if(k==-1){
+                if(k==0 || k==EOF){
                     fprintf(cmd_w, "Sessions:\n");
                     if (!hashmap_foreach(session_ids, list_session_cb, &params))
                         fprintf(stderr, "failed to get session.\n");
@@ -746,7 +810,7 @@ int oam_command_loop(struct Interface *iface)
             else if (strncmp(oam_command, "stop", 4) == 0) {
                 int session;
                 k=sscanf(oam_command, "stop %s %d", streamname, &session);
-                if(k==-1){ //TODO why? according to the docs sscanf never returns a negative number
+                if(k==0 || k==EOF){
                     if(last_stream == NULL)
                         fprintf(cmd_w,"No previous command to stop.\n");
                     else
