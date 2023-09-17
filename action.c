@@ -15,7 +15,6 @@
 #include "seq_recov.h"
 #include "utils.h"
 #include "pof.h"
-#include "json.h"
 #include "log.h"
 
 #include <stdlib.h>
@@ -587,217 +586,35 @@ void create_action_writetstamp(struct Action *a, const struct HeaderField *tsfie
 
 /////////////////////////////////////////////////////////////////////
 
-struct OamData {
-    struct ConfObject *target; // PRF, PEF, POF, etc.
-    char *name;
-    int level;
-};
-
-static enum ActionResult handle_OAM_packet(struct Packet *p, struct OamData *oam, bool is_mep_stop)
+static enum ActionResult action_MEP_execute(struct Action *a, struct PipelineIterator *pi)
 {
-    // note: we made sure that at this point of the pipeline the packet starts with mpls+dcw
-
-    for (unsigned i=1; i<p->header_count-1; i++) {
-        if (p->headers[i+1].start != p->headers[i].start + p->headers[i].len) {
-            fprintf(stderr, "OAM packet is not continuous in memory at header %u type %s\n",
-                    i, protocol_type_from_id(p->headers[i].type));
-            return ACR_DONE;
-        }
-    }
-
-    // let's reinterpret the header structure
-    p->headers[1].type = PROTO_ID_OAM;
-    p->headers[1].len = 8;
-    p->headers[2].type = PROTO_ID_PAYLOAD;
-    p->headers[2].start = p->headers[1].start + 8;
-    p->headers[2].len = p->len - 4 - 8;
-    p->header_count = 3;
-
+    struct Packet *p = pi->packet;
+    struct OamEndPoint *oam  = a->action_private;
     unsigned char *oam_hdr = p->buf + p->headers[1].start;
-    unsigned char seq = oam_hdr[1];
-    //unsigned short channel = (oam_hdr[2]<<8)+oam_hdr[3];
-    unsigned short nodeid = (oam_hdr[4]<<8)+oam_hdr[5];
-    unsigned char level = oam_hdr[6] >> 1;
-    unsigned char session = oam_hdr[7] & 0x0f;
-    char *msg = (char *)(p->buf + p->headers[2].start);
-    int port=6634;
-    char *reply_address=NULL;
 
-    //log_packet(OAM, "packet (%s) at [%s level %d], ttl %d nib_ver %x sequence %x channel %x node %x level %x session %x\njson: %s",
-    //        protocol_type_from_id(p->headers[1].type), oam->name, oam->level, p->ttl, oam_hdr[0], seq, channel, nodeid, level, session, msg);
-
-    struct JsonValue *j = json_parse(msg, strlen(msg));
-    if(j==NULL || j->type != JSON_OBJECT){
-        fprintf(stderr, "Invalid JSON string in incoming OAM packet\n");
-        return ACR_DONE;
-    }
-
-    // if record route, add this hop
-    struct JsonValue *jrr = json_object_get_array(j, "rr");
-    if(jrr!=NULL){
-        json_array_unshift(jrr, json_string(oam->name));
-
-        unsigned js_length;
-        char *js_string = json_serialize(j, &js_length);
-        if (js_string == NULL) {
-            fprintf(stderr, "could not add entry to route record\n");
-            return ACR_DONE;            //  DROP packet
-        }
-        memcpy(msg, js_string, js_length);
-        free(js_string);
-        p->len += js_length - p->headers[2].len;
-        p->headers[2].len = js_length;
-    }
-
-    // MIP message handling logic
-    if(level < oam->level){
-        fprintf(stderr, "MIP %s level %d Warning: dropping lower level (level %d) OAM packet.\n",
-                oam->name, oam->level, level);
-        return ACR_DONE;            // if lower level, DROP packet
-    }
-    if(level > oam->level)
-        return ACR_CONTINUE;        // if higher level, forward packet
-
-    struct JsonValue *target = json_object_get_string(j, "target");
-    if (target == NULL) {
-        json_delete(j);
-        return ACR_DONE;
-    }
-
-    // continue and send response if ttl=0 or target is us or target is "any"
-    if( (p->ttl != 0) && (strcmp(target->v.string, oam->name)!=0) && (strcmp(target->v.string, "any")!=0)){
-        log_warn(OAM, "dropped, %s != %s", target->v.string, oam->name);
-        json_delete(j);
+    if(oam_hdr[0] == 0x11)
+        return oam_recv_request(oam, p) ? ACR_CONTINUE : ACR_DONE;
+    else
         return ACR_CONTINUE;
-    }
-
-    // it's for us
-    struct JsonValue *jret = json_object_get_object(j, "return");
-    if(jret==NULL)
-        fprintf(stderr, "OAM packet has no return address\n");
-    struct JsonValue *val = json_object_get_number(jret, "port");
-    if(val!=NULL)
-        port=val->v.number;
-    else
-        return ACR_DONE;
-    val = json_object_get_string(jret, "ip");
-    if(val!=NULL)
-        reply_address = strdup(val->v.string);
-    else
-        return ACR_DONE;
-
-    const char *req_type = "response";
-
-    // check for rping
-    jret = json_object_get_string(j, "request");
-    if(jret==NULL)
-        fprintf(stderr, "OAM packet has no request type\n");
-    if(strcmp(jret->v.string, "rping") == 0){
-        struct JsonValue *cmd = json_object_get_string(j, "command");
-
-        // CLI vagy CFG???
-        if(oam_start_ping(cmd->v.string, reply_address, port, OAM_CLI, stderr) == 0){
-            free(reply_address);
-            json_delete(j);
-            return ACR_DONE;            // drop rping reqest packet
-        } else {
-            req_type = "error";
-        }
-    }
-    // if object state is requested
-    struct JsonValue *jos = json_object_get_any(j, "objects");
-    if(jos!=NULL){
-        struct JsonValue *objinfo = NULL;
-        if (oam->target && oam->target->print_state) {
-            objinfo = oam->target->print_state(oam->target->object);
-            json_object_insert(objinfo, "name", json_string(oam->target->name));
-            json_object_insert(j, "objects", objinfo);
-        }
-    }
-
-    json_object_remove(j, "return");
-    json_object_remove(j, "req_type");
-    json_object_insert(j, "req_type", json_string(req_type));
-    json_object_insert(j, "sequence", json_number(seq));
-    json_object_insert(j, "nodeid", json_number(nodeid));
-    json_object_insert(j, "node", json_string(oam->name));
-    json_object_insert(j, "session", json_number(session));
-    struct JsonValue *stream = json_object_get_string(j, "stream");
-    if(stream==NULL)
-        fprintf(stderr, "OAM packet has no stream\n");
-    // we know that header 0 contains the label in the first 20 bit
-    uint32_t *label = (uint32_t *) (p->buf + p->headers[0].start);
-    json_object_insert(j, "label", json_number((ntohl(*label) >> 12) & 0xFFFFF));
-
-    // add receive timestamp
-    json_object_insert(j, "recv_s", json_number(p->recv_time.tv_sec));
-    json_object_insert(j, "recv_ns", json_number(p->recv_time.tv_nsec));
-
-    unsigned msg_len=0;
-    char *j_msg = json_serialize(j, &msg_len);
-
-    log_packet(OAM, "%s:%d seq %d lvl %d T (to %s %d) - %s", stream->v.string, session, seq, level,
-            reply_address, port, j_msg);
-
-    oam_send_reply(reply_address, port, j_msg, msg_len);
-    free(reply_address);
-    free(j_msg);
-
-    if( is_mep_stop || (strcmp(target->v.string, oam->name)==0) ) {
-        json_delete(j);
-        return ACR_DONE;            // drop if mep_stop, or we were the target. If ttl expires, it will be droppd by the TTL checker
-    }
-    json_delete(j);
-    return ACR_CONTINUE;
 }
 
-static enum ActionResult action_MEPSTOP_execute(struct Action *a, struct PipelineIterator *pi)
-{
-  struct Packet *p = pi->packet;
-  struct OamData *oam  = a->action_private;
-  unsigned char *oam_hdr = p->buf + p->headers[1].start;
-
-  if(oam_hdr[0] == 0x11)
-      return handle_OAM_packet(p, oam, true);
-  else
-      return ACR_CONTINUE;
-}
+#define action_MEPSTOP_execute action_MEP_execute
+#define action_MIP_execute     action_MEP_execute
 
 void create_action_mepstop(struct Action *a, int level, struct ConfObject *target, const char *name, const char *text)
 {
     INIT_ACTION(MEPSTOP);
 
-    struct OamData *oam = calloc_struct(OamData);
-    oam->target = target;
-    oam->name = strdup(name);
-    oam->level = level;
-
-    a->action_private = oam;
-}
-
-static enum ActionResult action_MIP_execute(struct Action *a, struct PipelineIterator *pi)
-{
-    struct Packet *p = pi->packet;
-    struct OamData *oam  = a->action_private;
-    unsigned char *oam_hdr = p->buf + p->headers[1].start;
-
-    if(oam_hdr[0] == 0x11)
-        return handle_OAM_packet(p, oam, false);
-    else
-        return ACR_CONTINUE;
+    a->action_private = oam_create_endpoint(name, level, target, true);
 }
 
 void create_action_mip(struct Action *a, int level, struct ConfObject *target, const char *name, const char *text)
 {
     INIT_ACTION(MIP);
 
-    struct OamData *oam = calloc_struct(OamData);
-    oam->target = target;
-    oam->name = strdup(name);
-    oam->level = level;
-
-    a->action_private = oam;
+    a->action_private = oam_create_endpoint(name, level, target, false);
 }
+
 /////////////////////////////////////////////////////////////////////
 
 struct Action *delete_action(struct Action *a)

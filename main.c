@@ -170,7 +170,7 @@ int main(int argc, char **argv)
       if (*c == '.') end = c;
     }
     char *confname = end ? strndup(start, end-start) : strdup(start);
-    sprintf(log_filename, "r2dtwo-log-%u-%s.log", pid, confname);
+    sprintf(log_filename, "r2dtwo-%u-%s.log", pid, confname);
     if(!init_log(0x0FF, LOG_ALL, log_filename)) {
       printf("Log init failed\n");
       return -1;
@@ -216,7 +216,7 @@ int main(int argc, char **argv)
     recv_loop(config->ifaces, config->ifcount);
     printf("receive loop ended\n");
 
-    close_oam();
+    finish_oam();
 
     fini_delay();
 

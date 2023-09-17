@@ -240,6 +240,7 @@ static bool oam_cmd_open(struct Interface *iface)
         addr6.sin6_port = htons(oid->port);
         if (bind(sock, (struct sockaddr*)&addr6, sizeof(addr6)) < 0) {
             perror("oam bind sock6");
+            close(sock);
             return false;
         }
     } else {
@@ -250,13 +251,15 @@ static bool oam_cmd_open(struct Interface *iface)
         addr.sin_port = htons(oid->port);
         if (bind(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
             perror("oam bind sock");
+            close(sock);
             return false;
         }
     }
 
     if (listen(sock, BACKLOG) == -1) {
         perror("oam cmd listen");
-        exit(1);
+        close(sock);
+        return false;
     }
 
     iface->recvfd = sock;
@@ -264,6 +267,7 @@ static bool oam_cmd_open(struct Interface *iface)
         iface->state = IFS_OPEN;
         return true;
     } else {
+        close(sock);
         return false;
     }
 }
