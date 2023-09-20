@@ -20,16 +20,12 @@
 
 struct SequenceRecovery {
     enum SequenceRecoveryAlgorithm algorithm;
+    struct RecoveryDiagnosticConf diag;
     bool use_reset_flag;
     bool use_init_flag;
     bool individual_recovery;
     int history_length;
     unsigned reset_msec;
-    unsigned latent_error_paths;
-    int latent_error_period;
-    int latent_reset_period;
-    int latent_error_difference;
-    int outage_threshold;
 
     unsigned recv_seq;
     unsigned init_recv_seq;
@@ -61,6 +57,7 @@ struct SequenceRecovery {
 
     pthread_t reset_thread;
     char *session_id; // for OAM only
+    char *id; // stream_name:rcvy_name
 };
 
 // TODO: make struct OamSession if more per-session info needed for MEP/MIP.
@@ -82,7 +79,7 @@ struct SequenceRecovery *get_oam_rcvy(char *key)
         oam_seq_recoveries = new_hashmap(5, oam_rcvy_del_cb, NULL);
     struct SequenceRecovery *rec = hashmap_find(oam_seq_recoveries, key);
     if (rec == NULL) {
-        rec = new_seq_rec(RCVY_Match, false, false, 0, OAM_RCVY_RESET_MS, 0, 0, 0, key);
+        rec = new_seq_rec(RCVY_Match, false, false, 0, OAM_RCVY_RESET_MS, NULL, key);
         hashmap_insert(oam_seq_recoveries, key, rec);
     }
     return rec;
@@ -101,8 +98,8 @@ static void reset_ticks(struct SequenceRecovery *rec)
 }
 
 struct SequenceRecovery *new_seq_rec(enum SequenceRecoveryAlgorithm algo, bool use_reset_flag, bool use_init_flag,
-        unsigned history_length, unsigned reset_msec, unsigned latent_error_paths,
-        unsigned latent_error_period, unsigned latent_error_diff, const char *session_id)
+        unsigned history_length, unsigned reset_msec,
+        const struct RecoveryDiagnosticConf *diag, const char *session_id)
 {
     struct SequenceRecovery *ret = calloc_struct(SequenceRecovery);
 
@@ -111,9 +108,9 @@ struct SequenceRecovery *new_seq_rec(enum SequenceRecoveryAlgorithm algo, bool u
     ret->use_init_flag = use_init_flag;
     ret->history_length = history_length;
     ret->reset_msec = reset_msec;
-    ret->latent_error_paths = latent_error_paths;
-    ret->latent_error_period = latent_error_period;
-    ret->latent_error_difference = latent_error_diff;
+    if (diag) {
+        ret->diag = *diag;
+    }
     ret->history = calloc(history_length, sizeof(char)); //TODO not if algo==Match
     ret->init_history = calloc(history_length, sizeof(char)); //TODO we only need this when algo==Seamless
     ret->take_any = true;
@@ -131,6 +128,8 @@ struct SequenceRecovery *delete_seq_rec(struct SequenceRecovery *rec)
     pthread_join(rec->reset_thread, NULL);
     free(rec->history);
     free(rec->init_history);
+    free(rec->id);
+    free(rec->session_id);
     free(rec);
     return NULL;
 }
@@ -343,42 +342,43 @@ static void seq_recovery_reset(struct SequenceRecovery *rec)
 
 static void recovery_diagnostic(struct SequenceRecovery *rec)
 {
+    const struct RecoveryDiagnosticConf *diag = &rec->diag;
     int diff, discarded_diff, passed_diff;
     int disfunctioning_paths;
     if (rec->take_any)
         return;
     discarded_diff = rec->discarded_packets - rec->discarded_packets_last;
     passed_diff = rec->passed_packets - rec->passed_packets_last;
-    diff = discarded_diff - ((rec->latent_error_paths - 1) * passed_diff);
+    diff = discarded_diff - ((diag->latent_error_paths - 1) * passed_diff);
     /* fprintf(stderr, "passed: %d\tdiscarded: %d\tpdiff: %d\tddiff: %d\n", rec->passed_packets, rec->discarded_packets, passed_diff, discarded_diff); */
-    if (diff > -rec->latent_error_difference && diff < rec->latent_error_difference) {
+    if (diff > -diag->latent_error_difference && diff < diag->latent_error_difference) {
         goto update;
-    } else if (diff >= rec->latent_error_difference) {
-        int more_percent = (discarded_diff * 100) / ((rec->latent_error_paths - 1) * passed_diff);
+    } else if (diff >= diag->latent_error_difference) {
+        int more_percent = (discarded_diff * 100) / ((diag->latent_error_paths - 1) * passed_diff);
         fprintf(stderr, "[diagnostic]: MORE_PACKETS_THAN_EXPECTED with %d percent\n", more_percent);
         goto update;
     }
-    unsigned int working_ceil = (discarded_diff + rec->latent_error_difference - 1) / passed_diff;
-    unsigned int working_floor = (discarded_diff - rec->latent_error_difference) / passed_diff;
+    unsigned int working_ceil = (discarded_diff + diag->latent_error_difference - 1) / passed_diff;
+    unsigned int working_floor = (discarded_diff - diag->latent_error_difference) / passed_diff;
     /* fprintf(stderr, "diff: %d\twork_pceil: %d\twork_pfloor: %d\n", diff, working_ceil, working_floor); */
-    if (discarded_diff < rec->latent_error_difference) {
-        disfunctioning_paths = rec->latent_error_paths - 1;
+    if (discarded_diff < diag->latent_error_difference) {
+        disfunctioning_paths = diag->latent_error_paths - 1;
         fprintf(stderr, "[diagnostic]: DISFUNCTIONING_PATHS: %d path(s)\n", disfunctioning_paths);
     } else if (working_ceil == working_floor) {
-        disfunctioning_paths = rec->latent_error_paths - 2 - working_ceil;
+        disfunctioning_paths = diag->latent_error_paths - 2 - working_ceil;
         if (disfunctioning_paths > 0)
             fprintf(stderr, "[diagnostic]: DISFUNCTIONING_PATHS: %d path(s) and PACKET_ABSENT\n", disfunctioning_paths);
         else
             fprintf(stderr, "[diagnostic]: PACKET_ABSENT\n");
     } else {
-        disfunctioning_paths = rec->latent_error_paths - 1 - working_ceil;
+        disfunctioning_paths = diag->latent_error_paths - 1 - working_ceil;
         fprintf(stderr, "[diagnostic]: DISFUNCTIONING_PATHS: %d path(s)\n", disfunctioning_paths);
     }
     if (rec->rogue_packets != rec->rogue_packets_last) {
         fprintf(stderr, "[diagnostic]: OUTOFWINDOW_PACKETS: %d\n", rec->rogue_packets);
         rec->rogue_packets_last = rec->rogue_packets;
     }
-    if (rec->consecutive_loss_max > rec->outage_threshold) {
+    if (rec->consecutive_loss_max > diag->outage_threshold) {
         fprintf(stderr, "[diagnostic]: PACKET_LOSS: %d consecutive packets and %d aggregate lost\n", rec->consecutive_loss_max, rec->lost_packets);
         rec->consecutive_loss_max = 0;
     }
@@ -389,11 +389,11 @@ update:
 
 static void latent_error_test(struct SequenceRecovery *rec)
 {
-    int diff = rec->cur_base_difference - (rec->passed_packets * (rec->latent_error_paths - 1)) - rec->discarded_packets;
-    if (rec->latent_error_paths > 1 && rec->latent_error_period > 0) {
+    int diff = rec->cur_base_difference - (rec->passed_packets * (rec->diag.latent_error_paths - 1)) - rec->discarded_packets;
+    if (rec->diag.latent_error_paths > 1 && rec->diag.latent_error_period > 0) {
         if (diff < 0)
             diff = -diff;
-        if (diff > rec->latent_error_difference) {
+        if (diff > rec->diag.latent_error_difference) {
             printf("Latent Error Signal\n");
             rec->latent_errors += 1;
         }
@@ -403,7 +403,7 @@ static void latent_error_test(struct SequenceRecovery *rec)
 
 static void latent_error_reset(struct SequenceRecovery *rec)
 {
-    rec->cur_base_difference = (rec->passed_packets * (rec->latent_error_paths - 1)) - rec->discarded_packets;
+    rec->cur_base_difference = (rec->passed_packets * (rec->diag.latent_error_paths - 1)) - rec->discarded_packets;
     rec->latent_error_resets += 1;
     rec->skip_loss_after_reset_guard = rec->history_length - 1;
 }
@@ -411,12 +411,12 @@ static void latent_error_reset(struct SequenceRecovery *rec)
 static void decrement_ticks(struct SequenceRecovery *rec)
 {
     rec->latent_reset_counter += 1000 / FRER_TICKS_PER_SEC;
-    if (rec->latent_reset_counter >= rec->latent_reset_period) {
+    if (rec->latent_reset_counter >= rec->diag.latent_reset_period) {
         latent_error_reset(rec);
         rec->latent_reset_counter = 0;
     }
     rec->latent_error_counter += 1000 / FRER_TICKS_PER_SEC;
-    if (rec->latent_error_counter >= rec->latent_error_period) {
+    if (rec->latent_error_counter >= rec->diag.latent_error_period) {
         latent_error_test(rec);
         rec->latent_error_counter = 0;
     }
@@ -482,7 +482,7 @@ struct JsonValue *seqrec_get_state_json(const void *obj)
         json_object_insert(js, "history_length", json_number((double) rec->history_length));
         json_object_insert(js, "use_reset_flag", rec->use_reset_flag ? json_true() : json_false());
         json_object_insert(js, "use_init_flag", rec->use_init_flag ? json_true() : json_false());
-        json_object_insert(js, "latent_error_paths", json_number((double) rec->latent_error_paths));
+        json_object_insert(js, "latent_error_paths", json_number((double) rec->diag.latent_error_paths));
         json_object_insert(js, "latent_error_resets", json_number((double) rec->latent_error_resets));
         json_object_insert(js, "latent_errors", json_number((double) rec->latent_errors));
     }

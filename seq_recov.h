@@ -18,6 +18,25 @@
 struct SequenceRecovery;
 struct Packet;
 
+/*
+ * Helper structure to passing and storing diagnostic entity related parameters
+ * to the SequenceRecovery instance
+ *
+ * @latent_error_paths: expected healthy paths at normal operation
+ * @latent_error_period: periodicity of latent error testing in millisecs
+ * @latent_error_period: periodicity of reseting latent error related counters
+ * @latent_error_diff: only signal error, if passed and discarded packet counters
+ *  have larger difference than this value (to avoid false positives)
+ * @outage_threshold: how large gaps in sequence space determined as an outage
+ */
+struct RecoveryDiagnosticConf {
+    int latent_error_paths;
+    int latent_error_period;
+    int latent_reset_period;
+    int latent_error_difference;
+    int outage_threshold;
+};
+
 enum SequenceRecoveryAlgorithm {
     RCVY_Match = 1,
     RCVY_Vector,
@@ -31,15 +50,13 @@ enum SequenceRecoveryAlgorithm {
  * @use_init_flag: use init seq space after reset
  * @history_legth: seq history length
  * @reset_msec: reset after reset_msec millisec if no packet seen
- * @latent_error_paths: expected healthy paths at normal operation
- * @latent_error_period: periodicity of latent error testing in millisecs
  * @session_id: identifies the ah-hoc created instance for the OAM.
  *              note: must be NULL for non-OAM cases! The instance
- *              self-destruct after reset_msec millisec if session_id != NULL*/
+ *              self-destruct after reset_msec millisec if session_id != NULL
+ */
 struct SequenceRecovery *new_seq_rec(enum SequenceRecoveryAlgorithm algo,
-        bool use_reset_flag, bool use_init_flag,
-        unsigned history_length, unsigned reset_msec, unsigned latent_error_paths,
-        unsigned latent_error_period, unsigned latent_error_diff, const char *session_id);
+        bool use_reset_flag, bool use_init_flag, unsigned history_length,
+        unsigned reset_msec, const struct RecoveryDiagnosticConf *diag, const char *session_id);
 
 // always returns NULL
 struct SequenceRecovery *delete_seq_rec(struct SequenceRecovery *rec);

@@ -35,7 +35,9 @@ struct ObjectInfo {
             unsigned reset_msec;
             unsigned latent_error_paths;
             unsigned latent_error_period;
+            unsigned latent_reset_period;
             unsigned latent_error_diff;
+            unsigned outage_threshold;
             enum SequenceRecoveryAlgorithm algo;
         } rec;
         struct {
@@ -154,6 +156,13 @@ static bool token_cb(char *str, void *userdata)
                             THROW("invalid latent error period '%s'", val);
                         }
                         info->p.rec.latent_error_period = msec;
+                    } else if (strcmp(key, "frerSeqRcvyLatentResetPeriod") == 0) {
+                        unsigned msec;
+                        char err;
+                        if (sscanf(val, "%i%c", &msec, &err) != 1) {
+                            THROW("invalid latent error reset period '%s'", val);
+                        }
+                        info->p.rec.latent_reset_period = msec;
                     } else if (strcmp(key, "frerSeqRcvyLatentErrorDifference") == 0) {
                         unsigned pkts;
                         char err;
@@ -161,6 +170,13 @@ static bool token_cb(char *str, void *userdata)
                             THROW("invalid latent error period '%s'", val);
                         }
                         info->p.rec.latent_error_diff = pkts;
+                    } else if (strcmp(key, "frerSeqRcvyOutageThreshold") == 0) {
+                        unsigned pkts;
+                        char err;
+                        if (sscanf(val, "%i%c", &pkts, &err) != 1) {
+                            THROW("invalid outage threshold '%s'", val);
+                        }
+                        info->p.rec.outage_threshold = pkts;
                     } else if (strcmp(key, "frerSeqRcvyAlgorithm") == 0) {
                         if (strcmp(val, "Vector") == 0) {
                             info->p.rec.algo = RCVY_Vector;
@@ -250,16 +266,21 @@ static int object_cb(const char *key, void *value, void *userdata)
                     info.p.gen.init_seq);
             obj->print_state = seqgen_get_state_json;
             break;
-        case CO_SEQREC:
+        case CO_SEQREC: {
+            struct RecoveryDiagnosticConf diag;
+            diag.latent_error_paths = info.p.rec.latent_error_paths;
+            diag.latent_error_period = info.p.rec.latent_error_period;
+            diag.latent_reset_period = info.p.rec.latent_reset_period;
+            diag.latent_error_difference = info.p.rec.latent_error_diff;
+            diag.outage_threshold = info.p.rec.outage_threshold;
             obj->object = new_seq_rec(info.p.rec.algo,
                     info.p.rec.use_reset_flag,
                     info.p.rec.use_init_flag,
                     info.p.rec.history_length,
                     info.p.rec.reset_msec,
-                    info.p.rec.latent_error_paths,
-                    info.p.rec.latent_error_period,
-                    info.p.rec.latent_error_diff, NULL);
+                    &diag, NULL);
             obj->print_state = seqrec_get_state_json;
+        }
             break;
         case CO_POF:
             obj->object = new_pof(info.p.pof.max_delay,
