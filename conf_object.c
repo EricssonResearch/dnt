@@ -274,6 +274,7 @@ static int object_cb(const char *key, void *value, void *userdata)
             diag.latent_error_difference = info.p.rec.latent_error_diff;
             diag.outage_threshold = info.p.rec.outage_threshold;
             obj->object = new_seq_rec(info.p.rec.algo,
+                    obj->name,
                     info.p.rec.use_reset_flag,
                     info.p.rec.use_init_flag,
                     info.p.rec.history_length,
@@ -355,4 +356,3 @@ const char *confobject_name_from_type(enum ConfObjectType type)
     }
     return NULL;
 }
-

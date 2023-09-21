@@ -46,6 +46,7 @@ enum SequenceRecoveryAlgorithm {
 /*
  * Create a new Sequence Recovery instance
  * @algo: the algorithm for seq recovery: match, seamless, vector
+ * @name: name of the recovery obj
  * @use_reset_flag: react to explicit seq reset notification
  * @use_init_flag: use init seq space after reset
  * @history_legth: seq history length
@@ -54,7 +55,7 @@ enum SequenceRecoveryAlgorithm {
  *              note: must be NULL for non-OAM cases! The instance
  *              self-destruct after reset_msec millisec if session_id != NULL
  */
-struct SequenceRecovery *new_seq_rec(enum SequenceRecoveryAlgorithm algo,
+struct SequenceRecovery *new_seq_rec(enum SequenceRecoveryAlgorithm algo, const char *name,
         bool use_reset_flag, bool use_init_flag, unsigned history_length,
         unsigned reset_msec, const struct RecoveryDiagnosticConf *diag, const char *session_id);
 

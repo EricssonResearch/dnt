@@ -16,7 +16,8 @@ typedef enum {
     CONFIG,
     PIPELINE,
     INTERFACE,
-    OAM
+    OAM,
+    DIAGNOSTIC
 } LOGGING_MODULE;
 
 typedef enum {

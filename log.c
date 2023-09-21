@@ -37,6 +37,7 @@ static const char* log_module_strings[] = {
     "PIPELINE",
     "INTERFACE",
     "OAM",
+    "DIAGNOSTIC"
 };
 
 const char* colors[] = {
