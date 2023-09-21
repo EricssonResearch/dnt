@@ -25,10 +25,10 @@ static unsigned short log_module_mask = 0;
 static const char* log_level_strings[] = {
     "NONE",
     "[ERROR]",
-    "[DEBUG]",
     "[WARNING]",
     "[INFO]",
     "[PACKET]",
+    "[DEBUG]",
 };
 
 static const char* log_module_strings[] = {

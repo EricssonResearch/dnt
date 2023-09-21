@@ -23,10 +23,10 @@ typedef enum {
 typedef enum {
     LOG_NONE=0,
     LOG_ERROR,
-    LOG_DEBUG,
     LOG_WARNING,
     LOG_INFO,
     LOG_PACKET,
+    LOG_DEBUG,
     LOG_ALL
 } LOGGING_LEVELS;
 
