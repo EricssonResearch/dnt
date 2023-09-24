@@ -58,22 +58,25 @@ bool init_log(unsigned short module_mask, int level, char *log_filename)
         return false;
     }
     fprintf(stderr, "%sInfo:%s File '%s' opened for logging.\n", colors[LOG_INFO], colors[RESET], log_filename);
+    setbuf(logfile, NULL); // this is slower but more reliable
     log_module_mask = module_mask;
     log_level = level;
 
     return true;
 }
 
-void log_func(int level, LOGGING_MODULE module, const char *frmt, ...)
+void __log_func(int level, LOGGING_MODULE logmodule, const char *frmt, ...)
 {
     if(level > log_level) return;
-    if(((1<<module) & log_module_mask) == 0) return;
+    if(((1<<logmodule) & log_module_mask) == 0) return;
     //printf("log mod %x %x\n", (1<<module), ((1<<module) & log_module_mask));
     time_t now;
     time(&now);
-    char * date =ctime(&now);
-    date[strlen(date) - 1] = '\0';
-    fprintf(logfile,"%s [%s] %s ", date, log_module_strings[module], log_level_strings[level]);
+    struct tm now_tm;
+    localtime_r(&now, &now_tm);
+    char date[64];
+    strftime(date, sizeof(date), "%Y.%m.%d %H:%M:%S", &now_tm);
+    fprintf(logfile,"%s [%s] %s ", date, log_module_strings[logmodule], log_level_strings[level]);
 
     char *format = strdup_printf("%s\n", frmt);
     va_list argp;

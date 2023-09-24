@@ -20,6 +20,8 @@ typedef enum {
     DIAGNOSTIC
 } LOGGING_MODULE;
 
+#define LOG_ALL_MODULES 0xffff
+
 typedef enum {
     LOG_NONE=0,
     LOG_ERROR,
@@ -39,7 +41,7 @@ typedef enum {
  *
  * @retval true if successful.
  */
- bool init_log(unsigned short module_mask, int level, char *log_filename);
+bool init_log(unsigned short module_mask, int level, char *log_filename);
 
 /**
  * @brief Function to write the message to the log file.
@@ -51,13 +53,15 @@ typedef enum {
  *
  * @retval None.
  */
-void log_func(int level, LOGGING_MODULE module, const char *frmt, ...);
+void __log_func(int level, LOGGING_MODULE logmodule, const char *frmt, ...)
+    __attribute__((format(printf, 3, 4)))
+    __attribute__((nonnull(3)));
 
-#define log_debug(...) log_func(LOG_DEBUG, __VA_ARGS__)
-#define log_info(...)  log_func(LOG_INFO, __VA_ARGS__)
-#define log_warn(...)  log_func(LOG_WARNING, __VA_ARGS__)
-#define log_error(...) log_func(LOG_ERROR, __VA_ARGS__)
-#define log_packet(...)  log_func(LOG_PACKET, __VA_ARGS__)
+#define log_debug(...)   __log_func(LOG_DEBUG, __VA_ARGS__)
+#define log_info(...)    __log_func(LOG_INFO, __VA_ARGS__)
+#define log_warn(...)    __log_func(LOG_WARNING, __VA_ARGS__)
+#define log_error(...)   __log_func(LOG_ERROR, __VA_ARGS__)
+#define log_packet(...)  __log_func(LOG_PACKET, __VA_ARGS__)
 
 /* Close the log facility.
  * Closes the logfile

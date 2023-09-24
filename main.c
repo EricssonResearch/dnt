@@ -170,8 +170,8 @@ int main(int argc, char **argv)
       if (*c == '.') end = c;
     }
     char *confname = end ? strndup(start, end-start) : strdup(start);
-    sprintf(log_filename, "r2dtwo-%u-%s.log", pid, confname);
-    if(!init_log(0x0FF, LOG_ALL, log_filename)) {
+    sprintf(log_filename, "r2dtwo-%s-%u.log", confname, pid);
+    if(!init_log(LOG_ALL_MODULES, LOG_ALL, log_filename)) {
       printf("Log init failed\n");
       return -1;
     }
