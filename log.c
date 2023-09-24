@@ -18,17 +18,17 @@
 #include <stdbool.h>
 
 // Global log variables
-static FILE *logfile;
+static FILE *logfile = NULL;
 static int log_level = LOG_NONE;
 static unsigned short log_module_mask = 0;
 
 static const char* log_level_strings[] = {
     "NONE",
-    "[ERROR]",
-    "[WARNING]",
-    "[INFO]",
-    "[PACKET]",
-    "[DEBUG]",
+    "ERROR",
+    "WARNING",
+    "INFO",
+    "PACKET",
+    "DEBUG",
 };
 
 static const char* log_module_strings[] = {
@@ -65,24 +65,25 @@ bool init_log(unsigned short module_mask, int level, char *log_filename)
     return true;
 }
 
-void __log_func(int level, LOGGING_MODULE logmodule, const char *frmt, ...)
+int __log_func(int level, LOGGING_MODULE logmodule, const char *frmt, ...)
 {
-    if(level > log_level) return;
-    if(((1<<logmodule) & log_module_mask) == 0) return;
+    if (level > log_level) return 0;
+    if (((1<<logmodule) & log_module_mask) == 0) return 0;
     //printf("log mod %x %x\n", (1<<module), ((1<<module) & log_module_mask));
     time_t now;
     time(&now);
     struct tm now_tm;
     localtime_r(&now, &now_tm);
-    char date[64];
+    char date[32];
     strftime(date, sizeof(date), "%Y.%m.%d %H:%M:%S", &now_tm);
-    fprintf(logfile,"%s [%s] %s ", date, log_module_strings[logmodule], log_level_strings[level]);
 
-    char *format = strdup_printf("%s\n", frmt);
+    char msg[1024];
     va_list argp;
     va_start(argp, frmt);
-    vfprintf(logfile, format, argp);
+    vsnprintf(msg, sizeof(msg), frmt, argp);
     va_end(argp);
+
+    return fprintf(logfile, "%s [%s] [%s] %s\n", date, log_module_strings[logmodule], log_level_strings[level], msg);
 }
 
 void close_log(void)

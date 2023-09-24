@@ -51,9 +51,9 @@ bool init_log(unsigned short module_mask, int level, char *log_filename);
  * @params[in] frmt Format message.
  * @params[in] ... Variable arguments.
  *
- * @retval None.
+ * @retval the number of characters written
  */
-void __log_func(int level, LOGGING_MODULE logmodule, const char *frmt, ...)
+int __log_func(int level, LOGGING_MODULE logmodule, const char *frmt, ...)
     __attribute__((format(printf, 3, 4)))
     __attribute__((nonnull(3)));
 
