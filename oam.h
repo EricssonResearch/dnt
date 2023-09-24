@@ -5,11 +5,8 @@
 #ifndef R2_OAM_H
 #define R2_OAM_H
 
-#include "configfile.h"
 #include "interface.h"
 #include "pipeline.h"
-
-#include <stdio.h>
 
 // state object for a point that receives OAM packets
 struct OamEndPoint {
@@ -19,7 +16,7 @@ struct OamEndPoint {
     bool stop;
 };
 
-bool init_oam(struct R2d2Config *config);
+bool init_oam(struct HashMap *config_oam);
 void finish_oam(void);
 
 int oam_recv_reply(const char *msg);

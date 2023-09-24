@@ -165,7 +165,7 @@ struct R2d2Config *read_config(const char *filename)
     }
 
     if (oam_sec) {
-        ret->oam = parse_oam(oam_sec, ret->streams);
+        ret->oam = parse_oam(oam_sec);
         if (ret->oam == NULL) {
             THROW("oam section is invalid");
         }

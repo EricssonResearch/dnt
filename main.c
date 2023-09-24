@@ -207,7 +207,7 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    if(!init_oam(config)) {
+    if(!init_oam(config->oam)) {
       printf("OAM init failed\n");
       delete_config(config);
       return -1;
