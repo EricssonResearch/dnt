@@ -15,8 +15,8 @@ LFLAGS += -lm
 #TODO gnu libc doesn't need this
 LFLAGS += -lpthread
 
-OBJECTS = main.o action.o delay.o header.o interface.o packet.o parsetree.o pipeline.o protocol.o utils.o oam.o log.o
-OBJECTS += if_eth.o if_internal.o if_ip.o if_udp_in.o if_udp_out.o if_utils.o if_oam.o if_oam_cmd.o
+OBJECTS = main.o action.o delay.o header.o interface.o log.o oam.o packet.o parsetree.o pipeline.o protocol.o utils.o
+OBJECTS += if_eth.o if_internal.o if_ip.o if_oam.o if_oam_cmd.o if_udp_in.o if_udp_out.o if_utils.o
 OBJECTS += seq_gen.o seq_recov.o pof.o replicate.o
 OBJECTS += json.o
 OBJECTS += configfile.o conf_actions.o conf_interface.o conf_object.o conf_packet.o conf_streams.o conf_oam.o conf_utils.o

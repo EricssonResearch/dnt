@@ -20,6 +20,9 @@
 
 #define OAM_RCVY_RESET_MS 5000
 
+DEFAULT_LOGGING_MODULE(RCVY, LOG_WARNING);
+LOGGING_MODULE(DIAGNOSTIC, LOG_WARNING);
+
 struct SequenceRecovery {
     enum SequenceRecoveryAlgorithm algorithm;
     struct RecoveryDiagnosticConf diag;
@@ -330,7 +333,7 @@ bool seq_recovery(struct SequenceRecovery *rec, unsigned seq)
 
 static void seq_recovery_reset(struct SequenceRecovery *rec)
 {
-    log_info(MAIN, "%s%s: Sequence recovery reset.", rec->session_id ? "(OAM)" : "", rec->name);
+    log_info("%s%s: Sequence recovery reset.", rec->session_id ? "(OAM)" : "", rec->name);
     rec->seq_recovery_resets += 1;
     rec->take_any = true;
     switch (rec->algorithm) {
@@ -359,7 +362,7 @@ static void recovery_diagnostic(struct SequenceRecovery *rec)
     } else if (diff >= diag->latent_error_difference) {
         int more_percent = (discarded_diff * 100) / ((diag->latent_error_paths - 1) * passed_diff);
         /* fprintf(stderr, "[diagnostic]: MORE_PACKETS_THAN_EXPECTED with %d percent\n", more_percent); */
-        log_warn(DIAGNOSTIC, "%s: MORE_PACKETS_THAN_EXPECTED with %d percent\n", rec->name,more_percent);
+        log_warning_m(DIAGNOSTIC, "%s: MORE_PACKETS_THAN_EXPECTED with %d percent\n", rec->name,more_percent);
         goto update;
     }
     unsigned int working_ceil = (discarded_diff + diag->latent_error_difference - 1) / passed_diff;
@@ -368,24 +371,25 @@ static void recovery_diagnostic(struct SequenceRecovery *rec)
     if (discarded_diff < diag->latent_error_difference) {
         disfunctioning_paths = diag->latent_error_paths - 1;
         /* fprintf(stderr, "[diagnostic]: DISFUNCTIONING_PATHS: %d path(s)\n", disfunctioning_paths); */
-        log_warn(DIAGNOSTIC, "%s: DISFUNCTIONING_PATHS: %d path(s)", rec->name, disfunctioning_paths);
+        log_warning_m(DIAGNOSTIC, "%s: DISFUNCTIONING_PATHS: %d path(s)", rec->name, disfunctioning_paths);
     } else if (working_ceil == working_floor) {
         disfunctioning_paths = diag->latent_error_paths - 2 - working_ceil;
-        if (disfunctioning_paths > 0)
-            log_warn(DIAGNOSTIC, "%s: DISFUNCTIONING_PATHS: %d path(s) and PACKET_ABSENT",
+        if (disfunctioning_paths > 0) {
+            log_warning_m(DIAGNOSTIC, "%s: DISFUNCTIONING_PATHS: %d path(s) and PACKET_ABSENT",
                      rec->name, disfunctioning_paths);
-        else
-            log_warn(DIAGNOSTIC, "%s: PACKET_ABSENT", rec->name);
+        } else {
+            log_warning_m(DIAGNOSTIC, "%s: PACKET_ABSENT", rec->name);
+        }
     } else {
         disfunctioning_paths = diag->latent_error_paths - 1 - working_ceil;
-        log_warn(DIAGNOSTIC, "%s: DISFUNCTIONING_PATHS: %d path(s)", rec->name, disfunctioning_paths);
+        log_warning_m(DIAGNOSTIC, "%s: DISFUNCTIONING_PATHS: %d path(s)", rec->name, disfunctioning_paths);
     }
     if (rec->rogue_packets != rec->rogue_packets_last) {
-        log_warn(DIAGNOSTIC, "%s: OUTOFWINDOW_PACKETS: %d", rec->name, rec->rogue_packets);
+        log_warning_m(DIAGNOSTIC, "%s: OUTOFWINDOW_PACKETS: %d", rec->name, rec->rogue_packets);
         rec->rogue_packets_last = rec->rogue_packets;
     }
     if (rec->consecutive_loss_max > diag->outage_threshold) {
-        log_warn(DIAGNOSTIC, "%s: PACKET_LOSS: %d consecutive packets and %d aggregate lost",
+        log_warning_m(DIAGNOSTIC, "%s: PACKET_LOSS: %d consecutive packets and %d aggregate lost",
                  rec->name, rec->consecutive_loss_max, rec->lost_packets);
         rec->consecutive_loss_max = 0;
     }
@@ -401,7 +405,7 @@ static void latent_error_test(struct SequenceRecovery *rec)
         if (diff < 0)
             diff = -diff;
         if (diff > rec->diag.latent_error_difference) {
-            log_warn(DIAGNOSTIC, "%s: Latent error signal", rec->name);
+            log_warning_m(DIAGNOSTIC, "%s: Latent error signal", rec->name);
             rec->latent_errors += 1;
         }
         recovery_diagnostic(rec);
@@ -457,7 +461,7 @@ static void *reset_thread(void *arg)
         clock_nanosleep(CLOCK_REALTIME, TIMER_ABSTIME, &sleep_until, NULL);
         clock_gettime(CLOCK_REALTIME, &now);
         if (timespeccmp(&now, &sleep_until, <)) {
-            log_debug(MAIN, "%s: Early wakeup. continue sleep...\n", rec->name);
+            log_debug("%s: Early wakeup. continue sleep...\n", rec->name);
             // Unlikely early wake up, continue with sleeping
             continue;
         }

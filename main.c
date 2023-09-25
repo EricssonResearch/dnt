@@ -30,6 +30,10 @@
 
 #define MAX_EVENTS 10
 
+DEFAULT_LOGGING_MODULE(MAIN, LOG_INFO);
+LOGGING_MODULE(CONFIG, LOG_INFO);
+LOGGING_MODULE(PACKET, LOG_INFO);
+
 int sigint_count = 0;
 struct R2d2Config *config;
 
@@ -38,6 +42,7 @@ static void sigint_handler(int sig, siginfo_t *si, void *uc)
     (void)sig;
     (void)si;
     (void)uc;
+
 
     printf("SIGINT or SIGTERM caught\n");
     sigint_count++;
@@ -122,7 +127,6 @@ static void recv_loop(struct Interface *ifaces, unsigned iface_count)
 #endif
                 delete_packet(p);
             } else {
-                // TODO: print the name of the matching stream
 #ifdef VERBOSE_RECV
                 printf("parsetree identified %u headers, pipe %s\n", p->header_count, pipe->name);
                 for (unsigned i=0; i<p->header_count; i++) {
@@ -171,13 +175,13 @@ int main(int argc, char **argv)
     }
     char *confname = end ? strndup(start, end-start) : strdup(start);
     sprintf(log_filename, "r2dtwo-%s-%u.log", confname, pid);
-    if(!init_log(LOG_ALL_MODULES, LOG_ALL, log_filename)) {
-      printf("Log init failed\n");
-      return -1;
+    if (!open_log(log_filename)) {
+        return -1;
     }
     free(confname);
-    log_info(MAIN, "Logfile opened.");
+    log_info("Logfile opened.");
 
+    log_info_m(CONFIG, "Reading config '%s'", argv[1]);
     config = read_config(argv[1]);
     if (config == NULL) {
         fprintf(stderr, "the config is invalid\n");

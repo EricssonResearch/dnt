@@ -2,18 +2,18 @@
 // All rights reserved.
 
 #include "oam.h"
-#include "conf_object.h"
-#include "pipeline.h"
 #include "conf_oam.h"
+#include "conf_object.h"
 #include "hashmap.h"
 #include "if_oam.h"
 #include "if_oam_cmd.h"
 #include "interface.h"
-#include "packet.h"
-#include "utils.h"
 #include "json.h"
 #include "log.h"
+#include "packet.h"
+#include "pipeline.h"
 #include "time_utils.h"
+#include "utils.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -31,6 +31,8 @@
 #define OAM_RCVY_RESET_MS 5000
 #define OAM_PING_TTL 64
 #define OAM_CHANNEL 1 /* Management Communication Channel (MCC), similar format to ours */
+
+DEFAULT_LOGGING_MODULE(OAM, LOG_INFO);
 
 struct MepStart {
     char *name;
@@ -301,7 +303,7 @@ static bool send_request(struct oam_request *req){
     unsigned char *msg = packet->buf + packet->headers[2].start;
     memcpy(msg, js_string, js_length);
 
-    log_packet(OAM, "%s:%d seq %d lvl %d S - %s",
+    log_packet("%s:%d seq %d lvl %d S - %s",
                     req->mep_start->stream_name, req->session_id, req->seq, req->level,
                     js_string);
 
@@ -356,7 +358,7 @@ static bool initiate_request(struct oam_request *ping_req)
     ping_req->session_id = session_id;
     ping_req->seq = 0;
 
-    log_info(OAM, "OAM packet %s session %u seq %u, %s -> %s, level %d, count %d interval %d, rr: %s os: %s\t[reply to ip: %s, port: %u]",
+    log_info("OAM packet %s session %u seq %u, %s -> %s, level %d, count %d interval %d, rr: %s os: %s\t[reply to ip: %s, port: %u]",
             ping_req->type, ping_req->session_id, ping_req->seq, ping_req->mep_start->name, ping_req->mep_stop, ping_req->level, ping_req->count, ping_req->interval_ms,
             ping_req->record_route?"yes":"no", ping_req->object_state?"yes":"no", ping_req->return_ip, ping_req->return_port);
 
@@ -647,6 +649,13 @@ static int close_sessions_cb(const char *key, void *value, void *userdata)
     return 1;
 }
 
+static int list_log_modules_cb(const char *mod_name, LOGGING_LEVELS current_level, void *userdata)
+{
+    FILE *cmd_w = userdata;
+    fprintf(cmd_w, "  %s level %s\n", mod_name, log_string_from_level(current_level));
+    return 1;
+}
+
 #define TELNET_IAC         0xff /* Interpret As Command */
 #define TELNET_INTERRUPT   0xf4 /* interrupt process */
 #define TELNET_WILL        0xfb
@@ -779,6 +788,24 @@ int oam_command_loop(struct Interface *iface)
                 fprintf(cmd_w, "Available MEP Start points:\n");
                 struct ListParams params = {cmd_w};
                 hashmap_foreach_sorted(mep_starts, list_mep_cb, &params);
+            }
+            else if (strncmp(oam_command, "log", 3) == 0) {
+                char modulename[64];
+                char newlevel[16];
+                k = sscanf(oam_command, "log %s %s", modulename, newlevel);
+                if (k == 0 || k == EOF) {
+                    fprintf(cmd_w, "Logging modules:\n");
+                    log_foreach_modules(list_log_modules_cb, cmd_w);
+                } else if (k == 2) {
+                    LOGGING_LEVELS nlvl = log_level_from_string(newlevel);
+                    if (!log_set_level(modulename, nlvl)) {
+                        fprintf(cmd_w, "Module '%s' does not exist.\n", modulename);
+                    } else {
+                        fprintf(cmd_w, "Module '%s' new level %s.\n", modulename, log_string_from_level(nlvl));
+                    }
+                } else {
+                    fprintf(cmd_w, "Invalid parameters for 'log' command.\n");
+                }
             }
             else if (strncmp(oam_command, "sessions", 8) == 0) {
                 struct ListParams params = {cmd_w};
@@ -989,7 +1016,7 @@ int oam_recv_reply(const char *msg)
     struct JsonValue *j = json_parse(msg, strlen(msg));
     if (j == NULL) {
         //fprintf(stderr, "JSON in reply is invalid.\n");
-        log_error(OAM, "JSON in reply is invalid.");
+        log_error("JSON in reply is invalid.");
         return -1;
     }
     struct JsonValue *mode = json_object_get_string(j, "mode");
@@ -1000,48 +1027,48 @@ int oam_recv_reply(const char *msg)
     }
     struct JsonValue *nid = json_object_get_number(j, "nodeid");
     if(nid==NULL) {
-        log_error(OAM, "No nodeid in reply.");
+        log_error("No nodeid in reply.");
         return -1;
     }
     struct JsonValue *request = json_object_get_string(j, "request");
     if(request == NULL) {
-        log_error(OAM, "No request in reply.");
+        log_error("No request in reply.");
         return -1;
     }
     struct JsonValue *target = json_object_get_string(j, "target");
     if(target == NULL) {
-        log_error(OAM, "No target in reply.");
+        log_error("No target in reply.");
         return -1;
     }
     struct JsonValue *seq = json_object_get_number(j, "sequence");
     if(seq == NULL) {
-        log_error(OAM, "No sequence in reply.");
+        log_error("No sequence in reply.");
         return -1;
     }
     struct JsonValue *level = json_object_get_number(j, "level");
     if(level == NULL) {
-        log_error(OAM, "No level in reply.");
+        log_error("No level in reply.");
         return -1;
     }
     struct JsonValue *node = json_object_get_string(j, "node");
     if(node == NULL) {
-        log_error(OAM, "No node in reply.");
+        log_error("No node in reply.");
         return -1;
     }
     struct JsonValue *strm = json_object_get_string(j, "stream");
     if(strm == NULL) {
-        log_error(OAM, "No stream in reply.");
+        log_error("No stream in reply.");
         return -1;
     }
 
     struct JsonValue *sess = json_object_get_number(j, "session");
     struct SessionTracker *session = NULL;
     if(sess == NULL) {
-        log_error(OAM, "No session id in reply.");
+        log_error("No session id in reply.");
         return -1;
     } else {
         if (sess->v.number < 0 || sess->v.number > 15) {
-            log_error(OAM, "session id %.0f in reply is invalid", sess->v.number);
+            log_error("session id %.0f in reply is invalid", sess->v.number);
             return -1;
         } else {
             // ToDo: for rping this will not find the stream. Either don't check, or config the streams to check.
@@ -1050,19 +1077,19 @@ int oam_recv_reply(const char *msg)
             //      here we are either the originator or a third party
             struct StreamSessions *stream = hashmap_find(session_ids, strm->v.string);
             if (stream == NULL) {
-                log_error(OAM, "Invalid stream name '%s' in reply.", strm->v.string);
+                log_error("Invalid stream name '%s' in reply.", strm->v.string);
                 //return -1;
             } else {
                 session = &stream->sessions[(int)(sess->v.number)];
                 if (!session->live) {
-                    log_error(OAM, "Reply for non-live session %.0f of stream '%s'.", sess->v.number, strm->v.string);
+                    log_error("Reply for non-live session %.0f of stream '%s'.", sess->v.number, strm->v.string);
                     //return -1;
                 }
             }
         }
     }
 
-    log_packet(OAM, "%s:%.0f seq %.0f lvl %.0f D - %s", strm->v.string, sess->v.number, seq->v.number, level->v.number, msg);
+    log_packet("%s:%.0f seq %.0f lvl %.0f D - %s", strm->v.string, sess->v.number, seq->v.number, level->v.number, msg);
 
     struct JsonValue *dly = json_object_get_bool(j, "delay");
     if(dly != NULL && dly->type == JSON_TRUE){
@@ -1137,7 +1164,7 @@ int oam_recv_reply(const char *msg)
     json_delete(j);
 
     // Logging
-    log_info(OAM, "%s %s\n", reply_str, rr_str);
+    log_info("%s %s\n", reply_str, rr_str);
 
     if(oam_cmd_iface == NULL)
         return -1;
@@ -1302,7 +1329,7 @@ static bool process_request(struct OamEndPoint *oam, struct Packet *p, struct Js
     unsigned msg_len=0;
     char *j_msg = json_serialize(j, &msg_len);
 
-    log_packet(OAM, "%s:%d seq %d lvl %d T (to %s %d) - %s", stream->v.string, session, seq, level,
+    log_packet("%s:%d seq %d lvl %d T (to %s %d) - %s", stream->v.string, session, seq, level,
             reply_address, port, j_msg);
 
     oam_send_reply(reply_address, port, j_msg, msg_len);
@@ -1341,7 +1368,7 @@ bool oam_recv_request(struct OamEndPoint *oam, struct Packet *p)
     //unsigned char session = oam_hdr[7] & 0x0f;
     char *msg = (char *)(p->buf + p->headers[2].start);
 
-    //log_packet(OAM, "packet (%s) at [%s level %d], ttl %d nib_ver %x sequence %x channel %x node %x level %x session %x\njson: %s",
+    //log_packet("packet (%s) at [%s level %d], ttl %d nib_ver %x sequence %x channel %x node %x level %x session %x\njson: %s",
     //        protocol_type_from_id(p->headers[1].type), oam->name, oam->level, p->ttl, oam_hdr[0], seq, channel, nodeid, level, session, msg);
 
     struct JsonValue *j = json_parse(msg, strlen(msg));
@@ -1412,16 +1439,16 @@ static int oam_start_background_ping_cb(const char *key, void *value, void *user
 {
     (void) userdata;
     const char *request = value;
-    log_debug(OAM, "starting OAM background ping command '%s'", key);
+    log_debug("starting OAM background ping command '%s'", key);
 
     if (strncmp(request, "ping", 4) != 0) {
-        log_error(OAM, "OAM background command '%s' is not ping", key);
+        log_error("OAM background command '%s' is not ping", key);
         return 0;
     }
     struct oam_request *ping_req = parse_ping_command(request+4, true, false, stderr);
 
     if (ping_req == NULL) {
-        log_error(OAM, "OAM background ping command '%s' invalid", key);
+        log_error("OAM background ping command '%s' invalid", key);
         return 0;
     }
 
