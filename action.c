@@ -601,18 +601,20 @@ static enum ActionResult action_MEP_execute(struct Action *a, struct PipelineIte
 #define action_MEPSTOP_execute action_MEP_execute
 #define action_MIP_execute     action_MEP_execute
 
-void create_action_mepstop(struct Action *a, int level, struct ConfObject *target, const char *name, const char *text)
+void create_action_mepstop(struct Action *a, const char *stream, int level, struct ConfObject *target,
+        const char *name, const char *text)
 {
     INIT_ACTION(MEPSTOP);
 
-    a->action_private = oam_create_endpoint(name, level, target, true);
+    a->action_private = oam_create_endpoint(name, stream, level, target, true);
 }
 
-void create_action_mip(struct Action *a, int level, struct ConfObject *target, const char *name, const char *text)
+void create_action_mip(struct Action *a, const char *stream, int level, struct ConfObject *target,
+        const char *name, const char *text)
 {
     INIT_ACTION(MIP);
 
-    a->action_private = oam_create_endpoint(name, level, target, false);
+    a->action_private = oam_create_endpoint(name, stream, level, target, false);
 }
 
 /////////////////////////////////////////////////////////////////////

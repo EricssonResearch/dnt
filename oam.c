@@ -59,7 +59,9 @@ struct oam_request{
     unsigned interval_ms;
     unsigned char ttl;
     char *remote_command; // for rping
-  };
+    char *originator_stream; // for ping initiated by rping
+    unsigned originator_session_id; // for ping initiated by rping
+};
 
 static int nr_oam_ifaces = 0;
 static struct Interface *oam_ifaces[16];
@@ -76,7 +78,7 @@ struct SessionTracker {
     bool live;
 };
 
-char *last_stream=NULL; // the stream name of the last issued command
+static char *last_stream=NULL; // the stream name of the last issued command
 struct StreamSessions {
     struct SessionTracker sessions[16];
     unsigned last_session;
@@ -204,10 +206,11 @@ void oam_set_pipeline_for_mep_start(const char *stream_name, struct Pipeline *pi
     hashmap_foreach(mep_starts, set_pipe_cb, &params);
 }
 
-struct OamEndPoint *oam_create_endpoint(const char *name, int level, struct ConfObject *target, bool stop)
+struct OamEndPoint *oam_create_endpoint(const char *name, const char *stream, int level, struct ConfObject *target, bool stop)
 {
     struct OamEndPoint *ret = calloc_struct(OamEndPoint);
     ret->name = strdup(name);
+    ret->stream = strdup(stream);
     ret->level = level;
     ret->target = target;
     ret->stop = stop;
@@ -242,18 +245,22 @@ static int add_fixed_headers(struct Packet *packet, unsigned char ttl,
 }
 
 // returns true on success
-static bool send_request(struct oam_request *req){
+static bool send_request(const struct oam_request *req){
     struct Packet *packet = new_packet(NULL);
 
+    unsigned session_id = req->originator_stream ? req->originator_session_id : req->session_id;
     add_fixed_headers(packet, req->ttl, req->seq, OAM_CHANNEL,
-            req->node_id, req->level, req->session_id);
+            req->node_id, req->level, session_id);
     packet->ttl = req->ttl;
 
     struct JsonValue *js = json_object();
     json_object_insert(js, "request", json_string(req->type));
     json_object_insert(js, "req_type", json_string("request"));
-    json_object_insert(js, "stream", json_string(req->mep_start->stream_name));
-    json_object_insert(js, "level", json_number(req->level)); //TODO we have this in the fixed header
+    if (req->originator_stream) {
+        json_object_insert(js, "stream", json_string(req->originator_stream));
+    } else {
+        json_object_insert(js, "stream", json_string(req->mep_start->stream_name));
+    }
     json_object_insert(js, "target", json_string(req->mep_stop));
     struct JsonValue *jret = json_object();
     json_object_insert(jret, "ip", json_string(req->return_ip));
@@ -262,25 +269,20 @@ static bool send_request(struct oam_request *req){
 
     if(strcmp(req->type, "ping")==0){
         if(req->record_route){
-            jret = json_array();
-            json_array_unshift(jret, json_string(req->mep_start->name));
-            json_object_insert(js, "rr", jret);
+            struct JsonValue *jrr = json_array();
+            json_array_unshift(jrr, json_string(req->mep_start->name));
+            json_object_insert(js, "rr", jrr);
         }
         if(req->object_state){
-            jret = json_true();
-            json_object_insert(js, "objects", jret);
+            json_object_insert(js, "objects", json_true());
         }
         if(req->delay){
-            jret = json_true();
-            json_object_insert(js, "delay", jret);
+            json_object_insert(js, "delay", json_true());
         }
     }
     else if(strcmp(req->type, "rping")==0){
         //TODO this hardcodes the commandline format into the protocol :(
         json_object_insert(js, "command", json_string(req->remote_command));
-    } else {
-        //fprintf(cmd_w, "invalid request '%s'\n", req->type);
-        return false;
     }
 
     struct timespec sendtime;
@@ -570,7 +572,7 @@ static struct oam_request *parse_rping_command(const char *oam_command, FILE *cm
 
     rping_req->mep_start = hashmap_find(mep_starts, start_name);
     if (rping_req->mep_start == NULL) {
-        fprintf(cmd_w, "ping start '%s' invalid\n", start_name);
+        fprintf(cmd_w, "rping start '%s' invalid\n", start_name);
         free(rping_req);
         return NULL;
     }
@@ -581,17 +583,68 @@ static struct oam_request *parse_rping_command(const char *oam_command, FILE *cm
     return rping_req;
 }
 
+static struct oam_request *parse_rlist_command(const char *oam_command, FILE *cmd_w)
+{
+    int l;
+    char start_name[32];
+    char iface_name[32];
+
+    struct oam_request *rlist_req = new_oam_request("rlist", cmd_w);
+
+    if (oam_command[0]=='@') {
+        int k = sscanf(oam_command, "@%s %s %s %d%n",
+                iface_name, start_name, rlist_req->mep_stop, &rlist_req->level, &l);
+        if (k < 4) {
+            fprintf(cmd_w, "rlist arguments invalid");
+            free(rlist_req);
+            return NULL;
+        }
+    } else {
+        int k = sscanf(oam_command, " %s %s %d%n",
+                start_name, rlist_req->mep_stop, &rlist_req->level, &l);
+        if (k < 3) {
+            fprintf(cmd_w, "rlist arguments invalid");
+            free(rlist_req);
+            return NULL;
+        }
+        iface_name[0] = 0;
+    }
+
+    if (!parse_ping_returnif(rlist_req, iface_name)) {
+        free(rlist_req);
+        return NULL;
+    }
+
+    rlist_req->mep_start = hashmap_find(mep_starts, start_name);
+    if (rlist_req->mep_start == NULL) {
+        fprintf(cmd_w, "rlist start '%s' invalid\n", start_name);
+        free(rlist_req);
+        return NULL;
+    }
+
+    while (isspace(oam_command[l])) l++;
+    if (oam_command[l]) {
+        fprintf(cmd_w, "rlist doesn't take so many arguments\n");
+        free(rlist_req);
+        return NULL;
+    }
+
+    return rlist_req;
+}
+
 static const char help_str[] =
     "Available commands:\n"
     "help - get help\n"
     "exit - exit OAM\n"
     "mode <mode> - terminal mode. Mode can be 'dump' or 'json'.\n"
+    "log [module newlevel] - get current log levels or set it for the given module.\n"
     "list - list monitoring start points\n"
+    "rlist[@if] <stream:mep-start/mip> <mep-stop/mip/any> <level> - list monitoring start points of the remote node.\n"
     "sessions [stream] - list active sessions for 'stream'. List all sessions if no 'stream' specified.\n"
     "stop [stream session_id] - stop a running OAM session, identified by stream:session_id. Stops the last session if no parameters given.\n"
     "returns - list return interfaces\n"
     "ping[@if] <stream:mep-start/mip> <mep-stop/mip/any> <level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]\n"
-    "rping[@if] <stream:mep-start/mip> <mep-stop/mip> <level> <remote mep-start/mip> <remote mep-stop/mip/any> <remote level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]\n";
+    "rping[@if] <stream:mep-start/mip> <mep-stop/mip> <level> <remote stream:mep-start/mip> <remote mep-stop/mip/any> <remote level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]\n";
 
 struct ListParams {
     FILE *cmd_w;
@@ -875,7 +928,15 @@ int oam_command_loop(struct Interface *iface)
                     ERROR("sending rping command failed");
                 }
             }
-            //TODO else if (strncmp(oam_command, "rlist", 5) == 0) {
+            else if (strncmp(oam_command, "rlist", 5) == 0) {
+                struct oam_request *rlist_req = parse_rlist_command(oam_command+5, cmd_w);
+                if (rlist_req == NULL) {
+                    ERROR("rlist command is invalid");
+                }
+                if (!initiate_request(rlist_req)) {
+                    ERROR("sending rlist command failed");
+                }
+            }
             else {
                 ERROR("unknown command '%s'", oam_command);
             }
@@ -1012,87 +1073,75 @@ static int dump_pof_state(char *str, struct JsonValue *jos){
 */
 int oam_recv_reply(const char *msg)
 {
+#define JS_OBJECT_GET(_varname, _type, _json, _key)                     \
+    struct JsonValue *_varname = json_object_get_##_type(_json, #_key); \
+    if (_varname == NULL) {                                             \
+        log_error("No " #_key " in reply.");                            \
+        json_delete(j);                                                 \
+        return -1;                                                      \
+    }
+
     // We need to parse for logging, even if JSON mode is used.
     bool cfg_mode = false;
 
     char reply_str[1400], rr_str[512], obj_str[1000];
     struct JsonValue *j = json_parse(msg, strlen(msg));
-    if (j == NULL) {
+    if (j == NULL || j->type != JSON_OBJECT) {
         //fprintf(stderr, "JSON in reply is invalid.\n");
         log_error("JSON in reply is invalid.");
         return -1;
     }
+    //TODO drop this field, instead check if we have command session (based on stream/session)
     struct JsonValue *mode = json_object_get_string(j, "mode");
     if(mode!=NULL) {
         if(strcmp(mode->v.string,"cfg") == 0){
             cfg_mode = true;
         }
     }
-    struct JsonValue *nid = json_object_get_number(j, "nodeid");
-    if(nid==NULL) {
-        log_error("No nodeid in reply.");
-        return -1;
-    }
-    struct JsonValue *request = json_object_get_string(j, "request");
-    if(request == NULL) {
-        log_error("No request in reply.");
-        return -1;
-    }
-    struct JsonValue *target = json_object_get_string(j, "target");
-    if(target == NULL) {
-        log_error("No target in reply.");
-        return -1;
-    }
-    struct JsonValue *seq = json_object_get_number(j, "sequence");
-    if(seq == NULL) {
-        log_error("No sequence in reply.");
-        return -1;
-    }
-    struct JsonValue *level = json_object_get_number(j, "level");
-    if(level == NULL) {
-        log_error("No level in reply.");
-        return -1;
-    }
-    struct JsonValue *node = json_object_get_string(j, "node");
-    if(node == NULL) {
-        log_error("No node in reply.");
-        return -1;
-    }
-    struct JsonValue *strm = json_object_get_string(j, "stream");
-    if(strm == NULL) {
-        log_error("No stream in reply.");
-        return -1;
-    }
+    JS_OBJECT_GET(nid, number, j, nodeid);
+    JS_OBJECT_GET(request, string, j, request);
+    JS_OBJECT_GET(target, string, j, target);
+    JS_OBJECT_GET(seq, number, j, sequence);
+    JS_OBJECT_GET(level, number, j, level);
+    JS_OBJECT_GET(node, string, j, node); //TODO receiver
+    JS_OBJECT_GET(strm, string, j, stream);
+    JS_OBJECT_GET(sess, number, j, session);
 
-    struct JsonValue *sess = json_object_get_number(j, "session");
     struct SessionTracker *session = NULL;
-    if(sess == NULL) {
-        log_error("No session id in reply.");
+    if (sess->v.number < 0 || sess->v.number > 15) {
+        log_error("session id %.0f in reply is invalid", sess->v.number);
         return -1;
     } else {
-        if (sess->v.number < 0 || sess->v.number > 15) {
-            log_error("session id %.0f in reply is invalid", sess->v.number);
+        struct StreamSessions *stream = hashmap_find(session_ids, strm->v.string);
+        if (stream == NULL) {
+            log_error("Invalid stream name '%s' in reply.", strm->v.string);
             return -1;
         } else {
-            // ToDo: for rping this will not find the stream. Either don't check, or config the streams to check.
-            // For now, we get an error but it will work as the session is not used anywhere.
-            // TODO for rping we should have two stream id/session: the originator and the source
-            //      here we are either the originator or a third party
-            struct StreamSessions *stream = hashmap_find(session_ids, strm->v.string);
-            if (stream == NULL) {
-                log_error("Invalid stream name '%s' in reply.", strm->v.string);
+            session = &stream->sessions[(int)(sess->v.number)];
+            if (!session->live) {
+                log_error("Reply for non-live session %.0f of stream '%s'.", sess->v.number, strm->v.string);
                 //return -1;
-            } else {
-                session = &stream->sessions[(int)(sess->v.number)];
-                if (!session->live) {
-                    log_error("Reply for non-live session %.0f of stream '%s'.", sess->v.number, strm->v.string);
-                    //return -1;
-                }
             }
         }
     }
 
     log_packet("%s:%.0f seq %.0f lvl %.0f D - %s", strm->v.string, sess->v.number, seq->v.number, level->v.number, msg);
+
+    //TODO this is just a quick fix
+    if (strcmp(request->v.string, "rlist") == 0) {
+        JS_OBJECT_GET(list, array, j, list);
+        sprintf(reply_str, "Rlist result:\n");
+        for (struct JsonArray *l = list->v.array; l; l=l->next) {
+            if (l->val->type != JSON_STRING) {
+                log_error("rlist result is not string.");
+                json_delete(j);
+                return -1;
+            }
+            strcat(reply_str, l->val->v.string);
+            strcat(reply_str, "\n");
+        }
+        return oam_cmd_recv_reply(oam_cmd_iface, reply_str);
+    }
 
     struct JsonValue *dly = json_object_get_bool(j, "delay");
     if(dly != NULL && dly->type == JSON_TRUE){
@@ -1127,34 +1176,25 @@ int oam_recv_reply(const char *msg)
     }
 
     struct JsonValue *jos = json_object_get_object(j, "objects");
-    if(jos){
-        // ToDo: formatted printout per object type
+    if (jos && jos->type == JSON_OBJECT) {
         sprintf(obj_str, "\tObject ");
-        struct JsonValue *val = json_object_get_string(jos, "name");
-        if(val == NULL) {
-            fprintf(stderr, "No name in object in reply.\n");
-            return -1;
-        }
-        strcat(obj_str, val->v.string);
+        JS_OBJECT_GET(oname, string, jos, name);
+        strcat(obj_str, oname->v.string);
         strcat(obj_str, " type ");
-        val = json_object_get_string(jos, "type");
-        if(val == NULL) {
-            fprintf(stderr, "No type in object in reply.\n");
-            return -1;
-        }
-        strcat(obj_str, val->v.string);
+        JS_OBJECT_GET(type, string, jos, type);
+        strcat(obj_str, type->v.string);
 
         // dump according to the type
-        if(strcmp(val->v.string,"seqgen")==0){
+        if(strcmp(type->v.string,"seqgen")==0){
             dump_seqgen_state(obj_str, jos);
         }
-        else if(strcmp(val->v.string,"seqrec")==0){
+        else if(strcmp(type->v.string,"seqrec")==0){
             dump_seqrec_state(obj_str, jos);
         }
-        else if(strcmp(val->v.string,"replicate")==0){
+        else if(strcmp(type->v.string,"replicate")==0){
             dump_repl_state(obj_str, jos);
         }
-        else if(strcmp(val->v.string,"pof")==0){
+        else if(strcmp(type->v.string,"pof")==0){
             dump_pof_state(obj_str, jos);
         }
         else {  // unknown type, just dump
@@ -1190,6 +1230,7 @@ int oam_recv_reply(const char *msg)
             return oam_cmd_recv_reply(oam_cmd_iface, reply_str);
         }
     }
+#undef JS_OBJECT_GET
 }
 
 /*
@@ -1219,13 +1260,13 @@ static int oam_send_reply(const char *address, unsigned port, const char *msg, u
       sock = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
       if (sock < 0) continue;
 
-      //TODO if getaddrinfo() returns multiple items, this will send to each one
     if (sendto(sock, msg, msg_len, 0, rp->ai_addr, rp->ai_addrlen) == 0) {
         perror("oam repy sendto");
         freeaddrinfo(res);
         close(sock);
         return -1;
-    }
+    } else
+        break;
   }
 
   freeaddrinfo(res);
@@ -1234,7 +1275,33 @@ static int oam_send_reply(const char *address, unsigned port, const char *msg, u
 }
 
 // @returns false on error
-static bool process_request(struct OamEndPoint *oam, struct Packet *p, struct JsonValue *j)
+static bool get_return_ip_port(struct JsonValue *j, char **reply_address, int *port)
+{
+    struct JsonValue *jret = json_object_get_object(j, "return");
+    if (jret==NULL) {
+        fprintf(stderr, "OAM packet has no return address\n");
+        return false;
+    }
+
+    struct JsonValue *val = json_object_get_number(jret, "port");
+    if(val!=NULL)
+        *port=val->v.number;
+    else {
+        return false;
+    }
+    val = json_object_get_string(jret, "ip");
+    if(val!=NULL)
+        *reply_address = strdup(val->v.string);
+    else {
+        return false;
+    }
+
+    return true;
+}
+
+// turns the request Json into a reply
+// @returns false on error
+static bool process_ping_request(struct OamEndPoint *oam, struct Packet *p, struct JsonValue *j)
 {
     int port=6634;
     char *reply_address=NULL;
@@ -1246,61 +1313,11 @@ static bool process_request(struct OamEndPoint *oam, struct Packet *p, struct Js
     unsigned char level = oam_hdr[6] >> 1;
     unsigned char session = oam_hdr[7] & 0x0f;
 
-    struct JsonValue *jret = json_object_get_object(j, "return");
-    if (jret==NULL) {
-        fprintf(stderr, "OAM packet has no return address\n");
+    if (!get_return_ip_port(j, &reply_address, &port)) {
         json_delete(j);
         return false;
     }
 
-    struct JsonValue *val = json_object_get_number(jret, "port");
-    if(val!=NULL)
-        port=val->v.number;
-    else {
-        json_delete(j);
-        return false;
-    }
-    val = json_object_get_string(jret, "ip");
-    if(val!=NULL)
-        reply_address = strdup(val->v.string);
-    else {
-        json_delete(j);
-        return false;
-    }
-
-    const char *req_type = "response"; //TODO this line looks weird
-
-    // check for rping TODO we need a completely separate function for rping processing
-    struct JsonValue *jreqt = json_object_get_string(j, "request");
-    if(jreqt==NULL) {
-        fprintf(stderr, "OAM packet has no request type\n");
-        free(reply_address);
-        json_delete(j);
-        return false;
-    }
-    if(strcmp(jreqt->v.string, "rping") == 0){
-        struct JsonValue *cmd = json_object_get_string(j, "command");
-
-        struct oam_request *ping_req = parse_ping_command(cmd->v.string, false, true, stderr);
-        if (ping_req) {
-            ping_req->return_ip = reply_address;
-            ping_req->return_port = port;
-            if (!initiate_request(ping_req)) {
-                fprintf(stderr, "OAM sending rping request failed\n");
-                free(reply_address);
-                json_delete(j);
-                return false;
-            }
-        } else {
-            fprintf(stderr, "OAM rping request invalid\n");
-            free(reply_address);
-            json_delete(j);
-            return false;
-        }
-        free(reply_address);
-        json_delete(j);
-        return false;
-    }
     // if object state is requested
     struct JsonValue *jos = json_object_get_any(j, "objects");
     if(jos!=NULL){
@@ -1313,26 +1330,159 @@ static bool process_request(struct OamEndPoint *oam, struct Packet *p, struct Js
     }
 
     json_object_remove(j, "return");
-    json_object_insert(j, "req_type", json_string(req_type));
+    json_object_insert(j, "req_type", json_string("response"));
     json_object_insert(j, "sequence", json_number(seq));
+    json_object_insert(j, "level", json_number(level));
     json_object_insert(j, "nodeid", json_number(nodeid));
-    json_object_insert(j, "node", json_string(oam->name));
     json_object_insert(j, "session", json_number(session));
-    struct JsonValue *stream = json_object_get_string(j, "stream");
-    if(stream==NULL)
-        fprintf(stderr, "OAM packet has no stream\n");
+    json_object_insert(j, "node", json_string(oam->name)); //TODO "receiver"
+
+    const char *stream = "<unknown>";
+    struct JsonValue *jstream = json_object_get_string(j, "stream");
+    if (stream != NULL) {
+        stream = jstream->v.string;
+    }
     // we know that header 0 contains the label in the first 20 bit
     uint32_t *label = (uint32_t *) (p->buf + p->headers[0].start);
     json_object_insert(j, "label", json_number((ntohl(*label) >> 12) & 0xFFFFF));
 
-    // add receive timestamp
     json_object_insert(j, "recv_s", json_number(p->recv_time.tv_sec));
     json_object_insert(j, "recv_ns", json_number(p->recv_time.tv_nsec));
 
     unsigned msg_len=0;
     char *j_msg = json_serialize(j, &msg_len);
 
-    log_packet("%s:%d seq %d lvl %d T (to %s %d) - %s", stream->v.string, session, seq, level,
+    log_packet("%s:%d seq %d lvl %d T (to %s %d) - %s", stream, session, seq, level,
+            reply_address, port, j_msg);
+
+    oam_send_reply(reply_address, port, j_msg, msg_len);
+    free(reply_address);
+    free(j_msg);
+
+    json_delete(j);
+    return true;
+}
+
+// @returns false on error
+static bool process_rping_request(struct OamEndPoint *oam, struct Packet *p, struct JsonValue *j)
+{
+    int port=6634;
+    char *reply_address=NULL;
+
+    unsigned char *oam_hdr = p->buf + p->headers[1].start;
+    //unsigned char seq = oam_hdr[1];
+    //unsigned short channel = (oam_hdr[2]<<8)+oam_hdr[3];
+    //unsigned short nodeid = (oam_hdr[4]<<8)+oam_hdr[5];
+    //unsigned char level = oam_hdr[6] >> 1;
+    unsigned char session = oam_hdr[7] & 0x0f;
+
+    if (!get_return_ip_port(j, &reply_address, &port)) {
+        json_delete(j);
+        return false;
+    }
+
+    struct JsonValue *cmd = json_object_get_string(j, "command");
+
+    struct oam_request *ping_req = parse_ping_command(cmd->v.string, false, true, stderr);
+    if (ping_req) {
+        if (strcmp(oam->stream, ping_req->mep_start->stream_name) != 0) {
+            fprintf(stderr, "OAM remote ping request has invalid start stream name '%s', oam point is in stream '%s'\n",
+                    ping_req->mep_start->stream_name, oam->stream);
+            free(reply_address);
+            json_delete(j);
+            return false;
+        }
+        ping_req->return_ip = reply_address;
+        ping_req->return_port = port;
+
+        struct JsonValue *jstream = json_object_get_string(j, "stream");
+        if (jstream == NULL) {
+            fprintf(stderr, "OAM remote ping request has no stream name\n");
+            free(reply_address);
+            json_delete(j);
+            return false;
+        }
+        ping_req->originator_stream = strdup(jstream->v.string);
+        ping_req->originator_session_id = session;
+
+        if (!initiate_request(ping_req)) {
+            fprintf(stderr, "OAM sending remote ping request failed\n");
+            free(reply_address);
+            json_delete(j);
+            return false;
+        }
+    } else {
+        fprintf(stderr, "OAM rping request invalid\n");
+        free(reply_address);
+        json_delete(j);
+        return false;
+    }
+    free(reply_address);
+    json_delete(j);
+    return false;
+}
+
+struct AddstartState {
+    struct JsonValue *jlist;
+    struct OamEndPoint *oam;
+};
+static int addstart_cb(const char *key, void *value, void *userdata)
+{
+    struct AddstartState *st = userdata;
+    struct MepStart *mep = value;
+
+    if (strcmp(mep->stream_name, st->oam->stream) == 0) {
+        //TODO supply more info: level, type
+        json_array_unshift(st->jlist, json_string(key));
+    }
+
+    return 1;
+}
+
+// @returns false on error
+static bool process_rlist_request(struct OamEndPoint *oam, struct Packet *p, struct JsonValue *j)
+{
+    int port=6634;
+    char *reply_address=NULL;
+
+    unsigned char *oam_hdr = p->buf + p->headers[1].start;
+    unsigned char seq = oam_hdr[1];
+    //unsigned short channel = (oam_hdr[2]<<8)+oam_hdr[3];
+    unsigned short nodeid = (oam_hdr[4]<<8)+oam_hdr[5];
+    unsigned char level = oam_hdr[6] >> 1;
+    unsigned char session = oam_hdr[7] & 0x0f;
+
+    if (!get_return_ip_port(j, &reply_address, &port)) {
+        json_delete(j);
+        return false;
+    }
+
+    json_object_remove(j, "return");
+    json_object_insert(j, "req_type", json_string("response"));
+    json_object_insert(j, "sequence", json_number(seq));
+    json_object_insert(j, "level", json_number(level));
+    json_object_insert(j, "nodeid", json_number(nodeid));
+    json_object_insert(j, "session", json_number(session));
+    json_object_insert(j, "node", json_string(oam->name)); //TODO receiver
+
+    const char *stream = "<unknown>";
+    struct JsonValue *jstream = json_object_get_string(j, "stream");
+    if (stream != NULL) {
+        stream = jstream->v.string;
+    }
+    // we know that header 0 contains the label in the first 20 bit
+    uint32_t *label = (uint32_t *) (p->buf + p->headers[0].start);
+    json_object_insert(j, "label", json_number((ntohl(*label) >> 12) & 0xFFFFF));
+
+    struct JsonValue *jlist = json_array();
+    struct AddstartState st = {jlist, oam};
+    hashmap_foreach(mep_starts, addstart_cb, &st);
+    json_object_insert(j, "list", jlist);
+
+    unsigned msg_len=0;
+    char *j_msg = json_serialize(j, &msg_len);
+
+    log_packet("%s:%d seq %d lvl %d T (to %s %d) - %s", stream, session, seq, level,
             reply_address, port, j_msg);
 
     oam_send_reply(reply_address, port, j_msg, msg_len);
@@ -1380,28 +1530,16 @@ bool oam_recv_request(struct OamEndPoint *oam, struct Packet *p)
         return false;
     }
 
-    // if record route, add this hop
-    // TODO rping should NOT do this
-    struct JsonValue *jrr = json_object_get_array(j, "rr");
-    if(jrr!=NULL){
-        json_array_unshift(jrr, json_string(oam->name));
-
-        unsigned js_length;
-        char *js_string = json_serialize(j, &js_length);
-        if (js_string == NULL) {
-            fprintf(stderr, "could not add entry to route record\n");
-            json_delete(j);
-            return false;            //  DROP packet
-        }
-        memcpy(msg, js_string, js_length);
-        free(js_string);
-        p->len += js_length - p->headers[2].len;
-        p->headers[2].len = js_length;
+    struct JsonValue *jreqt = json_object_get_string(j, "request");
+    if(jreqt==NULL) {
+        fprintf(stderr, "OAM packet has no request type\n");
+        json_delete(j);
+        return false;
     }
 
     if(level < oam->level){
         /*fprintf(stderr, "MIP %s level %d Warning: dropping lower level (level %d) OAM packet.\n",
-                oam->name, oam->level, level);*/
+          oam->name, oam->level, level);*/
         json_delete(j);
         return false;
     }
@@ -1416,26 +1554,69 @@ bool oam_recv_request(struct OamEndPoint *oam, struct Packet *p)
         return false;
     }
 
-    //TODO this logic only applies to ping, for rping we need
-    //      ttl expired: no process, drop
-    //      target any: no process, drop
-    //      target me: process, drop
-    //      otherwise: forward if mip
-    if (p->ttl == 0) {
-        process_request(oam, p, j);
-        return false;
-    } else {
+    if (strcmp(jreqt->v.string, "ping") == 0) {
+        struct JsonValue *jrr = json_object_get_array(j, "rr");
+        if (jrr != NULL) {
+            //TODO supply more info: type, level, attached object
+            json_array_unshift(jrr, json_string(oam->name));
+
+            unsigned js_length;
+            char *js_string = json_serialize(j, &js_length);
+            if (js_string == NULL) {
+                fprintf(stderr, "could not add entry to route record\n");
+                json_delete(j);
+                return false;            //  DROP packet
+            }
+            memcpy(msg, js_string, js_length);
+            free(js_string);
+            p->len += js_length - p->headers[2].len;
+            p->headers[2].len = js_length;
+        }
+
+        if (p->ttl == 0) {
+            process_ping_request(oam, p, j);
+            return false;
+        }
         if (strcmp(target->v.string, oam->name) == 0) {
-            process_request(oam, p, j);
+            process_ping_request(oam, p, j);
             return false;
         }
         if (strcmp(target->v.string, "any") == 0) {
-            if (!process_request(oam, p, j))
+            if (!process_ping_request(oam, p, j))
                 return false;
             return oam->stop ? false : true;
         }
+        return oam->stop ? false : true;
+    } else if (strcmp(jreqt->v.string, "rping") == 0) {
+        if (p->ttl == 0) {
+            return false;
+        }
+        if (strcmp(target->v.string, "any") == 0) {
+            return false;
+        }
+        if (strcmp(target->v.string, oam->name) == 0) {
+            process_rping_request(oam, p, j);
+            return false;
+        }
+        return oam->stop ? false : true;
+    } else if (strcmp(jreqt->v.string, "rlist") == 0) {
+        if (p->ttl == 0) {
+            return false;
+        }
+        if (strcmp(target->v.string, "any") == 0) {
+            if (!process_rlist_request(oam, p, j))
+                return false;
+            return oam->stop ? false : true;
+        }
+        if (strcmp(target->v.string, oam->name) == 0) {
+            process_rlist_request(oam, p, j);
+            return false;
+        }
+        return oam->stop ? false : true;
+    } else {
+        //TODO unknown message type
+        return false;
     }
-    return oam->stop ? false : true;
 }
 
 static int oam_start_background_ping_cb(const char *key, void *value, void *userdata)
