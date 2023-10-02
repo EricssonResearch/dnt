@@ -151,7 +151,7 @@ static int alloc_session_id(const char *stream_name, struct oam_request *req, FI
         return -1;
     } else {
         stream->last_session = id;
-        stream->sessions[id].live = true;
+        stream->sessions[id].live = req->count == 1 ? false : true;
         stream->sessions[id].access_time = now.tv_sec + 1;
         stream->sessions[id].req = req;
         stream->sessions[id].cmd_w = cmd_w;
@@ -367,7 +367,7 @@ static bool initiate_request(struct oam_request *ping_req)
             ping_req->record_route?"yes":"no", ping_req->object_state?"yes":"no", ping_req->return_ip, ping_req->return_port);
 
     if(ping_req->count == 1){
-          return send_request(ping_req);
+          send_request(ping_req);
           free(ping_req);
     } else {
           pthread_attr_t attr;
@@ -881,6 +881,9 @@ int oam_command_loop(struct Interface *iface)
             }
         }
         else {
+            if (n < 0) {
+                perror("read");
+            }
             break;
         }
     }
