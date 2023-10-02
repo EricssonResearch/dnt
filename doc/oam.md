@@ -16,9 +16,12 @@ The OAM CLI can be reached via 'telnet' command to the address:port specified fo
 
 The main commands are 'ping' and 'rping'. There also are several helping commands.
 The available commands are:
+
 * help - get help
 * exit - exit OAM
+* log [module newlevel] - get current log levels or set it for the given module.
 * list - list monitoring start points
+* rlist[@if] <stream:mep-start/mip> <mep-stop/mip/any> <level> - list monitoring start points of the remote node.
 * mode <mode> - terminal mode. Mode can be 'dump' or 'json'.
 * sessions [stream] - list active sessions for stream. If no 'stream' specified, lists all sessions
 * stop [stream session_id] - stop a running OAM session, identified by 'stream:session_id'. Without parameters it stops the last session
@@ -27,3 +30,94 @@ The available commands are:
 * rping[@if] <remote stream:mep-stop/mip> <stream:mep-start> <mep-stop/mip/any> <level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]
 
 For rping, the @if parameter refers the interface at the initiator node. It is not possible to specify other OAM interface at the remote node, the default OAM interface will be used.
+
+## OAM message formats
+
+### ping request
+
+Fixed header
+
+ * channel - we use 1 as a placeholder until IANA assigns something to us
+ * level - OAM level
+ * nodeid - identifies the source node, should be an MPLS label (now: last 2 octets of the IPv4 address of the default return interface)
+ * session - distinguishes between ping sessions from the same node on the same stream
+ * seq - sequence number within a session (when sending multiple ping requests)
+
+Json
+
+ * type = "ping"
+ * phase = "request"
+ * return - ip/port where the ping reply should be sent
+    * ip
+    * port
+ * stream - name of the stream where the start point is, important for reply processing (note: at the target node the stream can have different name!)
+ * target - the end point that must answer the request, can be "any"
+ * rr - route request, all intermediate measurement points add themselves to this list
+ * objects - if true, the target measurement point supplies information about its associated object
+ * delay - if true, requests delay measurement (the target writes its receive timestamp anyways)
+ * send_s - timestamp seconds
+ * send_ns - timestamp nanoseconds
+
+### ping reply
+
+Json returns everything as-is, except "return". Also adds info received in the fixed header.
+
+ * type = "ping"
+ * phase = "reply"
+ * stream - returned unchanged
+ * target - returned unchanged
+ * receiver - name of the processing end point (interesting when target is "any")
+ * rr - returned, processing end point added
+ * objects - returned, object state filled
+ * delay - returned unchanged
+ * level - from fixed header
+ * nodeid - from fixed header
+ * session - from fixed header
+ * seq - from fixed header
+ * label - MPLS label on the request
+ * recv_s - timestamp seconds
+ * recv_ns - timestamp nanoseconds
+
+### rping request
+
+Fixed header is same as ping.
+
+Json has mostly the same info as ping
+
+ * type = "rping"
+ * phase = "request"
+ * return - ip/port where the ping reply should be sent
+    * ip
+    * port
+ * stream - name of the stream where the start point is, important for reply processing (note: at the target node the stream can have different name!)
+ * target - the end point that must process the request, cannot be "any"
+ * **command** - the ping command to be executed on the remote node, specifies a start point that can be different from the target of the rping
+ * send_s - timestamp seconds
+ * send_ns - timestamp nanoseconds
+
+Receiving such a request triggers a normal ping by interpreting "command" as it came from the command line, minus the "ping" at the beginning. The initiated ping will use "stream" and "session" from this request instead of the ones allocated on the receiver. The return interface is the one supplied in this request instead of one of the interfaces on the receiver.
+
+### rping reply
+
+This is an error message. Currently unimplemented.
+
+### rlist request
+
+Fixed header is same as ping.
+
+Json has mostly the same info as ping.
+
+ * type = "rping"
+ * phase = "request"
+ * return - ip/port where the ping reply should be sent
+    * ip
+    * port
+ * stream - name of the stream where the start point is, important for reply processing (note: at the target node the stream can have different name!)
+ * target - the end point that must answer the request, can be "any"
+
+### rlist reply
+
+Same deal as with ping: Json has the info from the fixed header, "return" is removed.
+
+ * rlist - list of start points for the stream
+
