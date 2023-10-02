@@ -368,7 +368,9 @@ static bool initiate_request(struct oam_request *ping_req)
             ping_req->type, ping_req->session_id, ping_req->seq, ping_req->mep_start->name, ping_req->mep_stop, ping_req->level, ping_req->count, ping_req->interval_ms,
             ping_req->record_route?"yes":"no", ping_req->object_state?"yes":"no", ping_req->return_ip, ping_req->return_port);
 
+    struct StreamSessions *stream = hashmap_find(session_ids, ping_req->mep_start->stream_name);
     if(ping_req->count == 1){
+        stream->sessions[session_id].multireq_tid = -1;
           send_request(ping_req);
           free(ping_req);
     } else {
@@ -378,7 +380,6 @@ static bool initiate_request(struct oam_request *ping_req)
               return false;
           }
 
-          struct StreamSessions *stream = hashmap_find(session_ids, ping_req->mep_start->stream_name);
           if (pthread_create(&stream->sessions[session_id].multireq_tid, &attr, &oam_request_thread, ping_req) != 0) {
               fprintf(stderr, "could not create new ping thread\n");
               return false;
@@ -679,12 +680,14 @@ static void stop_session(const char *streamname, int session, FILE *cmd_w)
             session = stream->last_session;
         fprintf(cmd_w, "Stopping stream:session %s:%d ", streamname, session);
         if(stream->sessions[session].live){
-            if (pthread_cancel(stream->sessions[session].multireq_tid) <  0)
-                fprintf(cmd_w," - failed.\n");
-            else{
-                stream->sessions[session].live = false;
-                fprintf(cmd_w," - stopped.\n");
+            if (stream->sessions[session].multireq_tid > 0) {
+                if (pthread_cancel(stream->sessions[session].multireq_tid) <  0) {
+                    fprintf(cmd_w," - failed.\n");
+                } else {
+                    fprintf(cmd_w," - stopped.\n");
+                }
             }
+            stream->sessions[session].live = false;
         } else
             fprintf(cmd_w," - not running.\n");
     }
