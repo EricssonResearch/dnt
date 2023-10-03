@@ -218,8 +218,8 @@ struct OamEndPoint *oam_create_endpoint(const char *name, const char *stream, in
 }
 
 static int add_fixed_headers(struct Packet *packet, unsigned char ttl,
-        unsigned char seq, unsigned short channel, unsigned short nodeid,
-        unsigned char level, unsigned char session)
+                             unsigned char seq, unsigned short channel, unsigned short nodeid,
+                             unsigned char level, unsigned char session)
 {
     unsigned int proto_id = PROTO_ID_MPLS;
     packet_add_header(packet, 0, proto_id, protocol_list[proto_id].bytelength);
@@ -250,7 +250,7 @@ static bool send_request(const struct oam_request *req){
 
     unsigned session_id = req->originator_stream ? req->originator_session_id : req->session_id;
     add_fixed_headers(packet, req->ttl, req->seq, OAM_CHANNEL,
-            req->node_id, req->level, session_id);
+                      req->node_id, req->level, session_id);
     packet->ttl = req->ttl;
 
     struct JsonValue *js = json_object();
@@ -306,8 +306,8 @@ static bool send_request(const struct oam_request *req){
     memcpy(msg, js_string, js_length);
 
     log_packet("%s:%d seq %d lvl %d S - %s",
-                    req->mep_start->stream_name, req->session_id, req->seq, req->level,
-                    js_string);
+               req->mep_start->stream_name, req->session_id, req->seq, req->level,
+               js_string);
 
     free(js_string);
 
@@ -361,8 +361,8 @@ static bool initiate_request(struct oam_request *ping_req)
     ping_req->seq = 0;
 
     log_info("OAM packet %s session %u seq %u, %s -> %s, level %d, count %d interval %d, rr: %s os: %s\t[reply to ip: %s, port: %u]",
-            ping_req->type, ping_req->session_id, ping_req->seq, ping_req->mep_start->name, ping_req->mep_stop, ping_req->level, ping_req->count, ping_req->interval_ms,
-            ping_req->record_route?"yes":"no", ping_req->object_state?"yes":"no", ping_req->return_ip, ping_req->return_port);
+             ping_req->type, ping_req->session_id, ping_req->seq, ping_req->mep_start->name, ping_req->mep_stop, ping_req->level, ping_req->count, ping_req->interval_ms,
+             ping_req->record_route?"yes":"no", ping_req->object_state?"yes":"no", ping_req->return_ip, ping_req->return_port);
 
     fprintf(cmd_w, "OAM packet %s session %u seq %u, %s -> %s, level %d, count %d interval %d, rr: %s os: %s\t[reply to ip: %s, port: %u]\n",
             ping_req->type, ping_req->session_id, ping_req->seq, ping_req->mep_start->name, ping_req->mep_stop, ping_req->level, ping_req->count, ping_req->interval_ms,
@@ -371,19 +371,19 @@ static bool initiate_request(struct oam_request *ping_req)
     struct StreamSessions *stream = hashmap_find(session_ids, ping_req->mep_start->stream_name);
     if(ping_req->count == 1){
         stream->sessions[session_id].multireq_tid = -1;
-          send_request(ping_req);
-          free(ping_req);
+        send_request(ping_req);
+        free(ping_req);
     } else {
-          pthread_attr_t attr;
-          if ((errno = pthread_attr_init(&attr)) != 0) {
-              perror("oam ping thread pthread_attr_init");
-              return false;
-          }
+        pthread_attr_t attr;
+        if ((errno = pthread_attr_init(&attr)) != 0) {
+            perror("oam ping thread pthread_attr_init");
+            return false;
+        }
 
-          if (pthread_create(&stream->sessions[session_id].multireq_tid, &attr, &oam_request_thread, ping_req) != 0) {
-              fprintf(stderr, "could not create new ping thread\n");
-              return false;
-          }
+        if (pthread_create(&stream->sessions[session_id].multireq_tid, &attr, &oam_request_thread, ping_req) != 0) {
+            fprintf(stderr, "could not create new ping thread\n");
+            return false;
+        }
     }
 
     return true;
@@ -503,7 +503,7 @@ static struct oam_request *parse_ping_command(const char *oam_command, bool allo
             return NULL;
         }
         int k = sscanf(oam_command, "@%s %s %s %d%n",
-                iface_name, start_name, ping_req->mep_stop, &ping_req->level, &l);
+                       iface_name, start_name, ping_req->mep_stop, &ping_req->level, &l);
         if (k < 4) {
             fprintf(cmd_w, "ping arguments invalid");
             free(ping_req);
@@ -511,7 +511,7 @@ static struct oam_request *parse_ping_command(const char *oam_command, bool allo
         }
     } else {
         int k = sscanf(oam_command, " %s %s %d%n",
-                start_name, ping_req->mep_stop, &ping_req->level, &l);
+                       start_name, ping_req->mep_stop, &ping_req->level, &l);
         if (k < 3) {
             fprintf(cmd_w, "ping arguments invalid");
             free(ping_req);
@@ -549,7 +549,7 @@ static struct oam_request *parse_rping_command(const char *oam_command, FILE *cm
 
     if (oam_command[0]=='@') {
         int k = sscanf(oam_command, "@%s %s %s %d%n",
-                iface_name, start_name, rping_req->mep_stop, &rping_req->level, &l);
+                       iface_name, start_name, rping_req->mep_stop, &rping_req->level, &l);
         if (k < 4) {
             fprintf(cmd_w, "rping arguments invalid");
             free(rping_req);
@@ -557,7 +557,7 @@ static struct oam_request *parse_rping_command(const char *oam_command, FILE *cm
         }
     } else {
         int k = sscanf(oam_command, " %s %s %d%n",
-                start_name, rping_req->mep_stop, &rping_req->level, &l);
+                       start_name, rping_req->mep_stop, &rping_req->level, &l);
         if (k < 3) {
             fprintf(cmd_w, "rping arguments invalid");
             free(rping_req);
@@ -594,7 +594,7 @@ static struct oam_request *parse_rlist_command(const char *oam_command, FILE *cm
 
     if (oam_command[0]=='@') {
         int k = sscanf(oam_command, "@%s %s %s %d%n",
-                iface_name, start_name, rlist_req->mep_stop, &rlist_req->level, &l);
+                       iface_name, start_name, rlist_req->mep_stop, &rlist_req->level, &l);
         if (k < 4) {
             fprintf(cmd_w, "rlist arguments invalid");
             free(rlist_req);
@@ -602,7 +602,7 @@ static struct oam_request *parse_rlist_command(const char *oam_command, FILE *cm
         }
     } else {
         int k = sscanf(oam_command, " %s %s %d%n",
-                start_name, rlist_req->mep_stop, &rlist_req->level, &l);
+                       start_name, rlist_req->mep_stop, &rlist_req->level, &l);
         if (k < 3) {
             fprintf(cmd_w, "rlist arguments invalid");
             free(rlist_req);
@@ -689,7 +689,7 @@ static void stop_session(const char *streamname, int session, FILE *cmd_w)
             }
             stream->sessions[session].live = false;
         } else
-            fprintf(cmd_w," - not running.\n");
+        fprintf(cmd_w," - not running.\n");
     }
 }
 
@@ -774,7 +774,7 @@ int oam_command_loop(struct Interface *iface)
 {
 #define ERROR(msg, ...)                             \
     fprintf(cmd_w, "Error: " msg "\n",              \
-        ##__VA_ARGS__);                             \
+            ##__VA_ARGS__);                             \
     continue
 
     int cmd_fd = oam_get_cmd_fd(iface);
@@ -881,7 +881,7 @@ int oam_command_loop(struct Interface *iface)
                     }
                 }
                 else
-                    fprintf(cmd_w, "Invalid parameters for 'sessions' command.\n");
+                fprintf(cmd_w, "Invalid parameters for 'sessions' command.\n");
             }
             else if (strncmp(oam_command, "stop", 4) == 0) {
                 int session;
@@ -894,7 +894,7 @@ int oam_command_loop(struct Interface *iface)
                 } else if(k==2){
                     stop_session(streamname, session, cmd_w);
                 } else
-                    fprintf(cmd_w,"invalid parameters for stop.\n");
+                fprintf(cmd_w,"invalid parameters for stop.\n");
             }
             else if (strcmp(oam_command, "returns") == 0) {
                 fprintf(cmd_w, "Available OAM return interfaces:\n");
@@ -1011,28 +1011,28 @@ static int dump_seqrec_state(char *str, struct JsonValue *jos){
         }
     }
     const char *fmt_match = "\n\t\trecovery_algorithm: %s, reset_timer: %.0fms\n" \
-                            "\t\tlatest_valid_sequence_number: %.0f, passed: %.0f, discarded: %.0f\n" \
-                            "\t\tnumber_of_resets: %.0f\n";
+        "\t\tlatest_valid_sequence_number: %.0f, passed: %.0f, discarded: %.0f\n" \
+        "\t\tnumber_of_resets: %.0f\n";
 
     const char *fmt_vector = "\n\t\trecovery_algorithm: %s, use_init_flag: %s, use_reset_flag: %s\n" \
-                            "\t\treset_timer: %.0fms, history_length: %.0f\n" \
-                            "\t\tlatest_valid_sequence_number: %.0f, passed: %.0f, discarded: %.0f\n" \
-                            "\t\thistory_content: %s\n" \
-                            "\t\tlatent_error_paths: %.0f, latent_error_resets: %.0f\n"
-                            "\t\tnumber_of_resets: %.0f\n";
+        "\t\treset_timer: %.0fms, history_length: %.0f\n" \
+        "\t\tlatest_valid_sequence_number: %.0f, passed: %.0f, discarded: %.0f\n" \
+        "\t\thistory_content: %s\n" \
+        "\t\tlatent_error_paths: %.0f, latent_error_resets: %.0f\n"
+        "\t\tnumber_of_resets: %.0f\n";
     if (vector) {
         bool init = init_flag->type == JSON_TRUE ? true : false;
         bool reset = reset_flag->type == JSON_TRUE ? true : false;
         snprintf(tmp, sizeof(tmp), fmt_vector, algo->v.string, init ? "true" : "false", reset ? "true" : "false",
-                reset_msec->v.number, hist_len->v.number,
-                seq->v.number, passed->v.number, discarded->v.number,
-                hist->v.string,
-                err_paths->v.number, errs->v.number,
-                resets->v.number);
+                 reset_msec->v.number, hist_len->v.number,
+                 seq->v.number, passed->v.number, discarded->v.number,
+                 hist->v.string,
+                 err_paths->v.number, errs->v.number,
+                 resets->v.number);
     } else {
         snprintf(tmp, sizeof(tmp), fmt_match, algo->v.string, reset_msec->v.number,
-                seq->v.number, passed->v.number, discarded->v.number,
-                resets->v.number);
+                 seq->v.number, passed->v.number, discarded->v.number,
+                 resets->v.number);
     }
     strcat(str, tmp);
     return 0;
@@ -1063,9 +1063,9 @@ static int dump_pof_state(char *str, struct JsonValue *jos){
         return -1;
     }
     const char *fmt = "\n\t\tmax_buffer_length: %.0f, max_delay: %.0fms, take_any_time: %.0fms\n" \
-                        "\t\tcurrent_buffer_length: %.0f, last_sent: %.0f\n";
+        "\t\tcurrent_buffer_length: %.0f, last_sent: %.0f\n";
     snprintf(tmp, sizeof(tmp), fmt, buff_size->v.number, max_delay->v.number, take_any_time->v.number,
-            buff_len->v.number, last_sent->v.number);
+             buff_len->v.number, last_sent->v.number);
     strcat(str, tmp);
     return 0;
 }
@@ -1161,9 +1161,9 @@ int oam_recv_reply(const char *msg)
                 request->v.string, level->v.number, strm->v.string, target->v.string, node->v.string, delay_diff.tv_sec, delay_diff.tv_nsec);
     }
     else
-        sprintf(reply_str,"[nodeid %.0f session %.0f seq %.0f]\t%s level %.0f on stream %s target %s\treply from %s\n",
-                nid->v.number, sess->v.number, seq->v.number,
-                request->v.string, level->v.number, strm->v.string, target->v.string, node->v.string);
+    sprintf(reply_str,"[nodeid %.0f session %.0f seq %.0f]\t%s level %.0f on stream %s target %s\treply from %s\n",
+            nid->v.number, sess->v.number, seq->v.number,
+            request->v.string, level->v.number, strm->v.string, target->v.string, node->v.string);
 
 
     struct JsonValue *jrr = json_object_get_array(j, "rr");
@@ -1233,7 +1233,7 @@ int oam_recv_reply(const char *msg)
             return oam_cmd_recv_reply(oam_cmd_iface, reply_str);
         }
     }
-#undef JS_OBJECT_GET
+    #undef JS_OBJECT_GET
 }
 
 /*
@@ -1244,37 +1244,37 @@ int oam_recv_reply(const char *msg)
 */
 static int oam_send_reply(const char *address, unsigned port, const char *msg, unsigned msg_len)
 {
-  struct addrinfo hints, *res, *rp;
-  int status;
+    struct addrinfo hints, *res, *rp;
+    int status;
 
-  char port_str[15];
-  sprintf(port_str, "%u", port);
-  bzero(&hints, sizeof(hints));
-  hints.ai_family = PF_UNSPEC;     // can be ipv4 or ipv6
-  hints.ai_socktype = SOCK_DGRAM;
-  hints.ai_flags = AI_PASSIVE;
-  if ((status = getaddrinfo(address, port_str, &hints, &res)) != 0) {
-    fprintf(stderr, "oam_send_reply getaddrinfo for address '%s': %s\n", address, gai_strerror(status));
-    return -1;
-  }
-
-  int sock = -1;
-  for (rp=res; rp!=NULL; rp=rp->ai_next) {
-      sock = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
-      if (sock < 0) continue;
-
-    if (sendto(sock, msg, msg_len, 0, rp->ai_addr, rp->ai_addrlen) == 0) {
-        perror("oam repy sendto");
-        freeaddrinfo(res);
-        close(sock);
+    char port_str[15];
+    sprintf(port_str, "%u", port);
+    bzero(&hints, sizeof(hints));
+    hints.ai_family = PF_UNSPEC;     // can be ipv4 or ipv6
+    hints.ai_socktype = SOCK_DGRAM;
+    hints.ai_flags = AI_PASSIVE;
+    if ((status = getaddrinfo(address, port_str, &hints, &res)) != 0) {
+        fprintf(stderr, "oam_send_reply getaddrinfo for address '%s': %s\n", address, gai_strerror(status));
         return -1;
-    } else
-        break;
-  }
+    }
 
-  freeaddrinfo(res);
-  close(sock);
-  return 0;
+    int sock = -1;
+    for (rp=res; rp!=NULL; rp=rp->ai_next) {
+        sock = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+        if (sock < 0) continue;
+
+        if (sendto(sock, msg, msg_len, 0, rp->ai_addr, rp->ai_addrlen) == 0) {
+            perror("oam repy sendto");
+            freeaddrinfo(res);
+            close(sock);
+            return -1;
+        } else
+        break;
+    }
+
+    freeaddrinfo(res);
+    close(sock);
+    return 0;
 }
 
 // @returns false on error
@@ -1356,7 +1356,7 @@ static bool process_ping_request(struct OamEndPoint *oam, struct Packet *p, stru
     char *j_msg = json_serialize(j, &msg_len);
 
     log_packet("%s:%d seq %d lvl %d T (to %s %d) - %s", stream, session, seq, level,
-            reply_address, port, j_msg);
+               reply_address, port, j_msg);
 
     oam_send_reply(reply_address, port, j_msg, msg_len);
     free(reply_address);
@@ -1486,7 +1486,7 @@ static bool process_rlist_request(struct OamEndPoint *oam, struct Packet *p, str
     char *j_msg = json_serialize(j, &msg_len);
 
     log_packet("%s:%d seq %d lvl %d T (to %s %d) - %s", stream, session, seq, level,
-            reply_address, port, j_msg);
+               reply_address, port, j_msg);
 
     oam_send_reply(reply_address, port, j_msg, msg_len);
     free(reply_address);
