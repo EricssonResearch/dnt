@@ -1641,16 +1641,15 @@ static int oam_start_background_ping_cb(const char *key, void *value, void *user
 
     ping_req->count = 0;    // force infinite count
 
-/*    int live_session_count = 0;
+    int live_session_count = 0;
     struct StreamSessions *stream = hashmap_find(session_ids, ping_req->mep_start->stream_name);
-    if(!stream)
-        return 0;
-    for (int i=0; i<16; i++) if (stream->sessions[i].live) live_session_count++;
-    if (live_session_count >= 14) {
-        free(ping_req);
-        return 0;
+    if(stream){
+        for (int i=0; i<16; i++) if (stream->sessions[i].live) live_session_count++;
+        if (live_session_count >= 14) {
+            free(ping_req);
+            return 0;
+        }
     }
-*/
     return initiate_request(ping_req);
 }
 
