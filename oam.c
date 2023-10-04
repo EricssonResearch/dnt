@@ -142,6 +142,7 @@ static int alloc_session_id(const char *stream_name, struct oam_request *req, FI
         if (now.tv_sec > stream->sessions[id].access_time + timeout) {
             //fprintf(stderr, "session %u timeouted\n", id);
             stream->sessions[id].live = false;
+            stream->sessions[id].multireq_tid = 0;
             break;
         }
         id = (id + 1) % 16;
@@ -153,9 +154,10 @@ static int alloc_session_id(const char *stream_name, struct oam_request *req, FI
         return -1;
     } else {
         stream->last_session = id;
-        stream->sessions[id].live = req->count == 1 ? false : true;
+        stream->sessions[id].live = 1;
         stream->sessions[id].access_time = now.tv_sec + 1;
         stream->sessions[id].req = req;
+        stream->sessions[id].multireq_tid = 0;
         stream->sessions[id].cmd_w = cmd_w;
         pthread_mutex_unlock(&session_lock);
         return id;
@@ -336,6 +338,7 @@ static void *oam_request_thread(void *arg)
         seq++;
     }
     stream->sessions[req->session_id].live = false;
+    stream->sessions[req->session_id].multireq_tid = 0;
     free(req);
     return NULL;
 }
@@ -370,7 +373,7 @@ static bool initiate_request(struct oam_request *ping_req)
 
     struct StreamSessions *stream = hashmap_find(session_ids, ping_req->mep_start->stream_name);
     if(ping_req->count == 1){
-        stream->sessions[session_id].multireq_tid = -1;
+        stream->sessions[session_id].multireq_tid = 0;
         send_request(ping_req);
         free(ping_req);
     } else {
@@ -688,6 +691,7 @@ static void stop_session(const char *streamname, int session, FILE *cmd_w)
                 }
             }
             stream->sessions[session].live = false;
+            stream->sessions[session].multireq_tid = 0;
         } else
         fprintf(cmd_w," - not running.\n");
     }
