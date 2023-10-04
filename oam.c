@@ -734,7 +734,7 @@ static void handle_telnet_command(unsigned char *oam_command, int *n, FILE *cmd_
                     if (oam_command[k+2] == TELNET_TIMING_MARK) {
                         // we must reply with this or the telnet client gets stuck (see RFC 860)
                         char reply[] = {TELNET_IAC, TELNET_WILL, TELNET_TIMING_MARK, 0};
-                        fprintf(cmd_w, reply);
+                        fprintf(cmd_w, "%s", reply);
                         k += 3;
                     } else {
                         fprintf(stderr, "unhandled telnet DO command %d\n", oam_command[k+2]);
@@ -962,7 +962,7 @@ int oam_command_loop(struct Interface *iface)
 /*
  *  Formatted dump functions for printing object specific json
  */
-static int dump_seqgen_state(char *str, struct JsonValue *jos){
+static int dump_seqgen_state(char *str, struct JsonValue *jos, const char *record_sep, const char *line_sep){
     char tmp[128];
     struct JsonValue *ini = json_object_get_bool(jos, "use_init_flag");
     if(ini == NULL) {
@@ -974,13 +974,13 @@ static int dump_seqgen_state(char *str, struct JsonValue *jos){
         fprintf(stderr, "No use_init_flag in object in reply.\n");
         return -1;
     }
-    snprintf(tmp, sizeof(tmp), " (use_init_flag: %s, use_reset_flag: %s)\n", (ini->type == JSON_TRUE)? "true":"false", (rst->type == JSON_TRUE)? "true":"false" );
+    snprintf(tmp, sizeof(tmp), "%s%suse_init_flag: %s, use_reset_flag: %s%s", line_sep, record_sep, (ini->type == JSON_TRUE)? "true":"false", (rst->type == JSON_TRUE)? "true":"false", line_sep);
     strcat(str, tmp);
 
     return 0;
 }
 
-static int dump_seqrec_state(char *str, struct JsonValue *jos){
+static int dump_seqrec_state(char *str, struct JsonValue *jos, const char *record_sep, const char *line_sep){
     char tmp[1000] = { 0 };
     bool vector = false;
     struct JsonValue *type = json_object_get_string(jos, "type");
@@ -1010,48 +1010,48 @@ static int dump_seqrec_state(char *str, struct JsonValue *jos){
             return -1;
         }
     }
-    const char *fmt_match = "\n\t\trecovery_algorithm: %s, reset_timer: %.0fms\n" \
-        "\t\tlatest_valid_sequence_number: %.0f, passed: %.0f, discarded: %.0f\n" \
-        "\t\tnumber_of_resets: %.0f\n";
+    const char *fmt_match = "%s%srecovery_algorithm: %s, reset_timer: %.0fms%s" \
+        "%slatest_valid_sequence_number: %.0f, passed: %.0f, discarded: %.0f%s" \
+        "%snumber_of_resets: %.0f%s";
 
-    const char *fmt_vector = "\n\t\trecovery_algorithm: %s, use_init_flag: %s, use_reset_flag: %s\n" \
-        "\t\treset_timer: %.0fms, history_length: %.0f\n" \
-        "\t\tlatest_valid_sequence_number: %.0f, passed: %.0f, discarded: %.0f\n" \
-        "\t\thistory_content: %s\n" \
-        "\t\tlatent_error_paths: %.0f, latent_error_resets: %.0f\n"
-        "\t\tnumber_of_resets: %.0f\n";
+    const char *fmt_vector = "%s%srecovery_algorithm: %s, use_init_flag: %s, use_reset_flag: %s%s" \
+        "%sreset_timer: %.0fms, history_length: %.0f%s" \
+        "%slatest_valid_sequence_number: %.0f, passed: %.0f, discarded: %.0f%s" \
+        "%shistory_content: %s%s" \
+        "%slatent_error_paths: %.0f, latent_error_resets: %.0f%s"
+        "%snumber_of_resets: %.0f%s";
     if (vector) {
         bool init = init_flag->type == JSON_TRUE ? true : false;
         bool reset = reset_flag->type == JSON_TRUE ? true : false;
-        snprintf(tmp, sizeof(tmp), fmt_vector, algo->v.string, init ? "true" : "false", reset ? "true" : "false",
-                 reset_msec->v.number, hist_len->v.number,
-                 seq->v.number, passed->v.number, discarded->v.number,
-                 hist->v.string,
-                 err_paths->v.number, errs->v.number,
-                 resets->v.number);
+        snprintf(tmp, sizeof(tmp), fmt_vector, line_sep, record_sep, algo->v.string, init ? "true" : "false", reset ? "true" : "false", line_sep,
+                 record_sep, reset_msec->v.number, hist_len->v.number, line_sep,
+                 record_sep, seq->v.number, passed->v.number, discarded->v.number, line_sep,
+                 record_sep, hist->v.string, line_sep,
+                 record_sep, err_paths->v.number, errs->v.number, line_sep,
+                 record_sep, resets->v.number, line_sep);
     } else {
-        snprintf(tmp, sizeof(tmp), fmt_match, algo->v.string, reset_msec->v.number,
-                 seq->v.number, passed->v.number, discarded->v.number,
-                 resets->v.number);
+        snprintf(tmp, sizeof(tmp), fmt_match, line_sep, record_sep, algo->v.string, reset_msec->v.number, line_sep,
+                 record_sep, seq->v.number, passed->v.number, discarded->v.number, line_sep,
+                 record_sep, resets->v.number, line_sep);
     }
     strcat(str, tmp);
     return 0;
 }
 
-static int dump_repl_state(char *str, struct JsonValue *jos){
+static int dump_repl_state(char *str, struct JsonValue *jos, const char *record_sep, const char *line_sep){
     char tmp[128];
     struct JsonValue *pass = json_object_get_number(jos, "packets_passed");
     if(pass == NULL) {
         fprintf(stderr, "No packets_passed in object in reply.\n");
         return -1;
     }
-    snprintf(tmp, sizeof(tmp), "\n\t\tpackets_passed: %.0f\n",  pass->v.number);
+    snprintf(tmp, sizeof(tmp), "%s%spackets_passed: %.0f%s", line_sep, record_sep, pass->v.number, line_sep);
     strcat(str, tmp);
 
     return 0;
 }
 
-static int dump_pof_state(char *str, struct JsonValue *jos){
+static int dump_pof_state(char *str, struct JsonValue *jos, const char *record_sep, const char *line_sep){
     char tmp[128] = { 0 };
     struct JsonValue *buff_size = json_object_get_number(jos, "max_buffer_length");
     struct JsonValue *max_delay = json_object_get_number(jos, "max_delay");
@@ -1062,10 +1062,10 @@ static int dump_pof_state(char *str, struct JsonValue *jos){
         fprintf(stderr, "Malformed POF object state reply");
         return -1;
     }
-    const char *fmt = "\n\t\tmax_buffer_length: %.0f, max_delay: %.0fms, take_any_time: %.0fms\n" \
-        "\t\tcurrent_buffer_length: %.0f, last_sent: %.0f\n";
-    snprintf(tmp, sizeof(tmp), fmt, buff_size->v.number, max_delay->v.number, take_any_time->v.number,
-             buff_len->v.number, last_sent->v.number);
+    const char *fmt = "%s%smax_buffer_length: %.0f, max_delay: %.0fms, take_any_time: %.0fms%s" \
+        "%scurrent_buffer_length: %.0f, last_sent: %.0f%s";
+    snprintf(tmp, sizeof(tmp), fmt, line_sep, record_sep, buff_size->v.number, max_delay->v.number, take_any_time->v.number, line_sep,
+             record_sep, buff_len->v.number, last_sent->v.number, line_sep);
     strcat(str, tmp);
     return 0;
 }
@@ -1189,16 +1189,16 @@ int oam_recv_reply(const char *msg)
 
         // dump according to the type
         if(strcmp(type->v.string,"seqgen")==0){
-            dump_seqgen_state(obj_str, jos);
+            dump_seqgen_state(obj_str, jos, "\t\t", "\n");
         }
         else if(strcmp(type->v.string,"seqrec")==0){
-            dump_seqrec_state(obj_str, jos);
+            dump_seqrec_state(obj_str, jos, "\t\t", "\n");
         }
         else if(strcmp(type->v.string,"replicate")==0){
-            dump_repl_state(obj_str, jos);
+            dump_repl_state(obj_str, jos, "\t\t", "\n");
         }
         else if(strcmp(type->v.string,"pof")==0){
-            dump_pof_state(obj_str, jos);
+            dump_pof_state(obj_str, jos, "\t\t", "\n");
         }
         else {  // unknown type, just dump
             unsigned jos_length;
@@ -1641,14 +1641,16 @@ static int oam_start_background_ping_cb(const char *key, void *value, void *user
 
     ping_req->count = 0;    // force infinite count
 
-    int live_session_count = 0;
+/*    int live_session_count = 0;
     struct StreamSessions *stream = hashmap_find(session_ids, ping_req->mep_start->stream_name);
+    if(!stream)
+        return 0;
     for (int i=0; i<16; i++) if (stream->sessions[i].live) live_session_count++;
     if (live_session_count >= 14) {
         free(ping_req);
         return 0;
     }
-
+*/
     return initiate_request(ping_req);
 }
 
