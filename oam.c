@@ -276,7 +276,7 @@ static bool send_request(const struct oam_request *req){
             json_object_insert(js, "rr", jrr);
         }
         if(req->object_state){
-            json_object_insert(js, "objects", json_true());
+            json_object_insert(js, "object", json_true());
         }
         if(req->delay){
             json_object_insert(js, "delay", json_true());
@@ -1117,12 +1117,12 @@ static int dump_object_state(char *str, struct JsonValue *jos, const char *recor
 */
 int oam_recv_reply(const char *msg)
 {
-#define JS_OBJECT_GET(_varname, _type, _json, _key)                     \
-    struct JsonValue *_varname = json_object_get_##_type(_json, #_key); \
-    if (_varname == NULL) {                                             \
-        log_error("No " #_key " in reply.");                            \
-        json_delete(j);                                                 \
-        return -1;                                                      \
+#define JS_OBJECT_GET(_key, _type, _json)                           \
+    struct JsonValue *_key = json_object_get_##_type(_json, #_key); \
+    if (_key == NULL) {                                             \
+        log_error("No " #_key " in reply.");                        \
+        json_delete(j);                                             \
+        return -1;                                                  \
     }
 
     // We need to parse for logging, even if JSON mode is used.
@@ -1135,46 +1135,39 @@ int oam_recv_reply(const char *msg)
         log_error("JSON in reply is invalid.");
         return -1;
     }
-    //TODO drop this field, instead check if we have command session (based on stream/session)
-    struct JsonValue *mode = json_object_get_string(j, "mode");
-    if(mode!=NULL) {
-        if(strcmp(mode->v.string,"cfg") == 0){
-            cfg_mode = true;
-        }
-    }
-    JS_OBJECT_GET(nid, number, j, nodeid);
-    JS_OBJECT_GET(request, string, j, request);
-    JS_OBJECT_GET(target, string, j, target);
-    JS_OBJECT_GET(seq, number, j, sequence);
-    JS_OBJECT_GET(level, number, j, level);
-    JS_OBJECT_GET(node, string, j, node); //TODO receiver
-    JS_OBJECT_GET(strm, string, j, stream);
-    JS_OBJECT_GET(sess, number, j, session);
+    JS_OBJECT_GET(nodeid, number, j);
+    JS_OBJECT_GET(request, string, j);
+    JS_OBJECT_GET(target, string, j);
+    JS_OBJECT_GET(sequence, number, j);
+    JS_OBJECT_GET(level, number, j);
+    JS_OBJECT_GET(receiver, string, j);
+    JS_OBJECT_GET(stream, string, j);
+    JS_OBJECT_GET(session, number, j);
 
-    struct SessionTracker *session = NULL;
-    if (sess->v.number < 0 || sess->v.number > 15) {
-        log_error("session id %.0f in reply is invalid", sess->v.number);
+    struct SessionTracker *sess = NULL;
+    if (session->v.number < 0 || session->v.number > 15) {
+        log_error("session id %.0f in reply is invalid", session->v.number);
         return -1;
     } else {
-        struct StreamSessions *stream = hashmap_find(session_ids, strm->v.string);
-        if (stream == NULL) {
-            log_error("Invalid stream name '%s' in reply.", strm->v.string);
-            return -1;
+        struct StreamSessions *ss = hashmap_find(session_ids, stream->v.string);
+        if (ss == NULL) {
+            log_error("Unknown stream name '%s' in reply.", stream->v.string);
+            //return -1;
         } else {
-            session = &stream->sessions[(int)(sess->v.number)];
-            if (!session->live) {
-                log_error("Reply for non-live session %.0f of stream '%s'.", sess->v.number, strm->v.string);
+            sess = &ss->sessions[(int)(session->v.number)];
+            if (!sess->live) {
+                log_error("Reply for non-live session %.0f of stream '%s'.", session->v.number, stream->v.string);
                 //return -1;
             }
         }
     }
 
-    log_packet("%s:%.0f seq %.0f lvl %.0f D - %s", strm->v.string, sess->v.number, seq->v.number, level->v.number, msg);
+    log_packet("%s:%.0f seq %.0f lvl %.0f D - %s", stream->v.string, session->v.number, sequence->v.number, level->v.number, msg);
 
     //TODO this is just a quick fix
     if (strcmp(request->v.string, "rlist") == 0) {
-        JS_OBJECT_GET(list, array, j, list);
-        sprintf(reply_str, "Rlist result:\n");
+        JS_OBJECT_GET(list, array, j);
+        sprintf(reply_str, "Rlist result from %s:\n", receiver->v.string);
         for (struct JsonArray *l = list->v.array; l; l=l->next) {
             if (l->val->type != JSON_STRING) {
                 log_error("rlist result is not string.");
@@ -1198,13 +1191,13 @@ int oam_recv_reply(const char *msg)
         timespecsub(&receivetime, &sendtime, &delay_diff);
 
         sprintf(reply_str,"  %s:%.0f seq %.0f lvl %.0f R - %s on stream %s target %s; reply from %s delay %ld.%ld",
-                strm->v.string, sess->v.number, seq->v.number, level->v.number,
-                request->v.string, strm->v.string, target->v.string, node->v.string, delay_diff.tv_sec, delay_diff.tv_nsec);
+                stream->v.string, session->v.number, sequence->v.number, level->v.number,
+                request->v.string, stream->v.string, target->v.string, receiver->v.string, delay_diff.tv_sec, delay_diff.tv_nsec);
     }
     else
         sprintf(reply_str,"  %s:%.0f seq %.0f lvl %.0f R - %s on stream %s target %s; reply from %s",
-            strm->v.string, sess->v.number, seq->v.number, level->v.number,
-            request->v.string, strm->v.string, target->v.string, node->v.string);
+            stream->v.string, session->v.number, sequence->v.number, level->v.number,
+            request->v.string, stream->v.string, target->v.string, receiver->v.string);
 
     // Recorded route is single line, no difference between log/dump
     struct JsonValue *jrr = json_object_get_array(j, "rr");
@@ -1221,7 +1214,7 @@ int oam_recv_reply(const char *msg)
 
     // different format between log/dump
     obj_str[0] = 0; obj_str_log[0] = 0;
-    struct JsonValue *jos = json_object_get_object(j, "objects");
+    struct JsonValue *jos = json_object_get_object(j, "object");
     if (jos && jos->type == JSON_OBJECT){
         dump_object_state(obj_str, jos, ",", "\n\t\t");
         dump_object_state(obj_str_log, jos, ",", "; ");
@@ -1343,13 +1336,12 @@ static bool process_ping_request(struct OamEndPoint *oam, struct Packet *p, stru
     }
 
     // if object state is requested
-    struct JsonValue *jos = json_object_get_any(j, "objects");
+    struct JsonValue *jos = json_object_get_any(j, "object");
     if(jos!=NULL){
-        struct JsonValue *objinfo = NULL;
         if (oam->target && oam->target->print_state) {
-            objinfo = oam->target->print_state(oam->target->object);
+            struct JsonValue *objinfo = oam->target->print_state(oam->target->object);
             json_object_insert(objinfo, "name", json_string(oam->target->name));
-            json_object_insert(j, "objects", objinfo);
+            json_object_insert(j, "object", objinfo);
         }
     }
 
@@ -1359,7 +1351,7 @@ static bool process_ping_request(struct OamEndPoint *oam, struct Packet *p, stru
     json_object_insert(j, "level", json_number(level));
     json_object_insert(j, "nodeid", json_number(nodeid));
     json_object_insert(j, "session", json_number(session));
-    json_object_insert(j, "node", json_string(oam->name)); //TODO "receiver"
+    json_object_insert(j, "receiver", json_string(oam->name));
 
     const char *stream = "<unknown>";
     struct JsonValue *jstream = json_object_get_string(j, "stream");
@@ -1487,7 +1479,7 @@ static bool process_rlist_request(struct OamEndPoint *oam, struct Packet *p, str
     json_object_insert(j, "level", json_number(level));
     json_object_insert(j, "nodeid", json_number(nodeid));
     json_object_insert(j, "session", json_number(session));
-    json_object_insert(j, "node", json_string(oam->name)); //TODO receiver
+    json_object_insert(j, "receiver", json_string(oam->name));
 
     const char *stream = "<unknown>";
     struct JsonValue *jstream = json_object_get_string(j, "stream");

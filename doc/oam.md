@@ -46,7 +46,7 @@ Fixed header
 Json
 
  * type = "ping"
- * phase = "request"
+ * code = "request"
  * return - ip/port where the ping reply should be sent
     * ip
     * port
@@ -63,18 +63,18 @@ Json
 Json returns everything as-is, except "return". Also adds info received in the fixed header.
 
  * type = "ping"
- * phase = "reply"
+ * code = "reply"
  * stream - returned unchanged
  * target - returned unchanged
- * receiver - name of the processing end point (interesting when target is "any")
- * rr - returned, processing end point added
- * objects - returned, object state filled
  * delay - returned unchanged
  * level - from fixed header
  * nodeid - from fixed header
  * session - from fixed header
  * seq - from fixed header
  * label - MPLS label on the request
+ * receiver - name of the processing end point (interesting when target is "any")
+ * rr - returned, processing end point added
+ * objects - returned, object state filled
  * recv_s - timestamp seconds
  * recv_ns - timestamp nanoseconds
 
@@ -82,33 +82,41 @@ Json returns everything as-is, except "return". Also adds info received in the f
 
 Fixed header is same as ping.
 
-Json has mostly the same info as ping
+Json has mostly the same info as ping.
 
  * type = "rping"
- * phase = "request"
+ * code = "request"
  * return - ip/port where the ping reply should be sent
     * ip
     * port
  * stream - name of the stream where the start point is, important for reply processing (note: at the target node the stream can have different name!)
- * target - the end point that must process the request, cannot be "any"
- * **command** - the ping command to be executed on the remote node, specifies a start point that can be different from the target of the rping
+ * target - the end point that must process the request, can **not** be "any"
+ * **command** - the ping command to be executed on the remote node, specifies a start point that can be different from the target of the rping, can't start with "@if" because the return interface is specified in the "return" field
  * send_s - timestamp seconds
  * send_ns - timestamp nanoseconds
 
+Three actors: originator -> *rping* -> initiator -> *ping* -> responder -> *ping response* -> originator
+
 Receiving such a request triggers a normal ping by interpreting "command" as it came from the command line, minus the "ping" at the beginning. The initiated ping will use "stream" and "session" from this request instead of the ones allocated on the receiver. The return interface is the one supplied in this request instead of one of the interfaces on the receiver.
 
-### rping reply
+### rping error
 
-This is an error message. Currently unimplemented.
+This is an error message, sent to the originator when the initiator could not send the ping. Currently unimplemented.
+
+Json has mostly the same info as ping reply.
+
+ * type = "rping"
+ * code = "error"
+ * error - the error message
 
 ### rlist request
 
-Fixed header is same as ping.
+The originator of an rping can discover start points on the potential initiator nodes.
 
-Json has mostly the same info as ping.
+Fixed header is same as ping. Json has mostly the same info as ping.
 
- * type = "rping"
- * phase = "request"
+ * type = "rlist"
+ * code = "request"
  * return - ip/port where the ping reply should be sent
     * ip
     * port
