@@ -74,6 +74,7 @@ def config_net(net):
     n1.cmd("ip r a 24.0.0.0/24 via 13.0.0.3 metric 10")
     n1.cmd("ip r a 34.0.0.0/24 via 13.0.0.3 metric 5")
     n1.cmd("ip r a 34.0.0.0/24 via 12.0.0.2 metric 10")
+    n3.cmd("ip r a 24.0.0.0/24 via 23.0.0.2 metric 5")
     n4.cmd("ip r a 12.0.0.0/24 via 24.0.0.2 metric 5")
     n4.cmd("ip r a 12.0.0.0/24 via 34.0.0.3 metric 10")
     n4.cmd("ip r a 13.0.0.0/24 via 34.0.0.3 metric 5")
