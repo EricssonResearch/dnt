@@ -36,6 +36,7 @@ DEFAULT_LOGGING_MODULE(OAM, LOG_INFO);
 
 struct MepStart {
     char *name;
+    char *mep_name;
     char *stream_name;
     struct Pipeline *pipe;
     int pipe_pos_idx;
@@ -177,6 +178,7 @@ int oam_create_mep_start(const char *stream_name, const char *mep_name, int leve
     }
     mepstart = calloc_struct(MepStart);
     mepstart->name = strdup_printf("%s:%s", stream_name, mep_name);
+    mepstart->mep_name = strdup(mep_name);
     mepstart->stream_name = strdup(stream_name);
     mepstart->level = level;
     mepstart->pipe_pos_idx = idx;
@@ -307,8 +309,8 @@ static bool send_request(const struct oam_request *req){
     unsigned char *msg = packet->buf + packet->headers[2].start;
     memcpy(msg, js_string, js_length);
 
-    log_packet("%s:%d seq %d lvl %d S - %s",
-               req->mep_start->stream_name, req->session_id, req->seq, req->level,
+    log_packet("%s %s:%d seq %d lvl %d S - %s",
+               req->mep_start->mep_name, req->mep_start->stream_name, req->session_id, req->seq, req->level,
                js_string);
 
     free(js_string);
@@ -363,8 +365,8 @@ static bool initiate_request(struct oam_request *ping_req)
     ping_req->session_id = session_id;
     ping_req->seq = 0;
 
-    log_info("OAM packet %s session %u seq %u, %s -> %s, level %d, count %d interval %d, rr: %s os: %s\t[reply to ip: %s, port: %u]",
-             ping_req->type, ping_req->session_id, ping_req->seq, ping_req->mep_start->name, ping_req->mep_stop, ping_req->level, ping_req->count, ping_req->interval_ms,
+    log_info("  %s %s:%d seq %d lvl %d C - %s %s -> %s, level %d, count %d interval %d, rr: %s os: %s\t[reply to ip: %s, port: %u]",
+             ping_req->mep_start->mep_name, ping_req->mep_start->stream_name, ping_req->session_id, ping_req->seq, ping_req->level, ping_req->type, ping_req->mep_start->name, ping_req->mep_stop, ping_req->level, ping_req->count, ping_req->interval_ms,
              ping_req->record_route?"yes":"no", ping_req->object_state?"yes":"no", ping_req->return_ip, ping_req->return_port);
 
     fprintf(cmd_w, "OAM packet %s session %u seq %u, %s -> %s, level %d, count %d interval %d, rr: %s os: %s\t[reply to ip: %s, port: %u]\n",
@@ -1160,7 +1162,7 @@ int oam_recv_reply(const char *msg)
         }
     }
 
-    log_packet("%s:%.0f seq %.0f lvl %.0f D - %s", stream->v.string, session->v.number, sequence->v.number, level->v.number, msg);
+    log_packet("oam_r %s:%.0f seq %.0f lvl %.0f D - %s", stream->v.string, session->v.number, sequence->v.number, level->v.number, msg);
 
     //TODO this is just a quick fix
     if (strcmp(request->v.string, "rlist") == 0) {
@@ -1188,12 +1190,12 @@ int oam_recv_reply(const char *msg)
         receivetime.tv_nsec = json_object_get_number(j, "recv_ns")->v.number;
         timespecsub(&receivetime, &sendtime, &delay_diff);
 
-        sprintf(reply_str,"  %s:%.0f seq %.0f lvl %.0f R - %s on stream %s target %s; reply from %s delay %ld.%ld",
+        sprintf(reply_str,"  oam_r %s:%.0f seq %.0f lvl %.0f R - %s on stream %s target %s; reply from %s delay %ld.%ld",
                 stream->v.string, session->v.number, sequence->v.number, level->v.number,
                 request->v.string, stream->v.string, target->v.string, receiver->v.string, delay_diff.tv_sec, delay_diff.tv_nsec);
     }
     else
-        sprintf(reply_str,"  %s:%.0f seq %.0f lvl %.0f R - %s on stream %s target %s; reply from %s",
+        sprintf(reply_str,"  oam_r %s:%.0f seq %.0f lvl %.0f R - %s on stream %s target %s; reply from %s",
             stream->v.string, session->v.number, sequence->v.number, level->v.number,
             request->v.string, stream->v.string, target->v.string, receiver->v.string);
 
@@ -1368,7 +1370,7 @@ static bool process_ping_request(struct OamEndPoint *oam, struct Packet *p, stru
     unsigned msg_len=0;
     char *j_msg = json_serialize(j, &msg_len);
 
-    log_packet("%s:%d seq %d lvl %d T (to %s %d) - %s", stream, session, seq, level,
+    log_packet("%s %s:%d seq %d lvl %d T - (to %s %d) %s", oam->name, stream, session, seq, level,
                reply_address, port, j_msg);
 
     oam_send_reply(reply_address, port, j_msg, msg_len);
