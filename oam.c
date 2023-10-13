@@ -1125,9 +1125,6 @@ int oam_recv_reply(const char *msg)
         return -1;                                                  \
     }
 
-    // We need to parse for logging, even if JSON mode is used.
-    bool cfg_mode = false;
-
     char reply_str[1400], rr_str[512], obj_str_log[1000], obj_str[1000];
     struct JsonValue *j = json_parse(msg, strlen(msg));
     if (j == NULL || j->type != JSON_OBJECT) {
@@ -1157,6 +1154,7 @@ int oam_recv_reply(const char *msg)
             sess = &ss->sessions[(int)(session->v.number)];
             if (!sess->live) {
                 log_error("Reply for non-live session %.0f of stream '%s'.", session->v.number, stream->v.string);
+                sess = NULL;
                 //return -1;
             }
         }
@@ -1229,7 +1227,9 @@ int oam_recv_reply(const char *msg)
         return -1;
     else
     {
-        if(cfg_mode) return -1;         // silent, no reply needed
+        // check if we need to print to a telnet session
+        if (sess == NULL) return 0; // no session found
+        if (sess->cmd_w == stderr) return 0; // this is a background ping
 
         if(oam_cmd_get_mode(oam_cmd_iface) == JSON){           // JSON mode
             //strcat(msg, "\n"); //TODO this is buffer overflow
