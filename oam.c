@@ -1563,7 +1563,7 @@ bool oam_recv_request(struct OamEndPoint *oam, struct Packet *p)
     }
     if(level > oam->level) {
         json_delete(j);
-        return oam->stop ? false : true;
+        return true;
     }
 
     struct JsonValue *target = json_object_get_string(j, "target");
