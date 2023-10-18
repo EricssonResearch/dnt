@@ -160,18 +160,16 @@ testcases = [
 
     (
         'n1', 'rlist s1:s1n1-e4-01 any 4',
-        ['OAM packet rlist session 8 seq 0, s1:s1n1-e4-01 -> any, level 4, count 1 interval 1000, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n', 'Rlist result from s1n3-i4-23:\nrx123:s1n3-e3-23\nrx123:s1n3-i4-23\nrx123:s1n3-i4-34\nRlist result from s1n3-i4-34:\nrx123:s1n3-e3-23\nrx123:s1n3-i4-23\nrx123:s1n3-i4-34\nRlist result from s1n4-i4-34:\nrx134:s1n4-i4-34\nRlist result from s1n4-e4-40:\nrx134:s1n4-i4-34\nRlist result from s1n3-i4-13:\nrx113:s1n3-i4-34\nrx113:s1n3-i4-13\nRlist result from s1n4-i4-24:\nrx124:s1n4-i4-24\n']
+        ['OAM packet rlist session 8 seq 0, s1:s1n1-e4-01 -> any, level 4, count 1 interval 1000, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n', 'Rlist result from s1n3-i4-23:\nrx123:s1n3-i4-23\nrx123:s1n3-i4-34\nRlist result from s1n3-i4-34:\nrx123:s1n3-i4-23\nrx123:s1n3-i4-34\nRlist result from s1n4-i4-34:\nrx134:s1n4-i4-34\nRlist result from s1n4-e4-40:\nrx134:s1n4-i4-34\nRlist result from s1n3-i4-13:\nrx113:s1n3-i4-34\nrx113:s1n3-i4-13\nRlist result from s1n4-i4-24:\nrx124:s1n4-i4-24\n']
     ),
 
     (
         'n1', 'rlist s1:s1n1-e4-01 any 3',
-        ['OAM packet rlist session 9 seq 0, s1:s1n1-e4-01 -> any, level 3, count 1 interval 1000, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n', 'Rlist result from s1n2-i3-12:\nrx12:s1n2-i3-12\nRlist result from s1n4-e3-24:\nrx124:s1n4-i4-24\n']
+        ['OAM packet rlist session 9 seq 0, s1:s1n1-e4-01 -> any, level 3, count 1 interval 1000, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n', 'Rlist result from s1n2-i3-12:\nrx12:s1n2-i3-12\nRlist result from s1n3-e3-23:\nrx123:s1n3-i4-23\nrx123:s1n3-i4-34\nRlist result from s1n4-e3-24:\nrx124:s1n4-i4-24\n']
     ),
-
-    # buggy response: more response required. maybe pkt cant leave n3? check
     (
         'n1', 'rping s1:s1n1-e4-01 s1n3-i4-13 4 rx113:s1n3-i4-13 any 4',
-        ['OAM packet rping session 10 seq 0, s1:s1n1-e4-01 -> s1n3-i4-13, level 4, count 1 interval 1000, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n', '{"label":0,"level":4,"nodeid":3,"receiver":"s1n3-i4-34","recv_ns":279168227,"recv_s":1697615244,"req_type":"response","request":"ping","send_ns":279168227,"send_s":1697615244,"sequence":0,"session":10,"stream":"s1","target":"any"}']
+        ['OAM packet rping session 10 seq 0, s1:s1n1-e4-01 -> s1n3-i4-13, level 4, count 1 interval 1000, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n', '{"label":0,"level":4,"nodeid":3,"receiver":"s1n3-i4-34","recv_ns":678618538,"recv_s":1697633586,"req_type":"response","request":"ping","send_ns":678618538,"send_s":1697633586,"sequence":0,"session":10,"stream":"s1","target":"any"}{"label":134,"level":4,"nodeid":3,"receiver":"s1n4-i4-34","recv_ns":678748215,"recv_s":1697633586,"req_type":"response","request":"ping","send_ns":678618538,"send_s":1697633586,"sequence":0,"session":10,"stream":"s1","target":"any"}{"label":134,"level":4,"nodeid":3,"receiver":"s1n4-e4-40","recv_ns":678748215,"recv_s":1697633586,"req_type":"response","request":"ping","send_ns":678618538,"send_s":1697633586,"sequence":0,"session":10,"stream":"s1","target":"any"}']
     ),
 
     (
@@ -179,15 +177,35 @@ testcases = [
         ['OAM packet rping session 11 seq 0, s1:s1n1-e4-01 -> s1n3-i4-13, level 4, count 1 interval 1000, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n', '{"label":134,"level":4,"nodeid":3,"receiver":"s1n4-i4-34","recv_ns":38885566,"recv_s":1697615245,"req_type":"response","request":"ping","send_ns":38868328,"send_s":1697615245,"sequence":0,"session":11,"stream":"s1","target":"any"}{"label":134,"level":4,"nodeid":3,"receiver":"s1n4-e4-40","recv_ns":38885566,"recv_s":1697615245,"req_type":"response","request":"ping","send_ns":38868328,"send_s":1697615245,"sequence":0,"session":11,"stream":"s1","target":"any"}']
     ),
 
-    # pull
     (
         'n1', 'rping s1:s1n1-e4-01 s1n3-i4-34 4 rx113:s1n3-i4-13 any 4',
-        ['OAM packet rping session 12 seq 0, s1:s1n1-e4-01 -> s1n3-i4-34, level 4, count 1 interval 1000, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n']
+        ['OAM packet rping session 12 seq 0, s1:s1n1-e4-01 -> s1n3-i4-34, level 4, count 1 interval 1000, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n',]
     ),
-    # pull
+
     (
         'n1', 'rping s1:s1n1-e4-01 s1n3-i4-34 4 rx113:s1n3-i4-34 any 4',
         ['OAM packet rping session 13 seq 0, s1:s1n1-e4-01 -> s1n3-i4-34, level 4, count 1 interval 1000, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n']
+    ),
+    (
+        'n4', 'ping s2:s2n4-e5-04 s2n1-i5-21 5',
+        ['OAM packet ping session 1 seq 0, s2:s2n4-e5-04 -> s2n1-i5-21, level 5, count 1 interval 1000, rr: no os: no\t[reply to ip: 10.0.0.4, port: 6634]\n', '{"label":242,"level":5,"nodeid":4,"receiver":"s2n1-i5-21","recv_ns":92055282,"recv_s":1697635715,"req_type":"response","request":"ping","send_ns":89965700,"send_s":1697635715,"sequence":0,"session":1,"stream":"s2","target":"s2n1-i5-21"}']
+    ),
+    (
+        'n4', 'ping s2:s2n4-e5-04 s2n1-i5-31 5',
+        ['OAM packet ping session 2 seq 0, s2:s2n4-e5-04 -> s2n1-i5-31, level 5, count 1 interval 1000, rr: no os: no\t[reply to ip: 10.0.0.4, port: 6634]\n', '{"label":243,"level":5,"nodeid":4,"receiver":"s2n1-i5-31","recv_ns":858900808,"recv_s":1697635715,"req_type":"response","request":"ping","send_ns":851822013,"send_s":1697635715,"sequence":0,"session":2,"stream":"s2","target":"s2n1-i5-31"}']
+    ),
+    (
+        'n4', 'ping s2:s2n4-e5-04 s2n1-e5-10 5',
+        ['OAM packet ping session 3 seq 0, s2:s2n4-e5-04 -> s2n1-e5-10, level 5, count 1 interval 1000, rr: no os: no\t[reply to ip: 10.0.0.4, port: 6634]\n', '{"label":242,"level":5,"nodeid":4,"receiver":"s2n1-e5-10","recv_ns":626887770,"recv_s":1697635716,"req_type":"response","request":"ping","send_ns":624830507,"send_s":1697635716,"sequence":0,"session":3,"stream":"s2","target":"s2n1-e5-10"}']
+    ),
+
+    (
+        'n1', 'ping s3:s3n1-e4-01 any 4',
+        ['OAM packet ping session 1 seq 0, s3:s3n1-e4-01 -> any, level 4, count 1 interval 1000, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n', '{"label":313,"level":4,"nodeid":1,"receiver":"s3n3-i4-13","recv_ns":155097178,"recv_s":1697638268,"req_type":"response","request":"ping","send_ns":135054059,"send_s":1697638268,"sequence":0,"session":1,"stream":"s3","target":"any"}{"label":313,"level":4,"nodeid":1,"receiver":"s3n4-i4-34","recv_ns":155343515,"recv_s":1697638268,"req_type":"response","request":"ping","send_ns":135054059,"send_s":1697638268,"sequence":0,"session":1,"stream":"s3","target":"any"}{"label":313,"level":4,"nodeid":1,"receiver":"s3n4-e4-40","recv_ns":155343515,"recv_s":1697638268,"req_type":"response","request":"ping","send_ns":135054059,"send_s":1697638268,"sequence":0,"session":1,"stream":"s3","target":"any"}', '{"label":313,"level":4,"nodeid":1,"receiver":"s3n4-i4-24","recv_ns":175347610,"recv_s":1697638268,"req_type":"response","request":"ping","send_ns":135054059,"send_s":1697638268,"sequence":0,"session":1,"stream":"s3","target":"any"}']
+    ),
+    (
+        'n3', 'ping tx332:s3n3-e1-32 any 1',
+        ['OAM packet ping session 1 seq 0, tx332:s3n3-e1-32 -> any, level 1, count 1 interval 1000, rr: no os: no\t[reply to ip: 10.0.0.3, port: 6634]\n', '{"label":313,"level":1,"nodeid":3,"receiver":"s3n4-e1-24","recv_ns":851261611,"recv_s":1697636726,"req_type":"response","request":"ping","send_ns":831211149,"send_s":1697636726,"sequence":0,"session":1,"stream":"tx332","target":"any"}']
     ),
 ]
 
@@ -240,7 +258,7 @@ def run_tests(net, test):
             try:
                 s.connect((raddrs[node], 8000))
                 prepare_cli(s)
-                s.settimeout(1)
+                s.settimeout(3)
                 s.send(msg.encode())
                 replies = []
                 for reply_part in expected_reply:
