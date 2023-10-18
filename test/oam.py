@@ -123,51 +123,71 @@ def start_r2dtwos(net, debug):
         node = net.get(n)
         if debug:
             # For debug! Spawns 4 r2dtwo windows in gdb
-            node.popen(f"xterm -T {n} -e gdb --args ../r2dtwo oam/singlestage/{n}.cfg")
+            node.popen(f"xterm -T {n} -e gdb -nx --args ../r2dtwo oam/singlestage/{n}.cfg")
         else:
             node.popen(f"../r2dtwo oam/singlestage/{n}.cfg")
 
 # list of (sender, message, [expected JSON replies])
 # The sender 'node' sending 'message' from telnet and expect the list of replies
 testcases = [
-    ('n1', 'ping s1:mepn1s1 in12 4',
-[   'OAM packet ping session 1 seq 0, s1:mepn1s1 -> in12, level 4, count 1 interval 1000, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n',
-    '{"label":12,"level":4,"node":"in12","nodeid":1,"recv_ns":150680227,"recv_s":1696403833,"req_type":"response","request":"ping","send_ns":146561746,"send_s":1696403833,"sequence":0,"session":1,"stream":"s1","target":"in12"}']
+    ('n1', 'ping s1:s1n1-e4-01 s1n2-i3-12 3',
+        ['OAM packet ping session 1 seq 0, s1:s1n1-e4-01 -> s1n2-i3-12, level 3, count 1 interval 1000, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n', '{"label":112,"level":3,"nodeid":1,"receiver":"s1n2-i3-12","recv_ns":449034649,"recv_s":1697613837,"req_type":"response","request":"ping","send_ns":444746206,"send_s":1697613837,"sequence":0,"session":1,"stream":"s1","target":"s1n2-i3-12"}']
+     ),
+
+    ('n1', 'ping s1:s1n1-e4-01 s1n3-i4-23 4',
+        ['OAM packet ping session 2 seq 0, s1:s1n1-e4-01 -> s1n3-i4-23, level 4, count 1 interval 1000, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n', '{"label":123,"level":4,"nodeid":1,"receiver":"s1n3-i4-23","recv_ns":201952480,"recv_s":1697613838,"req_type":"response","request":"ping","send_ns":198683264,"send_s":1697613838,"sequence":0,"session":2,"stream":"s1","target":"s1n3-i4-23"}']
+     ),
+
+    ('n1', 'ping s1:s1n1-e4-01 s1n4-i4-34 4',
+        ['OAM packet ping session 3 seq 0, s1:s1n1-e4-01 -> s1n4-i4-34, level 4, count 1 interval 1000, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n', '{"label":134,"level":4,"nodeid":1,"receiver":"s1n4-i4-34","recv_ns":657490576,"recv_s":1697614354,"req_type":"response","request":"ping","send_ns":654306224,"send_s":1697614354,"sequence":0,"session":3,"stream":"s1","target":"s1n4-i4-34"}']
+     ),
+
+    ('n1', 'ping s1:s1n1-e4-01 s1n4-e4-40 4 -o',
+        ['OAM packet ping session 4 seq 0, s1:s1n1-e4-01 -> s1n4-e4-40, level 4, count 1 interval 1000, rr: no os: yes\t[reply to ip: 10.0.0.1, port: 6634]\n', '{"label":134,"level":4,"nodeid":1,"object":{"discarded_packets":5,"history":"11","history_length":2,"latent_error_paths":2,"latent_error_resets":2263,"latent_errors":0,"name":"pef4","passed_packets":5,"recovery_algorithm":"vector","recovery_seq_num":4,"reset_msec":2000,"seq_recovery_resets":0,"type":"seqrec","use_init_flag":false,"use_reset_flag":false},"receiver":"s1n4-e4-40","recv_ns":226042168,"recv_s":1697614462,"req_type":"response","request":"ping","send_ns":222808040,"send_s":1697614462,"sequence":0,"session":4,"stream":"s1","target":"s1n4-e4-40"}']
+     ),
+
+    ('n1', 'ping s1:s1n1-e4-01 any 4',
+        ['OAM packet ping session 5 seq 0, s1:s1n1-e4-01 -> any, level 4, count 1 interval 1000, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n', '{"label":123,"level":4,"nodeid":1,"receiver":"s1n3-i4-23","recv_ns":170770283,"recv_s":1697614356,"req_type":"response","request":"ping","send_ns":167648581,"send_s":1697614356,"sequence":0,"session":5,"stream":"s1","target":"any"}{"label":123,"level":4,"nodeid":1,"receiver":"s1n3-i4-34","recv_ns":170770283,"recv_s":1697614356,"req_type":"response","request":"ping","send_ns":167648581,"send_s":1697614356,"sequence":0,"session":5,"stream":"s1","target":"any"}{"label":134,"level":4,"nodeid":1,"receiver":"s1n4-i4-34","recv_ns":171057714,"recv_s":1697614356,"req_type":"response","request":"ping","send_ns":167648581,"send_s":1697614356,"sequence":0,"session":5,"stream":"s1","target":"any"}{"label":134,"level":4,"nodeid":1,"receiver":"s1n4-e4-40","recv_ns":171057714,"recv_s":1697614356,"req_type":"response","request":"ping","send_ns":167648581,"send_s":1697614356,"sequence":0,"session":5,"stream":"s1","target":"any"}{"label":113,"level":4,"nodeid":1,"receiver":"s1n3-i4-13","recv_ns":187699738,"recv_s":1697614356,"req_type":"response","request":"ping","send_ns":167648581,"send_s":1697614356,"sequence":0,"session":5,"stream":"s1","target":"any"}{"label":124,"level":4,"nodeid":1,"receiver":"s1n4-i4-24","recv_ns":188775260,"recv_s":1697614356,"req_type":"response","request":"ping","send_ns":167648581,"send_s":1697614356,"sequence":0,"session":5,"stream":"s1","target":"any"}']
+     ),
+
+    ('n1', 'ping s1:s1n1-e4-01 s1n4-i4-24 4 -r',
+        ['OAM packet ping session 6 seq 0, s1:s1n1-e4-01 -> s1n4-i4-24, level 4, count 1 interval 1000, rr: yes os: no\t[reply to ip: 10.0.0.1, port: 6634]\n', '{"label":124,"level":4,"nodeid":1,"receiver":"s1n4-i4-24","recv_ns":943982537,"recv_s":1697614356,"req_type":"response","request":"ping","rr":["s1n4-i4-24","s1:s1n1-e4-01"],"send_ns":922851702,"send_s":1697614356,"sequence":0,"session":6,"stream":"s1","target":"s1n4-i4-24"}']
+     ),
+
+    ('n1', 'ping s1:s1n1-e4-01 s1n4-e4-40 4 -r',
+        ['OAM packet ping session 7 seq 0, s1:s1n1-e4-01 -> s1n4-e4-40, level 4, count 1 interval 1000, rr: yes os: no\t[reply to ip: 10.0.0.1, port: 6634]\n', '{"label":134,"level":4,"nodeid":1,"receiver":"s1n4-e4-40","recv_ns":686240445,"recv_s":1697614357,"req_type":"response","request":"ping","rr":["s1n4-e4-40","s1n4-i4-34","s1n3-i4-34","s1n3-i4-23","s1:s1n1-e4-01"],"send_ns":683039091,"send_s":1697614357,"sequence":0,"session":7,"stream":"s1","target":"s1n4-e4-40"}']
     ),
 
-    ('n1', 'ping s1:mepn1s1 in23 4',
-[   'OAM packet ping session 2 seq 0, s1:mepn1s1 -> in23, level 4, count 1 interval 1000, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n',
-    '{"label":23,"level":4,"node":"in23","nodeid":1,"recv_ns":908170557,"recv_s":1696403833,"req_type":"response","request":"ping","send_ns":904922153,"send_s":1696403833,"sequence":0,"session":2,"stream":"s1","target":"in23"}']
+    (
+        'n1', 'rlist s1:s1n1-e4-01 any 4',
+        ['OAM packet rlist session 8 seq 0, s1:s1n1-e4-01 -> any, level 4, count 1 interval 1000, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n', 'Rlist result from s1n3-i4-23:\nrx123:s1n3-e3-23\nrx123:s1n3-i4-23\nrx123:s1n3-i4-34\nRlist result from s1n3-i4-34:\nrx123:s1n3-e3-23\nrx123:s1n3-i4-23\nrx123:s1n3-i4-34\nRlist result from s1n4-i4-34:\nrx134:s1n4-i4-34\nRlist result from s1n4-e4-40:\nrx134:s1n4-i4-34\nRlist result from s1n3-i4-13:\nrx113:s1n3-i4-34\nrx113:s1n3-i4-13\nRlist result from s1n4-i4-24:\nrx124:s1n4-i4-24\n']
     ),
 
-    ('n1', 'ping s1:mepn1s1 in34 4',
-     [   'OAM packet ping session 3 seq 0, s1:mepn1s1 -> in34, level 4, count 1 interval 1000, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n',
-    '{"label":34,"level":4,"node":"in34","nodeid":1,"recv_ns":344189093,"recv_s":1696404282,"req_type":"response","request":"ping","send_ns":340922429,"send_s":1696404282,"sequence":0,"session":3,"stream":"s1","target":"in34"}']
+    (
+        'n1', 'rlist s1:s1n1-e4-01 any 3',
+        ['OAM packet rlist session 9 seq 0, s1:s1n1-e4-01 -> any, level 3, count 1 interval 1000, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n', 'Rlist result from s1n2-i3-12:\nrx12:s1n2-i3-12\nRlist result from s1n4-e3-24:\nrx124:s1n4-i4-24\n']
     ),
 
-    ('n1', 'ping s1:mepn1s1 mepn4s1 4 -o',
-     [   'OAM packet ping session 4 seq 0, s1:mepn1s1 -> mepn4s1, level 4, count 1 interval 1000, rr: no os: yes\t[reply to ip: 10.0.0.1, port: 6634]\n',
-    '{"label":34,"level":4,"node":"mepn4s1","nodeid":1,"objects":{"discarded_packets":4,"history":"11","history_length":2,"latent_error_paths":2,"latent_error_resets":2234,"latent_errors":0,"name":"pef4","passed_packets":4,"recovery_algorithm":"vector","recovery_seq_num":3,"reset_msec":2000,"seq_recovery_resets":0,"type":"seqrec","use_init_flag":false,"use_reset_flag":false},"recv_ns":96008419,"recv_s":1696404283,"req_type":"response","request":"ping","send_ns":92677834,"send_s":1696404283,"sequence":0,"session":4,"stream":"s1","target":"mepn4s1"}']
+    # buggy response: more response required. maybe pkt cant leave n3? check
+    (
+        'n1', 'rping s1:s1n1-e4-01 s1n3-i4-13 4 rx113:s1n3-i4-13 any 4',
+        ['OAM packet rping session 10 seq 0, s1:s1n1-e4-01 -> s1n3-i4-13, level 4, count 1 interval 1000, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n', '{"label":0,"level":4,"nodeid":3,"receiver":"s1n3-i4-34","recv_ns":279168227,"recv_s":1697615244,"req_type":"response","request":"ping","send_ns":279168227,"send_s":1697615244,"sequence":0,"session":10,"stream":"s1","target":"any"}']
     ),
 
-    ('n1', 'ping s1:mepn1s1 any 4',
-[   'OAM packet ping session 5 seq 0, s1:mepn1s1 -> any, level 4, count 1 interval 1000, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n',
-    '{"label":12,"level":4,"node":"in12","nodeid":1,"recv_ns":378672995,"recv_s":1696408823,"req_type":"response","request":"ping","send_ns":377645110,"send_s":1696408823,"sequence":0,"session":5,"stream":"s1","target":"any"}{"label":23,"level":4,"node":"in23","nodeid":1,"recv_ns":380784094,"recv_s":1696408823,"req_type":"response","request":"ping","send_ns":377645110,"send_s":1696408823,"sequence":0,"session":5,"stream":"s1","target":"any"}{"label":23,"level":4,"node":"out34","nodeid":1,"recv_ns":380784094,"recv_s":1696408823,"req_type":"response","request":"ping","send_ns":377645110,"send_s":1696408823,"sequence":0,"session":5,"stream":"s1","target":"any"}{"label":34,"level":4,"node":"in34","nodeid":1,"recv_ns":380909389,"recv_s":1696408823,"req_type":"response","request":"ping","send_ns":377645110,"send_s":1696408823,"sequence":0,"session":5,"stream":"s1","target":"any"}{"label":34,"level":4,"node":"mepn4s1","nodeid":1,"recv_ns":380909389,"recv_s":1696408823,"req_type":"response","request":"ping","send_ns":377645110,"send_s":1696408823,"sequence":0,"session":5,"stream":"s1","target":"any"}{"label":13,"level":4,"node":"in13","nodeid":1,"recv_ns":397701526,"recv_s":1696408823,"req_type":"response","request":"ping","send_ns":377645110,"send_s":1696408823,"sequence":0,"session":5,"stream":"s1","target":"any"}{"label":24,"level":4,"node":"in24","nodeid":1,"recv_ns":398775268,"recv_s":1696408823,"req_type":"response","request":"ping","send_ns":377645110,"send_s":1696408823,"sequence":0,"session":5,"stream":"s1","target":"any"}']
+    (
+        'n1', 'rping s1:s1n1-e4-01 s1n3-i4-13 4 rx113:s1n3-i4-34 any 4',
+        ['OAM packet rping session 11 seq 0, s1:s1n1-e4-01 -> s1n3-i4-13, level 4, count 1 interval 1000, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n', '{"label":134,"level":4,"nodeid":3,"receiver":"s1n4-i4-34","recv_ns":38885566,"recv_s":1697615245,"req_type":"response","request":"ping","send_ns":38868328,"send_s":1697615245,"sequence":0,"session":11,"stream":"s1","target":"any"}{"label":134,"level":4,"nodeid":3,"receiver":"s1n4-e4-40","recv_ns":38885566,"recv_s":1697615245,"req_type":"response","request":"ping","send_ns":38868328,"send_s":1697615245,"sequence":0,"session":11,"stream":"s1","target":"any"}']
     ),
 
-    ('n1', 'ping s1:mepn1s1 in24 4 -r',
-     [   'OAM packet ping session 6 seq 0, s1:mepn1s1 -> in24, level 4, count 1 interval 1000, rr: yes os: no\t[reply to ip: 10.0.0.1, port: 6634]\n',
-    '{"label":24,"level":4,"node":"in24","nodeid":1,"recv_ns":626126361,"recv_s":1696404284,"req_type":"response","request":"ping","rr":["in24","in12","s1:mepn1s1"],"send_ns":605021315,"send_s":1696404284,"sequence":0,"session":6,"stream":"s1","target":"in24"}']
+    # pull
+    (
+        'n1', 'rping s1:s1n1-e4-01 s1n3-i4-34 4 rx113:s1n3-i4-13 any 4',
+        ['OAM packet rping session 12 seq 0, s1:s1n1-e4-01 -> s1n3-i4-34, level 4, count 1 interval 1000, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n']
     ),
-
-    ('n1', 'ping s1:mepn1s1 mepn4s1 4 -r',
-     [   'OAM packet ping session 7 seq 0, s1:mepn1s1 -> mepn4s1, level 4, count 1 interval 1000, rr: yes os: no\t[reply to ip: 10.0.0.1, port: 6634]\n',
-    '{"label":34,"level":4,"node":"mepn4s1","nodeid":1,"recv_ns":359928124,"recv_s":1696404285,"req_type":"response","request":"ping","rr":["mepn4s1","in34","out34","in23","in12","s1:mepn1s1"],"send_ns":356771035,"send_s":1696404285,"sequence":0,"session":7,"stream":"s1","target":"mepn4s1"}']
-    ),
-
-    ('n1', 'rping s1:mepn1s1 in12 4 rx12:in12 out34 4',
-    [   'OAM packet rping session 8 seq 0, s1:mepn1s1 -> in12, level 4, count 1 interval 1000, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n',
-    '{"label":23,"level":4,"node":"out34","nodeid":2,"recv_ns":312541715,"recv_s":1696408792,"req_type":"response","request":"ping","send_ns":310500017,"send_s":1696408792,"sequence":0,"session":8,"stream":"s1","target":"out34"}']
+    # pull
+    (
+        'n1', 'rping s1:s1n1-e4-01 s1n3-i4-34 4 rx113:s1n3-i4-34 any 4',
+        ['OAM packet rping session 13 seq 0, s1:s1n1-e4-01 -> s1n3-i4-34, level 4, count 1 interval 1000, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n']
     ),
 ]
 
@@ -190,7 +210,7 @@ def del_all(d):
     if isinstance(d, list):
         return [ del_all(v) for v in d]
     return {k: del_all(v) for k, v in d.items()
-            if k not in {'send_s', 'send_ns', 'recv_s', 'recv_ns', 'objects'}}
+            if k not in {'send_s', 'send_ns', 'recv_s', 'recv_ns', 'object'}}
 
 def cmp_json(j1s: str, j2s : str):
     j1 = json.loads(patch_json(j1s))
@@ -231,7 +251,10 @@ def run_tests(net, test):
                 all_ok = True
                 all_ok = all_ok and (replies[0] == expected_reply[0])
                 for i, actual in enumerate(replies[1:]):
-                    all_ok = all_ok and cmp_json(actual, expected_reply[i + 1])
+                    if "rlist" in msg:
+                        all_ok = all_ok and actual == expected_reply[i + 1]
+                    else:
+                        all_ok = all_ok and cmp_json(actual, expected_reply[i + 1])
                 if all_ok:
                     print("✔")
                     success += 1
