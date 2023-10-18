@@ -258,8 +258,8 @@ static bool send_request(const struct oam_request *req){
     packet->ttl = req->ttl;
 
     struct JsonValue *js = json_object();
-    json_object_insert(js, "request", json_string(req->type));
-    json_object_insert(js, "req_type", json_string("request"));
+    json_object_insert(js, "type", json_string(req->type));
+    json_object_insert(js, "code", json_string("request"));
     if (req->originator_stream) {
         json_object_insert(js, "stream", json_string(req->originator_stream));
     } else {
@@ -1135,7 +1135,7 @@ int oam_recv_reply(const char *msg)
         return -1;
     }
     JS_OBJECT_GET(nodeid, number, j);
-    JS_OBJECT_GET(request, string, j);
+    JS_OBJECT_GET(type, string, j);
     JS_OBJECT_GET(target, string, j);
     JS_OBJECT_GET(sequence, number, j);
     JS_OBJECT_GET(level, number, j);
@@ -1165,7 +1165,7 @@ int oam_recv_reply(const char *msg)
     log_packet("oam_r %s:%.0f seq %.0f lvl %.0f D - %s", stream->v.string, session->v.number, sequence->v.number, level->v.number, msg);
 
     //TODO this is just a quick fix
-    if (strcmp(request->v.string, "rlist") == 0) {
+    if (strcmp(type->v.string, "rlist") == 0) {
         JS_OBJECT_GET(list, array, j);
         sprintf(reply_str, "Rlist result from %s:\n", receiver->v.string);
         for (struct JsonArray *l = list->v.array; l; l=l->next) {
@@ -1192,12 +1192,12 @@ int oam_recv_reply(const char *msg)
 
         sprintf(reply_str,"  oam_r %s:%.0f seq %.0f lvl %.0f R - %s on stream %s target %s; reply from %s delay %ld.%ld",
                 stream->v.string, session->v.number, sequence->v.number, level->v.number,
-                request->v.string, stream->v.string, target->v.string, receiver->v.string, delay_diff.tv_sec, delay_diff.tv_nsec);
+                type->v.string, stream->v.string, target->v.string, receiver->v.string, delay_diff.tv_sec, delay_diff.tv_nsec);
     }
     else
         sprintf(reply_str,"  oam_r %s:%.0f seq %.0f lvl %.0f R - %s on stream %s target %s; reply from %s",
             stream->v.string, session->v.number, sequence->v.number, level->v.number,
-            request->v.string, stream->v.string, target->v.string, receiver->v.string);
+            type->v.string, stream->v.string, target->v.string, receiver->v.string);
 
     // Recorded route is single line, no difference between log/dump
     struct JsonValue *jrr = json_object_get_array(j, "rr");
@@ -1348,7 +1348,7 @@ static bool process_ping_request(struct OamEndPoint *oam, struct Packet *p, stru
     }
 
     json_object_remove(j, "return");
-    json_object_insert(j, "req_type", json_string("response"));
+    json_object_insert(j, "code", json_string("reply"));
     json_object_insert(j, "sequence", json_number(seq));
     json_object_insert(j, "level", json_number(level));
     json_object_insert(j, "nodeid", json_number(nodeid));
@@ -1401,6 +1401,7 @@ static bool process_rping_request(struct OamEndPoint *oam, struct Packet *p, str
 
     struct JsonValue *cmd = json_object_get_string(j, "command");
 
+    //TODO on error send back an rping error to the reply ip:port
     struct oam_request *ping_req = parse_ping_command(cmd->v.string, false, true, stderr);
     if (ping_req) {
         if (strcmp(oam->stream, ping_req->mep_start->stream_name) != 0) {
@@ -1476,7 +1477,7 @@ static bool process_rlist_request(struct OamEndPoint *oam, struct Packet *p, str
     }
 
     json_object_remove(j, "return");
-    json_object_insert(j, "req_type", json_string("response"));
+    json_object_insert(j, "code", json_string("reply"));
     json_object_insert(j, "sequence", json_number(seq));
     json_object_insert(j, "level", json_number(level));
     json_object_insert(j, "nodeid", json_number(nodeid));
@@ -1548,12 +1549,13 @@ bool oam_recv_request(struct OamEndPoint *oam, struct Packet *p)
         return false;
     }
 
-    struct JsonValue *jreqt = json_object_get_string(j, "request");
+    struct JsonValue *jreqt = json_object_get_string(j, "type");
     if(jreqt==NULL) {
         fprintf(stderr, "OAM packet has no request type\n");
         json_delete(j);
         return false;
     }
+    //TODO also check that "code" == "request"
 
     if(level < oam->level){
         /*fprintf(stderr, "MIP %s level %d Warning: dropping lower level (level %d) OAM packet.\n",
@@ -1678,7 +1680,7 @@ bool init_oam(struct HashMap *config_oam)
     // Start OAM background streams
     if (!hashmap_foreach(config_oam, oam_start_background_ping_cb, NULL)) {
         fprintf(stderr, "failed to start oam command\n");
-        return NULL;
+        return false;
     }
     return true;
 }
