@@ -22,6 +22,7 @@ static const char* log_level_strings[] = {
     "INFO",
     "PACKET",
     "DEBUG",
+    "ALL",
 };
 
 const char* colors[] = {

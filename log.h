@@ -66,44 +66,44 @@ static void __attribute((constructor)) register_module_##_name(void) {      \
 }
 
 #define log_debug_m(_name, ...)                                             \
-    if (__log_module_##_name.level <= LOG_DEBUG)                            \
+    if (__log_module_##_name.level >= LOG_DEBUG)                            \
         __log_func(LOG_DEBUG, __log_module_##_name.name, ##__VA_ARGS__)
 
 #define log_packet_m(_name, ...)                                            \
-    if (__log_module_##_name.level <= LOG_PACKET)                           \
+    if (__log_module_##_name.level >= LOG_PACKET)                           \
         __log_func(LOG_PACKET, __log_module_##_name.name, ##__VA_ARGS__)
 
 #define log_info_m(_name, ...)                                              \
-    if (__log_module_##_name.level <= LOG_INFO)                             \
+    if (__log_module_##_name.level >= LOG_INFO)                             \
         __log_func(LOG_INFO, __log_module_##_name.name, ##__VA_ARGS__)
 
 #define log_warning_m(_name, ...)                                           \
-    if (__log_module_##_name.level <= LOG_WARNING)                          \
+    if (__log_module_##_name.level >= LOG_WARNING)                          \
         __log_func(LOG_WARNING, __log_module_##_name.name, ##__VA_ARGS__)
 
 #define log_error_m(_name, ...)                                             \
-    if (__log_module_##_name.level <= LOG_ERROR)                            \
+    if (__log_module_##_name.level >= LOG_ERROR)                            \
         __log_func(LOG_ERROR, __log_module_##_name.name, ##__VA_ARGS__)
 
 
 #define log_debug(...)                                                      \
-    if (__default_log_module->level <= LOG_DEBUG)                           \
+    if (__default_log_module->level >= LOG_DEBUG)                           \
         __log_func(LOG_DEBUG, __default_log_module->name, ##__VA_ARGS__)
 
 #define log_packet(...)                                                     \
-    if (__default_log_module->level <= LOG_PACKET)                          \
+    if (__default_log_module->level >= LOG_PACKET)                          \
         __log_func(LOG_PACKET, __default_log_module->name, ##__VA_ARGS__)
 
 #define log_info(...)                                                       \
-    if (__default_log_module->level <= LOG_INFO)                            \
+    if (__default_log_module->level >= LOG_INFO)                            \
         __log_func(LOG_INFO, __default_log_module->name, ##__VA_ARGS__)
 
 #define log_warning(...)                                                    \
-    if (__default_log_module->level <= LOG_WARNING)                         \
+    if (__default_log_module->level >= LOG_WARNING)                         \
         __log_func(LOG_WARNING, __default_log_module->name, ##__VA_ARGS__)
 
 #define log_error(...)                                                      \
-    if (__default_log_module->level <= LOG_ERROR)                           \
+    if (__default_log_module->level >= LOG_ERROR)                           \
         __log_func(LOG_ERROR, __default_log_module->name, ##__VA_ARGS__)
 
 
