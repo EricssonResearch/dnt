@@ -101,7 +101,7 @@ Receiving such a request triggers a normal ping by interpreting "command" as it 
 
 ### rping error
 
-This is an error message, sent to the originator when the initiator could not send the ping. Currently unimplemented.
+This is an error message, sent to the originator when the initiator could not send the ping.
 
 Json has mostly the same info as ping reply.
 

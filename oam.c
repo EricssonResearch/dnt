@@ -32,7 +32,7 @@
 #define OAM_PING_TTL 64
 #define OAM_CHANNEL 1 /* Management Communication Channel (MCC), similar format to ours */
 
-DEFAULT_LOGGING_MODULE(OAM, LOG_INFO);
+DEFAULT_LOGGING_MODULE(OAM, LOG_PACKET);
 
 struct MepStart {
     char *name;
@@ -45,7 +45,7 @@ struct MepStart {
 
 struct oam_request{
     FILE *cmd_w;
-    const char *return_ip;
+    char *return_ip;
     unsigned return_port;
     unsigned session_id, seq;
     unsigned short node_id;
@@ -62,6 +62,7 @@ struct oam_request{
     char *remote_command; // for rping
     char *originator_stream; // for ping initiated by rping
     unsigned originator_session_id; // for ping initiated by rping
+    char *error;
 };
 
 static int nr_oam_ifaces = 0;
@@ -221,6 +222,28 @@ struct OamEndPoint *oam_create_endpoint(const char *name, const char *stream, in
     return ret;
 }
 
+static struct oam_request *new_oam_request(const char *type, FILE *cmd_w)
+{
+    struct oam_request *req = calloc_struct(oam_request);
+
+    req->cmd_w = cmd_w;
+    req->type = type;
+    req->ttl = OAM_PING_TTL;
+    req->count = 1;
+    req->interval_ms = 1000;
+
+    return req;
+}
+
+static struct oam_request *delete_oam_request(struct oam_request *req)
+{
+    free(req->error);
+    free(req->remote_command);
+    free(req->return_ip);
+    free(req);
+    return NULL;
+}
+
 static int add_fixed_headers(struct Packet *packet, unsigned char ttl,
                              unsigned char seq, unsigned short channel, unsigned short nodeid,
                              unsigned char level, unsigned char session)
@@ -341,7 +364,7 @@ static void *oam_request_thread(void *arg)
     }
     stream->sessions[req->session_id].live = false;
     stream->sessions[req->session_id].multireq_tid = 0;
-    free(req);
+    delete_oam_request(req);
     return NULL;
 }
 
@@ -377,7 +400,7 @@ static bool initiate_request(struct oam_request *ping_req)
     if(ping_req->count == 1){
         stream->sessions[session_id].multireq_tid = 0;
         send_request(ping_req);
-        free(ping_req);
+        delete_oam_request(ping_req);
     } else {
         pthread_attr_t attr;
         if ((errno = pthread_attr_init(&attr)) != 0) {
@@ -394,28 +417,15 @@ static bool initiate_request(struct oam_request *ping_req)
     return true;
 }
 
-static struct oam_request *new_oam_request(const char *type, FILE *cmd_w)
-{
-    struct oam_request *req = calloc_struct(oam_request);
-
-    req->cmd_w = cmd_w;
-    req->type = type;
-    req->ttl = OAM_PING_TTL;
-    req->count = 1;
-    req->interval_ms = 1000;
-
-    return req;
-}
-
 static bool parse_ping_returnif(struct oam_request *ping_req, const char *ifname)
 {
     struct Interface *iface = ifname[0] ? get_oam_if(ifname) : oam_default_iface;
     if (iface == NULL) {
-        fprintf(ping_req->cmd_w, "invalid return interface name: %s", ifname);
+        ping_req->error = strdup_printf("invalid return interface name: %s", ifname);
         return false;
     }
     ping_req->node_id = oamif_get_uid(iface);
-    ping_req->return_ip = oamif_get_ip(iface);
+    ping_req->return_ip = strdup(oamif_get_ip(iface));
     ping_req->return_port = oamif_get_port(iface);
     return true;
 }
@@ -431,7 +441,7 @@ static bool parse_ping_options(struct oam_request *ping_req, const char *options
 
     while ((k=sscanf(po, " -%c%n", &c, &l)) == 1) {
         if (!isspace(*po)) {
-            fprintf(ping_req->cmd_w, "Error: ping options must be separated by space\n");
+            ping_req->error = strdup("Error: ping options must be separated by space");
             opt_err = true;
             break;
         }
@@ -449,13 +459,13 @@ static bool parse_ping_options(struct oam_request *ping_req, const char *options
                 if (fval < 0.002) fval = 0.002; // 2msec is the minimum
                 ping_req->interval_ms = fval * 1000;
             } else {
-                fprintf(ping_req->cmd_w, "Error: ping interval is invalid\n");
+                ping_req->error = strdup("ping interval is invalid");
                 opt_err = true;
                 break;
             }
         } else if (c=='n') {
             if(!allow_num){
-                fprintf(ping_req->cmd_w, "Error: ping count is not allwed in config.\n");
+                ping_req->error = strdup("ping count is not allwed in config");
                 opt_err = true;
                 break;
             }
@@ -464,7 +474,7 @@ static bool parse_ping_options(struct oam_request *ping_req, const char *options
                 po += l;
                 ping_req->count = val;
             } else {
-                fprintf(ping_req->cmd_w, "Error: ping count is invalid\n");
+                ping_req->error = strdup("ping count is invalid\n");
                 opt_err = true;
                 break;
             }
@@ -474,12 +484,12 @@ static bool parse_ping_options(struct oam_request *ping_req, const char *options
                 po += l;
                 ping_req->ttl = val;
             } else {
-                fprintf(ping_req->cmd_w, "Error: ping ttl is invalid\n");
+                ping_req->error = strdup("ping ttl is invalid");
                 opt_err = true;
                 break;
             }
         } else {
-            fprintf(ping_req->cmd_w, "Error: ping option '%c' is invalid\n", c);
+            ping_req->error = strdup_printf("ping option '%c' is invalid", c);
             opt_err = true;
             break;
         }
@@ -487,12 +497,13 @@ static bool parse_ping_options(struct oam_request *ping_req, const char *options
     if (opt_err) return false;
     while (isspace(*po)) po++;
     if (*po) {
-        fprintf(ping_req->cmd_w, "ping options '%s' is invalid", po);
+        ping_req->error = strdup_printf("ping options '%s' is invalid", po);
         return false;
     }
     return true;
 }
 
+// always returns a request, sets ret->error to an error message
 static struct oam_request *parse_ping_command(const char *oam_command, bool allow_returniface, bool allow_num, FILE *cmd_w)
 {
     int l;
@@ -503,47 +514,43 @@ static struct oam_request *parse_ping_command(const char *oam_command, bool allo
 
     if (oam_command[0]=='@') {
         if (!allow_returniface) {
-            fprintf(cmd_w, "ping return interface is not allowed");
-            free(ping_req);
-            return NULL;
+            ping_req->error = strdup("ping return interface is not allowed");
+            return ping_req;
         }
         int k = sscanf(oam_command, "@%s %s %s %d%n",
                        iface_name, start_name, ping_req->mep_stop, &ping_req->level, &l);
         if (k < 4) {
-            fprintf(cmd_w, "ping arguments invalid");
-            free(ping_req);
-            return NULL;
+            ping_req->error = strdup("ping arguments invalid");
+            return ping_req;
         }
     } else {
         int k = sscanf(oam_command, " %s %s %d%n",
                        start_name, ping_req->mep_stop, &ping_req->level, &l);
         if (k < 3) {
-            fprintf(cmd_w, "ping arguments invalid");
-            free(ping_req);
-            return NULL;
+            ping_req->error = strdup("ping arguments invalid");
+            return ping_req;
         }
         iface_name[0] = 0;
     }
 
     if (!parse_ping_returnif(ping_req, iface_name)) {
-        free(ping_req);
-        return NULL;
+        return ping_req;
     }
 
     ping_req->mep_start = hashmap_find(mep_starts, start_name);
     if (ping_req->mep_start == NULL) {
-        fprintf(cmd_w, "ping start '%s' invalid\n", start_name);
-        free(ping_req);
-        return NULL;
+        ping_req->error = strdup_printf("ping start '%s' invalid", start_name);
+        return ping_req;
     }
 
     if (!parse_ping_options(ping_req, oam_command+l, allow_num)) {
-        free(ping_req);
-        return NULL;
+        //TODO add something to the error?
     }
+
     return ping_req;
 }
 
+//TODO always returns a request, sets ret->error to an error message
 static struct oam_request *parse_rping_command(const char *oam_command, FILE *cmd_w)
 {
     int l;
@@ -589,6 +596,7 @@ static struct oam_request *parse_rping_command(const char *oam_command, FILE *cm
     return rping_req;
 }
 
+//TODO always returns a request, sets ret->error to an error message
 static struct oam_request *parse_rlist_command(const char *oam_command, FILE *cmd_w)
 {
     int l;
@@ -919,8 +927,9 @@ int oam_command_loop(struct Interface *iface)
             }
             else if (strncmp(oam_command, "ping", 4) == 0) {
                 struct oam_request *ping_req = parse_ping_command(oam_command+4, true, true, cmd_w);
-                if (ping_req == NULL) {
-                    ERROR("ping command is invalid");
+                if (ping_req->error) {
+                    //TODO how can we not leak ping_req?
+                    ERROR("ping command is invalid: %s", ping_req->error);
                 }
                 char *req_stream = ping_req->mep_start->stream_name;
                 if (!initiate_request(ping_req)) {
@@ -1164,8 +1173,14 @@ int oam_recv_reply(const char *msg)
 
     log_packet("oam_r %s:%.0f seq %.0f lvl %.0f D - %s", stream->v.string, session->v.number, sequence->v.number, level->v.number, msg);
 
-    //TODO this is just a quick fix
     if (strcmp(type->v.string, "rlist") == 0) {
+        JS_OBJECT_GET(code, string, j);
+        if (strcmp(code->v.string, "reply") != 0) {
+            log_error("rlist result is not a reply.");
+            json_delete(j);
+            return -1;
+        }
+
         JS_OBJECT_GET(list, array, j);
         sprintf(reply_str, "Rlist result from %s:\n", receiver->v.string);
         for (struct JsonArray *l = list->v.array; l; l=l->next) {
@@ -1177,77 +1192,104 @@ int oam_recv_reply(const char *msg)
             strcat(reply_str, l->val->v.string);
             strcat(reply_str, "\n");
         }
+        json_delete(j);
         return oam_cmd_recv_reply(oam_cmd_iface, reply_str);
     }
-
-    struct JsonValue *dly = json_object_get_bool(j, "delay");
-    if(dly != NULL && dly->type == JSON_TRUE){
-        // calculate delay
-        struct timespec sendtime, receivetime, delay_diff;
-        sendtime.tv_sec = json_object_get_number(j, "send_s")->v.number;
-        sendtime.tv_nsec = json_object_get_number(j, "send_ns")->v.number;
-        receivetime.tv_sec = json_object_get_number(j, "recv_s")->v.number;
-        receivetime.tv_nsec = json_object_get_number(j, "recv_ns")->v.number;
-        timespecsub(&receivetime, &sendtime, &delay_diff);
-
-        sprintf(reply_str,"  oam_r %s:%.0f seq %.0f lvl %.0f R - %s on stream %s target %s; reply from %s delay %ld.%ld",
-                stream->v.string, session->v.number, sequence->v.number, level->v.number,
-                type->v.string, stream->v.string, target->v.string, receiver->v.string, delay_diff.tv_sec, delay_diff.tv_nsec);
-    }
-    else
-        sprintf(reply_str,"  oam_r %s:%.0f seq %.0f lvl %.0f R - %s on stream %s target %s; reply from %s",
-            stream->v.string, session->v.number, sequence->v.number, level->v.number,
-            type->v.string, stream->v.string, target->v.string, receiver->v.string);
-
-    // Recorded route is single line, no difference between log/dump
-    struct JsonValue *jrr = json_object_get_array(j, "rr");
-    rr_str[0] = 0;
-    if(jrr){
-        sprintf(rr_str, "Record Route: [");
-        REVERSE_LIST(jrr->v.array);
-        for (struct JsonArray *a = jrr->v.array; a; a = a->next) {
-            strcat(rr_str, " ");
-            strcat(rr_str, a->val->v.string);
+    else if (strcmp(type->v.string, "rping") == 0) {
+        JS_OBJECT_GET(code, string, j);
+        if (strcmp(code->v.string, "error") != 0) {
+            log_error("rping response is not error.");
+            json_delete(j);
+            return -1;
         }
-        strcat(rr_str, " ]");
+
+        JS_OBJECT_GET(error, string, j);
+        snprintf(reply_str, sizeof(reply_str), "Rping error from %s : %s\n", receiver->v.string, error->v.string);
+        json_delete(j);
+        return oam_cmd_recv_reply(oam_cmd_iface, reply_str);
     }
+    else if (strcmp(type->v.string, "ping") == 0) {
+        JS_OBJECT_GET(code, string, j);
+        if (strcmp(code->v.string, "reply") != 0) {
+            log_error("ping result is not a reply.");
+            json_delete(j);
+            return -1;
+        }
 
-    // different format between log/dump
-    obj_str[0] = 0; obj_str_log[0] = 0;
-    struct JsonValue *jos = json_object_get_object(j, "object");
-    if (jos && jos->type == JSON_OBJECT){
-        dump_object_state(obj_str, jos, ",", "\n\t\t");
-        dump_object_state(obj_str_log, jos, ",", "; ");
+        struct JsonValue *dly = json_object_get_bool(j, "delay");
+        if(dly != NULL && dly->type == JSON_TRUE){
+            // calculate delay
+            struct timespec sendtime, receivetime, delay_diff;
+            sendtime.tv_sec = json_object_get_number(j, "send_s")->v.number;
+            sendtime.tv_nsec = json_object_get_number(j, "send_ns")->v.number;
+            receivetime.tv_sec = json_object_get_number(j, "recv_s")->v.number;
+            receivetime.tv_nsec = json_object_get_number(j, "recv_ns")->v.number;
+            timespecsub(&receivetime, &sendtime, &delay_diff);
+
+            sprintf(reply_str,"  oam_r %s:%.0f seq %.0f lvl %.0f R - %s on stream %s target %s; reply from %s delay %ld.%ld",
+                    stream->v.string, session->v.number, sequence->v.number, level->v.number,
+                    type->v.string, stream->v.string, target->v.string, receiver->v.string, delay_diff.tv_sec, delay_diff.tv_nsec);
+        }
+        else
+            sprintf(reply_str,"  oam_r %s:%.0f seq %.0f lvl %.0f R - %s on stream %s target %s; reply from %s",
+                    stream->v.string, session->v.number, sequence->v.number, level->v.number,
+                    type->v.string, stream->v.string, target->v.string, receiver->v.string);
+
+        // Recorded route is single line, no difference between log/dump
+        struct JsonValue *jrr = json_object_get_array(j, "rr");
+        rr_str[0] = 0;
+        if(jrr){
+            sprintf(rr_str, "Record Route: [");
+            REVERSE_LIST(jrr->v.array);
+            for (struct JsonArray *a = jrr->v.array; a; a = a->next) {
+                strcat(rr_str, " ");
+                strcat(rr_str, a->val->v.string);
+            }
+            strcat(rr_str, " ]");
+        }
+
+        // different format between log/dump
+        obj_str[0] = 0; obj_str_log[0] = 0;
+        struct JsonValue *jos = json_object_get_object(j, "object");
+        if (jos && jos->type == JSON_OBJECT){
+            dump_object_state(obj_str, jos, ",", "\n\t\t");
+            dump_object_state(obj_str_log, jos, ",", "; ");
+        }
+
+        // Logging
+        log_info("%s %s %s", reply_str, rr_str, obj_str_log);
+
+        json_delete(j);
+
+        if(oam_cmd_iface == NULL)
+            return -1;
+        else
+        {
+            // check if we need to print to a telnet session
+            if (sess == NULL) return 0; // no session found
+            if (sess->cmd_w == stderr) return 0; // this is a background ping
+
+            if(oam_cmd_get_mode(oam_cmd_iface) == JSON){           // JSON mode
+                                                                   //strcat(msg, "\n"); //TODO this is buffer overflow
+                return oam_cmd_recv_reply(oam_cmd_iface, msg);
+            } else {                                               // DUMP mode
+                if (rr_str[0]) {
+                    strcat(reply_str, "\n\t");
+                    strcat(reply_str, rr_str);
+                }
+                if(jos){
+                    strcat(reply_str, "\n\t");
+                    strcat(reply_str, obj_str);
+                }
+                //TODO print reply to session->cmd_w
+                return oam_cmd_recv_reply(oam_cmd_iface, reply_str);
+            }
+        }
     }
-
-    // Logging
-    log_info("%s %s %s", reply_str, rr_str, obj_str_log);
-
-    json_delete(j);
-
-    if(oam_cmd_iface == NULL)
+    else {
+        log_error("invalid reply type '%s'", type->v.string);
+        json_delete(j);
         return -1;
-    else
-    {
-        // check if we need to print to a telnet session
-        if (sess == NULL) return 0; // no session found
-        if (sess->cmd_w == stderr) return 0; // this is a background ping
-
-        if(oam_cmd_get_mode(oam_cmd_iface) == JSON){           // JSON mode
-            //strcat(msg, "\n"); //TODO this is buffer overflow
-            return oam_cmd_recv_reply(oam_cmd_iface, msg);
-        } else {                                               // DUMP mode
-            if (rr_str[0]) {
-                strcat(reply_str, "\n\t");
-                strcat(reply_str, rr_str);
-            }
-            if(jos){
-                strcat(reply_str, "\n\t");
-                strcat(reply_str, obj_str);
-            }
-            //TODO print reply to session->cmd_w
-            return oam_cmd_recv_reply(oam_cmd_iface, reply_str);
-        }
     }
     #undef JS_OBJECT_GET
 }
@@ -1381,6 +1423,51 @@ static bool process_ping_request(struct OamEndPoint *oam, struct Packet *p, stru
     return true;
 }
 
+static bool send_rping_error(struct OamEndPoint *oam, struct Packet *p, struct JsonValue *j,
+        struct oam_request *ping_req)
+{
+    unsigned char *oam_hdr = p->buf + p->headers[1].start;
+    unsigned char seq = oam_hdr[1];
+    //unsigned short channel = (oam_hdr[2]<<8)+oam_hdr[3];
+    unsigned short nodeid = (oam_hdr[4]<<8)+oam_hdr[5];
+    unsigned char level = oam_hdr[6] >> 1;
+    unsigned char session = oam_hdr[7] & 0x0f;
+
+    json_object_remove(j, "return");
+    json_object_insert(j, "code", json_string("error"));
+    json_object_insert(j, "sequence", json_number(seq));
+    json_object_insert(j, "level", json_number(level));
+    json_object_insert(j, "nodeid", json_number(nodeid));
+    json_object_insert(j, "session", json_number(session));
+    json_object_insert(j, "receiver", json_string(oam->name));
+
+    const char *stream = "<unknown>";
+    struct JsonValue *jstream = json_object_get_string(j, "stream");
+    if (stream != NULL) {
+        stream = jstream->v.string;
+    }
+    // we know that header 0 contains the label in the first 20 bit
+    uint32_t *label = (uint32_t *) (p->buf + p->headers[0].start);
+    json_object_insert(j, "label", json_number((ntohl(*label) >> 12) & 0xFFFFF));
+
+    json_object_insert(j, "recv_s", json_number(p->recv_time.tv_sec));
+    json_object_insert(j, "recv_ns", json_number(p->recv_time.tv_nsec));
+
+    json_object_insert(j, "error", json_string(ping_req->error));
+
+    unsigned msg_len=0;
+    char *j_msg = json_serialize(j, &msg_len);
+
+    log_packet("%s %s:%d seq %d lvl %d E - (to %s %d) %s", oam->name, stream, session, seq, level,
+               ping_req->return_ip, ping_req->return_port, j_msg);
+    oam_send_reply(ping_req->return_ip, ping_req->return_port, j_msg, msg_len);
+
+    free(j_msg);
+    json_delete(j);
+    delete_oam_request(ping_req);
+    return false;
+}
+
 // @returns false on error
 static bool process_rping_request(struct OamEndPoint *oam, struct Packet *p, struct JsonValue *j)
 {
@@ -1401,42 +1488,30 @@ static bool process_rping_request(struct OamEndPoint *oam, struct Packet *p, str
 
     struct JsonValue *cmd = json_object_get_string(j, "command");
 
-    //TODO on error send back an rping error to the reply ip:port
     struct oam_request *ping_req = parse_ping_command(cmd->v.string, false, true, stderr);
-    if (ping_req) {
+    ping_req->return_ip = reply_address;
+    ping_req->return_port = port;
+    if (ping_req->error == NULL) {
         if (strcmp(oam->stream, ping_req->mep_start->stream_name) != 0) {
-            fprintf(stderr, "OAM remote ping request has invalid start stream name '%s', oam point is in stream '%s'\n",
-                    ping_req->mep_start->stream_name, oam->stream);
-            free(reply_address);
-            json_delete(j);
-            return false;
+            ping_req->error = strdup("rping target point and ping start point are in different streams");
+            return send_rping_error(oam, p, j, ping_req);
         }
-        ping_req->return_ip = reply_address;
-        ping_req->return_port = port;
 
         struct JsonValue *jstream = json_object_get_string(j, "stream");
         if (jstream == NULL) {
-            fprintf(stderr, "OAM remote ping request has no stream name\n");
-            free(reply_address);
-            json_delete(j);
-            return false;
+            ping_req->error = strdup("rping request contains no stream name");
+            return send_rping_error(oam, p, j, ping_req);
         }
         ping_req->originator_stream = strdup(jstream->v.string);
         ping_req->originator_session_id = session;
 
         if (!initiate_request(ping_req)) {
-            fprintf(stderr, "OAM sending remote ping request failed\n");
-            free(reply_address);
-            json_delete(j);
-            return false;
+            ping_req->error = strdup("ping request could not be sent");
+            return send_rping_error(oam, p, j, ping_req);
         }
     } else {
-        fprintf(stderr, "OAM rping request invalid\n");
-        free(reply_address);
-        json_delete(j);
-        return false;
+        return send_rping_error(oam, p, j, ping_req);
     }
-    free(reply_address);
     json_delete(j);
     return false;
 }
@@ -1550,12 +1625,23 @@ bool oam_recv_request(struct OamEndPoint *oam, struct Packet *p)
     }
 
     struct JsonValue *jreqt = json_object_get_string(j, "type");
-    if(jreqt==NULL) {
-        fprintf(stderr, "OAM packet has no request type\n");
+    if (jreqt==NULL) {
+        fprintf(stderr, "OAM packet has no request type\n"); //TODO log_error()
         json_delete(j);
         return false;
     }
-    //TODO also check that "code" == "request"
+
+    struct JsonValue *jreqc = json_object_get_string(j, "code");
+    if (jreqc==NULL) {
+        fprintf(stderr, "OAM packet has no request code\n"); //TODO log_error()
+        json_delete(j);
+        return false;
+    }
+    if (strcmp(jreqc->v.string, "request") != 0) {
+        fprintf(stderr, "OAM packet is not a request but '%s'\n", jreqc->v.string); //TODO log_error()
+        json_delete(j);
+        return false;
+    }
 
     if(level < oam->level){
         /*fprintf(stderr, "MIP %s level %d Warning: dropping lower level (level %d) OAM packet.\n",
@@ -1570,6 +1656,7 @@ bool oam_recv_request(struct OamEndPoint *oam, struct Packet *p)
 
     struct JsonValue *target = json_object_get_string(j, "target");
     if (target == NULL) {
+        fprintf(stderr, "OAM packet has no target\n"); //TODO log_error()
         json_delete(j);
         return false;
     }
@@ -1651,8 +1738,9 @@ static int oam_start_background_ping_cb(const char *key, void *value, void *user
     }
     struct oam_request *ping_req = parse_ping_command(request+4, true, false, stderr);
 
-    if (ping_req == NULL) {
-        log_error("OAM background ping command '%s' invalid", key);
+    if (ping_req->error) {
+        log_error("OAM background ping command '%s' invalid: %s", key, ping_req->error);
+        delete_oam_request(ping_req);
         return 0;
     }
 
