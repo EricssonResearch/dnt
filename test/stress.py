@@ -9,8 +9,8 @@ import signal
 import time
 import sys
 
-LONG_RUN_DURATION_SEC = 10 * 60 * 60
-# LONG_RUN_DURATION_SEC = 60 * 60
+# LONG_RUN_DURATION_SEC = 10 * 60 * 60
+LONG_RUN_DURATION_SEC = 30
 
 # Tell if ping ICMP sequences in order (true) or not (false)
 def ping_check_out_of_order(ping_output):
@@ -18,11 +18,23 @@ def ping_check_out_of_order(ping_output):
     seqs = [int(s.split(" ")[4].split("=")[1]) for s in seqs_str]
     return all(s == s_prev + 1 for s_prev, s in zip(seqs, seqs[1:]))
 
+def disable_logging(node, mgmtip):
+    switch_netns(node)
+    with socket(AF_INET, SOCK_STREAM, 0) as sock:
+        sock.connect((mgmtip, 8000))
+        for modul in ["OAM", "PACKET", "DIAGNOSTIC", "MAIN", "RCVY"]:
+            sock.sendall(f"log {modul} NONE".encode())
+            _ = sock.recv(10000)
+            time.sleep(0.1)
+
+
 def long_run(net):
     t, l, a, b = [net.get(n) for n in ["t", "l", "a", "b"]]
     rtwo1 = a.popen(f"screen -S r1 -d -m gdb -ex=r --args ../r2dtwo stress/a.ini")
     rtwo2 = b.popen(f"screen -S r2 -d -m gdb -ex=r --args ../r2dtwo stress/b.ini")
     time.sleep(2)
+    disable_logging("a", "10.0.0.1")
+    disable_logging("b", "10.0.0.2")
     # CLI(net)
     switch_netns("t")
     ping = exec_bg("ping 192.168.1.2 -q -A", out=OUT_PIPE)
@@ -94,11 +106,14 @@ def main():
         print(" Interrupted, cleanup...")
         exec_fg("killall ping")
         exec_fg("killall r2dtwo")
+        exec_fg("killall gdb")
+        net.stop()
         exit(1)
     finally:
-        net.stop()
         exec_fg("killall ping")
         exec_fg("killall r2dtwo")
+        exec_fg("killall gdb")
+        net.stop()
 
 if __name__ == "__main__":
     main()
