@@ -179,12 +179,12 @@ testcases = [
 
     (
         'n1', 'rping s1:s1n1-e4-01 s1n3-i4-34 4 rx113:s1n3-i4-13 any 4',
-        ['OAM packet rping session 13 seq 0, s1:s1n1-e4-01 -> s1n3-i4-34, level 4, count 1 interval 1000, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n',]
+        ['OAM packet rping session 13 seq 0, s1:s1n1-e4-01 -> s1n3-i4-34, level 4, count 1 interval 1000, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n', '{"code":"reply","label":0,"level":4,"nodeid":3,"receiver":"s1n3-i4-34","recv_ns":891453474,"recv_s":1698225600,"send_ns":891453474,"send_s":1698225600,"sequence":0,"session":13,"stream":"s1","target":"any","type":"ping"}{"code":"reply","label":134,"level":4,"nodeid":3,"receiver":"s1n4-i4-34","recv_ns":891533801,"recv_s":1698225600,"send_ns":891453474,"send_s":1698225600,"sequence":0,"session":13,"stream":"s1","target":"any","type":"ping"}{"code":"reply","label":134,"level":4,"nodeid":3,"receiver":"s1n4-e4-40","recv_ns":891533801,"recv_s":1698225600,"send_ns":891453474,"send_s":1698225600,"sequence":0,"session":13,"stream":"s1","target":"any","type":"ping"}']
     ),
 
     (
         'n1', 'rping s1:s1n1-e4-01 s1n3-i4-34 4 rx113:s1n3-i4-34 any 4',
-        ['OAM packet rping session 14 seq 0, s1:s1n1-e4-01 -> s1n3-i4-34, level 4, count 1 interval 1000, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n']
+        ['OAM packet rping session 14 seq 0, s1:s1n1-e4-01 -> s1n3-i4-34, level 4, count 1 interval 1000, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n', '{"code":"reply","label":134,"level":4,"nodeid":3,"receiver":"s1n4-i4-34","recv_ns":651263294,"recv_s":1698225601,"send_ns":651246899,"send_s":1698225601,"sequence":0,"session":14,"stream":"s1","target":"any","type":"ping"}{"code":"reply","label":134,"level":4,"nodeid":3,"receiver":"s1n4-e4-40","recv_ns":651263294,"recv_s":1698225601,"send_ns":651246899,"send_s":1698225601,"sequence":0,"session":14,"stream":"s1","target":"any","type":"ping"}']
     ),
     (
         'n4', 'ping s2:s2n4-e5-04 s2n1-i5-21 5',

@@ -1487,15 +1487,20 @@ static bool process_rping_request(struct OamEndPoint *oam, struct Packet *p, str
     }
 
     struct JsonValue *cmd = json_object_get_string(j, "command");
+    if (cmd == NULL) {
+        //TODO reply error?
+        json_delete(j);
+        return false;
+    }
 
     struct oam_request *ping_req = parse_ping_command(cmd->v.string, false, true, stderr);
     ping_req->return_ip = reply_address;
     ping_req->return_port = port;
     if (ping_req->error == NULL) {
-        if (strcmp(oam->stream, ping_req->mep_start->stream_name) != 0) {
-            ping_req->error = strdup("rping target point and ping start point are in different streams");
-            return send_rping_error(oam, p, j, ping_req);
-        }
+        // if (strcmp(oam->stream, ping_req->mep_start->stream_name) != 0) {
+            // ping_req->error = strdup("rping target point and ping start point are in different streams");
+            // return send_rping_error(oam, p, j, ping_req);
+        // }
 
         struct JsonValue *jstream = json_object_get_string(j, "stream");
         if (jstream == NULL) {
