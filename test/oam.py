@@ -123,7 +123,7 @@ def start_r2dtwos(net, debug):
         node = net.get(n)
         if debug:
             # For debug! Spawns 4 r2dtwo windows in gdb
-            node.popen(f"xterm -T {n} -e gdb -nx --args ../r2dtwo oam/singlestage/{n}.cfg")
+            node.popen(f"xterm -T {n} -e env -i gdb -nx --args ../r2dtwo oam/singlestage/{n}.cfg")
         else:
             node.popen(f"../r2dtwo oam/singlestage/{n}.cfg")
 

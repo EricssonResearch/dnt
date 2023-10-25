@@ -30,12 +30,14 @@ def disable_logging(node, mgmtip):
 
 def long_run(net):
     t, l, a, b = [net.get(n) for n in ["t", "l", "a", "b"]]
-    rtwo1 = a.popen(f"screen -S r1 -d -m gdb -ex=r --args ../r2dtwo stress/a.ini")
-    rtwo2 = b.popen(f"screen -S r2 -d -m gdb -ex=r --args ../r2dtwo stress/b.ini")
+    switch_netns("a")
+    rtwo1 = exec_bg(f"screen -S r1 -d -m env -i gdb -ex=r --args ../r2dtwo stress/a.ini")
+    switch_netns("b")
+    rtwo2 = exec_bg(f"screen -S r2 -d -m env -i gdb -ex=r --args ../r2dtwo stress/b.ini")
     time.sleep(2)
+    # CLI(net)
     disable_logging("a", "10.0.0.1")
     disable_logging("b", "10.0.0.2")
-    # CLI(net)
     switch_netns("t")
     ping = exec_bg("ping 192.168.1.2 -q -A", out=OUT_PIPE)
     switch_netns("a")
