@@ -6,6 +6,7 @@
 #include "conf_utils.h"
 #include "inifile.h"
 #include "interface.h"
+#include "log.h"
 #include "utils.h"
 
 #include "if_eth.h"
@@ -20,6 +21,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+
+DEFAULT_LOGGING_MODULE(MAIN, LOG_WARNING)
 
 struct ConfIfacesState {
     struct Interface *ifaces;
@@ -336,12 +339,10 @@ static int iface_stream_cb(const char *key, void *value, void *userdata)
 
     REVERSE_LIST(tokstate.iface_stream_list);
     hashmap_insert(state->iface_streams, ifname, tokstate.iface_stream_list);
-#ifdef VERBOSE_CONF
-    printf("interface %s receives streams:\n", ifname);
+    log_info("interface %s receives streams:\n", ifname);
     for (struct ConfStreamList *i=tokstate.iface_stream_list; i; i=i->next) {
-        printf("  %s\n", i->stream_name);
+        log_info("  %s\n", i->stream_name);
     }
-#endif
     return 1;
 }
 

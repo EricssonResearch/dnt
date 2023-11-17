@@ -8,12 +8,15 @@
 #include "conf_utils.h"
 #include "inifile.h"
 #include "interface.h"
+#include "log.h"
 #include "parsetree.h"
 #include "utils.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+DEFAULT_LOGGING_MODULE(CONFIG, LOG_WARNING)
 
 struct ConfStreamState {
     struct HashMap *streams;
@@ -50,9 +53,7 @@ static int packetline_cb(const char *key, void *value, void *userdata)
             struct HeaderDescriptor *headers = NULL;
             struct ConfAction *actions = NULL;
 
-#ifdef VERBOSE_CONF
-            printf("Parsing stream '%s'\n", streamname);
-#endif
+            log_info("Parsing stream '%s'\n", streamname);
 
             headers = parse_packet_line(streamname, packetline);
             if (headers == NULL) {
@@ -70,10 +71,9 @@ static int packetline_cb(const char *key, void *value, void *userdata)
             if (!parse_match_line(streamname, headers, matchline) > 0) {
                 THROW("match line invalid");
             }
-#ifdef VERBOSE_CONF
-            printf("Stream %s headers:\n", streamname);
+
+            log_info("Stream %s headers:\n", streamname);
             confheaders_print(headers);
-#endif
 
             // find the corresponding :actions line
             chars = snprintf(NULL, 0, "%s:actions", streamname);
@@ -89,10 +89,9 @@ static int packetline_cb(const char *key, void *value, void *userdata)
             if (actions == NULL) {
                 THROW("actions invalid");
             }
-#ifdef VERBOSE_CONF
-            printf("Stream %s actions:\n", streamname);
+
+            log_info("Stream %s actions:\n", streamname);
             confactions_print(actions);
-#endif
 
 
             struct ConfStream *stream = calloc_struct(ConfStream);

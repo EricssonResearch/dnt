@@ -7,12 +7,15 @@
 #include "interface.h"
 #include "conf_streams.h"
 #include "inifile.h"
+#include "log.h"
 #include "packet.h"
 #include "utils.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+DEFAULT_LOGGING_MODULE(MAIN, LOG_WARNING)
 
 // add reference to the outgoing interfaces so they know they are in use
 static void ref_send_interfaces(struct Pipeline *pipe)
@@ -90,14 +93,10 @@ static void delete_iterator(struct PipelineIterator *pi)
 
 void pipe_iterator_run(struct PipelineIterator *pi)
 {
-#ifdef VERBOSE_RECV
-    printf("pipe_iterator_run %s, action count %u\n", pi->pipe->name, pi->pipe->action_count);
-#endif
+    log_packet("pipe_iterator_run %s, action count %u\n", pi->pipe->name, pi->pipe->action_count);
     while (!iterator_done(pi)) {
         struct Action *a = &pi->pipe->actions[pi->pos];
-#ifdef VERBOSE_RECV
-        printf("  action type %d %s '%s'\n", a->type, action_name_from_type(a->type), a->text);
-#endif
+        log_packet("  action type %d %s '%s'\n", a->type, action_name_from_type(a->type), a->text);
         enum ActionResult res = a->execute(a, pi);
         switch (res) {
             case ACR_CONTINUE:

@@ -1,6 +1,7 @@
 // Copyright (c) 2023, Ericsson AB and Ericsson Telecommunication Hungary
 // All rights reserved.
 
+#include "log.h"
 #define _GNU_SOURCE     /* for NI_MAXHOST */
 #include "if_utils.h"
 #include "interface.h"
@@ -23,6 +24,8 @@
 #include <netdb.h> /* getnameinfo() */
 #include <linux/errqueue.h>
 #include <linux/if_packet.h> /* PACKET_STATISTICS */
+
+DEFAULT_LOGGING_MODULE(MAIN, LOG_WARNING)
 
 #define PKT_DROP_WARNING_THRESHOLD 10
 #define PKT_DROP_WARNING_INTERVAL_SEC 5
@@ -142,9 +145,7 @@ struct Packet *iface_common_recv(struct Interface *iface, msghdr_process_cb *msg
     if (msg_cb)
         msg_cb(&msg, p, userdata);
 
-#ifdef VERBOSE_RECV
-    printf("IFACE %s recv %u\n", iface->name, p->len);
-#endif
+    log_packet("IFACE %s recv %u\n", iface->name, p->len);
     return p;
 }
 

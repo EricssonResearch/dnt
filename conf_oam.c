@@ -5,11 +5,14 @@
 #include "conf_oam.h"
 #include "conf_utils.h"
 #include "inifile.h"
+#include "log.h"
 #include "utils.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+DEFAULT_LOGGING_MODULE(CONFIG, LOG_INFO)
 
 struct ConfOamState {
     struct HashMap *oam;
@@ -20,9 +23,7 @@ static int oam_cb(const char *key, void *value, void *userdata)
     char *cmdline = value;
     struct ConfOamState *state = userdata;
 
-#ifdef VERBOSE_CONF
-    printf("  new OAM session %s -> %s\n", key, cmdline);
-#endif
+    log_info("  new OAM session %s -> %s\n", key, cmdline);
 
     //TODO we are just copying the hash table...
     hashmap_insert(state->oam, strdup(key), strdup(cmdline));
@@ -35,9 +36,7 @@ struct HashMap *parse_oam(struct IniSection *oam_section)
         .oam = new_hashmap(7, NULL, NULL),
     };
 
-#ifdef VERBOSE_CONF
-    printf("Parsing OAM section:\n");
-#endif
+    log_info("Parsing OAM section:\n");
 
     if (!hashmap_foreach(oam_section->contents, oam_cb, &state)) {
         fprintf(stderr, "failed to parse oam\n");
