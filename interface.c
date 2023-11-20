@@ -3,10 +3,14 @@
 
 
 #include "interface.h"
+#include "log.h"
 #include "parsetree.h"
 
 #include <stdlib.h>
 #include <stdio.h>
+
+DEFAULT_LOGGING_MODULE(MAIN, LOG_WARNING);
+
 
 static void try_delete_interface(struct Interface *iface)
 {
@@ -23,7 +27,7 @@ static void try_delete_interface(struct Interface *iface)
 void iface_set_parsetree(struct Interface *iface, struct ParseTree *pt)
 {
     if (iface->parsetree) {
-        fprintf(stderr, "interface %s already has a parsetree\n", iface->name);
+        log_error("interface %s already has a parsetree\n", iface->name);
     } else {
         iface->parsetree = pt;
         parsetree_ref(pt);
@@ -34,11 +38,11 @@ void iface_set_parsetree(struct Interface *iface, struct ParseTree *pt)
 void close_iface(struct Interface *iface)
 {
     if (iface->state == IFS_SHUTDOWN) {
-        fprintf(stderr, "interface %s close called twice\n", iface->name);
+        log_error("interface %s close called twice\n", iface->name);
         return;
     }
     if (iface->state == IFS_DONE) {
-        fprintf(stderr, "interface close called when it was already deleted\n");
+        log_error("interface close called when it was already deleted\n");
         return;
     }
     iface->state = IFS_SHUTDOWN;

@@ -4,6 +4,7 @@
 
 #include "parsetree.h"
 #include "interface.h"
+#include "log.h"
 #include "packet.h"
 #include "pipeline.h"
 #include "protocol.h"
@@ -14,6 +15,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+
+DEFAULT_LOGGING_MODULE(PARSE, LOG_WARNING)
 
 struct ParseTree {
     struct Interface *iface;
@@ -78,7 +81,7 @@ struct Pipeline *parsetree_process(struct ParseTree *pt_head, struct Packet *p)
 {
     for (struct ParseTree *pt = pt_head; pt != NULL; pt = pt->next) {
         if (pt->headers == NULL) {
-            fprintf(stderr, "parsetree %s has no streams\n", pt->iface->name);
+            log_error("parsetree %s has no streams\n", pt->iface->name);
             return NULL;
         }
 

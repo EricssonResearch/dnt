@@ -1,6 +1,7 @@
 // Copyright (c) 2023, Ericsson AB and Ericsson Telecommunication Hungary
 // All rights reserved.
 
+#include "log.h"
 #define _GNU_SOURCE
 #include "json.h"
 #include "pof.h"
@@ -18,6 +19,9 @@
 #include <sys/eventfd.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+
+DEFAULT_LOGGING_MODULE(MAIN, LOG_WARNING)
+LOGGING_MODULE(OAM, LOG_WARNING)
 
 enum PofEvent {
     POF_IN_ORDER_PKT = 1,
@@ -61,12 +65,12 @@ static inline __attribute__((unused)) void pof_debug(const struct Pof *pof)
         return;
     }
     struct PofElem *iter = pof->q_head;
-    printf("POF: len=%d queue=", pof->queue_len);
+    log_debug("POF: len=%d queue=", pof->queue_len);
     while (iter != NULL) {
-        printf("%d ", iter->seq);
+        log_debug("%d ", iter->seq);
         iter = iter->next;
     }
-    printf("\n");
+    log_debug("\n");
 }
 
 
@@ -130,7 +134,7 @@ static struct PofElem *new_pof_elem(struct Pof *pof, struct PipelineIterator *pi
 bool pof_insert(struct Pof *pof, struct PipelineIterator *pi)
 {
     if (pof->queue_len >= pof->queue_max_len) {
-        fprintf(stderr, "POF buffer is full, drop new packet.\n");
+        log_warning_m(OAM, "POF buffer is full, drop new packet.\n");
         return false;
     }
 
@@ -198,7 +202,7 @@ static void pof_reset(struct Pof *pof)
     while (pof->q_head)
         pof_pop_item(pof->q_head);
     if (pof->take_any == false) {
-        printf("POF reset\n");
+        log_info("POF reset\n");
         pof->take_any = true;
     }
 }

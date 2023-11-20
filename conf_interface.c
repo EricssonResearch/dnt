@@ -22,7 +22,7 @@
 #include <string.h>
 #include <stdio.h>
 
-DEFAULT_LOGGING_MODULE(MAIN, LOG_WARNING)
+DEFAULT_LOGGING_MODULE(CONFIG, LOG_WARNING)
 
 struct ConfIfacesState {
     struct Interface *ifaces;
@@ -41,7 +41,7 @@ static bool iface_token_cb(char *token, void *userdata)
 {
 #define THROW(msg, ...)                                             \
     do {                                                            \
-        fprintf(stderr, "interface %s error: " msg "\n",            \
+        log_error("interface %s error: " msg "\n",            \
                 tstate->ifname, ##__VA_ARGS__);                     \
         return false;                                               \
     } while (0)
@@ -78,7 +78,7 @@ static int iface_cb(const char *key, void *value, void *userdata)
 {
 #define THROW(msg, ...)                                             \
     do {                                                            \
-        fprintf(stderr, "interface %s error: " msg "\n",            \
+        log_error("interface %s error: " msg "\n",            \
                 key, ##__VA_ARGS__);                                \
         free(tstate.type);                                          \
         delete_hashmap(tstate.params);                              \
@@ -251,7 +251,7 @@ struct Interface *parse_interfaces(struct IniSection *interfaces_section, unsign
     state.ifaces = calloc_struct_array(Interface, state.iface_count); //TODO this overallocates
 
     if (!hashmap_foreach(interfaces_section->contents, iface_cb, &state)) {
-        fprintf(stderr, "an interface is invalid\n");
+        log_error("an interface is invalid\n");
         for (unsigned i=0; i<state.iface_count; i++) {
             iface_unref(&state.ifaces[i]);
         }
@@ -291,7 +291,7 @@ static bool iface_stream_token_cb(char *token, void *userdata)
         tstate->iface_stream_list = sl;
         return true;
     } else {
-        fprintf(stderr, "no stream named '%s'\n", token);
+        log_error("no stream named '%s'\n", token);
         return false;
     }
 }
@@ -308,7 +308,7 @@ static int iface_stream_cb(const char *key, void *value, void *userdata)
 
     // verify that there is no garbage after :streams
     if (is-key != (long int)strlen(key) - 8) {
-        fprintf(stderr, "interface streams '%s' invalid\n", key);
+        log_error("interface streams '%s' invalid\n", key);
         return 0;
     }
 
@@ -322,7 +322,7 @@ static int iface_stream_cb(const char *key, void *value, void *userdata)
         }
     }
     if (iface == NULL) {
-        fprintf(stderr, "parsing streams for interfaces: unknown interface '%s'\n", ifname);
+        log_error("parsing streams for interfaces: unknown interface '%s'\n", ifname);
         free(ifname);
         return 0;
     }
@@ -332,7 +332,7 @@ static int iface_stream_cb(const char *key, void *value, void *userdata)
         .iface_stream_list = NULL,
     };
     if (!foreach_tokens(str, iface_stream_token_cb, &tokstate)) {
-        fprintf(stderr, "invalid streams for interface '%s'\n", ifname);
+        log_error("invalid streams for interface '%s'\n", ifname);
         free(ifname);
         return 0;
     }
@@ -371,7 +371,7 @@ struct HashMap *parse_interface_streams(struct IniSection *interfaces_section,
     };
 
     if (!hashmap_foreach(interfaces_section->contents, iface_stream_cb, &state)) {
-        fprintf(stderr, "an interface streams line is invalid\n");
+        log_error("an interface streams line is invalid\n");
         delete_hashmap(state.iface_streams);
         return NULL;
     }

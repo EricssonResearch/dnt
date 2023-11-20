@@ -5,6 +5,7 @@
 #include "conf_packet.h"
 #include "conf_utils.h"
 #include "header.h"
+#include "log.h"
 #include "parsetree.h"
 #include "protocol.h"
 #include "utils.h"
@@ -13,6 +14,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+
+DEFAULT_LOGGING_MODULE(CONFIG, LOG_WARNING)
 
 struct StageState {
     const char *stream;
@@ -25,7 +28,7 @@ static bool process_packet_token(char *token, void *userdata)
 {
 #define THROW(msg, ...)                                             \
     do {                                                            \
-        fprintf(stderr, "stream %s header %s: " msg "\n",           \
+        log_error("stream %s header %s: " msg "\n",           \
                 stst->stream, stst->headers->name, ##__VA_ARGS__);  \
         return false;                                               \
     } while (0)
@@ -53,7 +56,7 @@ static bool process_packet_stage(char *stage, void *userdata)
 {
 #define THROW(msg, ...)                                             \
     do {                                                            \
-        fprintf(stderr, "stream %s: " msg "\n",                     \
+        log_error("stream %s: " msg "\n",                     \
                 stst->stream, ##__VA_ARGS__);                       \
         return false;                                               \
     } while (0)
@@ -81,7 +84,7 @@ static bool process_match_token(char *token, void *userdata)
 {
 #define THROW(msg, ...)                                                     \
     do {                                                                    \
-        fprintf(stderr, "stream %s match for header %s: " msg "\n",         \
+        log_error("stream %s match for header %s: " msg "\n",         \
                 stst->stream, stst->current_header->name, ##__VA_ARGS__);   \
         return false;                                                       \
     } while (0)
@@ -121,7 +124,7 @@ static bool process_match_token(char *token, void *userdata)
             idx++;
         }
         if (h == NULL) {
-            fprintf(stderr, "stream %s match refers to non-existing header '%s'\n",
+            log_error("stream %s match refers to non-existing header '%s'\n",
                     stst->stream, token);
             return false;
         }
@@ -136,7 +139,7 @@ static bool process_match_stage(char *stage, void *userdata)
 {
 #define THROW(msg, ...)                                                     \
     do {                                                                    \
-        fprintf(stderr, "stream %s match '%s': " msg "\n",                  \
+        log_error("stream %s match '%s': " msg "\n",                  \
                 stst->stream, stage, ##__VA_ARGS__);                        \
         return false;                                                       \
     } while (0)
@@ -166,12 +169,12 @@ struct HeaderDescriptor *parse_packet_line(const char *stream, char *line)
         .current_header = NULL,
     };
     if (!foreach_stages(line, process_packet_stage, &stst)) {
-        fprintf(stderr, "failed to parse header list for stream %s\n", stream);
+        log_error("failed to parse header list for stream %s\n", stream);
         delete_header_list(stst.headers);
         return NULL;
     }
     if (stst.headers == NULL) {
-        fprintf(stderr, "no headers specified for stream %s\n", stream);
+        log_error("no headers specified for stream %s\n", stream);
         return NULL;
     }
 
@@ -189,7 +192,7 @@ bool parse_match_line(const char *stream, struct HeaderDescriptor *headers, char
         .current_header = NULL,
     };
     if (!foreach_stages(line, process_match_stage, &stst)) {
-        fprintf(stderr, "failed to parse match list for stream %s\n", stream);
+        log_error("failed to parse match list for stream %s\n", stream);
         return false;
     }
 
@@ -199,20 +202,20 @@ bool parse_match_line(const char *stream, struct HeaderDescriptor *headers, char
 void confheaders_print(const struct HeaderDescriptor *headers)
 {
     for (const struct HeaderDescriptor *h=headers; h; h=h->next) {
-        printf("  name %s protocol %s\n", h->name, protocol_type_from_id(h->id));
+        log_info("  name %s protocol %s\n", h->name, protocol_type_from_id(h->id));
 
         if (h->matches) {
             printf("  matches:\n");
             for (const struct HeaderMatch *m=h->matches; m; m=m->next) {
-                printf("    field idx %u bitoffset %u bitcount %u value bitoffset %u bitlength %u\n",
+                log_info("    field idx %u bitoffset %u bitcount %u value bitoffset %u bitlength %u\n",
                         m->field->header_idx, m->field->bitoffset, m->field->bitcount,
                         m->value.bitoffset, m->value.bitcount);
                 unsigned bytes = DIVCEIL(m->value.bitoffset + m->value.bitcount, 8);
                 unsigned char *cst = m->value.value;
                 for (unsigned i=0; i<bytes; i++) {
-                    printf("      0x%.2x", cst[i]);
+                    log_info("      0x%.2x", cst[i]);
                 }
-                printf("\n");
+                log_info("\n");
             }
         }
     }

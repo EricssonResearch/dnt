@@ -20,6 +20,7 @@
 #include "seq_gen.h"
 #include "transfer.h"
 #include "utils.h"
+#include "log.h"
 
 #include <stdbool.h>
 #include <stdlib.h>
@@ -27,6 +28,8 @@
 #include <stdio.h>
 
 #include <arpa/inet.h> /* ntohs() */
+
+DEFAULT_LOGGING_MODULE(CONFIG, LOG_WARNING)
 
 enum ConfActionType {
     CA_UNDEF,
@@ -239,8 +242,8 @@ static struct MustWriteField *copy_mustwrite_list(const struct StageState *stst,
             nh = nh->next;
         }
         if (!oh) {
-            fprintf(stderr, "stream %s has a must_write entry referencing non-existing header (field %s)\n",
-                    stst->stream, mw->field->name);
+            log_warning("stream %s has a must_write entry referencing non-existing header (field %s)\n",
+                        stst->stream, mw->field->name);
             struct MustWriteField *k = ret;
             while (k) {
                 struct MustWriteField *d = k;
@@ -372,7 +375,7 @@ static bool process_assignment_lhs(struct StageState *stst, struct ConfAssignmen
 {
 #define THROW(msg, ...)                                                 \
     do {                                                                \
-        fprintf(stderr, "assignment lhs: " msg "\n", ##__VA_ARGS__);    \
+        log_error("assignment lhs: " msg "\n", ##__VA_ARGS__);    \
         return false;                                                   \
     } while (0)
 
@@ -424,7 +427,7 @@ static bool process_assignment_rhs(struct StageState *stst, struct ConfAssignmen
 {
 #define THROW(msg, ...)                                                 \
     do {                                                                \
-        fprintf(stderr, "assignment rhs: " msg "\n", ##__VA_ARGS__);    \
+        log_error("assignment rhs: " msg "\n", ##__VA_ARGS__);    \
         return false;                                                   \
     } while (0)
 
@@ -521,7 +524,7 @@ static bool process_token(char *token, void *userdata)
 {
 #define THROW(msg, ...)                                             \
     do {                                                            \
-        fprintf(stderr, "stream %s action %s: " msg "\n",           \
+        log_error("stream %s action %s: " msg "\n",           \
                 stst->stream, stst->actions->text, ##__VA_ARGS__);  \
         return false;                                               \
     } while (0)
@@ -952,7 +955,7 @@ static struct ConfAssignment *assign_nexthdrid_copy_from_srcheader(const char *a
     unsigned src_idx = srcpr->nexthdr_idx;
     const struct ProtocolField *srcf = &srcpr->header_fields[src_idx];
     if (dstpr->get_nexthdr != srcpr->get_nexthdr) {
-        fprintf(stderr, "nexthdr field type mismatch\n");
+        log_error("nexthdr field type mismatch\n");
         return NULL;
     }
 
@@ -1006,12 +1009,12 @@ static bool check_header_stack(struct HeaderDescriptor *headers,
 {
     for (unsigned i=0; i<count; i++) {
         if (headers == NULL) {
-            fprintf(stderr, "header %u should be %s\n", i,
+            log_error("header %u should be %s\n", i,
                     protocol_type_from_id(expected[i]));
             return false;
         }
         if (headers->id != expected[i]) {
-            fprintf(stderr, "header %u is %s, expected %s\n", i,
+            log_error("header %u is %s, expected %s\n", i,
                     protocol_type_from_id(headers->id), protocol_type_from_id(expected[i]));
             return false;
         }
@@ -1025,7 +1028,7 @@ static bool process_action(struct StageState *stst)
 {
 #define THROW(msg, ...)                                             \
     do {                                                            \
-        fprintf(stderr, "stream %s action %s: " msg "\n",           \
+        log_error("stream %s action %s: " msg "\n",           \
                 stst->stream, newaction->text, ##__VA_ARGS__);      \
         return false;                                               \
     } while (0)
@@ -1375,7 +1378,7 @@ static bool process_action(struct StageState *stst)
             }
             if (stst->must_write) {
                 for (struct MustWriteField *mw=stst->must_write; mw; mw=mw->next) {
-                    fprintf(stderr, "stream %s must write field %s:%s before sending\n",
+                    log_error("stream %s must write field %s:%s before sending\n",
                             stst->stream, mw->header->name, mw->field->name);
                 }
                 return false;
@@ -1405,7 +1408,7 @@ static bool process_stage(char *stage, void *userdata)
     struct StageState *stst = userdata;
 
     if (stst->had_final) {
-        fprintf(stderr, "can't have more actions after %s\n",
+        log_error("can't have more actions after %s\n",
                 confaction_name_from_type(stst->actions->type));
         return false;
     }
@@ -1413,18 +1416,18 @@ static bool process_stage(char *stage, void *userdata)
     struct ConfAction *newaction = new_blank_confaction(stst, stage);
 
     if (!foreach_tokens(stage, process_token, stst)) {
-        fprintf(stderr, "failed to process action parameters '%s'\n", newaction->text);
+        log_error("failed to process action parameters '%s'\n", newaction->text);
         return false;
     }
 
     if (stst->actions->type == CA_UNDEF) {
-        fprintf(stderr, "no action in '%s'\n", newaction->text);
+        log_error("no action in '%s'\n", newaction->text);
         return false;
     }
 
     // now we have all arguments for the action, let's process it properly
     if (!process_action(stst)) {
-        fprintf(stderr, "failed to process action '%s'\n", newaction->text);
+        log_error("failed to process action '%s'\n", newaction->text);
         return false;
     }
 
@@ -1463,7 +1466,7 @@ struct ConfAction *parse_actions_line(const char *stream, char *line,
 
     char *aline = strdup(line);
     if (!foreach_stages(aline, process_stage, &stst)) {
-        fprintf(stderr, "failed to process actions line for stream '%s'\n", stream);
+        log_error("failed to process actions line for stream '%s'\n", stream);
         free(aline);
         delete_header_list(stst.headers);
         delete_confaction_list(stst.actions);
@@ -1472,7 +1475,7 @@ struct ConfAction *parse_actions_line(const char *stream, char *line,
     free(aline);
 
     if (stst.actions == NULL) {
-        fprintf(stderr, "no actions in actions line for stream '%s'\n", stream);
+        log_error("no actions in actions line for stream '%s'\n", stream);
         delete_header_list(stst.headers);
         return NULL;
     }
@@ -1596,7 +1599,7 @@ static struct EditAssign *assemble_fieldassigns(struct ConfAssignment *list, uns
         a->write = l->write;
         a->read = l->read;
         if (l->lhs.type == CVT_UNDEF) {
-            fprintf(stderr, "assign '%s' destination is undefined\n", l->text);
+            log_error("assign '%s' destination is undefined\n", l->text);
             free(ret);
             return NULL;
         }
@@ -1605,7 +1608,7 @@ static struct EditAssign *assemble_fieldassigns(struct ConfAssignment *list, uns
 
         switch (l->rhs.type) {
             case CVT_UNDEF:
-                fprintf(stderr, "assign '%s' source is undefined\n", l->text);
+                log_error("assign '%s' source is undefined\n", l->text);
                 free(ret);
                 return NULL;
             case CVT_FIELD:
@@ -1649,7 +1652,7 @@ struct Action *assemble_actions(const char *stream_name, const struct ConfAction
     for (const struct ConfAction *ca = ca_list; ca; ca=ca->next) {
         switch (ca->type) {
             case CA_UNDEF:
-                fprintf(stderr, "cannot assemble undefined action\n");
+                log_error("cannot assemble undefined action\n");
                 break;
             case CA_ADD:
                 create_action_add(ret+a, ca->d.add.pos_idx, ca->d.add.id, ca->d.add.len, ca->text);
@@ -1668,7 +1671,7 @@ struct Action *assemble_actions(const char *stream_name, const struct ConfAction
                 struct EditAssign *assigns = assemble_fieldassigns(ca->d.edit.assignments, &acount);
                 if (assigns == NULL) {
                     //TODO cleanup on error
-                    fprintf(stderr, "could not assemble the field assignments for edit action\n");
+                    log_error("could not assemble the field assignments for edit action\n");
                     return NULL;
                 }
                 create_action_edit(ret+a, assigns, acount, ca->text);
@@ -1680,7 +1683,7 @@ struct Action *assemble_actions(const char *stream_name, const struct ConfAction
                 create_action_filteroam(ret+a, ca->d.filteroam.field, ca->text);
                 break;
             case CA_JUMP:
-                fprintf(stderr, "assemble_actions() jump should have been inlined\n");
+                log_error("assemble_actions() jump should have been inlined\n");
                 //TODO cleanup on error
                 return NULL;
             case CA_MEPSTART: {
@@ -1714,7 +1717,7 @@ struct Action *assemble_actions(const char *stream_name, const struct ConfAction
                     unsigned r_action_count;
                     struct Action *r_actions = assemble_actions(r->name, r->actions, &r_action_count);
                     if (!r_actions) {
-                        fprintf(stderr, "failed to assemble actions for stream %s\n", r->name);
+                        log_error("failed to assemble actions for stream %s\n", r->name);
                         //TODO cleanup on error
                         return NULL;
                     }

@@ -3,6 +3,7 @@
 
 
 #include "header.h"
+#include "log.h"
 #include "packet.h"
 #include "protocol.h"
 #include "transfer.h"
@@ -12,6 +13,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <inttypes.h>
+
+DEFAULT_LOGGING_MODULE(CONFIG, LOG_WARNING)
 
 struct HeaderField *new_headerfield(unsigned header_idx, const struct ProtocolField *pfield)
 {
@@ -151,12 +154,12 @@ static bool compare_generic(const void *state, const struct Value *value, const 
 value_consumer *header_get_field_writer(const struct HeaderField *target, const struct Value *source)
 {
     if (source->bitcount != target->bitcount) {
-        fprintf(stderr, "field writer: source and target has different bit count %u %u\n",
+        log_error("field writer: source and target has different bit count %u %u\n",
                 source->bitcount, target->bitcount);
         return NULL;
     }
     if ((source->bitoffset % 8) != (target->bitoffset % 8)) {
-        fprintf(stderr, "field writer: source and target has different bit offset %u %u\n",
+        log_error("field writer: source and target has different bit offset %u %u\n",
                 (source->bitoffset % 8), (target->bitoffset % 8));
         return NULL;
     }
@@ -177,12 +180,12 @@ value_consumer *header_get_field_writer(const struct HeaderField *target, const 
 value_comparator *header_get_field_comprator(const struct ProtocolField *target, const struct Value *match)
 {
     if (match->bitcount != target->bitcount) {
-        fprintf(stderr, "field writer: source and target has different bit count %u %u\n",
+        log_error("field writer: source and target has different bit count %u %u\n",
                 match->bitcount, target->bitcount);
         return NULL;
     }
     if ((match->bitoffset % 8) != (target->bitoffset % 8)) {
-        fprintf(stderr, "field writer: source and target has different bit offset %u %u\n",
+        log_error("field writer: source and target has different bit offset %u %u\n",
                 (match->bitoffset % 8), (target->bitoffset % 8));
         return NULL;
     }
@@ -212,12 +215,12 @@ static void read_bytes(void *state, value_consumer *consumer, void *consumer_sta
 value_producer *header_get_field_reader(const struct Value *target, const struct HeaderField *source)
 {
     if (source->bitcount != target->bitcount) {
-        fprintf(stderr, "field reader: source and target has different bit count %u %u\n",
+        log_error("field reader: source and target has different bit count %u %u\n",
                 source->bitcount, target->bitcount);
         return NULL;
     }
     if ((source->bitoffset % 8) != (target->bitoffset % 8)) {
-        fprintf(stderr, "field reader: source and target has different bit offset %u %u\n",
+        log_error("field reader: source and target has different bit offset %u %u\n",
                 (source->bitoffset % 8), (target->bitoffset % 8));
         return NULL;
     }

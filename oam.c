@@ -32,7 +32,7 @@
 #define OAM_PING_TTL 64
 #define OAM_CHANNEL 1 /* Management Communication Channel (MCC), similar format to ours */
 
-DEFAULT_LOGGING_MODULE(OAM, LOG_PACKET);
+DEFAULT_LOGGING_MODULE(OAM, LOG_INFO);
 
 struct MepStart {
     char *name;
@@ -95,7 +95,7 @@ bool set_oam_cmd_if(struct Interface *iface)
         oam_cmd_iface = iface;
         return true;
     } else {
-        fprintf(stderr, "only one OAM command interface is supported, config has '%s' and '%s'\n",
+        log_error("only one OAM command interface is supported, config has '%s' and '%s'\n",
                 oam_cmd_iface->name, iface->name);
         return false;
     }
@@ -142,7 +142,7 @@ static int alloc_session_id(const char *stream_name, struct oam_request *req, FI
     while (stream->sessions[id].live) {
         unsigned timeout = MAX(ceil(1.0 + 0.001*stream->sessions[id].interval_ms), 2);
         if (now.tv_sec > stream->sessions[id].access_time + timeout) {
-            //fprintf(stderr, "session %u timeouted\n", id);
+            //log_error("session %u timeouted\n", id);
             stream->sessions[id].live = false;
             stream->sessions[id].multireq_tid = 0;
             break;
@@ -173,7 +173,7 @@ int oam_create_mep_start(const char *stream_name, const char *mep_name, int leve
     }
     struct MepStart *mepstart = hashmap_find(mep_starts, mep_name);
     if (mepstart) {
-        fprintf(stderr, "MEP Start '%s' defined twice, in streams '%s' and '%s'\n",
+        log_error("MEP Start '%s' defined twice, in streams '%s' and '%s'\n",
                 mep_name, mepstart->stream_name, stream_name);
         return -1;
     }
@@ -409,7 +409,7 @@ static bool initiate_request(struct oam_request *ping_req)
         }
 
         if (pthread_create(&stream->sessions[session_id].multireq_tid, &attr, &oam_request_thread, ping_req) != 0) {
-            fprintf(stderr, "could not create new ping thread\n");
+            log_error("could not create new ping thread\n");
             return false;
         }
     }
@@ -751,19 +751,19 @@ static void handle_telnet_command(unsigned char *oam_command, int *n, FILE *cmd_
                         fprintf(cmd_w, "%s", reply);
                         k += 3;
                     } else {
-                        fprintf(stderr, "unhandled telnet DO command %d\n", oam_command[k+2]);
+                        log_error("unhandled telnet DO command %d\n", oam_command[k+2]);
                         k += 3;
                     }
                 } else {
-                    fprintf(stderr, "incomplete 2 byte telnet DO command %d received\n", oam_command[k+2]);
+                    log_error("incomplete 2 byte telnet DO command %d received\n", oam_command[k+2]);
                     k += 2;
                 }
             } else {
-                fprintf(stderr, "unhandled telnet command %d\n", oam_command[k+1]);
+                log_error("unhandled telnet command %d\n", oam_command[k+1]);
                 k += 2; //TODO we don't know how long this command is
             }
         } else {
-            fprintf(stderr, "incomplete 1 byte telnet command received\n");
+            log_error("incomplete 1 byte telnet command received\n");
             k += 1;
         }
         if (k >= *n) break;
@@ -883,7 +883,7 @@ int oam_command_loop(struct Interface *iface)
                 if(k==0 || k==EOF){
                     fprintf(cmd_w, "Sessions:\n");
                     if (!hashmap_foreach(session_ids, list_session_cb, &params))
-                        fprintf(stderr, "failed to get session.\n");
+                        log_error("failed to get session.\n");
                 }
                 else if(k==1){
                     struct StreamSessions *stream = hashmap_find(session_ids, streamname);
@@ -981,12 +981,12 @@ static int dump_seqgen_state(char *str, struct JsonValue *jos, const char *recor
     char tmp[128];
     struct JsonValue *ini = json_object_get_bool(jos, "use_init_flag");
     if(ini == NULL) {
-        fprintf(stderr, "No use_init_flag in object in reply.\n");
+        log_error("No use_init_flag in object in reply.\n");
         return -1;
     }
     struct JsonValue *rst = json_object_get_bool(jos, "use_reset_flag");
     if(rst == NULL) {
-        fprintf(stderr, "No use_init_flag in object in reply.\n");
+        log_error("No use_init_flag in object in reply.\n");
         return -1;
     }
     snprintf(tmp, sizeof(tmp), "use_init_flag: %s%s use_reset_flag: %s%s", (ini->type == JSON_TRUE)? "true":"false", record_sep, (rst->type == JSON_TRUE)? "true":"false", line_sep);
@@ -1008,7 +1008,7 @@ static int dump_seqrec_state(char *str, struct JsonValue *jos, const char *recor
 
     struct JsonValue *hist_len, *reset_flag, *init_flag, *err_paths, *err_resets, *errs, *hist;
     if (!(type && reset_msec && algo && seq && passed && discarded && resets)) {
-        fprintf(stderr, "Malformed recovery object state reply\n");
+        log_error("Malformed recovery object state reply\n");
         return -1;
     }
     if (strcmp(algo->v.string, "match") != 0) {
@@ -1021,7 +1021,7 @@ static int dump_seqrec_state(char *str, struct JsonValue *jos, const char *recor
         errs = json_object_get_number(jos, "latent_errors");
         hist = json_object_get_string(jos, "history");
         if (!(hist_len && reset_flag && init_flag && err_paths && err_resets && errs && hist)) {
-            fprintf(stderr, "Malformed vector recovery object state reply\n");
+            log_error("Malformed vector recovery object state reply\n");
             return -1;
         }
     }
@@ -1058,7 +1058,7 @@ static int dump_repl_state(char *str, struct JsonValue *jos, const char *record_
     char tmp[128];
     struct JsonValue *pass = json_object_get_number(jos, "packets_passed");
     if(pass == NULL) {
-        fprintf(stderr, "No packets_passed in object in reply.\n");
+        log_error("No packets_passed in object in reply.\n");
         return -1;
     }
     snprintf(tmp, sizeof(tmp), "packets_passed: %.0f%s", pass->v.number, line_sep);
@@ -1075,7 +1075,7 @@ static int dump_pof_state(char *str, struct JsonValue *jos, const char *record_s
     struct JsonValue *buff_len = json_object_get_number(jos, "current_buffer_length");
     struct JsonValue *last_sent = json_object_get_number(jos, "last_sent");
     if (!(buff_size && max_delay && take_any_time && buff_len && last_sent)) {
-        fprintf(stderr, "Malformed POF object state reply");
+        log_error("Malformed POF object state reply");
         return -1;
     }
     const char *fmt = "max_buffer_length: %.0f%s max_delay: %.0fms%s take_any_time: %.0fms%s" \
@@ -1139,7 +1139,7 @@ int oam_recv_reply(const char *msg)
     char reply_str[1400], rr_str[512], obj_str_log[1000], obj_str[1000];
     struct JsonValue *j = json_parse(msg, strlen(msg));
     if (j == NULL || j->type != JSON_OBJECT) {
-        //fprintf(stderr, "JSON in reply is invalid.\n");
+        //log_error("JSON in reply is invalid.\n");
         log_error("JSON in reply is invalid.");
         return -1;
     }
@@ -1312,7 +1312,7 @@ static int oam_send_reply(const char *address, unsigned port, const char *msg, u
     hints.ai_socktype = SOCK_DGRAM;
     hints.ai_flags = AI_PASSIVE;
     if ((status = getaddrinfo(address, port_str, &hints, &res)) != 0) {
-        fprintf(stderr, "oam_send_reply getaddrinfo for address '%s': %s\n", address, gai_strerror(status));
+        log_error("oam_send_reply getaddrinfo for address '%s': %s\n", address, gai_strerror(status));
         return -1;
     }
 
@@ -1340,7 +1340,7 @@ static bool get_return_ip_port(struct JsonValue *j, char **reply_address, int *p
 {
     struct JsonValue *jret = json_object_get_object(j, "return");
     if (jret==NULL) {
-        fprintf(stderr, "OAM packet has no return address\n");
+        log_error("OAM packet has no return address\n");
         return false;
     }
 
@@ -1598,7 +1598,7 @@ bool oam_recv_request(struct OamEndPoint *oam, struct Packet *p)
 
     for (unsigned i=1; i<p->header_count-1; i++) {
         if (p->headers[i+1].start != p->headers[i].start + p->headers[i].len) {
-            fprintf(stderr, "OAM packet is not continuous in memory at header %u type %s\n",
+            log_error("OAM packet is not continuous in memory at header %u type %s\n",
                     i, protocol_type_from_id(p->headers[i].type));
             return false;
         }
@@ -1625,25 +1625,25 @@ bool oam_recv_request(struct OamEndPoint *oam, struct Packet *p)
 
     struct JsonValue *j = json_parse(msg, strlen(msg));
     if (j==NULL || j->type != JSON_OBJECT) {
-        fprintf(stderr, "Invalid JSON string in incoming OAM packet\n");
+        log_error("Invalid JSON string in incoming OAM packet\n");
         return false;
     }
 
     struct JsonValue *jreqt = json_object_get_string(j, "type");
     if (jreqt==NULL) {
-        fprintf(stderr, "OAM packet has no request type\n"); //TODO log_error()
+        log_error("OAM packet has no request type\n"); //TODO log_error()
         json_delete(j);
         return false;
     }
 
     struct JsonValue *jreqc = json_object_get_string(j, "code");
     if (jreqc==NULL) {
-        fprintf(stderr, "OAM packet has no request code\n"); //TODO log_error()
+        log_error("OAM packet has no request code\n"); //TODO log_error()
         json_delete(j);
         return false;
     }
     if (strcmp(jreqc->v.string, "request") != 0) {
-        fprintf(stderr, "OAM packet is not a request but '%s'\n", jreqc->v.string); //TODO log_error()
+        log_error("OAM packet is not a request but '%s'\n", jreqc->v.string); //TODO log_error()
         json_delete(j);
         return false;
     }
@@ -1661,7 +1661,7 @@ bool oam_recv_request(struct OamEndPoint *oam, struct Packet *p)
 
     struct JsonValue *target = json_object_get_string(j, "target");
     if (target == NULL) {
-        fprintf(stderr, "OAM packet has no target\n"); //TODO log_error()
+        log_error("OAM packet has no target\n"); //TODO log_error()
         json_delete(j);
         return false;
     }
@@ -1675,7 +1675,7 @@ bool oam_recv_request(struct OamEndPoint *oam, struct Packet *p)
             unsigned js_length;
             char *js_string = json_serialize(j, &js_length);
             if (js_string == NULL) {
-                fprintf(stderr, "could not add entry to route record\n");
+                log_error("could not add entry to route record\n");
                 json_delete(j);
                 return false;            //  DROP packet
             }
@@ -1772,7 +1772,7 @@ bool init_oam(struct HashMap *config_oam)
 
     // Start OAM background streams
     if (!hashmap_foreach(config_oam, oam_start_background_ping_cb, NULL)) {
-        fprintf(stderr, "failed to start oam command\n");
+        log_error("failed to start oam command\n");
         return false;
     }
     return true;

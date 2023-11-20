@@ -11,6 +11,7 @@
 #include "action.h"
 #include "inifile.h"
 #include "interface.h"
+#include "log.h"
 #include "oam.h"
 #include "parsetree.h"
 #include "pipeline.h"
@@ -19,6 +20,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+DEFAULT_LOGGING_MODULE(CONFIG, LOG_WARNING)
 
 static int remove_comment(const char *key, void *value, void *userdata)
 {
@@ -104,7 +107,7 @@ struct R2d2Config *read_config(const char *filename)
 {
 #define THROW(msg, ...)                                             \
     do {                                                            \
-        fprintf(stderr, "config '%s' error: " msg "\n",             \
+        log_error("config '%s' error: " msg "\n",             \
                  filename, ##__VA_ARGS__);                          \
         delete_inisection(ini);                                     \
         return delete_config(ret);                                  \
@@ -218,7 +221,7 @@ static int addstream_cb(const char *key, void *value, void *userdata)
         }
     }
     if (iface == NULL) {
-        fprintf(stderr, "adding streams to interfaces: unknown interface '%s'\n", key);
+        log_error("adding streams to interfaces: unknown interface '%s'\n", key);
         return 0;
     }
 
@@ -233,12 +236,12 @@ static int addstream_cb(const char *key, void *value, void *userdata)
             unsigned action_count;
             struct Action *actions = assemble_actions(s->stream_name, s->stream->actions, &action_count);
             if (!actions) {
-                fprintf(stderr, "failed to assemble actions for stream %s\n", s->stream_name);
+                log_error("failed to assemble actions for stream %s\n", s->stream_name);
                 return 0;
             }
             pipe = new_pipeline(s->stream_name, actions, action_count);
             if (!pipe) { //TODO this never happens
-                fprintf(stderr, "failed to create action pipeline for stream %s\n", s->stream_name);
+                log_error("failed to create action pipeline for stream %s\n", s->stream_name);
                 for (unsigned i=0; i<action_count; i++) {
                     delete_action(actions+i);
                 }
@@ -249,7 +252,7 @@ static int addstream_cb(const char *key, void *value, void *userdata)
         }
 
         if (!parsetree_add_stream(iface->parsetree, s->stream->packet, pipe)) {
-            fprintf(stderr, "failed to add stream %s to the parsetree of interface %s\n",
+            log_error("failed to add stream %s to the parsetree of interface %s\n",
                     s->stream_name, key);
             pipeline_unref(pipe); //TODO verify the refcounting scheme, including the error path
             return 0;
@@ -286,7 +289,7 @@ bool config_add_streams_to_interfaces(struct R2d2Config *config)
         .pipe_cache = new_hashmap(29, pipe_cache_delete_cb, NULL),
     };
     if (!hashmap_foreach(config->iface_streams, addstream_cb, &state)) {
-        fprintf(stderr, "failed to add streams to interfaces\n");
+        log_error("failed to add streams to interfaces\n");
         delete_hashmap(state.pipe_cache);
         return false;
     }

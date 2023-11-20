@@ -8,6 +8,7 @@
 #include "packet.h"
 #include "protocol.h"
 #include "utils.h"
+#include "log.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -24,6 +25,8 @@
 #include <linux/if_ether.h> /* ETH_P_ALL */
 #include <linux/if_packet.h> /* struct sockaddr_ll, PACKET_AUXDATA TODO netpacket/packet.h? */
 #include <linux/filter.h> /* eBPF */
+
+DEFAULT_LOGGING_MODULE(MAIN, LOG_INFO)
 
 struct EthIfData {
     int ifindex;
@@ -88,11 +91,11 @@ static bool eth_send(struct Interface *iface, struct Packet *p)
     struct EthIfData *eid = iface->iface_private;
 
     if (p->header_count < 1) {
-        fprintf(stderr, "eth %s send: packet doesn't have headers\n", iface->name);
+        log_debug("eth %s send: packet doesn't have headers\n", iface->name);
         return false;
     }
     if (p->headers[0].type != PROTO_ID_ETH) {
-        fprintf(stderr, "eth %s send: first header of the packet is not eth\n", iface->name);
+        log_debug("eth %s send: first header of the packet is not eth\n", iface->name);
         return false;
     }
 
@@ -121,11 +124,11 @@ static bool eth_open(struct Interface *iface)
     struct EthIfData *eid = iface->iface_private;
 
     if (iface->state != IFS_INIT) {
-        fprintf(stderr, "open eth interface %s: already opened\n", iface->name);
+        log_error("open eth interface %s: already opened\n", iface->name);
         return false;
     }
     if (iface->parsetree == NULL) {
-        fprintf(stderr, "open eth interface %s: no parsetree, expect trouble\n", iface->name);
+        log_warning("open eth interface %s: no parsetree, expect trouble\n", iface->name);
         //TODO fatal?
     }
 
@@ -264,15 +267,15 @@ static value_producer *eth_get_property_reader(const struct Interface *iface, co
     (void)iface;
     // eth only has one property
     if (strcmp(property, "mac") != 0) {
-        fprintf(stderr, "eth_get_property_reader unknown property '%s'\n", property);
+        log_error("eth_get_property_reader unknown property '%s'\n", property);
         return NULL;
     }
     if (target_type != FT_MACADDRESS) {
-        fprintf(stderr, "eth_get_property_reader target type %d is not mac address\n", target_type);
+        log_error("eth_get_property_reader target type %d is not mac address\n", target_type);
         return NULL;
     }
     if ((target->bitoffset % 8) || (target->bitcount != 6*8)) {
-        fprintf(stderr, "eth_get_property_reader target position %u %u invalid\n",
+        log_error("eth_get_property_reader target position %u %u invalid\n",
                 target->bitoffset, target->bitcount);
         return NULL;
     }

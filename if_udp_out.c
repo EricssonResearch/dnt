@@ -5,6 +5,7 @@
 #include "if_udp_out.h"
 #include "if_utils.h"
 #include "interface.h"
+#include "log.h"
 #include "packet.h"
 #include "utils.h"
 
@@ -18,6 +19,8 @@
 #include <net/if.h> /* struct ifreq */
 #include <arpa/inet.h> /* ntohs() */
 #include <netdb.h> /* getaddrinfo() */
+
+DEFAULT_LOGGING_MODULE(OAM, LOG_WARNING)
 
 struct UdpOutIfData {
     int sock;
@@ -36,7 +39,7 @@ struct UdpOutIfData {
 
 static struct Packet *udpout_recv(struct Interface *iface)
 {
-    fprintf(stderr, "udp-out interface %s recv how??\n", iface->name);
+    log_warning("udp-out interface %s recv how??\n", iface->name);
     return NULL;
 }
 
@@ -51,7 +54,7 @@ static bool udpout_open(struct Interface *iface)
 {
     struct UdpOutIfData *uid = iface->iface_private;
     if (iface->state != IFS_INIT) {
-        fprintf(stderr, "open udp-out interface %s: already opened\n", iface->name);
+        log_error("open udp-out interface %s: already opened\n", iface->name);
         return false;
     }
     int sock = uid->sock;
@@ -164,22 +167,22 @@ static value_producer *udpout_get_property_reader(const struct Interface *iface,
 
     if (strcmp(property, "srcport") == 0) {
         if (target_type != FT_NUMBER) {
-            fprintf(stderr, "udpout_get_property_reader 'srcport' target type %d invalid\n", target_type);
+            log_error("udpout_get_property_reader 'srcport' target type %d invalid\n", target_type);
             return NULL;
         }
         if ((target->bitoffset % 8) || (target->bitcount != 2*8)) {
-            fprintf(stderr, "udpout_get_property_reader 'srcport' target position %u %u invalid\n",
+            log_error("udpout_get_property_reader 'srcport' target position %u %u invalid\n",
                     target->bitoffset, target->bitcount);
             return NULL;
         }
         return udpout_srcport_producer;
     } else if (strcmp(property, "dstport") == 0) {
         if (target_type != FT_NUMBER) {
-            fprintf(stderr, "udpout_get_property_reader 'dstport' target type %d invalid\n", target_type);
+            log_error("udpout_get_property_reader 'dstport' target type %d invalid\n", target_type);
             return NULL;
         }
         if ((target->bitoffset % 8) || (target->bitcount != 2*8)) {
-            fprintf(stderr, "udpout_get_property_reader 'dstport' target position %u %u invalid\n",
+            log_error("udpout_get_property_reader 'dstport' target position %u %u invalid\n",
                     target->bitoffset, target->bitcount);
             return NULL;
         }
@@ -188,18 +191,18 @@ static value_producer *udpout_get_property_reader(const struct Interface *iface,
         enum ProtocolFieldType ftype = uid->family == AF_INET6 ? FT_IPV6ADDRESS : FT_IPV4ADDRESS;
         unsigned bitcount = uid->family == AF_INET6 ? 128 : 32;
         if (target_type != ftype) {
-            fprintf(stderr, "udpout_get_property_reader 'srcip' target type %d invalid\n", target_type);
+            log_error("udpout_get_property_reader 'srcip' target type %d invalid\n", target_type);
             return NULL;
         }
         if ((target->bitoffset % 8) || (target->bitcount != bitcount)) {
-            fprintf(stderr, "udpout_get_property_reader 'srcip' target position %u %u invalid\n",
+            log_error("udpout_get_property_reader 'srcip' target position %u %u invalid\n",
                     target->bitoffset, target->bitcount);
             return NULL;
         }
         return udpout_dstip_producer;
     }
 
-    fprintf(stderr, "udpout_get_property_reader unknown property '%s'\n", property);
+    log_error("udpout_get_property_reader unknown property '%s'\n", property);
     return NULL;
 }
 
@@ -234,7 +237,7 @@ bool init_udp_out_interface(struct Interface *iface, const char *name, const cha
     int err = getaddrinfo(dst_ip, port_str, &hints, &result);
 
     if (err) {
-        fprintf(stderr, "udp-out invalid dstip '%s'\n", dst_ip);
+        log_error("udp-out invalid dstip '%s'\n", dst_ip);
         return false;
     }
 
@@ -297,7 +300,7 @@ bool init_udp_out_interface(struct Interface *iface, const char *name, const cha
     }
 
     if (sock < 0) {
-        fprintf(stderr, "udp-out can't make socket with dstip '%s'\n", dst_ip);
+        log_error("udp-out can't make socket with dstip '%s'\n", dst_ip);
         freeaddrinfo(result);
         return false;
     }

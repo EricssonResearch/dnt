@@ -5,6 +5,7 @@
 #include "conf_utils.h"
 #include "transfer.h"
 #include "utils.h"
+#include "log.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -13,6 +14,8 @@
 
 #include <arpa/inet.h>
 #include <netinet/ether.h>
+
+DEFAULT_LOGGING_MODULE(CONFIG, LOG_WARNING)
 
 bool foreach_stages(char *line, foreach_callback *cb, void *userdata)
 {
@@ -151,7 +154,7 @@ bool read_constant(struct Value *val, enum ProtocolID proto, enum ProtocolFieldT
 {
 #define THROW(msg, ...)                                     \
     do {                                                    \
-        fprintf(stderr, "read_constant '%s': " msg "\n",    \
+        log_error("read_constant '%s': " msg "\n",  \
                 string, ##__VA_ARGS__);                     \
         return false;                                       \
     } while (0)
@@ -212,10 +215,10 @@ bool read_constant(struct Value *val, enum ProtocolID proto, enum ProtocolFieldT
             }
             return true;
         case FT_TSNSEQ:
-            fprintf(stderr, "warning: it's not a good practice to set sequence number from constant\n");
+            log_warning("It's not a good practice to set sequence number from constant\n");
             return read_constant(val, proto, FT_NUMBER, string);
         case FT_TSNTSTAMP:
-            fprintf(stderr, "warning: it's not a good practice to set timestamp from constant\n");
+            log_warning("It's not a good practice to set timestamp from constant\n");
             return read_constant(val, proto, FT_NUMBER, string);
         case FT_NEXTHEADER: {
             enum ProtocolID val_id = protocol_id_from_type(string);

@@ -2,6 +2,7 @@
 // All rights reserved.
 
 
+#include "log.h"
 #include "if_ip.h"
 #include "if_utils.h"
 #include "interface.h"
@@ -21,6 +22,8 @@
 #include <linux/if_packet.h> /* struct sockaddr_ll TODO netpacket/packet.h? */
 #include <ifaddrs.h>
 
+DEFAULT_LOGGING_MODULE(MAIN, LOG_WARNING)
+
 struct IpIfData {
     int sock4;
     int sock6;
@@ -32,7 +35,7 @@ struct IpIfData {
 
 static struct Packet *ip_recv(struct Interface *iface)
 {
-    fprintf(stderr, "ip interface %s recv how??\n", iface->name);
+    log_warning("ip interface %s recv how??\n", iface->name);
     return NULL;
 }
 
@@ -40,7 +43,7 @@ static bool ip_send(struct Interface *iface, struct Packet *p)
 {
     struct IpIfData *iid = iface->iface_private;
     if (p->header_count < 1) {
-        fprintf(stderr, "ip %s send: packet doesn't have headers\n", iface->name);
+        log_error("ip %s send: packet doesn't have headers\n", iface->name);
         return false;
     }
     if (p->headers[0].type == PROTO_ID_IPv4) {
@@ -60,7 +63,7 @@ static bool ip_send(struct Interface *iface, struct Packet *p)
         memset(socket_address.sll_addr, 0xff, ETH_ALEN);
         return iface_common_send(iface, p, iid->sock6, &socket_address, sizeof(socket_address));
     } else {
-        fprintf(stderr, "ip %s send: first header of the packet is not IP\n", iface->name);
+        log_error("ip %s send: first header of the packet is not IP\n", iface->name);
         return false;
     }
 }
@@ -69,11 +72,11 @@ static bool ip_open(struct Interface *iface)
 {
     struct IpIfData *iid = iface->iface_private;
     if (iface->state != IFS_INIT) {
-        fprintf(stderr, "open ip interface %s: already opened\n", iface->name);
+        log_error("open ip interface %s: already opened\n", iface->name);
         return false;
     }
     if (iface->parsetree == NULL) {
-        fprintf(stderr, "open ip interface %s: no parsetree, expect trouble\n", iface->name);
+        log_warning("open ip interface %s: no parsetree, expect trouble\n", iface->name);
         //TODO fatal?
     }
 
@@ -163,7 +166,7 @@ static bool ip_open(struct Interface *iface)
 
     freeifaddrs(ifaddr);
     if (!srcip4_set && !srcip6_set) {
-        fprintf(stderr, "open ip interface %s: no address on interface %s\n", iface->name, iface->ifname);
+        log_error("open ip interface %s: no address on interface %s\n", iface->name, iface->ifname);
         close(sock4);
         close(sock6);
         return false;
@@ -217,25 +220,25 @@ static value_producer *ip_get_property_reader(const struct Interface *iface, con
     if (strcmp(property, "srcip") == 0) {
         if (target_type == FT_IPV4ADDRESS) {
             if ((target->bitoffset % 8) || (target->bitcount != 4*8)) {
-                fprintf(stderr, "ip_get_property_reader 'srcip' target position %u %u invalid\n",
+                log_error("ip_get_property_reader 'srcip' target position %u %u invalid\n",
                         target->bitoffset, target->bitcount);
                 return NULL;
             }
             return ip_ipv4_producer;
         } else if (target_type == FT_IPV6ADDRESS) {
             if ((target->bitoffset % 8) || (target->bitcount != 16*8)) {
-                fprintf(stderr, "ip_get_property_reader 'srcip' target position %u %u invalid\n",
+                log_error("ip_get_property_reader 'srcip' target position %u %u invalid\n",
                         target->bitoffset, target->bitcount);
                 return NULL;
             }
             return ip_ipv6_producer;
         } else {
-            fprintf(stderr, "ip_get_property_reader 'srcip' target type %d invalid\n", target_type);
+            log_error("ip_get_property_reader 'srcip' target type %d invalid\n", target_type);
             return NULL;
         }
     }
 
-    fprintf(stderr, "ip_get_property_reader unknown property '%s'\n", property);
+    log_error("ip_get_property_reader unknown property '%s'\n", property);
     return NULL;
 }
 

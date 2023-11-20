@@ -98,7 +98,7 @@ static struct IniSection *read_error(struct IniSection *ret, const char *filenam
 {
     delete_inisection(ret);
 #ifndef INIFILE_QUIET
-    fprintf(stderr, "read_inifile(%s) error: %s in line %d\n", filename, err, line);
+    log_error("read_inifile(%s) error: %s in line %d\n", filename, err, line);
 #else
     (void)filename;
     (void)err;
@@ -114,7 +114,7 @@ struct IniSection *read_inifile(const char *filename)
 
     if (!f) {
 #ifndef INIFILE_QUIET
-        fprintf(stderr, "read_inifile() can't open '%s': %s\n", filename, strerror(errno));
+        log_error("read_inifile() can't open '%s': %s\n", filename, strerror(errno));
 #endif
         return NULL;
     }
@@ -246,7 +246,7 @@ int write_inifile(const char *filename, const struct IniSection *sec)
 
     if (!f) {
 #ifndef INIFILE_QUIET
-        fprintf(stderr, "write_inifile() can't open '%s': %s\n", filename, strerror(errno));
+        log_error("write_inifile() can't open '%s': %s\n", filename, strerror(errno));
 #endif
         return 1;
     }
@@ -259,7 +259,7 @@ int write_inifile(const char *filename, const struct IniSection *sec)
             if (!firstsection) {
                 fclose(f);
 #ifndef INIFILE_QUIET
-                fprintf(stderr, "write_inifile('%s') only the first section is allowed to be unnamed\n", filename);
+                log_error("write_inifile('%s') only the first section is allowed to be unnamed\n", filename);
 #endif
                 return 1;
             }

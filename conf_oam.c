@@ -39,7 +39,7 @@ struct HashMap *parse_oam(struct IniSection *oam_section)
     log_info("Parsing OAM section:\n");
 
     if (!hashmap_foreach(oam_section->contents, oam_cb, &state)) {
-        fprintf(stderr, "failed to parse oam\n");
+        log_error("failed to parse oam\n");
         return NULL;
     }
 

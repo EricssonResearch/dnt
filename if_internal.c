@@ -4,6 +4,7 @@
 
 #include "if_internal.h"
 #include "interface.h"
+#include "log.h"
 #include "packet.h"
 #include "utils.h"
 
@@ -13,6 +14,8 @@
 
 #include <unistd.h>
 #include <sys/eventfd.h>
+
+DEFAULT_LOGGING_MODULE(MAIN, LOG_WARNING)
 
 // fifo queue
 struct PacketFifo {
@@ -93,7 +96,7 @@ static bool int_send(struct Interface *iface, struct Packet *p)
 static bool int_open(struct Interface *iface)
 {
     if (iface->state != IFS_INIT) {
-        fprintf(stderr, "open internal interface %s: already opened\n", iface->name);
+        log_error("open internal interface %s: already opened\n", iface->name);
         return false;
     }
     iface->recvfd = eventfd(0, EFD_SEMAPHORE);

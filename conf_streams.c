@@ -31,7 +31,7 @@ static int packetline_cb(const char *key, void *value, void *userdata)
 {
 #define THROW(msg, ...)                                             \
     do {                                                            \
-        fprintf(stderr, "stream '%s' error: " msg "\n",             \
+        log_error("stream '%s' error: " msg "\n",             \
                  streamname, ##__VA_ARGS__);                        \
         free(streamname);                                           \
         free(matchname);                                            \
@@ -117,12 +117,12 @@ static int checkline_cb(const char *key, void *value, void *userdata)
         if (strcmp(colon+1, "actions") == 0) {
             /* TODO we agreed that we don't need this restriction
             if (!hashmap_contains(state->streams, streamname)) {
-                fprintf(stderr, "stream '%s' has actions line but no packet line\n", streamname);
+                log_error("stream '%s' has actions line but no packet line\n", streamname);
                 return 0;
             }*/
         } else if (strcmp(colon+1, "match") == 0) {
             if (!hashmap_contains(state->streams, streamname)) {
-                fprintf(stderr, "stream '%s' has match line but no packet line\n", streamname);
+                log_error("stream '%s' has match line but no packet line\n", streamname);
                 free(streamname);
                 return 0;
             }
@@ -154,14 +154,14 @@ struct HashMap *parse_streams(struct IniSection *streams_section,
     };
 
     if (!hashmap_foreach(streams_section->contents, packetline_cb, &state)) {
-        fprintf(stderr, "failed to parse the streams\n");
+        log_error("failed to parse the streams\n");
         delete_hashmap(state.streams);
         return NULL;
     }
 
     // search for :actions and :match lines that have no corresponding :packet line
     if (!hashmap_foreach(streams_section->contents, checkline_cb, &state)) {
-        fprintf(stderr, "failed to parse the streams\n");
+        log_error("failed to parse the streams\n");
         delete_hashmap(state.streams);
         return NULL;
     }

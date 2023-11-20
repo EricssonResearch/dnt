@@ -5,6 +5,7 @@
 #include "conf_object.h"
 #include "conf_utils.h"
 #include "inifile.h"
+#include "log.h"
 #include "pof.h"
 #include "replicate.h"
 #include "seq_gen.h"
@@ -14,6 +15,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+
+DEFAULT_LOGGING_MODULE(CONFIG, LOG_WARNING)
 
 struct ForeachState {
     struct HashMap *objects;
@@ -80,7 +83,7 @@ static bool token_cb(char *str, void *userdata)
 {
 #define THROW(msg, ...)                                             \
     do {                                                            \
-        fprintf(stderr, "object %s error: " msg "\n",               \
+        log_error("object %s error: " msg "\n",               \
                 info->name, ##__VA_ARGS__);                         \
         return false;                                               \
     } while (0)
@@ -251,7 +254,7 @@ static int object_cb(const char *key, void *value, void *userdata)
     info.name = key;
 
     if (!foreach_tokens(desc, token_cb, &info)) {
-        fprintf(stderr, "error parsing parameters for object '%s'\n", key);
+        log_error("error parsing parameters for object '%s'\n", key);
         return 0;
     }
 
@@ -296,7 +299,7 @@ static int object_cb(const char *key, void *value, void *userdata)
 
     }
     if (obj->object == NULL) {
-        fprintf(stderr, "error creating object '%s'\n", key);
+        log_error("error creating object '%s'\n", key);
         return 0;
     } else {
         hashmap_insert(state->objects, strdup(key), obj);
@@ -334,7 +337,7 @@ struct HashMap *parse_objects(struct IniSection *objects_section)
     state.objects = new_hashmap(13, delete_cb, NULL);
 
     if (!hashmap_foreach(objects_section->contents, object_cb, &state)) {
-        fprintf(stderr, "error in the objects section\n");
+        log_error("error in the objects section\n");
         delete_hashmap(state.objects);
         return NULL;
     } else {

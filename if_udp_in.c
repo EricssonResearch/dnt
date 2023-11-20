@@ -5,6 +5,7 @@
 #include "if_udp_in.h"
 #include "if_utils.h"
 #include "interface.h"
+#include "log.h"
 #include "packet.h"
 #include "utils.h"
 
@@ -18,6 +19,8 @@
 #include <net/if.h> /* struct ifreq */
 #include <arpa/inet.h> /* ntohs() */
 #include <ifaddrs.h>
+
+DEFAULT_LOGGING_MODULE(MAIN, LOG_WARNING)
 
 struct UdpInIfData {
     int ifindex;
@@ -41,7 +44,7 @@ static struct Packet *udpin_recv(struct Interface *iface)
 static bool udpin_send(struct Interface *iface, struct Packet *p)
 {
     (void)p;
-    fprintf(stderr, "udp-in interface %s refusing to send packet\n", iface->name);
+    log_warning("udp-in interface %s refusing to send packet\n", iface->name);
     return false;
 }
 
@@ -49,11 +52,11 @@ static bool udpin_open(struct Interface *iface)
 {
     struct UdpInIfData *uid = iface->iface_private;
     if (iface->state != IFS_INIT) {
-        fprintf(stderr, "open udp-in interface %s: already opened\n", iface->name);
+        log_error("open udp-in interface %s: already opened\n", iface->name);
         return false;
     }
     if (iface->parsetree == NULL) {
-        fprintf(stderr, "open udp-in interface %s: no parsetree, expect trouble\n", iface->name);
+        log_error("open udp-in interface %s: no parsetree, expect trouble\n", iface->name);
         //TODO fatal?
     }
 
@@ -118,7 +121,7 @@ static bool udpin_open(struct Interface *iface)
 
     freeifaddrs(ifaddr);
     if (!srcip_set) {
-        fprintf(stderr, "open udp-in interface %s: no address on interface %s\n", iface->name, iface->ifname);
+        log_error("open udp-in interface %s: no address on interface %s\n", iface->name, iface->ifname);
         close(sock);
         return false;
     }
@@ -191,11 +194,11 @@ static value_producer *udpin_get_property_reader(const struct Interface *iface, 
 
     if (strcmp(property, "port") == 0) {
         if (target_type != FT_NUMBER) {
-            fprintf(stderr, "udpin_get_property_reader 'port' target type %d invalid\n", target_type);
+            log_error("udpin_get_property_reader 'port' target type %d invalid\n", target_type);
             return NULL;
         }
         if ((target->bitoffset % 8) || (target->bitcount != 2*8)) {
-            fprintf(stderr, "udpin_get_property_reader 'port' target position %u %u invalid\n",
+            log_error("udpin_get_property_reader 'port' target position %u %u invalid\n",
                     target->bitoffset, target->bitcount);
             return NULL;
         }
@@ -204,18 +207,18 @@ static value_producer *udpin_get_property_reader(const struct Interface *iface, 
         enum ProtocolFieldType ftype = uid->family == AF_INET6 ? FT_IPV6ADDRESS : FT_IPV4ADDRESS;
         unsigned bitcount = uid->family == AF_INET6 ? 128 : 32;
         if (target_type != ftype) {
-            fprintf(stderr, "udpin_get_property_reader 'srcip' target type %d invalid\n", target_type);
+            log_error("udpin_get_property_reader 'srcip' target type %d invalid\n", target_type);
             return NULL;
         }
         if ((target->bitoffset % 8) || (target->bitcount != bitcount)) {
-            fprintf(stderr, "udpin_get_property_reader 'srcip' target position %u %u invalid\n",
+            log_error("udpin_get_property_reader 'srcip' target position %u %u invalid\n",
                     target->bitoffset, target->bitcount);
             return NULL;
         }
         return udpin_srcip_producer;
     }
 
-    fprintf(stderr, "udpin_get_property_reader unknown property '%s'\n", property);
+    log_error("udpin_get_property_reader unknown property '%s'\n", property);
     return NULL;
 }
 

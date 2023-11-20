@@ -4,6 +4,7 @@
 
 #include "if_oam_cmd.h"
 #include "interface.h"
+#include "log.h"
 #include "oam.h"
 #include "packet.h"
 #include "utils.h"
@@ -23,6 +24,7 @@
 #include <errno.h>
 #include <netinet/in.h>
 
+DEFAULT_LOGGING_MODULE(OAM, LOG_WARNING)
 #define BACKLOG 2   // how many pending connections queue will hold
 
 struct OamCmdIfData {
@@ -143,7 +145,7 @@ static struct Packet *oam_cmd_recv(struct Interface *iface)
     }
 
     if (pthread_create(&oid->oam_tid, &attr, &oam_cmd_thread, iface) != 0) {
-        fprintf(stderr, "could not create new oam thread\n");
+        perror("could not create new oam thread");
         return false;
     }
 
@@ -153,7 +155,7 @@ static struct Packet *oam_cmd_recv(struct Interface *iface)
 static bool oam_cmd_send(struct Interface *iface, struct Packet *p)
 {
     (void)p;
-    fprintf(stderr, "oam cmd interface %s should not send packet\n", iface->name);
+    log_error("oam cmd interface %s should not send packet\n", iface->name);
     return false;
 }
 
@@ -161,11 +163,11 @@ static bool oam_cmd_open(struct Interface *iface)
 {
     struct OamCmdIfData *oid = iface->iface_private;
     if (iface->state != IFS_INIT) {
-        fprintf(stderr, "open OAM cmd interface %s: already opened\n", iface->name);
+        log_error("open OAM cmd interface %s: already opened\n", iface->name);
         return false;
     }
     //    if (iface->parse_interfacestree == NULL) {
-    //        fprintf(stderr, "oam interface %s: no parsetree, expect trouble\n", iface->name);
+    //        log_error("oam interface %s: no parsetree, expect trouble\n", iface->name);
     //TODO fatal?
     //    }
     int sock = socket(oid->family, SOCK_STREAM, 0);
@@ -227,7 +229,7 @@ static bool oam_cmd_open(struct Interface *iface)
     }
     freeifaddrs(ifaddr);
     if (!srcip_set) {
-        fprintf(stderr, "open oam cmd interface %s: no address or address mismatch on interface\n", iface->name);
+        log_error("open oam cmd interface %s: no address or address mismatch on interface\n", iface->name);
         close(sock);
         return false;
     }
@@ -304,7 +306,7 @@ bool init_oam_cmd_interface(struct Interface *iface, const char *name, const cha
     iface->iface_private = oid;
     oid->port = port;
     oid->family = ipversion == 6 ? AF_INET6 : AF_INET;
-    printf("Family: %d\n", oid->family );
+    log_info("Family: %d\n", oid->family );
     if(oid->family == AF_INET6){
       inet_pton(AF_INET6, oam_cmd_ip, &(oid->srcip.v6));
     } else {

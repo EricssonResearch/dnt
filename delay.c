@@ -4,11 +4,12 @@
 
 #define _GNU_SOURCE
 
-#include "delay.h"
-#include "utils.h"
 #include "action.h"
+#include "delay.h"
+#include "log.h"
 #include "pipeline.h"
 #include "time_utils.h"
+#include "utils.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -22,12 +23,9 @@
 #include <sys/select.h>
 
 
-//TODO we need a thread_utils.h
+//TODO: we need a thread_utils.h
 //TODO: Cleanup the code, remove legacy bits
-//TODO: Convert to new BSD timespec utilities
-
-//TODO: Check debug macros considering system wide debug output
-#define DEBUG_TSTAMP
+DEFAULT_LOGGING_MODULE(DELAY, LOG_WARNING)
 
 
 struct DelayQueue {
@@ -47,7 +45,7 @@ int ev_fds;
 static void *delay_thread(void *arg)
 {
     (void)arg;
-    printf("Delay thread starting\n");
+    log_info("Delay thread starting\n");
     pthread_setname_np(pthread_self(), "delay thread");
 
     fd_set  readfds;
@@ -107,11 +105,8 @@ static void *delay_thread(void *arg)
             delay_timer.tv_sec = delay_queue->due_time.tv_sec;
             delay_timer.tv_nsec = delay_queue->due_time.tv_nsec;
 
-#if defined (DEBUG) || defined (DEBUG_TSTAMP)
-            printf("* %lu.%09ld  timer %ld.%09ld", time_now.tv_sec,time_now.tv_nsec, delay_queue->due_time.tv_sec, delay_queue->due_time.tv_nsec);
-#endif
+            log_debug("* %lu.%09ld  timer %ld.%09ld", time_now.tv_sec,time_now.tv_nsec, delay_queue->due_time.tv_sec, delay_queue->due_time.tv_nsec);
             // it will sleep
-
         }else{
             // no follow-up packet, just wait for semaphore
             sem_wait(&delay_sem);
@@ -153,15 +148,15 @@ bool init_delay(void)
 
     if (pthread_create(&delay_tid, &attr, &delay_thread, NULL) != 0) {
         if (pthread_create(&delay_tid, NULL, &delay_thread, NULL) != 0) {
-            fprintf(stderr, "could not create delay thread\n");
+            log_error("could not create delay thread\n");
             return false;
         }
-        fprintf(stderr, "WARNING: could not set priority for delay thread, need CAP_SYS_NICE\n");
+        log_warning("could not set priority for delay thread, need CAP_SYS_NICE\n");
     }
 
     ev_fds = eventfd(0, EFD_NONBLOCK);
     if(ev_fds == -1){
-        fprintf(stderr, "Create eventfd failed. \n");
+        log_error("Create eventfd failed. \n");
         return false;
     }
 
@@ -182,7 +177,7 @@ void delay_insert(struct PipelineIterator *pi, unsigned timestamp, unsigned dela
     // alloc and fill in the tt_queue entry
     struct DelayQueue* pDelayQueueEntry = calloc_struct(DelayQueue);
     if(pDelayQueueEntry == NULL){
-        printf("Insufficient memory.\n");
+        log_warning("Insufficient memory.\n");
         // TODO handle error
         return;
     }
@@ -195,11 +190,6 @@ void delay_insert(struct PipelineIterator *pi, unsigned timestamp, unsigned dela
     clock_gettime(CLOCK_REALTIME, &pDelayQueueEntry->due_time);
 
     unsigned ts_now = (pDelayQueueEntry->due_time.tv_nsec/1000) | (pDelayQueueEntry->due_time.tv_sec & 0x00000001)<<20;
-
-#ifdef DEBUG_TSTAMP
-    struct timespec t2 = pDelayQueueEntry->due_time;
-    printf(" now %u ts %u diff=%d", ts_now, timestamp, (ts_now-timestamp>1000000)?ts_now-timestamp-1000000:ts_now-timestamp);  // timestamp debug
-#endif
 
     if(ts_now<timestamp){
         // the first bit switched from 1 to 0
@@ -218,10 +208,6 @@ void delay_insert(struct PipelineIterator *pi, unsigned timestamp, unsigned dela
         pDelayQueueEntry->due_time.tv_nsec -= 1000000000;
     }
 
-#ifdef DEBUG_TSTAMP
-    struct timespec due_time = pDelayQueueEntry->due_time;
-#endif
-
     // handling the delay queue should not be interrupted
     pthread_mutex_lock (&mutex);
 
@@ -230,7 +216,6 @@ void delay_insert(struct PipelineIterator *pi, unsigned timestamp, unsigned dela
 
     pDelayQueueIterator = (struct DelayQueue *) delay_queue; pDelayQueueIteratorPrev = NULL;
     while(pDelayQueueIterator != NULL){
-        //printf("\n\t\t* %lu:%lu > %lu:%lu",pttq_iter->due_time.tv_sec, pttq_iter->due_time.tv_nsec,pttqe->due_time.tv_sec, pttqe->due_time.tv_nsec);
         if(timespeccmp(&pDelayQueueIterator->due_time, &pDelayQueueEntry->due_time, >))
             break;
         pDelayQueueIteratorPrev = pDelayQueueIterator;
