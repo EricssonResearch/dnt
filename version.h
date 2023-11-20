@@ -6,6 +6,6 @@
 #define R2_VERSION_H
 
 #define VERSION_MAJOR 6
-#define VERSION_MINOR 1
+#define VERSION_MINOR 2
 
 #endif // R2_VERSION_H
