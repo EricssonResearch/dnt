@@ -187,14 +187,10 @@ static int iface_cb(const char *key, void *value, void *userdata)
         }
     } else if (strcmp(tstate.type, "oam_cmd") == 0) {
         unsigned port = OAM_CMD_PORT;
-        unsigned ipver = 4;
         unsigned u;
         char err;
-        char *oam_cmd_ip = hashmap_find(tstate.params, "oam_cmd_ip");
-        if (oam_cmd_ip == NULL) {
-            THROW("oam_cmd_ip is unspecified. Use 0.0.0.0 to listen on any interface for commands");
-        }
-        char *port_str = hashmap_find(tstate.params, "oam_cmd_port");
+        char *oam_cmd_ip = hashmap_find(tstate.params, "ip");
+        char *port_str = hashmap_find(tstate.params, "port");
         if (port_str) {
             if (sscanf(port_str, "%i%c", &u, &err) != 1)
                 THROW("oam_cmd_port '%s' is invalid", port_str);
@@ -202,26 +198,18 @@ static int iface_cb(const char *key, void *value, void *userdata)
                 THROW("oam_cmd_port '%s' is invalid", port_str);
             port = u;
         }
-        char *ipver_str = hashmap_find(tstate.params, "ipv");
-        if (ipver_str) {
-            if (sscanf(ipver_str, "%u%c", &u, &err) != 1)
-                THROW("ip version '%s' is invalid", ipver_str);
-            if (!(u == 4 || u == 6))
-                THROW("ip version '%s' is invalid", ipver_str);
-            ipver = u;
-        }
-        if (!init_oam_cmd_interface(state->ifaces+state->i, key, tstate.iface, oam_cmd_ip, port, ipver)) {
+        if (!init_oam_cmd_interface(state->ifaces+state->i, key, tstate.iface, oam_cmd_ip, port)) {
             THROW("failed to create oam_cmd interface");
         }
     } else if (strcmp(tstate.type, "oam") == 0) {
         unsigned oam_port = OAM_PORT;
         unsigned u;
         char err;
-        char *oam_ip = hashmap_find(tstate.params, "oam_ip");
+        char *oam_ip = hashmap_find(tstate.params, "ip");
         if (oam_ip == NULL) {
             THROW("oam_ip is unspecified.");
         }
-        char *port_str = hashmap_find(tstate.params, "oam_port");
+        char *port_str = hashmap_find(tstate.params, "port");
         if (port_str) {
             if (sscanf(port_str, "%i%c", &u, &err) != 1)
                 THROW("oam_port '%s' is invalid", port_str);

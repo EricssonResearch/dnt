@@ -19,7 +19,7 @@ enum TerminalFormat{
 };
 
 bool init_oam_cmd_interface(struct Interface *iface, const char *name, const char *ifname,
-        const char *oam_cmd_ip, unsigned port, unsigned ipversion);
+        const char *oam_cmd_ip, unsigned port);
 int oam_cmd_recv_reply(struct Interface *iface, const char *msg);
 int oam_get_cmd_fd(struct Interface *iface);
 FILE *oam_get_cmd_w(struct Interface *iface);

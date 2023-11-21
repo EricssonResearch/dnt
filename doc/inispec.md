@@ -31,11 +31,11 @@ List of interfaces where we can send/receive packets. The keys of the items are 
     * `prio` the IPv4 TOS or IPv6 Traffic Class for the sent packets (default: 0)
 * `internal` a virtual interface within R2DTWO, useful for stream re-classification in decapsulating scenarios, no parameters
 * `oam` receives OAM reply messages out-of-band
-    * `oam_ip` return address (required)
-    * `oam_port` return port (default: 6634)
+    * `ip` return address (required)
+    * `port` return port (default: 6634)
 * `oam_cmd` OAM command interface, use telnet to connect to it, use the `help` command
-    * `oam_cmd_ip` address (default: 0.0.0.0)
-    * `oam_cmd_port` return port (default: 8000)
+    * `ip` address (optional)
+    * `port` listening port (default: 8000)
 
 Each interface has an accompanying line with key `ifname:streams` that defines the streams received on that interface. The value for this key is a list of stream names separated by space. The ordering of the streams in this line determines the matching order when a received packet is processed. The interface drops all incoming packets if no streams are defined on it. One stream can be listed on multiple interfaces.
 

@@ -166,10 +166,6 @@ static bool oam_cmd_open(struct Interface *iface)
         log_error("open OAM cmd interface %s: already opened\n", iface->name);
         return false;
     }
-    //    if (iface->parse_interfacestree == NULL) {
-    //        log_error("oam interface %s: no parsetree, expect trouble\n", iface->name);
-    //TODO fatal?
-    //    }
     int sock = socket(oid->family, SOCK_STREAM, 0);
     if (sock < 0) {
         perror("oam cmd socket");
@@ -183,57 +179,6 @@ static bool oam_cmd_open(struct Interface *iface)
         return false;
     }
 
-    struct ifaddrs *ifaddr;
-    if(iface->ifname != 0) {
-        struct ifreq  if_idx;
-        memset(&if_idx, 0, sizeof(struct ifreq));
-        strncpy(if_idx.ifr_name, iface->ifname, IFNAMSIZ-1);
-        if (ioctl(sock, SIOCGIFINDEX, &if_idx) < 0) {
-            perror("oam cmd SIOCGIFINDEX");
-            close(sock);
-            return false;
-        }
-        //      oid->ifindex = if_idx.ifr_ifindex;
-    }
-
-    if (getifaddrs(&ifaddr) < 0) {
-        perror("oam cmd getifaddrs");
-        close(sock);
-        return false;
-    }
-
-    bool srcip_set = false;
-    for (struct ifaddrs *ifa=ifaddr; ifa!=NULL; ifa=ifa->ifa_next) {
-        if (ifa->ifa_addr == NULL) continue;
-        int family = ifa->ifa_addr->sa_family;
-        if (family != oid->family) continue;
-        if ( (iface->ifname != NULL) && strcmp(ifa->ifa_name, iface->ifname) != 0) continue;
-
-        //print_ifaddrs(ifa);
-
-        if (family == AF_INET6) {
-            struct in6_addr *a6 = &((struct sockaddr_in6*)(ifa->ifa_addr))->sin6_addr;
-            if (IN6_IS_ADDR_LINKLOCAL(a6)) continue;
-            // If not "INADDR6_ANY" given, check to match IPv6 address
-            if ((!IN6_IS_ADDR_UNSPECIFIED(&oid->srcip.v6)) && (memcmp(&oid->srcip.v6, a6, sizeof(struct in6_addr)) != 0))
-                continue;
-            srcip_set = true;
-            break;
-        } else if (family == AF_INET) {
-            // If not "INADDR_ANY" given, check to match IPv4 address
-            if( (oid->srcip.v4.s_addr != INADDR_ANY) && (oid->srcip.v4.s_addr != ((struct sockaddr_in*)(ifa->ifa_addr))->sin_addr.s_addr) )
-                continue;
-            srcip_set = true;
-            break;
-        }
-    }
-    freeifaddrs(ifaddr);
-    if (!srcip_set) {
-        log_error("open oam cmd interface %s: no address or address mismatch on interface\n", iface->name);
-        close(sock);
-        return false;
-    }
-
     if (oid->family == AF_INET6) {
         struct sockaddr_in6 addr6;
         memset(&addr6, 0, sizeof(addr6));
@@ -241,7 +186,7 @@ static bool oam_cmd_open(struct Interface *iface)
         addr6.sin6_addr = oid->srcip.v6;
         addr6.sin6_port = htons(oid->port);
         if (bind(sock, (struct sockaddr*)&addr6, sizeof(addr6)) < 0) {
-            perror("oam bind sock6");
+            perror("oam cmd bind sock6");
             close(sock);
             return false;
         }
@@ -252,7 +197,16 @@ static bool oam_cmd_open(struct Interface *iface)
         addr.sin_addr = oid->srcip.v4;
         addr.sin_port = htons(oid->port);
         if (bind(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
-            perror("oam bind sock");
+            perror("oam cmd bind sock");
+            close(sock);
+            return false;
+        }
+    }
+
+    if (iface->ifname) {
+        //TODO check that the given interface has the given ip?
+        if (setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, iface->ifname, strlen(iface->ifname)) < 0) {
+            perror("oam cmd setsockopt SO_BINDTODEVICE");
             close(sock);
             return false;
         }
@@ -284,7 +238,7 @@ static bool oam_cmd_close(struct Interface *iface)
 
 
 bool init_oam_cmd_interface(struct Interface *iface, const char *name, const char *ifname,
-                            const char *oam_cmd_ip, unsigned port, unsigned ipversion)
+                            const char *oam_cmd_ip, unsigned port)
 {
     bzero(iface, sizeof(*iface));
     iface->name = strdup(name);
@@ -305,13 +259,20 @@ bool init_oam_cmd_interface(struct Interface *iface, const char *name, const cha
     struct OamCmdIfData *oid = calloc_struct(OamCmdIfData);
     iface->iface_private = oid;
     oid->port = port;
-    oid->family = ipversion == 6 ? AF_INET6 : AF_INET;
-    log_info("Family: %d\n", oid->family );
-    if(oid->family == AF_INET6){
-      inet_pton(AF_INET6, oam_cmd_ip, &(oid->srcip.v6));
+    if (oam_cmd_ip) {
+        if (inet_pton(AF_INET, oam_cmd_ip, &(oid->srcip.v4)) == 1) {
+            oid->family = AF_INET;
+        } else if (inet_pton(AF_INET6, oam_cmd_ip, &(oid->srcip.v6)) == 1) {
+            oid->family = AF_INET6;
+        } else {
+            log_error("oam-cmd: invalid ip address '%s'", oam_cmd_ip);
+            return false;
+        }
     } else {
-      inet_pton(AF_INET, oam_cmd_ip, &(oid->srcip.v4));
+        // this will also accept v4 connections
+        oid->family = AF_INET6;
     }
+    log_info("OAM Cmd Family: %d\n", oid->family);
     oid->mode = DUMP;
     oid->oam_cmd_fd = -1;
 
