@@ -24,7 +24,7 @@
 #include <errno.h>
 #include <netinet/in.h>
 
-DEFAULT_LOGGING_MODULE(OAM, LOG_WARNING)
+DEFAULT_LOGGING_MODULE(OAM, WARNING)
 #define BACKLOG 2   // how many pending connections queue will hold
 
 struct OamCmdIfData {
@@ -273,7 +273,7 @@ bool init_oam_cmd_interface(struct Interface *iface, const char *name, const cha
         oid->family = AF_INET6;
     }
     log_info("OAM Cmd Family: %d\n", oid->family);
-    oid->mode = DUMP;
+    oid->mode = TF_DUMP;
     oid->oam_cmd_fd = -1;
 
     return true;

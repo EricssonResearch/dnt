@@ -16,7 +16,7 @@
 #include <stdio.h>
 #include <string.h>
 
-DEFAULT_LOGGING_MODULE(PARSE, LOG_WARNING)
+DEFAULT_LOGGING_MODULE(PARSE, WARNING)
 
 struct ParseTree {
     struct Interface *iface;

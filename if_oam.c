@@ -21,8 +21,8 @@
 #include <netinet/in.h>
 #include <netdb.h>
 
-DEFAULT_LOGGING_MODULE(OAM, LOG_WARNING)
-LOGGING_MODULE(CONFIG, LOG_WARNING)
+DEFAULT_LOGGING_MODULE(OAM, WARNING)
+LOGGING_MODULE(CONFIG, WARNING)
 
 struct OamIfData {
     unsigned port;

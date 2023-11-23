@@ -32,7 +32,7 @@
 #define OAM_PING_TTL 64
 #define OAM_CHANNEL 1 /* Management Communication Channel (MCC), similar format to ours */
 
-DEFAULT_LOGGING_MODULE(OAM, LOG_INFO);
+DEFAULT_LOGGING_MODULE(OAM, INFO);
 
 struct MepStart {
     char *name;
@@ -842,14 +842,14 @@ int oam_command_loop(struct Interface *iface)
                 while (isspace(*mode_str)) mode_str++;
                 if (*mode_str) {
                     if (strcmp(mode_str, "dump") == 0) {
-                        oam_cmd_set_mode(iface, DUMP);
+                        oam_cmd_set_mode(iface, TF_DUMP);
                     } else if (strcmp(mode_str, "json") == 0) {
-                        oam_cmd_set_mode(iface, JSON);
+                        oam_cmd_set_mode(iface, TF_JSON);
                     }else{
                         ERROR("mode argument is invalid");
                     }
                 }
-                fprintf(cmd_w, "Display mode is %s\n", (oam_cmd_get_mode(iface) == DUMP)? "DUMP":"JSON");
+                fprintf(cmd_w, "Display mode is %s\n", (oam_cmd_get_mode(iface) == TF_DUMP)? "DUMP":"JSON");
             }
             else if(strcmp(oam_command, "help") == 0){
                 fprintf(cmd_w, help_str);
@@ -1269,7 +1269,7 @@ int oam_recv_reply(const char *msg)
             if (sess == NULL) return 0; // no session found
             if (sess->cmd_w == stderr) return 0; // this is a background ping
 
-            if(oam_cmd_get_mode(oam_cmd_iface) == JSON){           // JSON mode
+            if(oam_cmd_get_mode(oam_cmd_iface) == TF_JSON){           // JSON mode
                                                                    //strcat(msg, "\n"); //TODO this is buffer overflow
                 return oam_cmd_recv_reply(oam_cmd_iface, msg);
             } else {                                               // DUMP mode

@@ -8,25 +8,31 @@
 #include <stdbool.h>
 
 typedef enum {
-    LOG_NONE=0,
-    LOG_ERROR,
-    LOG_WARNING,
-    LOG_INFO,
-    LOG_PACKET,
-    LOG_DEBUG,
-    LOG_ALL
+    NONE=0,
+    ERROR,
+    WARNING,
+    INFO,
+    PACKET,
+    DEBUG,
+    ALL
 } LOGGING_LEVELS;
+
+typedef enum {
+    STDOUT = 0,
+    SYSLOG,
+    LOGFILE
+} OUTPUT;
 
 /**
  * @brief Function to initialize the logger.
  *
- * @params[in] module Log module
  * @params[in] level Log level.
- * @params[in] filename Path to the log file.
+ * @params[in] out Log output (stdout/logfile/syslog).
+ * @params[in] filename Path to the log file (in case of logfile output)
  *
  * @retval true if successful.
  */
-bool open_log(char *log_filename);
+bool open_log(int level, OUTPUT out, char *log_filename);
 
 /* Close the log facility.
  * Closes the logfile
@@ -66,45 +72,45 @@ static void __attribute((constructor)) register_module_##_name(void) {      \
 }
 
 #define log_debug_m(_name, ...)                                             \
-    if (__log_module_##_name.level >= LOG_DEBUG)                            \
-        __log_func(LOG_DEBUG, __log_module_##_name.name, ##__VA_ARGS__)
+    if (__log_module_##_name.level >= DEBUG)                                \
+        __log_func(DEBUG, __log_module_##_name.name, ##__VA_ARGS__)
 
 #define log_packet_m(_name, ...)                                            \
-    if (__log_module_##_name.level >= LOG_PACKET)                           \
-        __log_func(LOG_PACKET, __log_module_##_name.name, ##__VA_ARGS__)
+    if (__log_module_##_name.level >= PACKET)                               \
+        __log_func(PACKET, __log_module_##_name.name, ##__VA_ARGS__)
 
 #define log_info_m(_name, ...)                                              \
-    if (__log_module_##_name.level >= LOG_INFO)                             \
-        __log_func(LOG_INFO, __log_module_##_name.name, ##__VA_ARGS__)
+    if (__log_module_##_name.level >= INFO)                                 \
+        __log_func(INFO, __log_module_##_name.name, ##__VA_ARGS__)
 
 #define log_warning_m(_name, ...)                                           \
-    if (__log_module_##_name.level >= LOG_WARNING)                          \
-        __log_func(LOG_WARNING, __log_module_##_name.name, ##__VA_ARGS__)
+    if (__log_module_##_name.level >= WARNING)                              \
+        __log_func(WARNING, __log_module_##_name.name, ##__VA_ARGS__)
 
 #define log_error_m(_name, ...)                                             \
-    if (__log_module_##_name.level >= LOG_ERROR)                            \
-        __log_func(LOG_ERROR, __log_module_##_name.name, ##__VA_ARGS__)
+    if (__log_module_##_name.level >= ERROR)                                \
+        __log_func(ERROR, __log_module_##_name.name, ##__VA_ARGS__)
 
 
 #define log_debug(...)                                                      \
-    if (__default_log_module->level >= LOG_DEBUG)                           \
-        __log_func(LOG_DEBUG, __default_log_module->name, ##__VA_ARGS__)
+    if (__default_log_module->level >= DEBUG)                               \
+        __log_func(DEBUG, __default_log_module->name, ##__VA_ARGS__)
 
 #define log_packet(...)                                                     \
-    if (__default_log_module->level >= LOG_PACKET)                          \
-        __log_func(LOG_PACKET, __default_log_module->name, ##__VA_ARGS__)
+    if (__default_log_module->level >= PACKET)                              \
+        __log_func(PACKET, __default_log_module->name, ##__VA_ARGS__)
 
 #define log_info(...)                                                       \
-    if (__default_log_module->level >= LOG_INFO)                            \
-        __log_func(LOG_INFO, __default_log_module->name, ##__VA_ARGS__)
+    if (__default_log_module->level >= INFO)                                \
+        __log_func(INFO, __default_log_module->name, ##__VA_ARGS__)
 
 #define log_warning(...)                                                    \
-    if (__default_log_module->level >= LOG_WARNING)                         \
-        __log_func(LOG_WARNING, __default_log_module->name, ##__VA_ARGS__)
+    if (__default_log_module->level >= WARNING)                             \
+        __log_func(WARNING, __default_log_module->name, ##__VA_ARGS__)
 
 #define log_error(...)                                                      \
-    if (__default_log_module->level >= LOG_ERROR)                           \
-        __log_func(LOG_ERROR, __default_log_module->name, ##__VA_ARGS__)
+    if (__default_log_module->level >= ERROR)                               \
+        __log_func(ERROR, __default_log_module->name, ##__VA_ARGS__)
 
 
 typedef int log_modules_foreach_cb(const char *mod_name, LOGGING_LEVELS current_level, void *userdata);
@@ -118,5 +124,15 @@ int log_foreach_modules(log_modules_foreach_cb *cb, void *userdata);
 // sets @new_level in all modules with @mod_name
 // @returns false if no such module exists
 bool log_set_level(const char *mod_name, LOGGING_LEVELS new_level);
+
+/* Based on the config file's name and PID, this function
+ * generate a unique logname, which can be used to:
+ * 1. <logname>.log - logfile name prefix for file output
+ * 2. <logname> - identifier for the r2dtwo instance in syslog
+ *
+ * @param[in] config file's name from argv[1]
+ * @retval char * per-node unique identifier name "logname" for the process
+ * */
+char *logname_from_config(const char *config);
 
 #endif // R2_LOG_H

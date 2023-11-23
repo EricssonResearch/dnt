@@ -1,7 +1,6 @@
 // Copyright (c) 2023, Ericsson AB and Ericsson Telecommunication Hungary
 // All rights reserved.
 
-
 #include "configfile.h"
 #include "delay.h"
 #include "hashmap.h"
@@ -17,6 +16,7 @@
 #include "log.h"
 #include "version.h"
 
+#include <argp.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -30,9 +30,9 @@
 
 #define MAX_EVENTS 10
 
-DEFAULT_LOGGING_MODULE(MAIN, LOG_INFO);
-LOGGING_MODULE(CONFIG, LOG_INFO);
-LOGGING_MODULE(PACKET, LOG_INFO);
+DEFAULT_LOGGING_MODULE(MAIN, INFO);
+LOGGING_MODULE(CONFIG, INFO);
+LOGGING_MODULE(PACKET, INFO);
 
 int sigint_count = 0;
 struct R2d2Config *config;
@@ -42,7 +42,6 @@ static void sigint_handler(int sig, siginfo_t *si, void *uc)
     (void)sig;
     (void)si;
     (void)uc;
-
 
     printf("SIGINT or SIGTERM caught\n");
     sigint_count++;
@@ -149,39 +148,90 @@ static void recv_loop(struct Interface *ifaces, unsigned iface_count)
     }
 }
 
+static char args_doc[] = "CONFIGFILE";
+
+static struct argp_option options[] = {
+    {"verbose", 'v', "DEFAULT", 0, "Available loglevels: NONE, ERROR, WARNING, INFO, PACKET, DEBUG, ALL", 0},
+    {"output", 'o', "logfile", 0, "Output: log[f]ile, sys[l]og, [s]tdout", 0},
+    { 0 }
+};
+
+static struct arguments {
+    LOGGING_LEVELS verbosity;
+    OUTPUT output;
+    char *configfile;
+} arguments;
+
+static error_t parse_opt(int key, char *arg, struct argp_state *state)
+{
+    struct arguments *args = state->input;
+    if (state->arg_num > 1)
+        argp_error(state, "Too many arguments");
+    switch (key) {
+        case 'v': {
+            char level = log_level_from_string(arg);
+            if (level != -1)
+                args->verbosity = level;
+            else {
+                argp_error(state, "Invalid verbosity level '%s'", arg);
+            }
+        }
+        break;
+        case 'o': {
+            if (strlen(arg) == 1) {
+                switch (arg[0]) {
+                    case 'f': args->output = LOGFILE; break;
+                    case 'l': args->output = SYSLOG; break;
+                    case 's': args->output = STDOUT; break;
+                    default:
+                        argp_error(state, "Invalid value '%c' for output argument.", arg[0]);
+                }
+            } else {
+                if (strncmp(arg, "logfile", 7) == 0) args->output = LOGFILE;
+                else if (strncmp(arg, "syslog", 6) == 0) args->output = SYSLOG;
+                else if (strncmp(arg, "stdout", 6) == 0) args->output = STDOUT;
+                else argp_error(state, "Invalid value '%s' for output argument.", arg);
+            }
+        }
+        break;
+        case ARGP_KEY_ARG:
+            args->configfile = arg;
+        break;
+        case ARGP_KEY_END:
+            if (state->arg_num != 1)
+                argp_error(state, "Config file required!");
+        break;
+        default:
+            return ARGP_ERR_UNKNOWN;
+    }
+    return 0;
+}
+
+static struct argp argp = { options, parse_opt, args_doc, NULL, NULL, NULL, NULL };
+
 int main(int argc, char **argv)
 {
-    printf("R2DTWO - Reliable & Robust Deterministic Tool for netWOrking implementation\n"
+    printf("R2DTWO - Reliable & Robust Deterministic Tool for netWOrking\n"
             "Version %d.%d\n", VERSION_MAJOR, VERSION_MINOR);
 
-    if (argc < 2) {
-        fprintf(stderr, "usage: %s configfile\n", argv[0]);
-        return -1;
-    }
+    arguments.output = SYSLOG;
+    arguments.verbosity = -1;
+    arguments.configfile = NULL;
+    argp_parse(&argp, argc, argv, 0, NULL, &arguments);
 
-    char log_filename[PATH_MAX];
-    pid_t pid = getpid();
-    char *start = argv[1];
-    for (char *c=argv[1]; *c; c++) {
-      if (*c == '/') start = ++c;
+    char *logname = logname_from_config(arguments.configfile);
+    if (!open_log(arguments.verbosity, arguments.output, logname)) {
+        fprintf(stderr, "Failed to initialize the logging.\n");
+        free(logname);
+        return EXIT_FAILURE;
     }
-    char *end = NULL;
-    for (char *c=start; *c; c++) {
-      if (*c == '.') end = c;
-    }
-    char *confname = end ? strndup(start, end-start) : strdup(start);
-    sprintf(log_filename, "r2dtwo-%s-%u.log", confname, pid);
-    if (!open_log(log_filename)) {
-        return -1;
-    }
-    free(confname);
-    log_info("Logfile opened.");
+    free(logname);
 
-    log_info_m(CONFIG, "Reading config '%s'", argv[1]);
-    config = read_config(argv[1]);
+    log_info_m(CONFIG, "Reading config '%s'", arguments.configfile);
+    config = read_config(arguments.configfile);
     if (config == NULL) {
         fprintf(stderr, "the config is invalid\n");
-        return -1;
+        return EXIT_FAILURE;
     }
 
     //TODO do this in read_config()?
@@ -191,26 +241,26 @@ int main(int argc, char **argv)
 
     if (!config_add_streams_to_interfaces(config)) {
         delete_config(config);
-        return -1;
+        return EXIT_FAILURE;
     }
 
     for (unsigned i=0; i<config->ifcount; i++) {
         if (!config->ifaces[i].open(&config->ifaces[i])) {
             fprintf(stderr, "could not open interface %s\n", config->ifaces[i].name);
             delete_config(config);
-            return -1;
+            return EXIT_FAILURE;
         }
     }
 
     if (!init_delay()) {
         delete_config(config);
-        return -1;
+        return EXIT_FAILURE;
     }
 
     if(!init_oam(config->oam)) {
-      printf("OAM init failed\n");
-      delete_config(config);
-      return -1;
+        printf("OAM init failed\n");
+        delete_config(config);
+        return EXIT_FAILURE;
     }
 
     recv_loop(config->ifaces, config->ifcount);
@@ -224,5 +274,5 @@ int main(int argc, char **argv)
 
     close_log();
 
-    return 0;
+    return EXIT_SUCCESS;
 }

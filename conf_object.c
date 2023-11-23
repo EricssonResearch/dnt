@@ -16,7 +16,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-DEFAULT_LOGGING_MODULE(CONFIG, LOG_WARNING)
+DEFAULT_LOGGING_MODULE(CONFIG, WARNING)
 
 struct ForeachState {
     struct HashMap *objects;

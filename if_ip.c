@@ -22,7 +22,7 @@
 #include <linux/if_packet.h> /* struct sockaddr_ll TODO netpacket/packet.h? */
 #include <ifaddrs.h>
 
-DEFAULT_LOGGING_MODULE(MAIN, LOG_WARNING)
+DEFAULT_LOGGING_MODULE(MAIN, WARNING)
 
 struct IpIfData {
     int sock4;

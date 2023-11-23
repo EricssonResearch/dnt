@@ -21,7 +21,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-DEFAULT_LOGGING_MODULE(CONFIG, LOG_WARNING)
+DEFAULT_LOGGING_MODULE(CONFIG, WARNING)
 
 static int remove_comment(const char *key, void *value, void *userdata)
 {

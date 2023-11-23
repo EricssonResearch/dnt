@@ -26,7 +26,7 @@
 #include <linux/if_packet.h> /* struct sockaddr_ll, PACKET_AUXDATA TODO netpacket/packet.h? */
 #include <linux/filter.h> /* eBPF */
 
-DEFAULT_LOGGING_MODULE(MAIN, LOG_INFO)
+DEFAULT_LOGGING_MODULE(MAIN, INFO)
 
 struct EthIfData {
     int ifindex;

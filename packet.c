@@ -11,8 +11,8 @@
 #include <stdio.h>
 #include <string.h>
 
-DEFAULT_LOGGING_MODULE(MAIN, LOG_WARNING)
-LOGGING_MODULE(OAM, LOG_WARNING)
+DEFAULT_LOGGING_MODULE(MAIN, WARNING)
+LOGGING_MODULE(OAM, WARNING)
 
 static unsigned packet_count = 0;
 static unsigned char *dummybuf = NULL;

@@ -15,7 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-DEFAULT_LOGGING_MODULE(MAIN, LOG_WARNING)
+DEFAULT_LOGGING_MODULE(MAIN, WARNING)
 
 // add reference to the outgoing interfaces so they know they are in use
 static void ref_send_interfaces(struct Pipeline *pipe)

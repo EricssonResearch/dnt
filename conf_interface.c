@@ -22,7 +22,7 @@
 #include <string.h>
 #include <stdio.h>
 
-DEFAULT_LOGGING_MODULE(CONFIG, LOG_WARNING)
+DEFAULT_LOGGING_MODULE(CONFIG, WARNING)
 
 struct ConfIfacesState {
     struct Interface *ifaces;

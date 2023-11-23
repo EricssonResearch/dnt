@@ -20,7 +20,7 @@
 #include <arpa/inet.h> /* ntohs() */
 #include <netdb.h> /* getaddrinfo() */
 
-DEFAULT_LOGGING_MODULE(OAM, LOG_WARNING)
+DEFAULT_LOGGING_MODULE(OAM, WARNING)
 
 struct UdpOutIfData {
     int sock;

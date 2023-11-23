@@ -1,19 +1,24 @@
 // Copyright (c) 2023, Ericsson AB and Ericsson Telecommunication Hungary
 // All rights reserved.
 
+#define _GNU_SOURCE //for str[n]dupa
 
 #include "log.h"
 #include "hashmap.h"
 #include "utils.h"
 
+#include <errno.h>
+#include <linux/limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <errno.h>
 #include <stdarg.h>
+#include <sys/syslog.h>
 #include <time.h>
+#include <unistd.h>
 
 static FILE *logfile = NULL;
+static OUTPUT log_output = SYSLOG;
 
 static const char* log_level_strings[] = {
     "NONE",
@@ -34,25 +39,58 @@ const char* colors[] = {
 };
 #define RESET 0
 
-bool open_log(char *log_filename)
+char *logname_from_config(const char *config_name)
 {
-    logfile = fopen(log_filename, "a");
-    if(NULL == logfile) {
-        fprintf(stderr, "%sError:%s could not open log file '%s': %s\n",
-                colors[LOG_ERROR], log_filename, colors[RESET], strerror(errno));
-        return false;
+    char *logname = calloc(1, PATH_MAX);
+    pid_t pid = getpid();
+    const char *start = config_name;
+    for (const char *c=config_name; *c; c++) {
+        if (*c == '/') start = ++c;
     }
-    fprintf(stderr, "%sInfo:%s File '%s' opened for logging.\n", colors[LOG_INFO], colors[RESET], log_filename);
-    setbuf(logfile, NULL); // this is slower but more reliable
+    const char *end = NULL;
+    for (const char *c=start; *c; c++) {
+        if (*c == '.') end = c;
+    }
+    char *confname = end ? strndupa(start, end-start) : strdupa(start);
+    sprintf(logname, "r2dtwo-%s-%u", confname, pid);
+    return logname;
+}
 
-    return true;
+bool open_log(int level, OUTPUT out, char *logname)
+{
+    if (level != -1) {
+        ; //TODO: global verbosity level setup...
+    }
+    if (out == LOGFILE) {
+        log_output = LOGFILE;
+        logfile = fopen(strcat(logname, ".log"), "a");
+        if(NULL == logfile) {
+            fprintf(stderr, "%sError:%s could not open log file '%s': %s\n",
+                    colors[ERROR], logname, colors[RESET], strerror(errno));
+            return false;
+        }
+        fprintf(stderr, "%sInfo:%s File '%s' opened for logging.\n", colors[INFO], colors[RESET], logname);
+        setbuf(logfile, NULL); // this is slower but more reliable
+        return true;
+    } else if (out == STDOUT) {
+        logfile = stderr;
+        log_output = STDOUT;
+        fprintf(stderr, "%sInfo:%s Logging to standard output.\n", colors[INFO], colors[RESET]);
+        return true;
+    } else if (out == SYSLOG) {
+        log_output = SYSLOG;
+        fprintf(stderr, "%sInfo:%s Logging to syslog.\n", colors[INFO], colors[RESET]);
+        openlog(strdup(logname), 0, LOG_USER);
+        return true;
+    }
+    return false;
 }
 
 void close_log(void)
 {
-    if (logfile != NULL) {
+    if (logfile != NULL && logfile != stderr) {
         fclose(logfile);
-        fprintf(stderr, "%sInfo:%s Logfile closed.\n", colors[LOG_INFO], colors[RESET]);
+        fprintf(stderr, "%sInfo:%s Logfile closed.\n", colors[INFO], colors[RESET]);
     }
 }
 
@@ -61,14 +99,28 @@ LOGGING_LEVELS log_level_from_string(const char *level)
     for (unsigned i=0; i<ARRAY_SIZE(log_level_strings); i++) {
         if (strcmp(level, log_level_strings[i]) == 0) return i;
     }
-    return 0;
+    return -1;
 }
 
 const char *log_string_from_level(LOGGING_LEVELS level)
 {
     if (level >= 0 && level < ARRAY_SIZE(log_level_strings))
         return log_level_strings[level];
-    return log_level_strings[0];
+    return NULL;
+}
+
+static int log_level_to_syslog_level(LOGGING_LEVELS level)
+{
+    switch (level) {
+        case NONE: return LOG_CRIT;
+        case ERROR: return LOG_ERR;
+        case WARNING: return LOG_WARNING;
+        case INFO: return LOG_NOTICE;
+        case PACKET: return LOG_INFO;
+        case DEBUG: return LOG_DEBUG;
+        case ALL: return LOG_DEBUG;
+        default: return LOG_WARNING;
+    }
 }
 
 
@@ -117,20 +169,26 @@ static void __attribute__((destructor)) cleanup_mod_instances(void)
 
 int __log_func(LOGGING_LEVELS level, const char *logmodule, const char *frmt, ...)
 {
-    time_t now;
-    time(&now);
-    struct tm now_tm;
-    localtime_r(&now, &now_tm);
-    char date[32];
-    strftime(date, sizeof(date), "%Y.%m.%d %H:%M:%S", &now_tm);
-
     char msg[1024];
     va_list argp;
     va_start(argp, frmt);
     vsnprintf(msg, sizeof(msg), frmt, argp);
     va_end(argp);
 
-    return fprintf(logfile, "%s [%s] [%s] %s\n", date, logmodule, log_level_strings[level], msg);
+    if (log_output != SYSLOG) {
+        time_t now;
+        time(&now);
+        struct tm now_tm;
+        localtime_r(&now, &now_tm);
+        char date[32];
+        strftime(date, sizeof(date), "%Y.%m.%d %H:%M:%S", &now_tm);
+
+        return fprintf(logfile, "%s [%s] [%s] %s\n", date, logmodule, log_level_strings[level], msg);
+    } else {
+        int syslog_prio = log_level_to_syslog_level(level);
+        syslog(syslog_prio, "[%s] %s", logmodule, msg);
+        return 0;
+    }
 }
 
 struct ModuleForeachState {

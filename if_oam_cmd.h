@@ -13,9 +13,9 @@ struct Interface;
 #define OAM_CMD_PORT  8000
 
 enum TerminalFormat{
-    NONE,
-    DUMP,
-    JSON,
+    TF_NONE,
+    TF_DUMP,
+    TF_JSON,
 };
 
 bool init_oam_cmd_interface(struct Interface *iface, const char *name, const char *ifname,

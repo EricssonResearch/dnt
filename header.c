@@ -14,7 +14,7 @@
 #include <string.h>
 #include <inttypes.h>
 
-DEFAULT_LOGGING_MODULE(CONFIG, LOG_WARNING)
+DEFAULT_LOGGING_MODULE(CONFIG, WARNING)
 
 struct HeaderField *new_headerfield(unsigned header_idx, const struct ProtocolField *pfield)
 {
