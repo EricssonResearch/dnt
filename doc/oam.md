@@ -14,11 +14,11 @@ The OAM CLI can be reached via 'telnet' command to the address:port specified fo
 
 ## OAM CLI commands
 
-The main commands are 'ping' and 'rping'. There also are several helping commands.
+The main commands are 'ping' and 'rping'. There also are several helping commands. Commands cannot be abbreviated.
 The available commands are:
 
 * help - get help
-* exit - exit OAM
+* exit, quit, CTRL+D - exit OAM
 * log [module newlevel] - get current log levels or set it for the given module.
 * list - list monitoring start points
 * rlist[@if] <stream:mep-start/mip> <mep-stop/mip/any> <level> - list monitoring start points of the remote node.

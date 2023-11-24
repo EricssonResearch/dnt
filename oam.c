@@ -815,8 +815,9 @@ int oam_command_loop(struct Interface *iface)
                 if (n == 0) continue;
             }
 
-            // cut off "\r\n"
-            while (n > 0 && iscntrl(oam_command[n-1])) oam_command[--n] = 0;
+            // cut off traling whitespace and newline
+            while (n > 0 && (isspace(oam_command[n-1]) || oam_command[n-1] == '\n' || oam_command[n-1] == '\r'))
+                oam_command[--n] = 0;
             //printf("oam command '%s' length %d\n", oam_command, n);
 
             if (n == 0) continue;
@@ -833,7 +834,8 @@ int oam_command_loop(struct Interface *iface)
                     continue;
             }
 
-            if( (strcmp(oam_command, "exit") == 0) || (strcmp(oam_command, "quit") == 0) ){
+            // ASCII 4 means End of Transmission (CTRL+D)
+            if( (strcmp(oam_command, "exit") == 0) || (strcmp(oam_command, "quit") == 0 || oam_command[0] == 4) ){
                 fprintf(cmd_w, "Exiting.\n");
                 break;
             }
