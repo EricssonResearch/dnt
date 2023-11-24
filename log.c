@@ -192,7 +192,7 @@ int __log_func(LOGGING_LEVELS level, const char *logmodule, const char *frmt, ..
 }
 
 struct ModuleForeachState {
-    log_modules_foreach_cb *cb;
+    log_getlevel_cb *cb;
     void *userdata;
 };
 
@@ -207,15 +207,31 @@ static int mod_foreach_cb(const char *key, void *value, void *userdata)
     }
 }
 
-int log_foreach_modules(log_modules_foreach_cb *cb, void *userdata)
+int log_get_levels(log_getlevel_cb *cb, void *userdata)
 {
     if (cb == NULL) return 1;
     struct ModuleForeachState ms = {cb, userdata};
     return hashmap_foreach(mod_instances, mod_foreach_cb, &ms);
 }
 
+static int mod_setlevel_all_cb(const char *key, void *value, void *userdata)
+{
+    (void)key;
+    LOGGING_LEVELS *new_level = userdata;
+    struct ModuleInstance *inst = value;
+    while (inst) {
+        inst->mod->level = *new_level;
+        inst = inst->next;
+    }
+    return 1;
+}
+
 bool log_set_level(const char *mod_name, LOGGING_LEVELS new_level)
 {
+    if (strcmp(mod_name, "ALL") == 0) {
+        hashmap_foreach(mod_instances, mod_setlevel_all_cb, &new_level);
+        return true;
+    }
     struct ModuleInstance *inst = hashmap_find(mod_instances, mod_name);
     if (inst == NULL) return false;
     while (inst) {

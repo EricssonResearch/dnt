@@ -113,13 +113,13 @@ static void __attribute((constructor)) register_module_##_name(void) {      \
         __log_func(ERROR, __default_log_module->name, ##__VA_ARGS__)
 
 
-typedef int log_modules_foreach_cb(const char *mod_name, LOGGING_LEVELS current_level, void *userdata);
+typedef int log_getlevel_cb(const char *mod_name, LOGGING_LEVELS current_level, void *userdata);
 
 // @userdata is supplied to the callback
 // the callback only receives the current level for the first registered module with that name
-// aborts the elimination and returns 0 if @cb returns 0
+// aborts the loop and returns 0 if @cb returns 0
 // otherwise returns 1
-int log_foreach_modules(log_modules_foreach_cb *cb, void *userdata);
+int log_get_levels(log_getlevel_cb *cb, void *userdata);
 
 // sets @new_level in all modules with @mod_name
 // @returns false if no such module exists

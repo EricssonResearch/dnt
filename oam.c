@@ -788,7 +788,7 @@ int oam_command_loop(struct Interface *iface)
 {
 #define ERROR(msg, ...)                             \
     fprintf(cmd_w, "Error: " msg "\n",              \
-            ##__VA_ARGS__);                             \
+            ##__VA_ARGS__);                         \
     continue
 
     int cmd_fd = oam_get_cmd_fd(iface);
@@ -867,13 +867,17 @@ int oam_command_loop(struct Interface *iface)
                 k = sscanf(oam_command, "log %s %s", modulename, newlevel);
                 if (k == 0 || k == EOF) {
                     fprintf(cmd_w, "Logging modules:\n");
-                    log_foreach_modules(list_log_modules_cb, cmd_w);
+                    log_get_levels(list_log_modules_cb, cmd_w);
                 } else if (k == 2) {
-                    LOGGING_LEVELS nlvl = log_level_from_string(newlevel);
-                    if (!log_set_level(modulename, nlvl)) {
-                        fprintf(cmd_w, "Module '%s' does not exist.\n", modulename);
+                    int nlvl = log_level_from_string(newlevel);
+                    if (nlvl < 0) {
+                        fprintf(cmd_w, "Log level '%s' invalid.\n", newlevel);
                     } else {
-                        fprintf(cmd_w, "Module '%s' new level %s.\n", modulename, log_string_from_level(nlvl));
+                        if (!log_set_level(modulename, nlvl)) {
+                            fprintf(cmd_w, "Module '%s' does not exist.\n", modulename);
+                        } else {
+                            fprintf(cmd_w, "Module '%s' new level %s.\n", modulename, log_string_from_level(nlvl));
+                        }
                     }
                 } else {
                     fprintf(cmd_w, "Invalid parameters for 'log' command.\n");
