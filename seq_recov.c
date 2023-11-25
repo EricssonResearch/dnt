@@ -1,6 +1,8 @@
 // Copyright (c) 2023, Ericsson AB and Ericsson Telecommunication Hungary
 // All rights reserved.
 
+#define _GNU_SOURCE
+
 #include "seq_recov.h"
 #include "conf_object.h"
 #include "log.h"
@@ -447,6 +449,7 @@ static void *reset_thread(void *arg)
 {
     struct SequenceRecovery *rec = arg;
     struct timespec sleep_until, delta, now;
+    pthread_setname_np(pthread_self(), "seq reset");
 
     //TODO grab mutex
 

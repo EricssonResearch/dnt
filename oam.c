@@ -1,6 +1,8 @@
 // Copyright (c) 2023, Ericsson AB and Ericsson Telecommunication Hungary
 // All rights reserved.
 
+#define _GNU_SOURCE
+
 #include "oam.h"
 #include "conf_oam.h"
 #include "conf_object.h"
@@ -352,6 +354,7 @@ static void *oam_request_thread(void *arg)
     unsigned seq=0;
     struct StreamSessions *stream = hashmap_find(session_ids, req->mep_start->stream_name);
     stream->sessions[req->session_id].interval_ms = req->interval_ms;
+    pthread_setname_np(pthread_self(), "oam request");
 
     while(1){
         if((req->count != 0) && (seq >= req->count)) break;
@@ -873,16 +876,40 @@ static void handle_telnet_command(unsigned char *oam_command, int *n, FILE *cmd_
     }
 }
 
-int oam_command_loop(struct Interface *iface)
+enum TerminalFormat {
+    TF_DUMP,
+    TF_JSON,
+};
+
+//TODO use lookup tables instead of these conversion functions?
+static const char *terminal_format_name(enum TerminalFormat f)
+{
+    switch (f) {
+        case TF_DUMP:
+            return "dump";
+        case TF_JSON:
+            return "json";
+    }
+    return NULL;
+}
+
+struct command_connection {
+    FILE *cmd_w;
+    int read_fd;
+    pthread_t tid;
+    enum TerminalFormat mode;
+};
+static struct command_connection *oam_command_connection = NULL; //TODO hash (key? thread id converted to string)
+
+static void command_loop(struct command_connection *conn)
 {
 #define ERROR(msg, ...)                             \
     fprintf(cmd_w, "Error: " msg "\n",              \
             ##__VA_ARGS__);                         \
     continue
 
-    int cmd_fd = oam_get_cmd_fd(iface);
-    FILE *cmd_w = oam_get_cmd_w(iface);
-    int k,l;
+    int cmd_fd = conn->read_fd;
+    FILE *cmd_w = conn->cmd_w;
 
     char oam_command[255], last_command[255];
     char streamname[32];
@@ -891,7 +918,7 @@ int oam_command_loop(struct Interface *iface)
         fprintf(cmd_w, "OAM ready.\n");
     } else {
         fprintf(cmd_w, "OAM has no configured return interface.\n");
-        return -1;
+        return;
     }
 
     while (true) {
@@ -933,27 +960,27 @@ int oam_command_loop(struct Interface *iface)
                 while (isspace(*mode_str)) mode_str++;
                 if (*mode_str) {
                     if (strcmp(mode_str, "dump") == 0) {
-                        oam_cmd_set_mode(iface, TF_DUMP);
+                        conn->mode = TF_DUMP;
                     } else if (strcmp(mode_str, "json") == 0) {
-                        oam_cmd_set_mode(iface, TF_JSON);
+                        conn->mode = TF_JSON;
                     }else{
                         ERROR("mode argument is invalid");
                     }
                 }
-                fprintf(cmd_w, "Display mode is %s\n", (oam_cmd_get_mode(iface) == TF_DUMP)? "DUMP":"JSON");
+                fprintf(cmd_w, "Display mode is %s\n", terminal_format_name(conn->mode));
             }
             else if(strcmp(oam_command, "help") == 0){
                 fprintf(cmd_w, help_str);
             }
             else if (strcmp(oam_command, "list") == 0) {
                 fprintf(cmd_w, "Available MEP Start points:\n");
-                struct ListParams params = {cmd_w};
-                hashmap_foreach_sorted(mep_starts, list_mep_cb, &params);
+                struct ListParams lp = {cmd_w};
+                hashmap_foreach_sorted(mep_starts, list_mep_cb, &lp);
             }
             else if (strncmp(oam_command, "log", 3) == 0) {
                 char modulename[64];
                 char newlevel[16];
-                k = sscanf(oam_command, "log %s %s", modulename, newlevel);
+                int k = sscanf(oam_command, "log %s %s", modulename, newlevel);
                 if (k == 0 || k == EOF) {
                     fprintf(cmd_w, "Logging modules:\n");
                     log_get_levels(list_log_modules_cb, cmd_w);
@@ -973,11 +1000,11 @@ int oam_command_loop(struct Interface *iface)
                 }
             }
             else if (strncmp(oam_command, "sessions", 8) == 0) {
-                struct ListParams params = {cmd_w};
-                k=sscanf(oam_command, "sessions %s%n", streamname, &l);
+                struct ListParams lp = {cmd_w};
+                int k=sscanf(oam_command, "sessions %s", streamname);
                 if(k==0 || k==EOF){
                     fprintf(cmd_w, "Sessions:\n");
-                    if (!hashmap_foreach(session_ids, list_session_cb, &params))
+                    if (!hashmap_foreach(session_ids, list_session_cb, &lp))
                         log_error("failed to get session.\n");
                 }
                 else if(k==1){
@@ -986,7 +1013,7 @@ int oam_command_loop(struct Interface *iface)
                     if (stream == NULL) {
                         fprintf(cmd_w, "Invalid stream name '%s'.\n", streamname);
                     } else {
-                        list_session_cb(streamname, stream, &params);
+                        list_session_cb(streamname, stream, &lp);
                     }
                 }
                 else
@@ -994,7 +1021,7 @@ int oam_command_loop(struct Interface *iface)
             }
             else if (strncmp(oam_command, "stop", 4) == 0) {
                 int session;
-                k=sscanf(oam_command, "stop %s %d", streamname, &session);
+                int k=sscanf(oam_command, "stop %s %d", streamname, &session);
                 if(k==0 || k==EOF){
                     if(last_stream == NULL)
                         fprintf(cmd_w,"No previous command to stop.\n");
@@ -1003,7 +1030,7 @@ int oam_command_loop(struct Interface *iface)
                 } else if(k==2){
                     stop_session(streamname, session, cmd_w);
                 } else
-                fprintf(cmd_w,"invalid parameters for stop.\n");
+                    fprintf(cmd_w,"invalid parameters for stop.\n");
             }
             else if (strcmp(oam_command, "returns") == 0) {
                 fprintf(cmd_w, "Available OAM return interfaces:\n");
@@ -1063,10 +1090,51 @@ int oam_command_loop(struct Interface *iface)
     }
     printf("Telnet closed.\n");
     // cleanup
-    struct ListParams params = {cmd_w};
-    hashmap_foreach(session_ids, close_sessions_cb, &params);
+    struct ListParams lp = {cmd_w};
+    hashmap_foreach(session_ids, close_sessions_cb, &lp);
+}
 
-    return 0;
+static void *command_thread(void *arg)
+{
+    struct command_connection *conn = arg;
+    pthread_setname_np(pthread_self(), "command");
+    command_loop(conn);
+    fclose(conn->cmd_w); // we only need to close the FILE*
+    free(conn); //TODO remove from hash
+    oam_command_connection = NULL;
+    return NULL;
+}
+
+void oam_start_command_connection(int fd)
+{
+    if (oam_command_connection) {
+        //TODO support multiple connections
+        if (send(fd, "OAM busy.\n", 10, 0) == -1)
+            perror("send");
+        close(fd);
+        return;
+    }
+    struct command_connection *conn = calloc_struct(command_connection);
+    conn->read_fd = fd;
+    // note: inverse operation is fd=fileno(file)
+    conn->cmd_w = fdopen(fd, "w");
+    //TODO if we want to fread() we need to duplicate the handle
+    //int cmd_fd_dup = dup(cmd_fd);
+    //FILE *cmd_r = fdopen(cmd_fd_dup, "r");
+
+    setvbuf(conn->cmd_w, NULL, _IOLBF, 0);
+
+    pthread_attr_t attr;
+    if ((errno = pthread_attr_init(&attr)) != 0) {
+        perror("oam thread pthread_attr_init");
+        return;
+    }
+
+    oam_command_connection = conn; //TODO save conn in a hash (key?)
+    if (pthread_create(&conn->tid, &attr, &command_thread, conn) != 0) {
+        perror("could not create new oam thread");
+        return;
+    }
 }
 
 /*
@@ -1255,18 +1323,18 @@ int oam_recv_reply(const char *msg)
         struct StreamSessions *ss = hashmap_find(session_ids, stream->v.string);
         if (ss == NULL) {
             log_error("Unknown stream name '%s' in reply.", stream->v.string);
-            //return -1;
         } else {
             sess = &ss->sessions[(int)(session->v.number)];
             if (!sess->live) {
                 log_error("Reply for non-live session %.0f of stream '%s'.", session->v.number, stream->v.string);
                 sess = NULL;
-                //return -1;
             }
         }
     }
 
     log_packet("oam_r %s:%.0f seq %.0f lvl %.0f D - %s", stream->v.string, session->v.number, sequence->v.number, level->v.number, msg);
+
+    //TODO get command connection from session
 
     if (strcmp(type->v.string, "rlist") == 0) {
         JS_OBJECT_GET(code, string, j);
@@ -1288,7 +1356,9 @@ int oam_recv_reply(const char *msg)
             strcat(reply_str, "\n");
         }
         json_delete(j);
-        return oam_cmd_recv_reply(oam_cmd_iface, reply_str);
+        if (oam_command_connection) {
+            fprintf(oam_command_connection->cmd_w, reply_str);
+        }
     }
     else if (strcmp(type->v.string, "rping") == 0) {
         JS_OBJECT_GET(code, string, j);
@@ -1301,7 +1371,9 @@ int oam_recv_reply(const char *msg)
         JS_OBJECT_GET(error, string, j);
         snprintf(reply_str, sizeof(reply_str), "Rping error from %s : %s\n", receiver->v.string, error->v.string);
         json_delete(j);
-        return oam_cmd_recv_reply(oam_cmd_iface, reply_str);
+        if (oam_command_connection) {
+            fprintf(oam_command_connection->cmd_w, reply_str);
+        }
     }
     else if (strcmp(type->v.string, "ping") == 0) {
         JS_OBJECT_GET(code, string, j);
@@ -1364,9 +1436,10 @@ int oam_recv_reply(const char *msg)
             if (sess == NULL) return 0; // no session found
             if (sess->cmd_w == stderr) return 0; // this is a background ping
 
-            if(oam_cmd_get_mode(oam_cmd_iface) == TF_JSON){           // JSON mode
-                                                                   //strcat(msg, "\n"); //TODO this is buffer overflow
-                return oam_cmd_recv_reply(oam_cmd_iface, msg);
+            if(oam_command_connection->mode == TF_JSON){
+                if (oam_command_connection) {
+                    fprintf(oam_command_connection->cmd_w, "%s\n", msg);
+                }
             } else {                                               // DUMP mode
                 if (rr_str[0]) {
                     strcat(reply_str, "\n\t");
@@ -1376,8 +1449,9 @@ int oam_recv_reply(const char *msg)
                     strcat(reply_str, "\n\t");
                     strcat(reply_str, obj_str);
                 }
-                //TODO print reply to session->cmd_w
-                return oam_cmd_recv_reply(oam_cmd_iface, reply_str);
+                if (oam_command_connection) {
+                    fprintf(oam_command_connection->cmd_w, "%s\n", reply_str);
+                }
             }
         }
     }
@@ -1386,6 +1460,7 @@ int oam_recv_reply(const char *msg)
         json_delete(j);
         return -1;
     }
+    return 0;
     #undef JS_OBJECT_GET
 }
 

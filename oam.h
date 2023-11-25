@@ -25,8 +25,7 @@ int oam_recv_reply(const char *msg);
 // @returns true if the packet should be forwarded
 bool oam_recv_request(struct OamEndPoint *oam, struct Packet *p);
 
-void oam_start_command_connection(int fd); //TODO
-int oam_command_loop(struct Interface *iface);
+void oam_start_command_connection(int fd);
 
 int oam_create_mep_start(const char *stream_name, const char *mep_name, int level, unsigned idx);
 void oam_set_pipeline_for_mep_start(const char *stream_name, struct Pipeline *pipe);

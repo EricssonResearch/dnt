@@ -14,7 +14,6 @@
 #include <string.h>
 
 #include <unistd.h>
-#include <pthread.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <net/if.h> /* struct ifreq */
@@ -28,10 +27,6 @@ DEFAULT_LOGGING_MODULE(OAM, WARNING)
 #define BACKLOG 2   // how many pending connections queue will hold
 
 struct OamCmdIfData {
-    int oam_cmd_fd;
-    FILE *oam_cmd_w;
-    enum TerminalFormat mode;
-    pthread_t oam_tid;
     unsigned port;
     int family;
     union {
@@ -52,70 +47,9 @@ void *get_in_addr(struct sockaddr *sa)
     return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
-static void *oam_cmd_thread(void *arg)
-{
-    struct Interface *iface = (struct Interface *)arg;
-    struct OamCmdIfData *oid = iface->iface_private;
-
-    // note: inverse operation is fd=fileno(file)
-    FILE *cmd_w = fdopen(oid->oam_cmd_fd, "w");
-    //setvbuf(cmd_w, NULL, _IOLBF, 0);
-    //TODO if we want to fread() we need to duplicate the handle
-    //int cmd_fd_dup = dup(cmd_fd);
-    //FILE *cmd_r = fdopen(cmd_fd_dup, "r");
-
-    setvbuf(cmd_w, NULL, _IOLBF, 0);
-    oid->oam_cmd_w = cmd_w;
-
-    oam_command_loop(iface);
-
-    fclose(cmd_w);
-    //close(oid->oam_cmd_fd);
-    oid->oam_cmd_fd = -1;
-
-    return NULL;
-}
-
-int oam_get_cmd_fd(struct Interface *iface)
-{
-    struct OamCmdIfData *oid = iface->iface_private;
-    return oid->oam_cmd_fd;
-}
-
-FILE *oam_get_cmd_w(struct Interface *iface)
-{
-    struct OamCmdIfData *oid = iface->iface_private;
-    return oid->oam_cmd_w;
-}
-
-int oam_cmd_recv_reply(struct Interface *iface, const char *msg){
-    struct OamCmdIfData *oid = iface->iface_private;
-    int oam_cmd_fd = oid->oam_cmd_fd;
-    if(oam_cmd_fd != -1){
-        if (send(oam_cmd_fd, msg, strlen(msg), 0) == -1)
-            perror("send");
-    }
-    else
-        printf("OAM message, no command channel open: %s\n", msg);
-
-    return 0;
-}
-
-enum TerminalFormat oam_cmd_get_mode(struct Interface *iface)
-{
-    return ((struct OamCmdIfData *)(iface->iface_private))->mode;
-}
-
-void oam_cmd_set_mode(struct Interface *iface, enum TerminalFormat mode)
-{
-    ((struct OamCmdIfData *)(iface->iface_private))->mode = mode;
-    return;
-}
-
-
 static struct Packet *oam_cmd_recv(struct Interface *iface)
 {
-    struct OamCmdIfData *oid = iface->iface_private;
+    //struct OamCmdIfData *oid = iface->iface_private;
 
     socklen_t sin_size;
     char s[INET6_ADDRSTRLEN];
@@ -129,26 +63,7 @@ static struct Packet *oam_cmd_recv(struct Interface *iface)
     inet_ntop(their_addr.ss_family, get_in_addr((struct sockaddr *)&their_addr), s, sizeof s);
     printf("OAM server: got connection from %s\n", s);
 
-    if (oid->oam_cmd_fd != -1) {  // can not accept multiple OAM connections
-        if (send(new_fd, "OAM busy.\n", 10, 0) == -1)
-            perror("send");
-        close(new_fd);
-        return NULL;
-    }
-
-    oid->oam_cmd_fd = new_fd;
-
-    pthread_attr_t attr;
-    if ((errno = pthread_attr_init(&attr)) != 0) {
-        perror("oam thread pthread_attr_init");
-        return false;
-    }
-
-    if (pthread_create(&oid->oam_tid, &attr, &oam_cmd_thread, iface) != 0) {
-        perror("could not create new oam thread");
-        return false;
-    }
-
+    oam_start_command_connection(new_fd);
     return NULL;
 }
 
@@ -273,8 +188,6 @@ bool init_oam_cmd_interface(struct Interface *iface, const char *name, const cha
         oid->family = AF_INET6;
     }
     log_info("OAM Cmd Family: %d\n", oid->family);
-    oid->mode = TF_DUMP;
-    oid->oam_cmd_fd = -1;
 
     return true;
 }
