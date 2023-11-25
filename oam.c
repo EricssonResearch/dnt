@@ -26,6 +26,7 @@
 #include <pthread.h>
 #include <signal.h>
 #include <sys/socket.h>
+#include <arpa/inet.h>
 #include <netdb.h>
 
 #define OAM_RCVY_RESET_MS 5000
@@ -417,10 +418,98 @@ static bool initiate_request(struct oam_request *ping_req)
     return true;
 }
 
+// parses @str, accepts 'ipv4' 'ipv4:port', 'ipv6', '[ipv6]', '[ipv6]:port'
+// TODO accept domain names?
+// allocates a new string for @ip
+// @returns true on success, otherwise doesn't touch the output parameter
+// TODO move this to common utils
+static bool parse_ip_port(const char *str, char **ip, unsigned *port)
+{
+    if (str[0] == '[') {
+            int n=1;
+            while (str[n]) {
+                if (str[n] == ']') break;
+                n++;
+            }
+            if (str[n] == ']') {
+                char *ip6_s = strndup(str+1, n-1);
+                struct in6_addr ip6;
+                if (inet_pton(AF_INET6, ip6_s, &ip6) != 1) {
+                    free(ip6_s);
+                    return false;
+                }
+                n++;
+                if (str[n]) {
+                    unsigned p;
+                    char err;
+                    if (sscanf(str+n, ":%u%c", &p, &err) != 1) {
+                        free(ip6_s);
+                        return false;
+                    }
+                    *port = p;
+                }
+                *ip = ip6_s;
+                return true;
+            } else {
+                // missing ']'
+                return false;
+            }
+    } else {
+        struct in6_addr ip6;
+        if (inet_pton(AF_INET6, str, &ip6) == 1) {
+            // IPv6 without port
+            *ip = strdup(str);
+            return true;
+        } else {
+            char *colon = strchr(str, ':');
+            if (colon) {
+                char *colon2 = strchr(colon+1, ':');
+                if (colon2) {
+                    return false;
+                }
+                char *ip_s = strndup(str, colon-str);
+                struct in_addr ip4;
+                //TODO check with getaddrinfo to accept domain name?
+                if (inet_pton(AF_INET, ip_s, &ip4) != 1) {
+                    free(ip_s);
+                    return false;
+                }
+                unsigned p;
+                char err;
+                if (sscanf(colon, ":%u%c", &p, &err) != 1) {
+                    free(ip_s);
+                    return false;
+                }
+                *ip = ip_s;
+                *port = p;
+                return true;
+            } else {
+                // no port
+                char *ip_s = strdup(str);
+                struct in_addr ip4;
+                //TODO check with getaddrinfo to accept domain name?
+                if (inet_pton(AF_INET, ip_s, &ip4) != 1) {
+                    free(ip_s);
+                    return false;
+                }
+                *ip = ip_s;
+                return true;
+            }
+        }
+        return false;
+    }
+}
+
 static bool parse_ping_returnif(struct oam_request *ping_req, const char *ifname)
 {
     struct Interface *iface = ifname[0] ? get_oam_if(ifname) : oam_default_iface;
     if (iface == NULL) {
+        ping_req->return_port = OAM_PORT;
+        if (parse_ip_port(ifname, &ping_req->return_ip, &ping_req->return_port)) {
+            ping_req->node_id = oamif_get_uid(oam_default_iface);
+            printf("return ip '%s' port %u\n", ping_req->return_ip, ping_req->return_port);
+            return true;
+        }
         ping_req->error = strdup_printf("invalid return interface name: %s", ifname);
         return false;
     }
@@ -508,7 +597,7 @@ static struct oam_request *parse_ping_command(const char *oam_command, bool allo
 {
     int l;
     char start_name[32];
-    char iface_name[32];
+    char iface_name[64];
 
     struct oam_request *ping_req = new_oam_request("ping", cmd_w);
 
@@ -1314,9 +1403,9 @@ static int oam_send_reply(const char *address, unsigned port, const char *msg, u
     char port_str[15];
     sprintf(port_str, "%u", port);
     bzero(&hints, sizeof(hints));
-    hints.ai_family = PF_UNSPEC;     // can be ipv4 or ipv6
+    hints.ai_family = AF_UNSPEC;     // can be ipv4 or ipv6
     hints.ai_socktype = SOCK_DGRAM;
-    hints.ai_flags = AI_PASSIVE;
+    hints.ai_flags = 0; //TODO AI_NUMERICHOST?
     if ((status = getaddrinfo(address, port_str, &hints, &res)) != 0) {
         log_error("oam_send_reply getaddrinfo for address '%s': %s\n", address, gai_strerror(status));
         return -1;
