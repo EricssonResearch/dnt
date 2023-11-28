@@ -59,7 +59,11 @@ char *logname_from_config(const char *config_name)
 bool open_log(int level, OUTPUT out, char *logname)
 {
     if (level != -1) {
-        ; //TODO: global verbosity level setup...
+        //TODO: proper per-module verbosity from CLI
+        if (log_set_level("ALL", level) == false) {
+            fprintf(stderr, "Failed to set loglevel '%s'\n", log_string_from_level(level));
+            return false;
+        }
     }
     if (out == LOGFILE) {
         log_output = LOGFILE;
