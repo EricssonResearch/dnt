@@ -187,7 +187,7 @@ int __log_func(LOGGING_LEVELS level, const char *logmodule, const char *frmt, ..
         char date[32];
         strftime(date, sizeof(date), "%Y.%m.%d %H:%M:%S", &now_tm);
 
-        return fprintf(logfile, "%s [%s] [%s] %s\n", date, logmodule, log_level_strings[level], msg);
+        return fprintf(logfile, "%s [%s] [%s] %s", date, logmodule, log_level_strings[level], msg);
     } else {
         int syslog_prio = log_level_to_syslog_level(level);
         syslog(syslog_prio, "[%s] %s", logmodule, msg);

@@ -435,7 +435,7 @@ static bool process_assignment_rhs(struct StageState *stst, struct ConfAssignmen
     struct ConfVariable *rhs = &assign->rhs;
     char *key, *val;
     if (parse_fieldname(string, &key, &val)) {
-        //printf("rhs has a dot '%s' . '%s'\n", key, val);
+        //log_info("rhs has a dot '%s' . '%s'\n", key, val);
         struct HeaderDescriptor *h = header_list_find_by_name(stst->headers, key);
         if (h) {
             if (header_list_find_by_name(h->next, key)) {
@@ -443,7 +443,7 @@ static bool process_assignment_rhs(struct StageState *stst, struct ConfAssignmen
             }
             const struct ProtocolField *f = protocol_get_field_by_name(h->id, val);
             if (f) {
-                //printf("rhs is a header field!\n");
+                //log_info("rhs is a header field!");
                 if (lhs->value_type != f->type) {
                     THROW("types of left-hand-side %s and right-hand-side %s don't match",
                             fieldtype_name_from_type(lhs->value_type), fieldtype_name_from_type(f->type));
@@ -471,7 +471,7 @@ static bool process_assignment_rhs(struct StageState *stst, struct ConfAssignmen
 
         struct Interface *iface = find_interface(stst, key);
         if (iface) {
-            //printf("rhs is an interface!\n");
+            //log_info("rhs is an interface!");
             if (iface->get_property_reader) {
 
                 assign->read = iface->get_property_reader(iface, val, lhs->value_type, &lhs->value);
@@ -498,11 +498,11 @@ static bool process_assignment_rhs(struct StageState *stst, struct ConfAssignmen
         val[-1] = '.';
     }
 
-    //printf("rhs may be a constant...\n");
+    //log_info("rhs may be a constant...");
     // constant doesn't have a read function just a value
     init_confvariable_full(rhs, CVT_CONST, FT_UNKNOWN, lhs->value.bitoffset, lhs->value.bitcount);
     if (read_constant(&rhs->value, assign->lhs_protoid, lhs->value_type, string)) {
-        //printf("rhs is a constant!\n");
+        //log_info("rhs is a constant!");
         rhs->value_type = lhs->value_type;
         assign->read = NULL;
 
@@ -955,7 +955,7 @@ static struct ConfAssignment *assign_nexthdrid_copy_from_srcheader(const char *a
     unsigned src_idx = srcpr->nexthdr_idx;
     const struct ProtocolField *srcf = &srcpr->header_fields[src_idx];
     if (dstpr->get_nexthdr != srcpr->get_nexthdr) {
-        log_error("nexthdr field type mismatch\n");
+        log_error("nexthdr field type mismatch");
         return NULL;
     }
 
@@ -1037,9 +1037,9 @@ static bool process_action(struct StageState *stst)
 
     switch (newaction->type) {
         case CA_UNDEF:
-            THROW("no action\n");
+            THROW("no action");
         case CA_ADD:
-            /*printf("CA_ADD: %s %s %s %s\n",
+            /*log_info("CA_ADD: %s %s %s %s\n",
                     newaction->d.add.beforeafter==ADD_BEFORE?"before":"after",
                     newaction->d.add.pos->name,
                     newaction->d.add.newname,
@@ -1242,15 +1242,15 @@ static bool process_action(struct StageState *stst)
             break;
         case CA_DELAY:
             if (stst->actions->d.delay.delay_value == 0)
-                THROW("delay parameter should not be 0\n");
+                THROW("delay parameter should not be 0");
             if (stst->actions->d.delay.delay_value >= 2000)
-                THROW("delay parameter should not more than 2 seconds.\n");
+                THROW("delay parameter should not more than 2 seconds.");
             break;
         case CA_DROP:
             stst->had_final = true;
             break;
         case CA_EDIT:
-            //printf("CA_EDIT: %s\n", newaction->text);
+            //log_info("CA_EDIT: %s\n", newaction->text);
             if (newaction->d.edit.assignments != NULL) {
                 REVERSE_LIST(newaction->d.edit.assignments);
             } else {
@@ -1269,7 +1269,7 @@ static bool process_action(struct StageState *stst)
             // the user can't create this action, so nothing to verify here
             break;
         case CA_JUMP:
-            //printf("CA_JUMP: %s\n", newaction->text);
+            //log_info("CA_JUMP: %s\n", newaction->text);
             if (newaction->d.jump.pipename == NULL) {
                 THROW("no action pipeline to jump to");
             }
@@ -1354,7 +1354,7 @@ static bool process_action(struct StageState *stst)
             }
             break;
         case CA_REPL:
-            //printf("CA_REPL: %s\n", newaction->text);
+            //log_info("CA_REPL: %s\n", newaction->text);
             if (newaction->d.repl.pipelines == NULL) {
                 THROW("no pipelines specified");
             }
@@ -1652,7 +1652,7 @@ struct Action *assemble_actions(const char *stream_name, const struct ConfAction
     for (const struct ConfAction *ca = ca_list; ca; ca=ca->next) {
         switch (ca->type) {
             case CA_UNDEF:
-                log_error("cannot assemble undefined action\n");
+                log_error("cannot assemble undefined action");
                 break;
             case CA_ADD:
                 create_action_add(ret+a, ca->d.add.pos_idx, ca->d.add.id, ca->d.add.len, ca->text);
@@ -1671,7 +1671,7 @@ struct Action *assemble_actions(const char *stream_name, const struct ConfAction
                 struct EditAssign *assigns = assemble_fieldassigns(ca->d.edit.assignments, &acount);
                 if (assigns == NULL) {
                     //TODO cleanup on error
-                    log_error("could not assemble the field assignments for edit action\n");
+                    log_error("could not assemble the field assignments for edit action");
                     return NULL;
                 }
                 create_action_edit(ret+a, assigns, acount, ca->text);
@@ -1683,7 +1683,7 @@ struct Action *assemble_actions(const char *stream_name, const struct ConfAction
                 create_action_filteroam(ret+a, ca->d.filteroam.field, ca->text);
                 break;
             case CA_JUMP:
-                log_error("assemble_actions() jump should have been inlined\n");
+                log_error("assemble_actions() jump should have been inlined");
                 //TODO cleanup on error
                 return NULL;
             case CA_MEPSTART: {
@@ -1766,62 +1766,62 @@ struct Action *assemble_actions(const char *stream_name, const struct ConfAction
 void confactions_print(const struct ConfAction *ca_list)
 {
     for (const struct ConfAction *ca = ca_list; ca; ca=ca->next) {
-        printf("ConfAction %s '%s'\n",
+        log_info("ConfAction %s '%s'\n",
                 confaction_name_from_type(ca->type), ca->text);
         switch (ca->type) {
             case CA_UNDEF:
                 break;
             case CA_ADD:
-                printf("  new name %s id %d type %s len %u index %u\n",
+                log_info("  new name %s id %d type %s len %u index %u\n",
                         ca->d.add.newname, ca->d.add.id,
                         protocol_type_from_id(ca->d.add.id),
                         ca->d.add.len, ca->d.add.pos_idx);
                 break;
             case CA_DEL:
-                printf("  index %u\n", ca->d.del.idx);
+                log_info("  index %u\n", ca->d.del.idx);
                 break;
             case CA_DELAY:
-                printf("  delaying %u ms\n", ca->d.delay.delay_value);
+                log_info("  delaying %u ms\n", ca->d.delay.delay_value);
                 break;
             case CA_DROP:
                 break;
             case CA_EDIT:
                 for (struct ConfAssignment *a=ca->d.edit.assignments; a; a=a->next) {
-                    printf("  %s\n", a->text);
-                    printf("      read %p write %p\n", a->read, a->write);
-                    printf("    lhs type %s valuetype %s bitoffset %u bitcount %u\n",
+                    log_info("  %s\n", a->text);
+                    log_info("      read %p write %p\n", a->read, a->write);
+                    log_info("    lhs type %s valuetype %s bitoffset %u bitcount %u\n",
                             variabletype_name_from_type(a->lhs.type),
                             fieldtype_name_from_type(a->lhs.value_type),
                             a->lhs.value.bitoffset, a->lhs.value.bitcount);
                     if (a->lhs.type == CVT_FIELD) {
-                        printf("      index %u\n", a->lhs.v.header.field->header_idx);
+                        log_info("      index %u\n", a->lhs.v.header.field->header_idx);
                     }
-                    printf("    rhs type %s valuetype %s bitoffset %u bitcount %u\n",
+                    log_info("    rhs type %s valuetype %s bitoffset %u bitcount %u\n",
                             variabletype_name_from_type(a->rhs.type),
                             fieldtype_name_from_type(a->rhs.value_type),
                             a->rhs.value.bitoffset, a->rhs.value.bitcount);
                     if (a->rhs.type == CVT_FIELD) {
-                        printf("      index %u\n", a->rhs.v.header.field->header_idx);
+                        log_info("      index %u\n", a->rhs.v.header.field->header_idx);
                     } else if (a->rhs.type == CVT_CONST) {
-                        printf("      constant:");
+                        log_info("      constant:");
                         unsigned bytes = DIVCEIL(a->rhs.value.bitoffset + a->rhs.value.bitcount, 8);
                         unsigned char *cst = a->rhs.value.value;
                         for (unsigned i=0; i<bytes; i++) {
-                            printf(" 0x%.2x", cst[i]);
+                            log_info(" 0x%.2x\n", cst[i]);
                         }
-                        printf("\n");
+                        log_info("\n");
                     }
                 }
                 break;
             case CA_ELIM:
                 break;
             case CA_FILTEROAM:
-                printf("  field idx %u bitoffset %u bitcount %u\n",
+                log_info("  field idx %u bitoffset %u bitcount %u\n",
                         ca->d.filteroam.field->header_idx, ca->d.filteroam.field->bitoffset,
                         ca->d.filteroam.field->bitcount);
                 break;
             case CA_JUMP:
-                printf("  %s\n", ca->d.jump.pipename);
+                log_info("  %s\n", ca->d.jump.pipename);
                 break;
             case CA_POF:
                 break;
@@ -1829,25 +1829,25 @@ void confactions_print(const struct ConfAction *ca_list)
             case CA_READTSTAMP:
             case CA_WRITESEQ:
             case CA_WRITETSTAMP:
-                printf("  field idx %u bitoffset %u bitcount %u\n",
+                log_info("  field idx %u bitoffset %u bitcount %u\n",
                         ca->d.meta.field->header_idx, ca->d.meta.field->bitoffset, ca->d.meta.field->bitcount);
                 break;
             case CA_REPL:
                 for (struct ReplicateList *p=ca->d.repl.pipelines; p; p=p->next) {
-                    printf("  vvvvvvvv %s vvvvvvvv\n", p->name);
+                    log_info("  vvvvvvvv %s vvvvvvvv\n", p->name);
                     confactions_print(p->actions);
-                    printf("  ^^^^^^^^ %s ^^^^^^^^\n", p->name);
+                    log_info("  ^^^^^^^^ %s ^^^^^^^^\n", p->name);
                 }
                 break;
             case CA_SEND:
-                printf("  iface %s\n", ca->d.send.iface ? ca->d.send.iface->name : "UNKNOWN");
+                log_info("  iface %s\n", ca->d.send.iface ? ca->d.send.iface->name : "UNKNOWN");
                 break;
             case CA_SEQGEN:
                 break;
             case CA_TTLCHECK:
                 break;
             case CA_TTLREDUCE:
-                printf("  field idx %u bitoffset %u bitcount %u\n",
+                log_info("  field idx %u bitoffset %u bitcount %u\n",
                         ca->d.ttl.field->header_idx, ca->d.ttl.field->bitoffset, ca->d.ttl.field->bitcount);
                 break;
             case CA_MEPSTART:

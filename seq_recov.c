@@ -352,7 +352,7 @@ static void recovery_diagnostic(struct SequenceRecovery *rec)
 {
 #define ALERT(msg, ...)                                     \
     do {                                                    \
-        log_warning_m(DIAGNOSTIC, msg, ##__VA_ARGS__);      \
+        log_warning_m(DIAGNOSTIC, msg "\n", ##__VA_ARGS__);      \
         oam_cli_alert(msg, ##__VA_ARGS__);                  \
     } while (0)                                             \
 
@@ -409,7 +409,7 @@ static void latent_error_test(struct SequenceRecovery *rec)
         if (diff < 0)
             diff = -diff;
         if (diff > rec->diag.latent_error_difference) {
-            log_warning_m(DIAGNOSTIC, "%s: Latent error signal", rec->name);
+            log_warning_m(DIAGNOSTIC, "%s: Latent error signal\n", rec->name);
             rec->latent_errors += 1;
         }
         recovery_diagnostic(rec);

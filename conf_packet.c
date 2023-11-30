@@ -205,7 +205,7 @@ void confheaders_print(const struct HeaderDescriptor *headers)
         log_info("  name %s protocol %s\n", h->name, protocol_type_from_id(h->id));
 
         if (h->matches) {
-            printf("  matches:\n");
+            log_info("  matches:\n");
             for (const struct HeaderMatch *m=h->matches; m; m=m->next) {
                 log_info("    field idx %u bitoffset %u bitcount %u value bitoffset %u bitlength %u\n",
                         m->field->header_idx, m->field->bitoffset, m->field->bitcount,
