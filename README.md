@@ -42,8 +42,6 @@ cd r2dtwo
 make
 ```
 
-*Note:* it is possible to turn off the detailed logging by removing the `VERBOSE_RECV` and `VERBOSE_CONF` definitions in the `Makefile`.
-
 Optional: install R2DTWO system wide.
 
 ```
@@ -60,6 +58,23 @@ R2DTWO comes with detailed documentation included in the release package.
 The documentation shows various scenarios and configuration examples.
 
 __Important:__ the recommended way to run R2DTWO is to use root privileges.
+
+### Running the application
+
+The only mandatory command line argument is the configuration file.
+The verbosity of the logging and the target of the output can be configured with optional command line arguments.
+There are per-module default verbosity levels at the moment, and the `-v` option defines global verbosity.
+The default logging output is syslog (`-ol`, stdout is `-os` and logfile is `-of`).
+
+```
+Usage: r2dtwo [OPTION...] CONFIGFILE
+
+  -o, --output=logfile       Output: log[f]ile, sys[l]og, [s]tdout
+  -v, --verbose=DEFAULT      Available loglevels: NONE, ERROR, WARNING, INFO,
+                             PACKET, DEBUG, ALL
+  -?, --help                 Give this help list
+      --usage                Give a short usage message
+```
 
 ## Tests
 
