@@ -350,6 +350,12 @@ static void seq_recovery_reset(struct SequenceRecovery *rec)
 
 static void recovery_diagnostic(struct SequenceRecovery *rec)
 {
+#define ALERT(msg, ...)                                     \
+    do {                                                    \
+        log_warning_m(DIAGNOSTIC, msg, ##__VA_ARGS__);      \
+        oam_cli_alert(msg, ##__VA_ARGS__);                  \
+    } while (0)                                             \
+
     const struct RecoveryDiagnosticConf *diag = &rec->diag;
     int diff, discarded_diff, passed_diff;
     int disfunctioning_paths;
@@ -358,40 +364,36 @@ static void recovery_diagnostic(struct SequenceRecovery *rec)
     discarded_diff = rec->discarded_packets - rec->discarded_packets_last;
     passed_diff = rec->passed_packets - rec->passed_packets_last;
     diff = discarded_diff - ((diag->latent_error_paths - 1) * passed_diff);
-    /* fprintf(stderr, "passed: %d\tdiscarded: %d\tpdiff: %d\tddiff: %d\n", rec->passed_packets, rec->discarded_packets, passed_diff, discarded_diff); */
     if (diff > -diag->latent_error_difference && diff < diag->latent_error_difference) {
         goto update;
     } else if (diff >= diag->latent_error_difference) {
         int more_percent = (discarded_diff * 100) / ((diag->latent_error_paths - 1) * passed_diff);
-        /* fprintf(stderr, "[diagnostic]: MORE_PACKETS_THAN_EXPECTED with %d percent\n", more_percent); */
-        log_warning_m(DIAGNOSTIC, "%s: MORE_PACKETS_THAN_EXPECTED with %d percent\n", rec->name,more_percent);
+        ALERT("%s: MORE_PACKETS_THAN_EXPECTED with %d percent\n", rec->name, more_percent);
         goto update;
     }
     unsigned int working_ceil = (discarded_diff + diag->latent_error_difference - 1) / passed_diff;
     unsigned int working_floor = (discarded_diff - diag->latent_error_difference) / passed_diff;
-    /* fprintf(stderr, "diff: %d\twork_pceil: %d\twork_pfloor: %d\n", diff, working_ceil, working_floor); */
     if (discarded_diff < diag->latent_error_difference) {
         disfunctioning_paths = diag->latent_error_paths - 1;
-        /* fprintf(stderr, "[diagnostic]: DISFUNCTIONING_PATHS: %d path(s)\n", disfunctioning_paths); */
-        log_warning_m(DIAGNOSTIC, "%s: DISFUNCTIONING_PATHS: %d path(s)", rec->name, disfunctioning_paths);
+        ALERT("%s: DISFUNCTIONING_PATHS: %d path(s)", rec->name, disfunctioning_paths);
     } else if (working_ceil == working_floor) {
         disfunctioning_paths = diag->latent_error_paths - 2 - working_ceil;
         if (disfunctioning_paths > 0) {
-            log_warning_m(DIAGNOSTIC, "%s: DISFUNCTIONING_PATHS: %d path(s) and PACKET_ABSENT",
+            ALERT("%s: DISFUNCTIONING_PATHS: %d path(s) and PACKET_ABSENT",
                      rec->name, disfunctioning_paths);
         } else {
-            log_warning_m(DIAGNOSTIC, "%s: PACKET_ABSENT", rec->name);
+        ALERT("%s: PACKET_ABSENT", rec->name);
         }
     } else {
         disfunctioning_paths = diag->latent_error_paths - 1 - working_ceil;
-        log_warning_m(DIAGNOSTIC, "%s: DISFUNCTIONING_PATHS: %d path(s)", rec->name, disfunctioning_paths);
+    ALERT("%s: DISFUNCTIONING_PATHS: %d path(s)", rec->name, disfunctioning_paths);
     }
     if (rec->rogue_packets != rec->rogue_packets_last) {
-        log_warning_m(DIAGNOSTIC, "%s: OUTOFWINDOW_PACKETS: %d", rec->name, rec->rogue_packets);
+    ALERT("%s: OUTOFWINDOW_PACKETS: %d", rec->name, rec->rogue_packets);
         rec->rogue_packets_last = rec->rogue_packets;
     }
     if (rec->consecutive_loss_max > diag->outage_threshold) {
-        log_warning_m(DIAGNOSTIC, "%s: PACKET_LOSS: %d consecutive packets and %d aggregate lost",
+    ALERT("%s: PACKET_LOSS: %d consecutive packets and %d aggregate lost",
                  rec->name, rec->consecutive_loss_max, rec->lost_packets);
         rec->consecutive_loss_max = 0;
     }
@@ -402,7 +404,7 @@ update:
 
 static void latent_error_test(struct SequenceRecovery *rec)
 {
-    int diff = rec->cur_base_difference - (rec->passed_packets * (rec->diag.latent_error_paths - 1)) - rec->discarded_packets;
+    int diff = rec->cur_base_difference - ((rec->passed_packets * (rec->diag.latent_error_paths - 1)) - rec->discarded_packets);
     if (rec->diag.latent_error_paths > 1 && rec->diag.latent_error_period > 0) {
         if (diff < 0)
             diff = -diff;

@@ -17,6 +17,7 @@
 #include "time_utils.h"
 #include "utils.h"
 
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -894,6 +895,7 @@ static const char *terminal_format_name(enum TerminalFormat f)
 }
 
 struct command_connection {
+    //TODO: protect with mutex
     FILE *cmd_w;
     int read_fd;
     pthread_t tid;
@@ -1134,6 +1136,17 @@ void oam_start_command_connection(int fd)
     if (pthread_create(&conn->tid, &attr, &command_thread, conn) != 0) {
         perror("could not create new oam thread");
         return;
+    }
+}
+
+void oam_cli_alert(const char *fmt, ...)
+{
+    if (oam_command_connection && oam_command_connection->cmd_w) {
+        va_list args;
+        va_start(args, fmt);
+        vfprintf(oam_command_connection->cmd_w, fmt, args);
+        fprintf(oam_command_connection->cmd_w, "\n");
+        va_end(args);
     }
 }
 
