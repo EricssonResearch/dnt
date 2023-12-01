@@ -1370,7 +1370,7 @@ int oam_recv_reply(const char *msg)
         }
         json_delete(j);
         if (oam_command_connection) {
-            fprintf(oam_command_connection->cmd_w, reply_str);
+            fprintf(oam_command_connection->cmd_w, "%s\n", reply_str);
         }
     }
     else if (strcmp(type->v.string, "rping") == 0) {
@@ -1385,7 +1385,7 @@ int oam_recv_reply(const char *msg)
         snprintf(reply_str, sizeof(reply_str), "Rping error from %s : %s\n", receiver->v.string, error->v.string);
         json_delete(j);
         if (oam_command_connection) {
-            fprintf(oam_command_connection->cmd_w, reply_str);
+            fprintf(oam_command_connection->cmd_w, "%s\n", reply_str);
         }
     }
     else if (strcmp(type->v.string, "ping") == 0) {
