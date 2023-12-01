@@ -217,7 +217,11 @@ struct IniSection *read_inifile(const char *filename)
 
                 //printf("key '%s' value '%s'\n", c, v);
                 // duplicate keys: old key and value are freed
-                hashmap_insert(sec->contents, u_strdup(c), u_strdup(v));
+                if (hashmap_find(sec->contents, c)) {
+                    return read_error(ret, filename, "duplicate key", line);
+                } else {
+                    hashmap_insert(sec->contents, u_strdup(c), u_strdup(v));
+                }
             } else {
                 fclose(f);
                 free(linebuf);

@@ -71,7 +71,8 @@ static void test_read(void)
     struct KeyValue nosection_kv[] = {
         {"key1", "value1"},
         {"key2", "value2"},
-        {"key3", "value33"},
+        //{"key3", "value33"}, //XXX now duplicate keys are error
+        {"key3", "value3"},
         {"key4", "value4"},
         {"key5", "value5"},
         {"key6", "value6 has whitespace at the end     "},
