@@ -17,8 +17,7 @@ LOGGING_MODULE(OAM, WARNING)
 static unsigned packet_count = 0;
 static unsigned char *dummybuf = NULL;
 
-static void free_dummybuf(void) __attribute__((destructor));
-static void free_dummybuf(void)
+static void __attribute__((destructor)) free_dummybuf(void)
 {
     free(dummybuf);
 }
@@ -68,7 +67,7 @@ struct Packet *copy_packet(const struct Packet *p)
     return newp;
 }
 
-struct Packet *serialize_packet(struct Packet *p)
+struct Packet *serialize_packet(const struct Packet *p)
 {
     struct Packet *ret = calloc_struct(Packet);
     ret->buf = calloc(1, PACKET_BUF_LEN);
@@ -76,6 +75,9 @@ struct Packet *serialize_packet(struct Packet *p)
     ret->start = PACKET_START_OFFSET;
     ret->from = p->from;
     ret->recv_time = p->recv_time;
+    ret->timestamp = p->timestamp;
+    ret->sequence = p->sequence;
+    ret->ttl = p->ttl;
     unsigned dstlen = 0;
     for (unsigned i=0; i<p->header_count; i++) {
         unsigned char *src = p->buf + p->headers[i].start;
@@ -144,7 +146,6 @@ void packet_add_header(struct Packet *p, unsigned idx, enum ProtocolID type, uns
     p->headers[idx].start = start;
     p->headers[idx].len = len;
     p->header_count++;
-    p->len += len;
 }
 
 void packet_del_header(struct Packet *p, unsigned idx)
@@ -153,7 +154,6 @@ void packet_del_header(struct Packet *p, unsigned idx)
         //TODO error (this should never happen though)
     }
 
-    p->len -= p->headers[idx].len;
     if (idx < p->header_count)
         memmove(p->headers+idx, p->headers+idx+1,
                 (p->header_count-idx-1)*sizeof(struct PacketHeader));

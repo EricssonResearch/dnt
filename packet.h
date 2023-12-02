@@ -32,7 +32,7 @@ struct Packet {
     // use @headers to locate stuff after the headers have been identified
     // @start should be PACKET_START_OFFSET
     unsigned start; // from beginning of buf
-    unsigned len;
+    unsigned len; // number of used bytes after @start
 
     // newly added headers are created on the scratch space that
     // begins at offset 0 in @buf
@@ -64,7 +64,7 @@ struct Packet *delete_packet(struct Packet *p);
 struct Packet *copy_packet(const struct Packet *p);
 
 // retuns a new packet that is a serialization of the headers in @p
-struct Packet *serialize_packet(struct Packet *p);
+struct Packet *serialize_packet(const struct Packet *p);
 
 // returns true if the packet is a dummy buffer
 bool packet_dummy(const struct Packet *p);

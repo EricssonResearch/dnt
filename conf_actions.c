@@ -811,7 +811,11 @@ static bool process_token(char *token, void *userdata)
                         && newaction->d.repl.pipelines == NULL) {
                     struct ConfObject *obj = hashmap_find(stst->objects, token);
                     if (obj) {
-                        newaction->d.repl.replobj = obj->object;
+                        if (obj->type == CO_REPL) {
+                            newaction->d.repl.replobj = obj->object;
+                        } else {
+                            THROW("state of replicate action must be a Replicate object");
+                        }
                     } else {
                         THROW("pipeline or object '%s' not found", token);
                     }

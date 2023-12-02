@@ -1789,10 +1789,10 @@ bool oam_recv_request(struct OamEndPoint *oam, struct Packet *p)
 
     // let's reinterpret the header structure
     p->headers[1].type = PROTO_ID_OAM;
-    p->headers[1].len = 8;
+    p->headers[1].len = 8; // length of oam
     p->headers[2].type = PROTO_ID_PAYLOAD;
     p->headers[2].start = p->headers[1].start + 8;
-    p->headers[2].len = p->len - 4 - 8;
+    p->headers[2].len = p->len - 4 - 8; // length of mpls and oam
     p->header_count = 3;
 
     unsigned char *oam_hdr = p->buf + p->headers[1].start;
