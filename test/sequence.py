@@ -14,6 +14,18 @@ nics = [
     ["r2br0_nni1", "r2br1_nni1"],
 ]
 
+def is_recent_tshark():
+    '''
+    Return 1 if tshark using new R-tag field name
+    and return 0 if old name supported.
+    Old: >= 4.0, New: >= 4.2
+    '''
+    ret = exec_fg("tshark -G")
+    if ret.stdout:
+        if "rtag.seqno" in ret.stdout:
+            return 1
+    return 0
+
 def create_ifaces():
     for nicpair in nics:
         exec_fg(f"ip link add {nicpair[0]} type veth peer name {nicpair[1]}")
@@ -181,8 +193,14 @@ def seamless_bad():
 def seamless_good():
     print("Test init+reset flag with seamless recovery...", end=" ")
     try:
+        if is_recent_tshark():
+            tsharkcmd = "tshark -l -O 'ieee8021cb' -T fields -e rtag.seqno -i r2br0_nni0"
+            seq_base = 10 #new tshark using decimal print format
+        else:
+            tsharkcmd = "tshark -l -O 'ieee8021cb' -e ieee8021cb.seq -T fields -i r2br0_nni0"
+            seq_base = 16 #old tshark using hexa print format
         br0 = exec_bg("../r2dtwo sequence/r2br0_init.ini")
-        tshark = exec_bg("tshark -l -O 'ieee8021cb' -i r2br0_nni0", out=OUT_PIPE)
+        tshark = exec_bg(tsharkcmd, out=OUT_PIPE)
         exec_bg("../r2dtwo sequence/r2br1_init.ini")
         time.sleep(1)
         num_pings = 30
@@ -195,8 +213,9 @@ def seamless_good():
         tshark_output = str(tshark.communicate()[0])
         if ping_output and f", {num_pings} received," in ping_output:
             # From linear seq space we must have to see a large seq
-            if "SEQ: 65533" in tshark_output:
-                return 1
+            for seq in tshark_output.split('\n'):
+                if int(seq, base=seq_base) == 65533:
+                    return 1
     except:
         return 0
     return 0
@@ -250,8 +269,7 @@ def main():
             while True:
                 time.sleep(1000)
         ret = 0
-        tests = [ping, reset, flapping_bad, flapping_good, resetonly_good, resetonly_bad, seamless_good, seamless_bad,
-                match_good, match_path_fail]
+        tests = [ping, reset, flapping_bad, flapping_good, resetonly_good, resetonly_bad, seamless_good, seamless_bad, match_good, match_path_fail]
         for test in tests:
             result = test()
             ret += result
