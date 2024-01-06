@@ -1,7 +1,7 @@
 // Copyright (c) 2023, Ericsson AB and Ericsson Telecommunication Hungary
 // All rights reserved.
 
-#define _GNU_SOURCE //for str[n]dupa
+#define _GNU_SOURCE /* for str[n]dupa */
 
 #include "log.h"
 #include "hashmap.h"

@@ -1,7 +1,8 @@
 // Copyright (c) 2023, Ericsson AB and Ericsson Telecommunication Hungary
 // All rights reserved.
 
-#define _GNU_SOURCE     /* for NI_MAXHOST */
+#define _GNU_SOURCE /* for pthread_setname_np */
+
 #include "if_utils.h"
 #include "interface.h"
 #include "log.h"

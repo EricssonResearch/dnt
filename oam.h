@@ -13,7 +13,7 @@ struct OamEndPoint {
     char *name;
     char *stream;
     int level;
-    struct ConfObject *target; // PRF, PEF, POF, etc.
+    struct PipelineObject *target; // PRF, PEF, POF, etc.
     bool stop;
 };
 
@@ -35,7 +35,7 @@ void oam_cli_alert(const char *fmt, ...);
 int oam_create_mep_start(const char *stream_name, const char *mep_name, int level, unsigned idx);
 void oam_set_pipeline_for_mep_start(const char *stream_name, struct Pipeline *pipe);
 
-struct OamEndPoint *oam_create_endpoint(const char *name, const char *stream, int level, struct ConfObject *target, bool stop);
+struct OamEndPoint *oam_create_endpoint(const char *name, const char *stream, int level, struct PipelineObject *target, bool stop);
 
 bool set_oam_cmd_if(struct Interface *iface);
 void add_oam_if(struct Interface *iface);

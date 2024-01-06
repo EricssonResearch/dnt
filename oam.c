@@ -1,17 +1,17 @@
 // Copyright (c) 2023, Ericsson AB and Ericsson Telecommunication Hungary
 // All rights reserved.
 
-#define _GNU_SOURCE
+#define _GNU_SOURCE /* for pthread_setname_np */
 
 #include "oam.h"
 #include "conf_oam.h"
-#include "conf_object.h"
 #include "hashmap.h"
 #include "if_oam.h"
 #include "if_oam_cmd.h"
 #include "interface.h"
 #include "json.h"
 #include "log.h"
+#include "object.h"
 #include "packet.h"
 #include "pipeline.h"
 #include "time_utils.h"
@@ -215,7 +215,7 @@ void oam_set_pipeline_for_mep_start(const char *stream_name, struct Pipeline *pi
     hashmap_foreach(mep_starts, set_pipe_cb, &params);
 }
 
-struct OamEndPoint *oam_create_endpoint(const char *name, const char *stream, int level, struct ConfObject *target, bool stop)
+struct OamEndPoint *oam_create_endpoint(const char *name, const char *stream, int level, struct PipelineObject *target, bool stop)
 {
     struct OamEndPoint *ret = calloc_struct(OamEndPoint);
     ret->name = strdup(name);
@@ -1565,9 +1565,8 @@ static bool process_ping_request(struct OamEndPoint *oam, struct Packet *p, stru
     // if object state is requested
     struct JsonValue *jos = json_object_get_any(j, "object");
     if(jos!=NULL){
-        if (oam->target && oam->target->print_state) {
-            struct JsonValue *objinfo = oam->target->print_state(oam->target->object);
-            json_object_insert(objinfo, "name", json_string(oam->target->name));
+        if (oam->target) {
+            struct JsonValue *objinfo = oam->target->get_state(oam->target);
             json_object_insert(j, "object", objinfo);
         }
     }

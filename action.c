@@ -3,7 +3,7 @@
 
 
 #include "action.h"
-#include "conf_object.h"
+#include "object.h"
 #include "delay.h"
 #include "header.h"
 #include "interface.h"
@@ -21,8 +21,6 @@
 #include <string.h>
 #include <stdio.h>
 #include <arpa/inet.h> /* htonl() */
-
-#define OAM_INDICATOR_MASK 0x10000000u
 
 const char *action_name_from_type(enum ActionType type)
 {
@@ -217,47 +215,21 @@ void create_action_edit(struct Action *a, struct EditAssign *assigns, unsigned a
 /////////////////////////////////////////////////////////////////////
 
 struct ElimData {
-    struct SequenceRecovery *rcvy;
+    struct PipelineObject *rcvy;
 };
-
-static char *get_oam_key(const struct Packet *p)
-{
-    // TODO: we can assume headers[1] indentified?
-    const uint8_t *g_ach = p->buf + p->headers[1].start;
-    /* g_ach[4]; //node ID MSB */
-    /* g_ach[5]; //node ID LSB */
-    /* g_ach[7] & 0x0f; //session id */
-    uint16_t node_id = (g_ach[4] << 8) + g_ach[5];
-    char key[16] = { 0 };
-    sprintf(key, "%d:%d", node_id, g_ach[7] & 0x0f);
-    return strdup(key);
-}
 
 static enum ActionResult action_ELIM_execute(struct Action *a, struct PipelineIterator *pi)
 {
     struct ElimData *ed = a->action_private;
-    const struct Packet *p = pi->packet;
-    uint32_t seq = ntohl(p->sequence);
-    if ((seq & OAM_INDICATOR_MASK) == 0) {
-        if (seq_recovery(ed->rcvy, seq)) {
-            return ACR_CONTINUE;
-        } else {
-            return ACR_DONE;
-        }
+    struct Packet *p = pi->packet;
+    if (seq_recovery(ed->rcvy, p)) {
+        return ACR_CONTINUE;
     } else {
-        // This is an OAM packet, so we read the node ID and session ID
-        // and create/get the temporary SeqRcvy instance using these as key
-        struct SequenceRecovery *oam_rec = get_oam_rcvy(get_oam_key(pi->packet));
-        const uint8_t oam_seq = (seq >> 16) & 0xff;
-        if (seq_recovery(oam_rec, oam_seq)) {
-            return ACR_CONTINUE;
-        } else {
-            return ACR_DONE;
-        }
+        return ACR_DONE;
     }
 }
 
-void create_action_elim(struct Action *a, struct SequenceRecovery *rcvy, const char *text)
+void create_action_elim(struct Action *a, struct PipelineObject *rcvy, const char *text)
 {
     INIT_ACTION(ELIM);
 
@@ -301,7 +273,7 @@ void create_action_filteroam(struct Action *a, const struct HeaderField *seqfiel
 /////////////////////////////////////////////////////////////////////
 
 struct PofData {
-    struct Pof *pof;
+    struct PipelineObject *pof;
 };
 
 static enum ActionResult action_POF_execute(struct Action *a, struct PipelineIterator *pi)
@@ -319,7 +291,7 @@ static enum ActionResult action_POF_execute(struct Action *a, struct PipelineIte
     }
 }
 
-void create_action_pof(struct Action *a, struct Pof *pof, const char *text)
+void create_action_pof(struct Action *a, struct PipelineObject *pof, const char *text)
 {
     INIT_ACTION(POF);
 
@@ -376,7 +348,7 @@ void create_action_readtstamp(struct Action *a, const struct HeaderField *tsfiel
 
 struct ReplData {
     struct PipelineList *pipes;
-    struct Replicate *replobj;
+    struct PipelineObject *replobj;
 };
 
 static enum ActionResult action_REPL_execute(struct Action *a, struct PipelineIterator *pi)
@@ -386,6 +358,8 @@ static enum ActionResult action_REPL_execute(struct Action *a, struct PipelineIt
     // extract the packet from our iterator
     struct Packet *iterpacket = pi->packet;
     pi->packet = NULL;
+    if (rd->replobj)
+        replicate_packet_passed(rd->replobj, iterpacket);
 
     struct PipelineList *list = rd->pipes;
     while (list) {
@@ -400,8 +374,6 @@ static enum ActionResult action_REPL_execute(struct Action *a, struct PipelineIt
         pipe_iterator_run(newpi);
         list = list->next;
     }
-    if (rd->replobj)
-        replicate_packet_passed(rd->replobj);
     return ACR_DONE;
 }
 
@@ -417,7 +389,7 @@ static void action_repl_del(void *action_private)
     }
 }
 
-void create_action_repl(struct Action *a, struct PipelineList *list, struct Replicate *replobj, const char *text)
+void create_action_repl(struct Action *a, struct PipelineList *list, struct PipelineObject *replobj, const char *text)
 {
     INIT_ACTION(REPL);
     a->del = action_repl_del;
@@ -472,7 +444,7 @@ struct Interface *action_send_get_iface(struct Action *a)
 /////////////////////////////////////////////////////////////////////
 
 struct SeqgenData {
-    struct SequenceGenerator *gen;
+    struct PipelineObject *gen;
 };
 
 static enum ActionResult action_SEQGEN_execute(struct Action *a, struct PipelineIterator *pi)
@@ -482,7 +454,7 @@ static enum ActionResult action_SEQGEN_execute(struct Action *a, struct Pipeline
     return ACR_CONTINUE;
 }
 
-void create_action_seqgen(struct Action *a, struct SequenceGenerator *gen, const char *text)
+void create_action_seqgen(struct Action *a, struct PipelineObject *gen, const char *text)
 {
     INIT_ACTION(SEQGEN);
 
@@ -601,7 +573,7 @@ static enum ActionResult action_MEP_execute(struct Action *a, struct PipelineIte
 #define action_MEPSTOP_execute action_MEP_execute
 #define action_MIP_execute     action_MEP_execute
 
-void create_action_mepstop(struct Action *a, const char *stream, int level, struct ConfObject *target,
+void create_action_mepstop(struct Action *a, const char *stream, int level, struct PipelineObject *target,
         const char *name, const char *text)
 {
     INIT_ACTION(MEPSTOP);
@@ -609,7 +581,7 @@ void create_action_mepstop(struct Action *a, const char *stream, int level, stru
     a->action_private = oam_create_endpoint(name, stream, level, target, true);
 }
 
-void create_action_mip(struct Action *a, const char *stream, int level, struct ConfObject *target,
+void create_action_mip(struct Action *a, const char *stream, int level, struct PipelineObject *target,
         const char *name, const char *text)
 {
     INIT_ACTION(MIP);

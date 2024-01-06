@@ -8,25 +8,8 @@
 struct HashMap;
 struct IniSection;
 
-enum ConfObjectType {
-    CO_SEQGEN = 1,
-    CO_SEQREC,
-    CO_POF,
-    CO_REPL,
-};
-
-struct ConfObject {
-    enum ConfObjectType type;
-    struct JsonValue *(*print_state)(const void *);
-    void *object;
-    char *name;
-};
-
-// @returns map of ConfObject keyed by their names
+// @returns map of PipelineObject keyed by their names
 struct HashMap *parse_objects(struct IniSection *objects_section);
-
-// @returns string representation of the @type enum
-const char *confobject_name_from_type(enum ConfObjectType type);
 
 #endif // R2_CONF_OBJECT_H
 

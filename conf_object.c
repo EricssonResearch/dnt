@@ -24,7 +24,7 @@ struct ForeachState {
 
 struct ObjectInfo {
     const char *name;
-    enum ConfObjectType type;
+    enum PipelineObjectType type;
     union {
         struct {
             bool use_reset_flag;
@@ -36,16 +36,12 @@ struct ObjectInfo {
             bool use_init_flag;
             unsigned history_length;
             unsigned reset_msec;
-            unsigned latent_error_paths;
-            unsigned latent_error_period;
-            unsigned latent_reset_period;
-            unsigned latent_error_diff;
-            unsigned outage_threshold;
+            struct RecoveryDiagnosticConf diag;
             enum SequenceRecoveryAlgorithm algo;
         } rec;
         struct {
-            unsigned max_delay; //TODO ms?
-            unsigned take_any_time; //TODO ms?
+            unsigned max_delay_ms;
+            unsigned take_any_time_ms;
             unsigned buffer_size;
         } pof;
     } p;
@@ -54,26 +50,26 @@ struct ObjectInfo {
 static void set_default_parameters(struct ObjectInfo *info)
 {
     switch (info->type) {
-        case CO_SEQGEN:
+        case PO_SEQGEN:
             info->p.gen.use_reset_flag = false;
             info->p.gen.use_init_flag = false;
             info->p.gen.init_seq = 0x8000; // based on the old code
             break;
-        case CO_SEQREC:
+        case PO_SEQREC:
             info->p.rec.use_reset_flag = false;
             info->p.rec.use_init_flag = false;
             info->p.rec.history_length = 2;
             info->p.rec.reset_msec = 2000;
-            info->p.rec.latent_error_paths = 2;
-            info->p.rec.latent_error_period = 0;
+            info->p.rec.diag.latent_error_paths = 2;
+            info->p.rec.diag.latent_error_period = 0;
             info->p.rec.algo = RCVY_Vector;
             break;
-        case CO_POF:
-            info->p.pof.max_delay = 20;
-            info->p.pof.take_any_time = 2000;
+        case PO_POF:
+            info->p.pof.max_delay_ms = 20;
+            info->p.pof.take_any_time_ms = 2000;
             info->p.pof.buffer_size = 2; // = info->p.rec.history_length
             break;
-        case CO_REPL:
+        case PO_REPL:
             // nothing to init
             break;
     }
@@ -94,7 +90,7 @@ static bool token_cb(char *str, void *userdata)
         char *key, *val;
         if (parse_assignment(str, &key, &val)) {
             switch (info->type) {
-                case CO_SEQGEN:
+                case PO_SEQGEN:
                     if (strcmp(key, "ResetFlag") == 0) {
                         int reset = read_boolean(val);
                         if (reset < 0) {
@@ -118,7 +114,7 @@ static bool token_cb(char *str, void *userdata)
                         THROW("invalid parameter '%s' for sequence generator", key);
                     }
                     break;
-                case CO_SEQREC:
+                case PO_SEQREC:
                     if (strcmp(key, "ResetFlag") == 0) {
                         int reset = read_boolean(val);
                         if (reset < 0) {
@@ -151,35 +147,35 @@ static bool token_cb(char *str, void *userdata)
                         if (sscanf(val, "%i%c", &path, &err) != 1) {
                             THROW("invalid latent error paths '%s'", val);
                         }
-                        info->p.rec.latent_error_paths = path;
+                        info->p.rec.diag.latent_error_paths = path;
                     } else if (strcmp(key, "frerSeqRcvyLatentErrorPeriod") == 0) {
                         unsigned msec;
                         char err;
                         if (sscanf(val, "%i%c", &msec, &err) != 1) {
                             THROW("invalid latent error period '%s'", val);
                         }
-                        info->p.rec.latent_error_period = msec;
+                        info->p.rec.diag.latent_error_period = msec;
                     } else if (strcmp(key, "frerSeqRcvyLatentResetPeriod") == 0) {
                         unsigned msec;
                         char err;
                         if (sscanf(val, "%i%c", &msec, &err) != 1) {
                             THROW("invalid latent error reset period '%s'", val);
                         }
-                        info->p.rec.latent_reset_period = msec;
+                        info->p.rec.diag.latent_reset_period = msec;
                     } else if (strcmp(key, "frerSeqRcvyLatentErrorDifference") == 0) {
                         unsigned pkts;
                         char err;
                         if (sscanf(val, "%i%c", &pkts, &err) != 1) {
                             THROW("invalid latent error period '%s'", val);
                         }
-                        info->p.rec.latent_error_diff = pkts;
+                        info->p.rec.diag.latent_error_difference = pkts;
                     } else if (strcmp(key, "frerSeqRcvyOutageThreshold") == 0) {
                         unsigned pkts;
                         char err;
                         if (sscanf(val, "%i%c", &pkts, &err) != 1) {
                             THROW("invalid outage threshold '%s'", val);
                         }
-                        info->p.rec.outage_threshold = pkts;
+                        info->p.rec.diag.outage_threshold = pkts;
                     } else if (strcmp(key, "frerSeqRcvyAlgorithm") == 0) {
                         if (strcmp(val, "Vector") == 0) {
                             info->p.rec.algo = RCVY_Vector;
@@ -194,21 +190,21 @@ static bool token_cb(char *str, void *userdata)
                         THROW("invalid parameter '%s' for sequence recovery", key);
                     }
                     break;
-                case CO_POF:
+                case PO_POF:
                     if (strcmp(key, "TakeAnyTime") == 0) {
                         unsigned msec;
                         char err;
                         if (sscanf(val, "%i%c", &msec, &err) != 1) {
                             THROW("invalid take any time '%s'", val);
                         }
-                        info->p.pof.take_any_time = msec;
+                        info->p.pof.take_any_time_ms = msec;
                     } else if (strcmp(key, "MaxDelay") == 0) {
                         unsigned msec;
                         char err;
                         if (sscanf(val, "%i%c", &msec, &err) != 1) {
                             THROW("invalid max delay time '%s'", val);
                         }
-                        info->p.pof.max_delay = msec;
+                        info->p.pof.max_delay_ms = msec;
                     } else if (strcmp(key, "BufferSize") == 0) {
                         unsigned size;
                         char err;
@@ -220,7 +216,7 @@ static bool token_cb(char *str, void *userdata)
                         THROW("invalid parameter '%s' for packet ordering function", key);
                     }
                     break;
-                case CO_REPL:
+                case PO_REPL:
                     THROW("invalid parameter '%s' for replication", key);
                     break;
             }
@@ -229,13 +225,13 @@ static bool token_cb(char *str, void *userdata)
         }
     } else {
         if (strcmp(str, "SeqGen") == 0) {
-            info->type = CO_SEQGEN;
+            info->type = PO_SEQGEN;
         } else if (strcmp(str, "SeqRcvy") == 0) {
-            info->type = CO_SEQREC;
+            info->type = PO_SEQREC;
         } else if (strcmp(str, "Pof") == 0) {
-            info->type = CO_POF;
+            info->type = PO_POF;
         } else if (strcmp(str, "Replicate") == 0) {
-            info->type = CO_REPL;
+            info->type = PO_REPL;
         } else {
             THROW("invalid type '%s'", str);
         }
@@ -258,76 +254,46 @@ static int object_cb(const char *key, void *value, void *userdata)
         return 0;
     }
 
-    struct ConfObject *obj = calloc_struct(ConfObject);
-    obj->type = info.type;
-    obj->name = strdup(info.name);
-
+    struct PipelineObject *obj = NULL;
     switch (info.type) {
-        case CO_SEQGEN:
-            obj->object = new_seq_gen(info.p.gen.use_reset_flag,
+        case PO_SEQGEN:
+            obj = new_seq_gen(key, info.p.gen.use_reset_flag,
                     info.p.gen.use_init_flag,
                     info.p.gen.init_seq);
-            obj->print_state = seqgen_get_state_json;
             break;
-        case CO_SEQREC: {
-            struct RecoveryDiagnosticConf diag;
-            diag.latent_error_paths = info.p.rec.latent_error_paths;
-            diag.latent_error_period = info.p.rec.latent_error_period;
-            diag.latent_reset_period = info.p.rec.latent_reset_period;
-            diag.latent_error_difference = info.p.rec.latent_error_diff;
-            diag.outage_threshold = info.p.rec.outage_threshold;
-            obj->object = new_seq_rec(info.p.rec.algo,
-                    obj->name,
+        case PO_SEQREC:
+            obj = new_seq_rec(key, info.p.rec.algo,
                     info.p.rec.use_reset_flag,
                     info.p.rec.use_init_flag,
                     info.p.rec.history_length,
                     info.p.rec.reset_msec,
-                    &diag, NULL);
-            obj->print_state = seqrec_get_state_json;
-        }
+                    &info.p.rec.diag);
             break;
-        case CO_POF:
-            obj->object = new_pof(info.p.pof.max_delay,
-                    info.p.pof.take_any_time,
+        case PO_POF:
+            obj = new_pof(key, info.p.pof.max_delay_ms,
+                    info.p.pof.take_any_time_ms,
                     info.p.pof.buffer_size);
-            obj->print_state = pof_get_state_json;
             break;
-        case CO_REPL:
-            obj->object = new_replicate();
-            obj->print_state = replicate_get_state_json;
+        case PO_REPL:
+            obj = new_replicate(key);
             break;
 
     }
-    if (obj->object == NULL) {
+    if (obj == NULL) {
         log_error("error creating object '%s'\n", key);
         return 0;
     } else {
-        hashmap_insert(state->objects, strdup(key), obj);
+        hashmap_insert(state->objects, obj->name, obj);
         return 1;
     }
 }
 
 static int delete_cb(const char *key, void *value, void *userdata)
 {
-    free((char*)key);
-    struct ConfObject *obj = value;
+    (void)key; // this is obj->name, freed by delete_pipeline_object()
+    struct PipelineObject *obj = value;
     (void)userdata;
-    switch (obj->type) {
-        case CO_SEQGEN:
-            delete_seq_gen(obj->object);
-            break;
-        case CO_SEQREC:
-            delete_seq_rec(obj->object);
-            break;
-        case CO_POF:
-            delete_pof(obj->object);
-            break;
-        case CO_REPL:
-            delete_replicate(obj->object);
-            break;
-    }
-    free(obj->name);
-    free(obj);
+    delete_pipeline_object(obj);
     return 1;
 }
 
@@ -345,17 +311,3 @@ struct HashMap *parse_objects(struct IniSection *objects_section)
     }
 }
 
-const char *confobject_name_from_type(enum ConfObjectType type)
-{
-    switch (type) {
-        case CO_SEQGEN:
-            return "SeqGen";
-        case CO_SEQREC:
-            return "SeqRcvy";
-        case CO_POF:
-            return "Pof";
-        case CO_REPL:
-            return "Replicate";
-    }
-    return NULL;
-}

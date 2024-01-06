@@ -7,19 +7,15 @@
 #include "pipeline.h"
 #include <stdbool.h>
 
-struct Pof;
-
 // Create new POF object
-struct Pof *new_pof(unsigned pof_max_delay, unsigned pof_take_any_time, unsigned queue_max_len);
+struct PipelineObject *new_pof(const char *name, unsigned pof_max_delay, unsigned pof_take_any_time, unsigned queue_max_len);
 
 // Delete a POF object
-struct Pof *delete_pof(struct Pof *pof);
+// always returns NULL
+struct PipelineObject *delete_pof(struct PipelineObject *pof);
 
 // Insert a packet into the buffer of the given POF instance.
 // If the buffer is full, return false, otherwise true
-bool pof_insert(struct Pof *pof, struct PipelineIterator *pi);
-
-// Return JSON value with the internals of the SeqRecv
-struct JsonValue *pof_get_state_json(const void *obj);
+bool pof_insert(struct PipelineObject *pof, struct PipelineIterator *pi);
 
 #endif // R2_POF_H
