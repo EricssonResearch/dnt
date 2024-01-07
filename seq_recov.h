@@ -5,6 +5,7 @@
 #ifndef R2_SEQ_RECOV_H
 #define R2_SEQ_RECOV_H
 
+#include "object.h"
 #include "packet.h"
 
 #include <stdbool.h>
@@ -64,5 +65,8 @@ struct PipelineObject *delete_seq_rec(struct PipelineObject *rec);
 // @returns true if @p is not a duplicate, based on @p->sequence
 // automatically handles OAM packets with temporary recovery objects
 bool seq_recovery(struct PipelineObject *rec, struct Packet *p);
+
+// use sprintf_state_json() instead of this
+char *seq_rec_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep);
 
 #endif // R2_SEQ_RECOV_H

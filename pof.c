@@ -4,7 +4,6 @@
 #define _GNU_SOURCE /* for ppoll, pthread_setname_np */
 
 #include "pof.h"
-#include "json.h"
 #include "log.h"
 #include "object.h"
 #include "packet.h"
@@ -94,6 +93,24 @@ static struct JsonValue *get_state_json(const struct PipelineObject *obj)
     take_any_time = (take_any_time / NSEC_PER_SEC) * 1000; // millisec
     json_object_insert(js, "take_any_time", json_number(take_any_time));
     return js;
+}
+
+char *pof_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep)
+{
+    struct JsonValue *max_delay = json_object_get_number(json, "max_delay");
+    struct JsonValue *take_any_time = json_object_get_number(json, "take_any_time");
+    struct JsonValue *max_buffer_length = json_object_get_number(json, "max_buffer_length");
+    struct JsonValue *current_buffer_length = json_object_get_number(json, "current_buffer_length");
+    struct JsonValue *last_sent = json_object_get_number(json, "last_sent");
+
+    if (max_delay && take_any_time && max_buffer_length && current_buffer_length && last_sent) {
+        return strdup_printf("max_delay %.0fms%stake_any_time%.0fms%s"
+                "max_buffer_length %.0f%scurrent_buffer_length %.0f%slast_sent %.0f",
+                max_delay->v.number, record_sep, take_any_time->v.number, line_sep,
+                max_buffer_length->v.number, record_sep, current_buffer_length->v.number, record_sep, last_sent->v.number);
+    } else {
+        return strdup("<invalid pof state>");
+    }
 }
 
 struct PipelineObject *new_pof(const char *name, unsigned pof_max_delay, unsigned pof_take_any_time, unsigned queue_max_len)

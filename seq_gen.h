@@ -23,4 +23,7 @@ void seq_generator(struct PipelineObject *gen, struct Packet *p);
 // this is intended to be a hashmap_foreach callback
 int reset_all_seq_generators(const char *key, void *value, void *udata);
 
+// use sprintf_state_json() instead of this
+char *seq_gen_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep);
+
 #endif // R2_SEQ_GEN_H

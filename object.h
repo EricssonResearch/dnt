@@ -5,7 +5,7 @@
 #ifndef R2_OBJECT_H
 #define R2_OBJECT_H
 
-struct JsonValue;
+#include "json.h"
 
 enum PipelineObjectType {
     PO_SEQGEN = 1,
@@ -20,7 +20,6 @@ struct PipelineObject {
     char *name;
     //TODO bool (*process_packet)(struct PipelineObject *self, struct PipelineIterator *iter) ?
     struct JsonValue *(*get_state)(const struct PipelineObject *self);
-    char *(*sprintf_state_json)(struct JsonValue *json);
 };
 
 // uses the delete function for the appropriate type
@@ -29,6 +28,12 @@ struct PipelineObject *delete_pipeline_object(struct PipelineObject *obj);
 
 // @returns string representation of the @type enum
 const char *pipelineobject_name_from_type(enum PipelineObjectType type);
+
+// returns a string that is the @json data decoded into a pretty format
+// uses @record_sep and @line_sep for formatting
+// uses the appropriate printing function based on the type encoded in the @json
+// always returns a valid string
+char *sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep);
 
 #endif // R2_OBJECT_H
 

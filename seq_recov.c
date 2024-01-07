@@ -7,7 +7,6 @@
 #include "conf_object.h"
 #include "log.h"
 #include "oam.h"
-#include "object.h"
 #include "time_utils.h"
 #include "utils.h"
 #include "packet.h"
@@ -124,36 +123,93 @@ static struct JsonValue *get_state_json(const struct PipelineObject *obj)
     struct JsonValue *js = json_object();
     json_object_insert(js, "type", json_string("seqrec"));
     json_object_insert(js, "name", json_string(obj->name));
-    json_object_insert(js, "reset_msec", json_number((double) rec->reset_msec));
-    struct JsonValue *algo = NULL;
+
+    const char *algo = NULL;
     switch (rec->algorithm) {
-        case RCVY_Match: algo = json_string("match"); break;
-        case RCVY_Vector: algo = json_string("vector"); break;
-        case RCVY_SeamlessVector: algo = json_string("seamless_vector"); break;
+        case RCVY_Match: algo = "match"; break;
+        case RCVY_Vector: algo = "vector"; break;
+        case RCVY_SeamlessVector: algo = "seamless_vector"; break;
     }
-    json_object_insert(js, "recovery_algorithm", algo);
+    json_object_insert(js, "recovery_algorithm", json_string(algo));
+
+    json_object_insert(js, "reset_msec", json_number((double) rec->reset_msec));
     json_object_insert(js, "recovery_seq_num", json_number((double) rec->recv_seq));
     json_object_insert(js, "passed_packets", json_number((double) rec->passed_packets));
     json_object_insert(js, "discarded_packets", json_number((double) rec->discarded_packets));
     json_object_insert(js, "seq_recovery_resets", json_number((double) rec->seq_recovery_resets));
+
     if (rec->algorithm != RCVY_Match) { //only for vector & seamless
-        json_object_insert(js, "history_length", json_number((double) rec->history_length));
-        json_object_insert(js, "use_reset_flag", rec->use_reset_flag ? json_true() : json_false());
         json_object_insert(js, "use_init_flag", rec->use_init_flag ? json_true() : json_false());
+        json_object_insert(js, "use_reset_flag", rec->use_reset_flag ? json_true() : json_false());
+        json_object_insert(js, "history_length", json_number((double) rec->history_length));
         json_object_insert(js, "latent_error_paths", json_number((double) rec->diag.latent_error_paths));
         json_object_insert(js, "latent_error_resets", json_number((double) rec->latent_error_resets));
         json_object_insert(js, "latent_errors", json_number((double) rec->latent_errors));
-    }
 
-    char *hist_content = calloc(1, rec->history_length + 1);
-    for (int i = 0; i < rec->history_length; ++i) {
-        if (rec->history[i] == 1)
-            hist_content[i] = '1';
-        else if (rec->history[i] == 0)
-            hist_content[i] = '0';
+        char *hist_content = calloc(1, rec->history_length + 1);
+        for (int i = 0; i < rec->history_length; ++i) {
+            if (rec->history[i] == 1)
+                hist_content[i] = '1';
+            else if (rec->history[i] == 0)
+                hist_content[i] = '0';
+        }
+        json_object_insert(js, "history", json_string(hist_content));
     }
-    json_object_insert(js, "history", json_string(hist_content));
     return js;
+}
+
+char *seq_rec_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep)
+{
+    struct JsonValue *algorithm = json_object_get_string(json, "recovery_algorithm");
+    struct JsonValue *reset_msec = json_object_get_number(json, "reset_msec");
+    struct JsonValue *recovery_seq_num = json_object_get_number(json, "recovery_seq_num");
+    struct JsonValue *passed_packets = json_object_get_number(json, "passed_packets");
+    struct JsonValue *discarded_packets = json_object_get_number(json, "discarded_packets");
+    struct JsonValue *seq_recovery_resets = json_object_get_number(json, "seq_recovery_resets");
+
+    if (algorithm && reset_msec && recovery_seq_num && passed_packets && discarded_packets && seq_recovery_resets) {
+        if (strcmp(algorithm->v.string, "match") != 0) {
+            struct JsonValue *use_init_flag = json_object_get_bool(json, "use_init_flag");
+            struct JsonValue *use_reset_flag = json_object_get_bool(json, "use_reset_flag");
+            struct JsonValue *history_length = json_object_get_number(json, "history_length");
+            struct JsonValue *latent_error_paths = json_object_get_number(json, "latent_error_paths");
+            struct JsonValue *latent_error_resets = json_object_get_number(json, "latent_error_resets");
+            struct JsonValue *latent_errors = json_object_get_number(json, "latent_errors");
+            struct JsonValue *history = json_object_get_string(json, "history");
+
+            if (use_init_flag && use_reset_flag && history_length &&
+                    latent_error_paths && latent_error_resets && latent_errors && history) {
+                return strdup_printf("recovery_algorithm %s%sreset_timer %.0fms%s"
+                        "use_init_flag %s%suse_reset_flag %s%shistory_length %.0f%s"
+                        "history_content %s%s"
+                        "latent_error_paths %.0f%slatent_error_resets %.0f%slatent_errors %.0f%s"
+                        "latest_valid_sequence_number %.0f%spassed %.0f%sdiscarded %.0f%s"
+                        "number_of_resets %.0f",
+                        algorithm->v.string, record_sep, reset_msec->v.number, line_sep,
+                        (use_init_flag->type == JSON_TRUE) ? "true" : "false", record_sep,
+                        (use_reset_flag->type == JSON_TRUE) ? "true" : "false", record_sep,
+                        history_length->v.number, line_sep,
+                        history->v.string, line_sep,
+                        latent_error_paths->v.number, record_sep, latent_error_resets->v.number, record_sep,
+                        latent_errors->v.number, line_sep,
+                        recovery_seq_num->v.number, record_sep,
+                        passed_packets->v.number, record_sep, discarded_packets->v.number, line_sep,
+                        seq_recovery_resets->v.number);
+            } else {
+                return strdup_printf("<invalid seq_rec %s state>", algorithm->v.string);
+            }
+        } else {
+            return strdup_printf("recovery_algorithm %s%sreset_timer %.0fms%s"
+                    "latest_valid_sequence_number %.0f%spassed %.0f%sdiscarded %.0f%s"
+                    "number_of_resets %.0f",
+                    "match", record_sep, reset_msec->v.number, line_sep,
+                    recovery_seq_num->v.number, record_sep,
+                    passed_packets->v.number, record_sep, discarded_packets->v.number, line_sep,
+                    seq_recovery_resets->v.number);
+        }
+    } else {
+        return strdup("<invalid seq_rec state>");
+    }
 }
 
 struct PipelineObject *new_seq_rec(const char *name, enum SequenceRecoveryAlgorithm algo,

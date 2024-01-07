@@ -26,6 +26,20 @@ static struct JsonValue *get_state_json(const struct PipelineObject *obj)
     return js;
 }
 
+char *repl_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep)
+{
+    (void)record_sep;
+    (void)line_sep;
+    struct JsonValue *pass = json_object_get_number(json, "packets_passed");
+
+    if (pass) {
+        return strdup_printf("packets_passed %.0f",
+                pass->v.number);
+    } else {
+        return strdup("<invalid replicate state>");
+    }
+}
+
 struct PipelineObject *new_replicate(const char *name)
 {
     struct Replicate *ret = calloc_struct(Replicate);

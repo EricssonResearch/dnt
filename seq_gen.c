@@ -42,7 +42,23 @@ static struct JsonValue *get_state_json(const struct PipelineObject *obj)
     json_object_insert(js, "name", json_string(obj->name));
     json_object_insert(js, "use_init_flag", gen->use_init_flag ? json_true() : json_false());
     json_object_insert(js, "use_reset_flag", gen->use_reset_flag ? json_true() : json_false());
+    //TODO report more state
     return js;
+}
+
+char *seq_gen_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep)
+{
+    (void)line_sep;
+    struct JsonValue *use_init_flag = json_object_get_bool(json, "use_init_flag");
+    struct JsonValue *use_reset_flag = json_object_get_bool(json, "use_reset_flag");
+
+    if (use_init_flag && use_reset_flag) {
+        return strdup_printf("use_init_flag %s%suse_reset_flag %s",
+                (use_init_flag->type == JSON_TRUE) ? "true" : "false", record_sep,
+                (use_reset_flag->type == JSON_TRUE) ? "true" : "false");
+    } else {
+        return strdup("<invalid seq_gen state>");
+    }
 }
 
 struct PipelineObject *new_seq_gen(const char *name, bool use_reset_flag, bool use_init_flag, unsigned init_seq_start)

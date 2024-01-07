@@ -4,7 +4,9 @@
 #ifndef R2_POF_H
 #define R2_POF_H
 
+#include "object.h"
 #include "pipeline.h"
+
 #include <stdbool.h>
 
 // Create new POF object
@@ -17,5 +19,8 @@ struct PipelineObject *delete_pof(struct PipelineObject *pof);
 // Insert a packet into the buffer of the given POF instance.
 // If the buffer is full, return false, otherwise true
 bool pof_insert(struct PipelineObject *pof, struct PipelineIterator *pi);
+
+// use sprintf_state_json() instead of this
+char *pof_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep);
 
 #endif // R2_POF_H
