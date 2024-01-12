@@ -2,14 +2,29 @@
 #include "testing.h"
 
 #include "seq_recov.h"
+#include "action.h"
 #include "packet.h"
+#include "pipeline.h"
 #include "utils.h"
 
 #include <stdlib.h>
 
 #include <unistd.h>
+#include <arpa/inet.h>
 
 TEST_INIT("Sequence Recovery: Match");
+
+// XXX stubs for stuff that we transitively depend on but don't need
+void oam_cli_alert(void);
+void oam_cli_alert(void) {}
+void iface_ref(void);
+void iface_ref(void) {}
+void iface_unref(void);
+void iface_unref(void) {}
+struct Action *delete_action(struct Action *a) { (void)a; return NULL; }
+struct Interface *action_send_get_iface(struct Action *a) { (void)a; return NULL; }
+const char *action_name_from_type(enum ActionType type) { (void)type; return NULL; }
+// XXX end stubs
 
 static const unsigned history_length = 64; // must be 2^n
 static const unsigned reset_ms = 30;
@@ -17,49 +32,58 @@ static const unsigned reset_ms = 30;
 static void test_duplicates(void)
 {
     // note: only @reset_ms has effect
-    struct SequenceRecovery *rec = new_seq_rec(RCVY_Match, false, false, history_length, reset_ms, 2, NULL);
+    struct PipelineObject *rec = new_seq_rec("match", RCVY_Match, false, false, history_length, reset_ms, NULL);
     OK_FATAL(rec, "have object");
 
     unsigned start = 200;
-    unsigned sequence;
+    struct Packet *p = new_packet(NULL);
+    OK(p, "have packet");
+    struct Pipeline *pl = new_pipeline("test", NULL, 0);
+    OK(pl, "have pipeline");
+    struct PipelineIterator *pi = new_pipe_iterator(pl, p);
+    OK(pi, "have iterator");
 
-    sequence = start;
-    OK(seq_recovery(rec, sequence) == true, "in TakeAny");
-    OK(seq_recovery(rec, sequence) == false, "duplicate");
-    sequence = start+1;
-    OK(seq_recovery(rec, sequence) == true, "not duplicate");
-    OK(seq_recovery(rec, sequence) == false, "duplicate");
-    sequence = start;
-    OK(seq_recovery(rec, sequence) == true, "not duplicate");
-    OK(seq_recovery(rec, sequence) == false, "duplicate");
-    sequence = start-1;
-    OK(seq_recovery(rec, sequence) == true, "not duplicate");
-    OK(seq_recovery(rec, sequence) == false, "duplicate");
-    sequence = start;
-    OK(seq_recovery(rec, sequence) == true, "not duplicate");
-    OK(seq_recovery(rec, sequence) == false, "duplicate");
+    //TODO htonl mindenhol
+    p->sequence = htonl(start);
+    OK(seq_recovery(rec, pi) == ACR_CONTINUE, "in TakeAny");
+    OK(seq_recovery(rec, pi) == ACR_DONE, "duplicate");
+    p->sequence = htonl(start+1);
+    OK(seq_recovery(rec, pi) == ACR_CONTINUE, "not duplicate");
+    OK(seq_recovery(rec, pi) == ACR_DONE, "duplicate");
+    p->sequence = htonl(start);
+    OK(seq_recovery(rec, pi) == ACR_CONTINUE, "not duplicate");
+    OK(seq_recovery(rec, pi) == ACR_DONE, "duplicate");
+    p->sequence = htonl(start-1);
+    OK(seq_recovery(rec, pi) == ACR_CONTINUE, "not duplicate");
+    OK(seq_recovery(rec, pi) == ACR_DONE, "duplicate");
+    p->sequence = htonl(start);
+    OK(seq_recovery(rec, pi) == ACR_CONTINUE, "not duplicate");
+    OK(seq_recovery(rec, pi) == ACR_DONE, "duplicate");
 
     usleep(1000*(reset_ms+30)); //TODO the needed oversleep depends on cpu speed :(
-    OK(seq_recovery(rec, sequence) == true, "in TakeAny again");
-    OK(seq_recovery(rec, sequence) == false, "duplicate");
+    OK(seq_recovery(rec, pi) == ACR_CONTINUE, "in TakeAny again");
+    OK(seq_recovery(rec, pi) == ACR_DONE, "duplicate");
 
     // test the seq overflow point
-    sequence = 0xffff;
-    OK(seq_recovery(rec, sequence) == true, "not duplicate");
-    OK(seq_recovery(rec, sequence) == false, "duplicate");
-    sequence = 0;
-    OK(seq_recovery(rec, sequence) == true, "not duplicate");
-    OK(seq_recovery(rec, sequence) == false, "duplicate");
-    sequence = 0xffff;
-    OK(seq_recovery(rec, sequence) == true, "not duplicate");
-    OK(seq_recovery(rec, sequence) == false, "duplicate");
+    p->sequence = htonl(0xffff);
+    OK(seq_recovery(rec, pi) == ACR_CONTINUE, "not duplicate");
+    OK(seq_recovery(rec, pi) == ACR_DONE, "duplicate");
+    p->sequence = htonl(0);
+    OK(seq_recovery(rec, pi) == ACR_CONTINUE, "not duplicate");
+    OK(seq_recovery(rec, pi) == ACR_DONE, "duplicate");
+    p->sequence = htonl(0xffff);
+    OK(seq_recovery(rec, pi) == ACR_CONTINUE, "not duplicate");
+    OK(seq_recovery(rec, pi) == ACR_DONE, "duplicate");
 
     OK(delete_seq_rec(rec) == NULL, "delete object");
+    free(pi);
+    pipeline_unref(pl);
+    OK(delete_packet(p) == NULL, "delete packet");
 }
 
 static void test_single(void)
 {
-    struct SequenceRecovery *rec = new_seq_rec(RCVY_Match, false, false, history_length, reset_ms, 2, NULL);
+    struct PipelineObject *rec = new_seq_rec("match", RCVY_Match, false, false, history_length, reset_ms, NULL);
     OK_FATAL(rec, "have object");
 
     srand(2020); // this seed looks nice
@@ -68,16 +92,25 @@ static void test_single(void)
     const unsigned interval = 100;
     const unsigned iterations = 10000;
     unsigned last = start-1;
+    struct Packet *p = new_packet(NULL);
+    OK(p, "have packet");
+    struct Pipeline *pl = new_pipeline("test", NULL, 0);
+    OK(pl, "have pipeline");
+    struct PipelineIterator *pi = new_pipe_iterator(pl, p);
+    OK(pi, "have iterator");
     for (unsigned i=0; i<iterations; i++) {
         unsigned seq = start + rand() % interval;
-        unsigned sequence = seq;
-        bool result = seq_recovery(rec, sequence);
-        bool good = last != seq;
+        p->sequence = htonl(seq);
+        enum ActionResult result = seq_recovery(rec, pi);
+        enum ActionResult good = last != seq ? ACR_CONTINUE : ACR_DONE;
         OK(result == good, "match %u last %u seq %u result %d", i, last, seq, result);
         last = seq;
     }
 
     OK(delete_seq_rec(rec) == NULL, "delete object");
+    free(pi);
+    pipeline_unref(pl);
+    OK(delete_packet(p) == NULL, "delete packet");
 }
 
 static void test_multi(void)
