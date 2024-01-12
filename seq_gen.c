@@ -3,9 +3,10 @@
 
 
 #include "seq_gen.h"
-#include "conf_object.h"
+#include "action.h"
 #include "json.h"
 #include "packet.h"
+#include "pipeline.h"
 #include "seq_recov.h"
 #include "utils.h"
 
@@ -67,6 +68,7 @@ struct PipelineObject *new_seq_gen(const char *name, bool use_reset_flag, bool u
     ret->base.type = PO_SEQGEN;
     ret->base.name = strdup(name);
     ret->base.get_state = get_state_json;
+    ret->base.process_packet = seq_generator;
 
     ret->use_reset_flag = use_reset_flag;
     ret->use_init_flag = use_init_flag;
@@ -145,11 +147,12 @@ static unsigned sequence_generation(struct SequenceGenerator *gen)
     return seq;
 }
 
-void seq_generator(struct PipelineObject *gen, struct Packet *p)
+enum ActionResult seq_generator(struct PipelineObject *gen, struct PipelineIterator *pi)
 {
     struct SequenceGenerator *g = (struct SequenceGenerator *)gen;
     unsigned new_seq = sequence_generation(g);
-    p->sequence = htonl(new_seq);
+    pi->packet->sequence = htonl(new_seq);
+    return ACR_CONTINUE;
 }
 
 

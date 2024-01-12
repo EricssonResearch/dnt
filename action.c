@@ -221,12 +221,7 @@ struct ElimData {
 static enum ActionResult action_ELIM_execute(struct Action *a, struct PipelineIterator *pi)
 {
     struct ElimData *ed = a->action_private;
-    struct Packet *p = pi->packet;
-    if (seq_recovery(ed->rcvy, p)) {
-        return ACR_CONTINUE;
-    } else {
-        return ACR_DONE;
-    }
+    return seq_recovery(ed->rcvy, pi);
 }
 
 void create_action_elim(struct Action *a, struct PipelineObject *rcvy, const char *text)
@@ -254,7 +249,7 @@ static enum ActionResult action_FILTEROAM_execute(struct Action *a, struct Pipel
     uint32_t seq;
     memcpy(&seq, src, len);
 
-    if (ntohl(seq) & OAM_INDICATOR_MASK) {
+    if (SEQ_IS_OAM(seq)) {
         return ACR_DONE;
     } else {
         return ACR_CONTINUE;
@@ -279,16 +274,7 @@ struct PofData {
 static enum ActionResult action_POF_execute(struct Action *a, struct PipelineIterator *pi)
 {
     struct PofData *pd = a->action_private;
-    uint32_t seq = ntohl(pi->packet->sequence);
-    if ((seq & OAM_INDICATOR_MASK) == 0) {
-        if (pof_insert(pd->pof, pi)) {
-            return ACR_HOLD;
-        } else {
-            return ACR_DONE;
-        }
-    } else {
-        return ACR_CONTINUE;
-    }
+    return pof_insert(pd->pof, pi);
 }
 
 void create_action_pof(struct Action *a, struct PipelineObject *pof, const char *text)
@@ -355,11 +341,12 @@ static enum ActionResult action_REPL_execute(struct Action *a, struct PipelineIt
 {
     struct ReplData *rd = a->action_private;
 
+    if (rd->replobj)
+        replicate_packet_passed(rd->replobj, pi);
+
     // extract the packet from our iterator
     struct Packet *iterpacket = pi->packet;
     pi->packet = NULL;
-    if (rd->replobj)
-        replicate_packet_passed(rd->replobj, iterpacket);
 
     struct PipelineList *list = rd->pipes;
     while (list) {
@@ -450,8 +437,7 @@ struct SeqgenData {
 static enum ActionResult action_SEQGEN_execute(struct Action *a, struct PipelineIterator *pi)
 {
     struct SeqgenData *sd = a->action_private;
-    seq_generator(sd->gen, pi->packet);
-    return ACR_CONTINUE;
+    return seq_generator(sd->gen, pi);
 }
 
 void create_action_seqgen(struct Action *a, struct PipelineObject *gen, const char *text)
@@ -519,7 +505,7 @@ static enum ActionResult action_WRITESEQ_execute(struct Action *a, struct Pipeli
     memcpy(&seq, src, len);
 
     // skip if seq already contains OAM associated channel header
-    if ((ntohl(seq) & OAM_INDICATOR_MASK) == 0) {
+    if (!SEQ_IS_OAM(seq)) {
         uint8_t *dst = p->buf + p->headers[md->field.header_idx].start + md->field.bitoffset/8;
         memcpy(dst, &p->sequence, len);
     }

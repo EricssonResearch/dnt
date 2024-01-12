@@ -4,12 +4,13 @@
 #define _GNU_SOURCE /* for pthread_setname_np */
 
 #include "seq_recov.h"
-#include "conf_object.h"
+#include "action.h"
 #include "log.h"
 #include "oam.h"
+#include "packet.h"
+#include "pipeline.h"
 #include "time_utils.h"
 #include "utils.h"
-#include "packet.h"
 #include "json.h"
 
 #include <stdio.h>
@@ -222,6 +223,7 @@ struct PipelineObject *new_seq_rec(const char *name, enum SequenceRecoveryAlgori
     ret->base.type = PO_SEQREC;
     ret->base.name = strdup(name);
     ret->base.get_state = get_state_json;
+    ret->base.process_packet = seq_recovery;
 
     ret->algorithm = algo;
     ret->use_reset_flag = use_reset_flag;
@@ -427,22 +429,23 @@ static void seamless_seq_recovery_reset(struct SequenceRecovery *rec)
 }
 
 //TODO: race condition
-bool seq_recovery(struct PipelineObject *r, struct Packet *p)
+enum ActionResult seq_recovery(struct PipelineObject *r, struct PipelineIterator *pi)
 {
     struct SequenceRecovery *rec = (struct SequenceRecovery *)r;
-    bool ret = true;
+    struct Packet *p = pi->packet;
+    bool accept = true;
     uint32_t seq = ntohl(p->sequence);
-    if ((seq & OAM_INDICATOR_MASK) == 0) {
+    if (!SEQ_IS_OAM(p->sequence)) {
         //TODO grab mutex
         switch (rec->algorithm) {
             case RCVY_Vector:
-                ret = vector_seq_recovery(rec, seq);
+                accept = vector_seq_recovery(rec, seq);
                 break;
             case RCVY_SeamlessVector:
-                ret = seamless_seq_recovery(rec, seq);
+                accept = seamless_seq_recovery(rec, seq);
                 break;
             case RCVY_Match:
-                ret = match_seq_recovery(rec, seq);
+                accept = match_seq_recovery(rec, seq);
                 break;
         }
         //TODO release mutex
@@ -450,9 +453,9 @@ bool seq_recovery(struct PipelineObject *r, struct Packet *p)
         char *session_id = oam_session_id(p);
         struct SequenceRecovery *oam_rec = get_oam_rcvy(session_id);
         uint8_t oam_seq = (seq >> 16) & 0xff;
-        ret =  match_seq_recovery(oam_rec, oam_seq);
+        accept =  match_seq_recovery(oam_rec, oam_seq);
     }
-    return ret;
+    return accept ? ACR_CONTINUE : ACR_DONE;
 }
 
 static void seq_recovery_reset(struct SequenceRecovery *rec)

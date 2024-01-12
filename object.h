@@ -14,11 +14,13 @@ enum PipelineObjectType {
     PO_REPL,
 };
 
+struct PipelineIterator;
+
 // base class for the objects used by the action pipeline
 struct PipelineObject {
     enum PipelineObjectType type;
     char *name;
-    //TODO bool (*process_packet)(struct PipelineObject *self, struct PipelineIterator *iter) ?
+    enum ActionResult (*process_packet)(struct PipelineObject *self, struct PipelineIterator *pi);
     struct JsonValue *(*get_state)(const struct PipelineObject *self);
 };
 

@@ -15,8 +15,9 @@ struct PipelineObject *new_seq_gen(const char *name, bool use_reset_flag, bool u
 // always returns NULL
 struct PipelineObject *delete_seq_gen(struct PipelineObject *gen);
 
-//TODO receive PipelineIterator instead of packet to have uniform interface with POF
-void seq_generator(struct PipelineObject *gen, struct Packet *p);
+// generates a new sequence number in the packet's metadata
+// always returns ACR_CONTINUE
+enum ActionResult seq_generator(struct PipelineObject *gen, struct PipelineIterator *pi);
 
 // Helper function to reset all sequence generators in the system
 // Triggered by manual reset signal (no timer expiration)

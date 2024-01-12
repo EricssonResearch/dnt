@@ -18,8 +18,6 @@
 #define FRER_RESET_FLAG (1 << (32 - 6))
 #define FRER_INIT_FLAG (1 << (32 - 7))
 
-#define OAM_INDICATOR_MASK 0x10000000u
-
 
 /*
  * Helper structure to passing and storing diagnostic entity related parameters
@@ -62,9 +60,9 @@ struct PipelineObject *new_seq_rec(const char *name, enum SequenceRecoveryAlgori
 // always returns NULL
 struct PipelineObject *delete_seq_rec(struct PipelineObject *rec);
 
-// @returns true if @p is not a duplicate, based on @p->sequence
+// @returns ACR_CONTINUE or ACR_DONE whether @pi has a duplicate packet, based on @pi->packet->sequence
 // automatically handles OAM packets with temporary recovery objects
-bool seq_recovery(struct PipelineObject *rec, struct Packet *p);
+enum ActionResult seq_recovery(struct PipelineObject *rec, struct PipelineIterator *pi);
 
 // use sprintf_state_json() instead of this
 char *seq_rec_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep);

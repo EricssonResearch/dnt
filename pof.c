@@ -4,7 +4,9 @@
 #define _GNU_SOURCE /* for ppoll, pthread_setname_np */
 
 #include "pof.h"
+#include "action.h"
 #include "log.h"
+#include "oam.h"
 #include "object.h"
 #include "packet.h"
 #include "pipeline.h"
@@ -25,7 +27,7 @@
 DEFAULT_LOGGING_MODULE(MAIN, WARNING)
 LOGGING_MODULE(OAM, WARNING)
 
-enum PofEvent {
+enum PofEvent { //TODO this is never used as a bitfield
     POF_IN_ORDER_PKT = 1,
     POF_OUT_OF_ORDER_PKT = 2,
     POF_TIMEOUT = 4
@@ -123,6 +125,7 @@ struct PipelineObject *new_pof(const char *name, unsigned pof_max_delay, unsigne
     ret->base.type = PO_POF;
     ret->base.name = strdup(name);
     ret->base.get_state = get_state_json;
+    ret->base.process_packet = pof_insert;
 
     timespec_from_msec(&ret->pof_max_delay, pof_max_delay);
     timespec_from_msec(&ret->pof_take_any_time, pof_take_any_time);
@@ -175,12 +178,17 @@ static struct PofElem *new_pof_elem(struct Pof *pof, struct PipelineIterator *pi
     return ret;
 }
 
-bool pof_insert(struct PipelineObject *p, struct PipelineIterator *pi)
+enum ActionResult pof_insert(struct PipelineObject *p, struct PipelineIterator *pi)
 {
     struct Pof *pof = (struct Pof*)p;
+
+    if (SEQ_IS_OAM(pi->packet->sequence)) {
+        return ACR_CONTINUE;
+    }
+
     if (pof->queue_len >= pof->queue_max_len) {
         log_warning_m(OAM, "POF buffer is full, drop new packet.\n");
-        return false;
+        return ACR_DONE; //TODO pof should NEVER return this!!!
     }
 
     pthread_mutex_lock(&pof->lock);
@@ -214,7 +222,7 @@ bool pof_insert(struct PipelineObject *p, struct PipelineIterator *pi)
         perror("write");
     }
     pthread_mutex_unlock(&pof->lock); // TODO: check if OK
-    return true;
+    return ACR_HOLD;
 }
 
 static void pof_pop_item(struct PofElem *pe)

@@ -3,7 +3,9 @@
 
 
 #include "replicate.h"
+#include "action.h"
 #include "json.h"
+#include "pipeline.h"
 #include "utils.h"
 
 #include <stdlib.h>
@@ -13,7 +15,7 @@ struct Replicate {
     struct PipelineObject base;
 
     unsigned packets_passed;
-    //TODO count octets (uint64_t)
+    unsigned octets_passed;
 };
 
 static struct JsonValue *get_state_json(const struct PipelineObject *obj)
@@ -23,6 +25,7 @@ static struct JsonValue *get_state_json(const struct PipelineObject *obj)
     json_object_insert(js, "type", json_string("replicate"));
     json_object_insert(js, "name", json_string(obj->name));
     json_object_insert(js, "packets_passed", json_number(rep->packets_passed));
+    json_object_insert(js, "octets_passed", json_number(rep->octets_passed));
     return js;
 }
 
@@ -30,11 +33,12 @@ char *repl_sprintf_state_json(struct JsonValue *json, const char *record_sep, co
 {
     (void)record_sep;
     (void)line_sep;
-    struct JsonValue *pass = json_object_get_number(json, "packets_passed");
+    struct JsonValue *p_pass = json_object_get_number(json, "packets_passed");
+    struct JsonValue *o_pass = json_object_get_number(json, "octets_passed");
 
-    if (pass) {
-        return strdup_printf("packets_passed %.0f",
-                pass->v.number);
+    if (p_pass && o_pass) {
+        return strdup_printf("packets_passed %.0f octets_passed %.0f",
+                p_pass->v.number, o_pass->v.number);
     } else {
         return strdup("<invalid replicate state>");
     }
@@ -45,6 +49,7 @@ struct PipelineObject *new_replicate(const char *name)
     struct Replicate *ret = calloc_struct(Replicate);
     ret->base.type = PO_REPL;
     ret->base.name = strdup(name);
+    ret->base.process_packet = replicate_packet_passed;
     ret->base.get_state = get_state_json;
     return (struct PipelineObject *)ret;
 }
@@ -56,11 +61,14 @@ struct PipelineObject *delete_replicate(struct PipelineObject *rep)
     return NULL;
 }
 
-void replicate_packet_passed(struct PipelineObject *rep, struct Packet *p)
+enum ActionResult replicate_packet_passed(struct PipelineObject *rep, struct PipelineIterator *pi)
 {
-    (void)p;
     struct Replicate *r = (struct Replicate *)rep;
     __atomic_fetch_add(&r->packets_passed, 1, __ATOMIC_RELAXED);
+    //TODO this is not correct if a header was added and then deleted, but
+    //      summing the header lengths would be too slow
+    __atomic_fetch_add(&r->octets_passed, pi->packet->len + pi->packet->scratch_len, __ATOMIC_RELAXED);
+    return ACR_CONTINUE;
 }
 
 

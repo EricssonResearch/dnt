@@ -8,6 +8,10 @@
 #include "interface.h"
 #include "pipeline.h"
 
+#define SEQ_IS_OAM(seq)     \
+    (ntohl(seq) & 0x10000000u)
+
+
 // state object for a point that receives OAM packets
 struct OamEndPoint {
     char *name;
