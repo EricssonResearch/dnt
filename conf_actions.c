@@ -1102,7 +1102,7 @@ static bool process_action(struct StageState *stst)
                     if (!process_action(stst)) // now writeseq is the newest action
                         return false;
                 } else {
-                    THROW("can't add header with undefined sequence number");
+                    THROW("can't add %s header with undefined sequence number", protocol_type_from_id(newheader->id));
                 }
             }
 
@@ -1320,6 +1320,7 @@ static bool process_action(struct StageState *stst)
             if (newaction->d.oam.level == -1) {
                 THROW("no level specified for '%s' OAM action", newaction->d.oam.name);
             }
+            //TODO allow OAM on TSN?
             enum ProtocolID expected[] = {PROTO_ID_MPLS, PROTO_ID_DCW};
             if (check_header_stack(stst->headers, expected, 2) == false) {
                 THROW("header stack is not suitable for OAM point");
@@ -1336,6 +1337,9 @@ static bool process_action(struct StageState *stst)
         case CA_POF:
             if (newaction->d.pof.pof == NULL) {
                 THROW("no POF object specified");
+            }
+            if (!stst->seq_set) {
+                THROW("can't have POF with undefined sequence number");
             }
             break;
         case CA_READSEQ:
