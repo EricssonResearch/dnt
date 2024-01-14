@@ -19,11 +19,11 @@ struct ConfStreamList {
 // returns a hash of the interfaces
 // the interfaces are just created, but not opened
 // returns NULL on error
-struct HashMap *parse_interfaces(struct IniSection *interfaces_section);
+struct HashMap *parse_interfaces(const struct IniSection *interfaces_section);
 
 // returns a hash of ConfStreamList keyed by interface name
 // returns NULL on error
-struct HashMap *parse_interface_streams(struct IniSection *interfaces_section,
-        struct HashMap *ifaces, struct HashMap *streams);
+struct HashMap *parse_interface_streams(const struct IniSection *interfaces_section,
+        const struct HashMap *ifaces, const struct HashMap *streams);
 
 #endif // R2_CONF_INTERFACE_H

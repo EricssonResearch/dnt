@@ -187,7 +187,7 @@ void hashmap_remove(struct HashMap *hash, const char *key)
     }
 }
 
-void *hashmap_find(struct HashMap *hash, const char *key)
+void *hashmap_find(const struct HashMap *hash, const char *key)
 {
     if (!hash) return NULL;
     if (!key) return NULL;

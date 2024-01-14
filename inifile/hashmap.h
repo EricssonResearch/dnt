@@ -69,7 +69,7 @@ void hashmap_remove(struct HashMap *hash, const char *key);
 
 // returns the value associated with the given key
 // returns NULL if the key is not in the hash or the value is NULL
-void *hashmap_find(struct HashMap *hash, const char *key);
+void *hashmap_find(const struct HashMap *hash, const char *key);
 
 // returns true if the given key exists in the hash even if the associated
 // value is NULL

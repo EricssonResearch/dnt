@@ -17,8 +17,9 @@ struct Interface;
 // returns a linked list of (opaque) action descriptors
 struct ConfAction *parse_actions_line(const char *stream, char *line,
         const struct HeaderDescriptor *headers,
-        struct HashMap *ifaces,
-        struct HashMap *objects, struct IniSection *streams_sec);
+        const struct HashMap *ifaces,
+        const struct HashMap *objects,
+        const struct IniSection *streams_sec);
 
 // always returns NULL
 struct ConfAction *delete_confaction_list(struct ConfAction *ca_list);

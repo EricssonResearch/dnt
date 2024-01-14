@@ -174,9 +174,9 @@ struct StageState {
     const char *stream;
     struct ConfAction *actions;
     struct HeaderDescriptor *headers;
-    struct HashMap *ifaces;
-    struct HashMap *objects;
-    struct IniSection *streams_sec;
+    const struct HashMap *ifaces;
+    const struct HashMap *objects;
+    const struct IniSection *streams_sec;
     bool had_final;
     bool seq_set; // true if we had an action that sets packet->sequence
     bool ttl_set; // true if we had an action that sets packet->ttl
@@ -1434,8 +1434,9 @@ static bool process_stage(char *stage, void *userdata)
 
 struct ConfAction *parse_actions_line(const char *stream, char *line,
         const struct HeaderDescriptor *headers,
-        struct HashMap *ifaces,
-        struct HashMap *objects, struct IniSection *streams_sec)
+        const struct HashMap *ifaces,
+        const struct HashMap *objects,
+        const struct IniSection *streams_sec)
 {
     struct StageState stst = {
         .stream = stream,

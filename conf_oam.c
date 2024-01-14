@@ -30,7 +30,7 @@ static int oam_cb(const char *key, void *value, void *userdata)
     return 1;
 }
 
-struct HashMap *parse_oam(struct IniSection *oam_section)
+struct HashMap *parse_oam(const struct IniSection *oam_section)
 {
     struct ConfOamState state = {
         .oam = new_hashmap(7, NULL, NULL),

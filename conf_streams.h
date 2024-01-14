@@ -17,11 +17,9 @@ struct ConfStream {
 };
 
 // @returns hash of ConfStream keyed by stream name
-struct HashMap *parse_streams(struct IniSection *streams_section,
-        struct HashMap *ifaces, struct HashMap *objects);
+struct HashMap *parse_streams(const struct IniSection *streams_section,
+        const struct HashMap *ifaces, const struct HashMap *objects);
 
 struct ConfStream *delete_confstream(struct ConfStream *stream);
-
-void stream_add_to_iface(struct ConfStream *stream, struct Interface *recv_iface);
 
 #endif // R2_CONF_STREAMS_H

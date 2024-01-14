@@ -252,7 +252,7 @@ static int iface_delete_cb(const char *key, void *value, void *userdata)
     return 1;
 }
 
-struct HashMap *parse_interfaces(struct IniSection *interfaces_section)
+struct HashMap *parse_interfaces(const struct IniSection *interfaces_section)
 {
     struct ConfIfacesState state = {0};
     state.ifaces = new_hashmap(11, iface_delete_cb, NULL);
@@ -268,13 +268,13 @@ struct HashMap *parse_interfaces(struct IniSection *interfaces_section)
 
 
 struct ConfIfaceStreamsState {
-    struct HashMap *ifaces;
-    struct HashMap *streams;
+    const struct HashMap *ifaces;
+    const struct HashMap *streams;
     struct HashMap *iface_streams;
 };
 
 struct ConfIfaceTokenState {
-    struct HashMap *streams;
+    const struct HashMap *streams;
     struct ConfStreamList *iface_stream_list;
 };
 
@@ -354,8 +354,8 @@ static int iface_stream_delete_cb(const char *key, void *value, void *userdata)
     return 1;
 }
 
-struct HashMap *parse_interface_streams(struct IniSection *interfaces_section,
-        struct HashMap *ifaces, struct HashMap *streams)
+struct HashMap *parse_interface_streams(const struct IniSection *interfaces_section,
+        const struct HashMap *ifaces, const struct HashMap *streams)
 {
     struct ConfIfaceStreamsState state = {
         .ifaces = ifaces,

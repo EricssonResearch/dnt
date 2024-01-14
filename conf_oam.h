@@ -9,6 +9,6 @@ struct IniSection;
 struct HashMap;
 
 // @returns hash of the command strings keyed by the name that was in the config
-struct HashMap *parse_oam(struct IniSection *oam_section);
+struct HashMap *parse_oam(const struct IniSection *oam_section);
 
 #endif // R2_CONF_OAM_H

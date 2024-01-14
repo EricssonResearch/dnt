@@ -20,9 +20,9 @@ DEFAULT_LOGGING_MODULE(CONFIG, WARNING)
 
 struct ConfStreamState {
     struct HashMap *streams;
-    struct IniSection *streams_section;
-    struct HashMap *ifaces;
-    struct HashMap *objects;
+    const struct IniSection *streams_section;
+    const struct HashMap *ifaces;
+    const struct HashMap *objects;
 };
 
 
@@ -30,7 +30,7 @@ static int packetline_cb(const char *key, void *value, void *userdata)
 {
 #define THROW(msg, ...)                                             \
     do {                                                            \
-        log_error("stream '%s' error: " msg "\n",             \
+        log_error("stream '%s' error: " msg "\n",                   \
                  streamname, ##__VA_ARGS__);                        \
         free(streamname);                                           \
         free(matchname);                                            \
@@ -140,8 +140,8 @@ static int delstream_cb(const char *key, void *value, void *userdata)
     return 1;
 }
 
-struct HashMap *parse_streams(struct IniSection *streams_section,
-        struct HashMap *ifaces, struct HashMap *objects)
+struct HashMap *parse_streams(const struct IniSection *streams_section,
+        const struct HashMap *ifaces, const struct HashMap *objects)
 {
     struct ConfStreamState state = {
         .streams_section = streams_section,

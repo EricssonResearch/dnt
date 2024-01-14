@@ -297,7 +297,7 @@ static int delete_cb(const char *key, void *value, void *userdata)
     return 1;
 }
 
-struct HashMap *parse_objects(struct IniSection *objects_section)
+struct HashMap *parse_objects(const struct IniSection *objects_section)
 {
     struct ForeachState state = {0};
     state.objects = new_hashmap(13, delete_cb, NULL);

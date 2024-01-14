@@ -9,7 +9,7 @@ struct HashMap;
 struct IniSection;
 
 // @returns map of PipelineObject keyed by their names
-struct HashMap *parse_objects(struct IniSection *objects_section);
+struct HashMap *parse_objects(const struct IniSection *objects_section);
 
 #endif // R2_CONF_OBJECT_H
 
