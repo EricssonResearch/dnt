@@ -98,7 +98,7 @@ static struct IniSection *read_error(struct IniSection *ret, const char *filenam
 {
     delete_inisection(ret);
 #ifndef INIFILE_QUIET
-    log_error("read_inifile(%s) error: %s in line %d\n", filename, err, line);
+    fprintf(stderr, "read_inifile(%s) error: %s in line %d\n", filename, err, line);
 #else
     (void)filename;
     (void)err;
@@ -114,7 +114,7 @@ struct IniSection *read_inifile(const char *filename)
 
     if (!f) {
 #ifndef INIFILE_QUIET
-        log_error("read_inifile() can't open '%s': %s\n", filename, strerror(errno));
+        fprintf(stderr, "read_inifile() can't open '%s': %s\n", filename, strerror(errno));
 #endif
         return NULL;
     }
@@ -129,13 +129,20 @@ struct IniSection *read_inifile(const char *filename)
         unsigned len = strlen(linebuf);
         if (len == 0) continue;
         while (linebuf[len-1] != '\n') {
-            //printf("linebuf '%s' '%d'\n", linebuf, linebuf[len]);
-            // realloc, read more
+            // line is longer than our buffer: realloc, read more
             bufsize += BUFFERSIZE;
-            linebuf = realloc(linebuf, bufsize*sizeof(char));
-            if (fgets(linebuf+len, BUFFERSIZE, f) == NULL)
-                perror("fgets");
+            char *newlinebuf = realloc(linebuf, bufsize*sizeof(char));
+            if (newlinebuf) {
+                linebuf = newlinebuf;
+            } else {
+                //TODO failed to realloc
+            }
+            char *fg = fgets(linebuf+len, BUFFERSIZE, f);
             len = strlen(linebuf);
+            if (fg == NULL) {
+                // reached EOF, missing \n on last line
+                break;
+            }
         }
         char *c = linebuf;
         line++;
@@ -250,7 +257,7 @@ int write_inifile(const char *filename, const struct IniSection *sec)
 
     if (!f) {
 #ifndef INIFILE_QUIET
-        log_error("write_inifile() can't open '%s': %s\n", filename, strerror(errno));
+        fprintf(stderr, "write_inifile() can't open '%s': %s\n", filename, strerror(errno));
 #endif
         return 1;
     }
@@ -263,7 +270,7 @@ int write_inifile(const char *filename, const struct IniSection *sec)
             if (!firstsection) {
                 fclose(f);
 #ifndef INIFILE_QUIET
-                log_error("write_inifile('%s') only the first section is allowed to be unnamed\n", filename);
+                fprintf(stderr, "write_inifile('%s') only the first section is allowed to be unnamed\n", filename);
 #endif
                 return 1;
             }

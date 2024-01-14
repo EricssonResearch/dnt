@@ -63,6 +63,16 @@ static void test_read(void)
     OK_FATAL(ini_zero != NULL, "zero length file is valid");
     delete_inisection(ini_zero);
 
+    struct IniSection *ini_nonewline = read_inifile(SAMPLES_DIR "/good_nonewline.ini");
+    OK_FATAL(ini_nonewline != NULL, "no newline at the end is valid");
+    OK(hashmap_count(ini_nonewline->contents) == 1, "item count");
+    struct KeyValue nonewline_kv[] = {
+        {"key", "val"},
+        {NULL, NULL},
+    };
+    hashmap_foreach(ini_nonewline->contents, section_verify_cb, nonewline_kv);
+    delete_inisection(ini_nonewline);
+
     struct IniSection *ini_nosection = read_inifile(SAMPLES_DIR "/good_nosection.ini");
     OK_FATAL(ini_nosection != NULL, "nosection file is valid");
     // check contents against known good contents
