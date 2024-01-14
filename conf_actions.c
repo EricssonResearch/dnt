@@ -129,7 +129,7 @@ struct ConfAction {
             struct ConfAssignment *assignments;
         } edit;
         struct {
-            struct SequenceRecovery *rec;
+            struct PipelineObject *rec;
         } elim;
         struct {
             struct HeaderField *field;
@@ -143,20 +143,20 @@ struct ConfAction {
         struct {
             char *name;
             int level;
-            struct ConfObject *obj; // NULL if no associated object
+            struct PipelineObject *obj; // NULL if no associated object
         } oam;
         struct {
-            struct Pof *pof;
+            struct PipelineObject *pof;
         } pof;
         struct {
             struct ReplicateList *pipelines;
-            struct Replicate *replobj;
+            struct PipelineObject *replobj;
         } repl;
         struct {
             struct Interface *iface;
         } send;
         struct {
-            struct SequenceGenerator *gen;
+            struct PipelineObject *gen;
         } seq;
         struct {
             struct HeaderField *field;
@@ -572,24 +572,24 @@ static bool process_token(char *token, void *userdata)
             } else if (strcmp(token, "writetstamp") == 0) {
                 newaction->type = CA_WRITETSTAMP;
             } else {
-                struct ConfObject *obj = hashmap_find(stst->objects, token);
+                struct PipelineObject *obj = hashmap_find(stst->objects, token);
                 if (obj) {
                     switch (obj->type) {
-                        case CO_SEQGEN:
+                        case PO_SEQGEN:
                             newaction->type = CA_SEQGEN;
-                            newaction->d.seq.gen = obj->object;
+                            newaction->d.seq.gen = obj;
                             break;
-                        case CO_SEQREC:
+                        case PO_SEQREC:
                             newaction->type = CA_ELIM;
-                            newaction->d.elim.rec = obj->object;
+                            newaction->d.elim.rec = obj;
                             break;
-                        case CO_POF:
+                        case PO_POF:
                             newaction->type = CA_POF;
-                            newaction->d.pof.pof = obj->object;
+                            newaction->d.pof.pof = obj;
                             break;
-                        case CO_REPL:
+                        case PO_REPL:
                             newaction->type = CA_REPL;
-                            newaction->d.repl.replobj = obj->object;
+                            newaction->d.repl.replobj = obj;
                             break;
                     }
                 } else {
@@ -700,10 +700,10 @@ static bool process_token(char *token, void *userdata)
             break; }
         case CA_ELIM:
             if (newaction->d.elim.rec == NULL) {
-                struct ConfObject *obj = hashmap_find(stst->objects, token);
+                struct PipelineObject *obj = hashmap_find(stst->objects, token);
                 if (obj) {
-                    if (obj->type == CO_SEQREC) {
-                        newaction->d.elim.rec = obj->object;
+                    if (obj->type == PO_SEQREC) {
+                        newaction->d.elim.rec = obj;
                     } else {
                         THROW("first argument of eliminate must be a recovery object");
                     }
@@ -741,7 +741,7 @@ static bool process_token(char *token, void *userdata)
                 }
                 break;
             } else if (newaction->d.oam.obj == NULL) {
-                struct ConfObject *obj = hashmap_find(stst->objects, token);
+                struct PipelineObject *obj = hashmap_find(stst->objects, token);
                 if (!obj) {
                     THROW("unknown object '%s' for OAM action", token);
                 }
@@ -753,10 +753,10 @@ static bool process_token(char *token, void *userdata)
             break;
         case CA_POF:
             if (newaction->d.pof.pof == NULL) {
-                struct ConfObject *obj = hashmap_find(stst->objects, token);
+                struct PipelineObject *obj = hashmap_find(stst->objects, token);
                 if (obj) {
-                    if (obj->type == CO_POF) {
-                        newaction->d.pof.pof = obj->object;
+                    if (obj->type == PO_POF) {
+                        newaction->d.pof.pof = obj;
                     } else {
                         THROW("pof first argument must be a pof object");
                     }
@@ -799,10 +799,10 @@ static bool process_token(char *token, void *userdata)
                 // first argument can be the name of a state object
                 if (newaction->d.repl.replobj == NULL
                         && newaction->d.repl.pipelines == NULL) {
-                    struct ConfObject *obj = hashmap_find(stst->objects, token);
+                    struct PipelineObject *obj = hashmap_find(stst->objects, token);
                     if (obj) {
-                        if (obj->type == CO_REPL) {
-                            newaction->d.repl.replobj = obj->object;
+                        if (obj->type == PO_REPL) {
+                            newaction->d.repl.replobj = obj;
                         } else {
                             THROW("state of replicate action must be a Replicate object");
                         }
@@ -858,10 +858,10 @@ static bool process_token(char *token, void *userdata)
             break;
         case CA_SEQGEN:
             if (newaction->d.seq.gen == NULL) {
-                struct ConfObject *obj = hashmap_find(stst->objects, token);
+                struct PipelineObject *obj = hashmap_find(stst->objects, token);
                 if (obj) {
-                    if (obj->type == CO_SEQGEN) {
-                        newaction->d.seq.gen = obj->object;
+                    if (obj->type == PO_SEQGEN) {
+                        newaction->d.seq.gen = obj;
                     } else {
                         THROW("seqgen argument must be a sequence generator object");
                     }

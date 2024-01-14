@@ -5,6 +5,9 @@
 #ifndef R2_SEQ_RECOV_H
 #define R2_SEQ_RECOV_H
 
+#include "object.h"
+#include "packet.h"
+
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -15,8 +18,6 @@
 #define FRER_RESET_FLAG (1 << (32 - 6))
 #define FRER_INIT_FLAG (1 << (32 - 7))
 
-struct SequenceRecovery;
-struct Packet;
 
 /*
  * Helper structure to passing and storing diagnostic entity related parameters
@@ -51,27 +52,19 @@ enum SequenceRecoveryAlgorithm {
  * @use_init_flag: use init seq space after reset
  * @history_legth: seq history length
  * @reset_msec: reset after reset_msec millisec if no packet seen
- * @session_id: identifies the ah-hoc created instance for the OAM.
- *              note: must be NULL for non-OAM cases! The instance
- *              self-destruct after reset_msec millisec if session_id != NULL
  */
-struct SequenceRecovery *new_seq_rec(enum SequenceRecoveryAlgorithm algo, const char *name,
+struct PipelineObject *new_seq_rec(const char *name, enum SequenceRecoveryAlgorithm algo,
         bool use_reset_flag, bool use_init_flag, unsigned history_length,
-        unsigned reset_msec, const struct RecoveryDiagnosticConf *diag, const char *session_id);
+        unsigned reset_msec, const struct RecoveryDiagnosticConf *diag);
 
 // always returns NULL
-struct SequenceRecovery *delete_seq_rec(struct SequenceRecovery *rec);
+struct PipelineObject *delete_seq_rec(struct PipelineObject *rec);
 
-// @returns true if the packet is not a duplicate
-// @seq is in host byte order
-bool seq_recovery(struct SequenceRecovery *rec, unsigned seq);
+// @returns ACR_CONTINUE or ACR_DONE whether @pi has a duplicate packet, based on @pi->packet->sequence
+// automatically handles OAM packets with temporary recovery objects
+enum ActionResult seq_recovery(struct PipelineObject *rec, struct PipelineIterator *pi);
 
-// Return JSON value with the internals of the SeqRecv
-struct JsonValue *seqrec_get_state_json(const void *rec);
-
-/* Return a SeqRecovery for the given key, or create it if not exist.
- * The recommended key is session ID + node ID of the OAM packet
- */
-struct SequenceRecovery *get_oam_rcvy(char *key);
+// use sprintf_state_json() instead of this
+char *seq_rec_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep);
 
 #endif // R2_SEQ_RECOV_H

@@ -5,28 +5,26 @@
 #ifndef R2_SEQ_GEN_H
 #define R2_SEQ_GEN_H
 
-#include "hashmap.h"
-#include "header.h"
+#include "object.h"
+#include "packet.h"
 
 #include <stdbool.h>
 
-#define FRER_SEQ_GEN_RESET_FLAG_COUNT 3
-
-struct SequenceGenerator;
-
-struct SequenceGenerator *new_seq_gen(bool use_reset_flag, bool use_init_flag, unsigned init_seq);
+struct PipelineObject *new_seq_gen(const char *name, bool use_reset_flag, bool use_init_flag, unsigned init_seq);
 
 // always returns NULL
-struct SequenceGenerator *delete_seq_gen(struct SequenceGenerator *gen);
+struct PipelineObject *delete_seq_gen(struct PipelineObject *gen);
 
-// @state is struct SequenceGenerator
-void seq_generator(struct SequenceGenerator *gen, struct Packet *p);
+// generates a new sequence number in the packet's metadata
+// always returns ACR_CONTINUE
+enum ActionResult seq_generator(struct PipelineObject *gen, struct PipelineIterator *pi);
 
 // Helper function to reset all sequence generators in the system
 // Triggered by manual reset signal (no timer expiration)
+// this is intended to be a hashmap_foreach callback
 int reset_all_seq_generators(const char *key, void *value, void *udata);
 
-// Return JSON value with internals of the SeqGen
-struct JsonValue *seqgen_get_state_json(const void *);
+// use sprintf_state_json() instead of this
+char *seq_gen_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep);
 
 #endif // R2_SEQ_GEN_H

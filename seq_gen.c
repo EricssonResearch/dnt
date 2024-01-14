@@ -3,20 +3,26 @@
 
 
 #include "seq_gen.h"
-#include "conf_object.h"
-#include "seq_recov.h"
-#include "packet.h"
-#include "utils.h"
+#include "action.h"
 #include "json.h"
+#include "packet.h"
+#include "pipeline.h"
+#include "seq_recov.h"
+#include "utils.h"
 
 #include <netinet/in.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 
 #include <arpa/inet.h> /* htonl() */
 
+#define FRER_SEQ_GEN_RESET_FLAG_COUNT 3
+
 struct SequenceGenerator {
+    struct PipelineObject base;
+
     bool use_reset_flag;
     bool use_init_flag;
     unsigned init_seq_start;
@@ -29,9 +35,41 @@ struct SequenceGenerator {
     unsigned resets;
 };
 
-struct SequenceGenerator *new_seq_gen(bool use_reset_flag, bool use_init_flag, unsigned init_seq_start)
+static struct JsonValue *get_state_json(const struct PipelineObject *obj)
+{
+    const struct SequenceGenerator *gen = (const struct SequenceGenerator *)obj;
+    struct JsonValue *js = json_object();
+    json_object_insert(js, "type", json_string("seqgen"));
+    json_object_insert(js, "name", json_string(obj->name));
+    json_object_insert(js, "use_init_flag", gen->use_init_flag ? json_true() : json_false());
+    json_object_insert(js, "use_reset_flag", gen->use_reset_flag ? json_true() : json_false());
+    //TODO report more state
+    return js;
+}
+
+char *seq_gen_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep)
+{
+    (void)line_sep;
+    struct JsonValue *use_init_flag = json_object_get_bool(json, "use_init_flag");
+    struct JsonValue *use_reset_flag = json_object_get_bool(json, "use_reset_flag");
+
+    if (use_init_flag && use_reset_flag) {
+        return strdup_printf("use_init_flag %s%suse_reset_flag %s",
+                (use_init_flag->type == JSON_TRUE) ? "true" : "false", record_sep,
+                (use_reset_flag->type == JSON_TRUE) ? "true" : "false");
+    } else {
+        return strdup("<invalid seq_gen state>");
+    }
+}
+
+struct PipelineObject *new_seq_gen(const char *name, bool use_reset_flag, bool use_init_flag, unsigned init_seq_start)
 {
     struct SequenceGenerator *ret = calloc_struct(SequenceGenerator);
+    ret->base.type = PO_SEQGEN;
+    ret->base.name = strdup(name);
+    ret->base.get_state = get_state_json;
+    ret->base.process_packet = seq_generator;
+
     ret->use_reset_flag = use_reset_flag;
     ret->use_init_flag = use_init_flag;
     ret->init_seq_start = init_seq_start;
@@ -41,11 +79,13 @@ struct SequenceGenerator *new_seq_gen(bool use_reset_flag, bool use_init_flag, u
     ret->reset_flag = use_reset_flag;
     ret->use_init_seq_space = use_init_flag;
 
-    return ret;
+    return (struct PipelineObject *)ret;
 }
 
-struct SequenceGenerator *delete_seq_gen(struct SequenceGenerator *gen)
+struct PipelineObject *delete_seq_gen(struct PipelineObject *gen)
 {
+    //TODO throw if gen->type is not PO_SEQGEN
+    free(gen->name);
     free(gen);
     return NULL;
 }
@@ -66,9 +106,10 @@ int reset_all_seq_generators(const char *key, void *value, void *udata)
     (void) key;
     (void) udata;
 
-    struct ConfObject *obj = value;
-    if (obj->type == CO_SEQGEN) {
-        sequence_generation_reset(obj->object);
+    struct PipelineObject *obj = value;
+    if (obj->type == PO_SEQGEN) {
+        struct SequenceGenerator *g = (struct SequenceGenerator *)obj;
+        sequence_generation_reset(g);
     }
 
     return 1;
@@ -106,18 +147,12 @@ static unsigned sequence_generation(struct SequenceGenerator *gen)
     return seq;
 }
 
-void seq_generator(struct SequenceGenerator *gen, struct Packet *p)
+enum ActionResult seq_generator(struct PipelineObject *gen, struct PipelineIterator *pi)
 {
-    unsigned new_seq = sequence_generation(gen);
-    p->sequence = htonl(new_seq);
+    struct SequenceGenerator *g = (struct SequenceGenerator *)gen;
+    unsigned new_seq = sequence_generation(g);
+    pi->packet->sequence = htonl(new_seq);
+    return ACR_CONTINUE;
 }
 
-struct JsonValue *seqgen_get_state_json(const void *obj)
-{
-    const struct SequenceGenerator *gen = obj;
-    struct JsonValue *js = json_object();
-    json_object_insert(js, "type", json_string("seqgen"));
-    json_object_insert(js, "use_init_flag", gen->use_init_flag ? json_true() : json_false());
-    json_object_insert(js, "use_reset_flag", gen->use_reset_flag ? json_true() : json_false());
-    return js;
-}
+

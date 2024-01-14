@@ -5,7 +5,6 @@
 #ifndef R2_ACTION_H
 #define R2_ACTION_H
 
-#include "conf_object.h"
 #include "protocol.h"
 #include "transfer.h"
 
@@ -38,6 +37,7 @@ enum ActionResult {
     ACR_HOLD, // stop processing, keep the packet
 };
 
+//TODO can we include the respective headers without having a loop?
 struct Action;
 struct HeaderField;
 struct HeaderFieldAssign;
@@ -45,10 +45,11 @@ struct Interface;
 struct Oam;
 struct Packet;
 struct PipelineIterator;
+struct PipelineObject;
+struct Pof;
 struct Replicate;
 struct SequenceGenerator;
 struct SequenceRecovery;
-struct Pof;
 
 typedef enum ActionResult action_execute(struct Action *a, struct PipelineIterator *pi);
 
@@ -102,29 +103,29 @@ void create_action_drop(struct Action *a, const char *text);
 // can edit multiple different headers at once
 void create_action_edit(struct Action *a, struct EditAssign *assigns, unsigned assign_count, const char *text);
 
-void create_action_elim(struct Action *a, struct SequenceRecovery *rcvy, const char *text);
+void create_action_elim(struct Action *a, struct PipelineObject *rcvy, const char *text);
 
 void create_action_filteroam(struct Action *a, const struct HeaderField *seqfield, const char *text);
 
 //void create_action_mepstart(struct Action *a, int level, const char *name, const char *text);
 
-void create_action_mepstop(struct Action *a, const char *stream, int level, struct ConfObject *target,
+void create_action_mepstop(struct Action *a, const char *stream, int level, struct PipelineObject *target,
                             const char *name, const char *text);
 
-void create_action_mip(struct Action *a, const char *stream, int level, struct ConfObject *target,
+void create_action_mip(struct Action *a, const char *stream, int level, struct PipelineObject *target,
                         const char *name, const char *text);
 
-void create_action_pof(struct Action *a, struct Pof *pof, const char *text);
+void create_action_pof(struct Action *a, struct PipelineObject *pof, const char *text);
 
 void create_action_readseq(struct Action *a, const struct HeaderField *seqfield, const char *text);
 
 void create_action_readtstamp(struct Action *a, const struct HeaderField *tsfield, const char *text);
 
-void create_action_repl(struct Action *a, struct PipelineList *list, struct Replicate *replobj, const char *text);
+void create_action_repl(struct Action *a, struct PipelineList *list, struct PipelineObject *replobj, const char *text);
 
 void create_action_send(struct Action *a, struct Interface *iface, const char *text);
 
-void create_action_seqgen(struct Action *a, struct SequenceGenerator *gen, const char *text);
+void create_action_seqgen(struct Action *a, struct PipelineObject *gen, const char *text);
 
 void create_action_ttlcheck(struct Action *a, const char *text);
 

@@ -1,12 +1,15 @@
 // Copyright (c) 2023, Ericsson AB and Ericsson Telecommunication Hungary
 // All rights reserved.
 
-#include "log.h"
-#define _GNU_SOURCE
-#include "json.h"
+#define _GNU_SOURCE /* for ppoll, pthread_setname_np */
+
 #include "pof.h"
-#include "pipeline.h"
+#include "action.h"
+#include "log.h"
+#include "oam.h"
+#include "object.h"
 #include "packet.h"
+#include "pipeline.h"
 #include "time_utils.h"
 #include "utils.h"
 
@@ -16,6 +19,7 @@
 #include <poll.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/eventfd.h>
 #include <unistd.h>
 #include <arpa/inet.h>
@@ -23,7 +27,7 @@
 DEFAULT_LOGGING_MODULE(MAIN, WARNING)
 LOGGING_MODULE(OAM, WARNING)
 
-enum PofEvent {
+enum PofEvent { //TODO this is never used as a bitfield
     POF_IN_ORDER_PKT = 1,
     POF_OUT_OF_ORDER_PKT = 2,
     POF_TIMEOUT = 4
@@ -39,6 +43,8 @@ struct PofElem {
 };
 
 struct Pof {
+    struct PipelineObject base;
+
     struct timespec pof_max_delay;
     struct timespec pof_take_any_time;
     int queue_max_len;
@@ -73,14 +79,54 @@ static inline __attribute__((unused)) void pof_debug(const struct Pof *pof)
     log_debug("\n");
 }
 
-
-struct Pof *new_pof(unsigned pof_max_delay, unsigned pof_take_any_time, unsigned queue_max_len)
+static struct JsonValue *get_state_json(const struct PipelineObject *obj)
 {
-    struct Pof *ret = calloc(1, sizeof(*ret));
+    const struct Pof *pof = (const struct Pof *)obj;
+    struct JsonValue *js = json_object();
+    json_object_insert(js, "type", json_string("pof"));
+    json_object_insert(js, "name", json_string(obj->name));
+    json_object_insert(js, "max_buffer_length", json_number((double) pof->queue_max_len));
+    double max_delay = pof->pof_max_delay.tv_sec * NSEC_PER_SEC + pof->pof_max_delay.tv_nsec;
+    max_delay = (max_delay / NSEC_PER_SEC) * 1000; // millisec
+    json_object_insert(js, "max_delay", json_number(max_delay));
+    json_object_insert(js, "last_sent", json_number((double) pof->pof_last_sent));
+    json_object_insert(js, "current_buffer_length", json_number((double) pof->queue_len));
+    double take_any_time = pof->pof_take_any_time.tv_sec * NSEC_PER_SEC + pof->pof_take_any_time.tv_nsec;
+    take_any_time = (take_any_time / NSEC_PER_SEC) * 1000; // millisec
+    json_object_insert(js, "take_any_time", json_number(take_any_time));
+    return js;
+}
+
+char *pof_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep)
+{
+    struct JsonValue *max_delay = json_object_get_number(json, "max_delay");
+    struct JsonValue *take_any_time = json_object_get_number(json, "take_any_time");
+    struct JsonValue *max_buffer_length = json_object_get_number(json, "max_buffer_length");
+    struct JsonValue *current_buffer_length = json_object_get_number(json, "current_buffer_length");
+    struct JsonValue *last_sent = json_object_get_number(json, "last_sent");
+
+    if (max_delay && take_any_time && max_buffer_length && current_buffer_length && last_sent) {
+        return strdup_printf("max_delay %.0fms%stake_any_time%.0fms%s"
+                "max_buffer_length %.0f%scurrent_buffer_length %.0f%slast_sent %.0f",
+                max_delay->v.number, record_sep, take_any_time->v.number, line_sep,
+                max_buffer_length->v.number, record_sep, current_buffer_length->v.number, record_sep, last_sent->v.number);
+    } else {
+        return strdup("<invalid pof state>");
+    }
+}
+
+struct PipelineObject *new_pof(const char *name, unsigned pof_max_delay, unsigned pof_take_any_time, unsigned queue_max_len)
+{
+    struct Pof *ret = calloc_struct(Pof);
     if (ret == NULL) {
         perror("calloc");
-        goto err_calloc;
+        return NULL;
     }
+    ret->base.type = PO_POF;
+    ret->base.name = strdup(name);
+    ret->base.get_state = get_state_json;
+    ret->base.process_packet = pof_insert;
+
     timespec_from_msec(&ret->pof_max_delay, pof_max_delay);
     timespec_from_msec(&ret->pof_take_any_time, pof_take_any_time);
     ret->queue_max_len = queue_max_len;
@@ -99,23 +145,24 @@ struct Pof *new_pof(unsigned pof_max_delay, unsigned pof_take_any_time, unsigned
         perror("pthread_create");
         goto err_thread;
     }
-    return ret;
+    return (struct PipelineObject*)ret;
 
 err_thread:
     close(ret->evfd);
 err_evfd:
     free(ret);
-err_calloc:
     return NULL;
 }
 
-struct Pof *delete_pof(struct Pof *pof)
+struct PipelineObject *delete_pof(struct PipelineObject *p)
 {
+    struct Pof *pof = (struct Pof*)p;
     pthread_cancel(pof->thread_id);
     pthread_join(pof->thread_id, NULL);
     pthread_mutex_destroy(&pof->lock);
     pof_reset(pof);
-    free(pof);
+    free(p->name);
+    free(p);
     return NULL;
 }
 
@@ -131,11 +178,17 @@ static struct PofElem *new_pof_elem(struct Pof *pof, struct PipelineIterator *pi
     return ret;
 }
 
-bool pof_insert(struct Pof *pof, struct PipelineIterator *pi)
+enum ActionResult pof_insert(struct PipelineObject *p, struct PipelineIterator *pi)
 {
+    struct Pof *pof = (struct Pof*)p;
+
+    if (SEQ_IS_OAM(pi->packet->sequence)) {
+        return ACR_CONTINUE;
+    }
+
     if (pof->queue_len >= pof->queue_max_len) {
         log_warning_m(OAM, "POF buffer is full, drop new packet.\n");
-        return false;
+        return ACR_DONE; //TODO pof should NEVER return this!!!
     }
 
     pthread_mutex_lock(&pof->lock);
@@ -169,7 +222,7 @@ bool pof_insert(struct Pof *pof, struct PipelineIterator *pi)
         perror("write");
     }
     pthread_mutex_unlock(&pof->lock); // TODO: check if OK
-    return true;
+    return ACR_HOLD;
 }
 
 static void pof_pop_item(struct PofElem *pe)
@@ -313,19 +366,4 @@ out:
     return NULL;
 }
 
-struct JsonValue *pof_get_state_json(const void *obj)
-{
-    const struct Pof *pof = obj;
-    struct JsonValue *js = json_object();
-    json_object_insert(js, "type", json_string("pof"));
-    json_object_insert(js, "max_buffer_length", json_number((double) pof->queue_max_len));
-    double max_delay = pof->pof_max_delay.tv_sec * NSEC_PER_SEC + pof->pof_max_delay.tv_nsec;
-    max_delay = (max_delay / NSEC_PER_SEC) * 1000; // millisec
-    json_object_insert(js, "max_delay", json_number(max_delay));
-    json_object_insert(js, "last_sent", json_number((double) pof->pof_last_sent));
-    json_object_insert(js, "current_buffer_length", json_number((double) pof->queue_len));
-    double take_any_time = pof->pof_take_any_time.tv_sec * NSEC_PER_SEC + pof->pof_take_any_time.tv_nsec;
-    take_any_time = (take_any_time / NSEC_PER_SEC) * 1000; // millisec
-    json_object_insert(js, "take_any_time", json_number(take_any_time));
-    return js;
-}
+

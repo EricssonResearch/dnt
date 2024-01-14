@@ -2,7 +2,7 @@
 // All rights reserved.
 
 
-#define _GNU_SOURCE
+#define _GNU_SOURCE /* for pthread_setname_np */
 
 #include "action.h"
 #include "delay.h"

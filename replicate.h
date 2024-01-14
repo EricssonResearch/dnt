@@ -5,18 +5,18 @@
 #ifndef R2_REPLICATE_H
 #define R2_REPLICATE_H
 
-#include "json.h"
+#include "object.h"
+#include "packet.h"
 
-// state object for replicate action
-struct Replicate;
-
-struct Replicate *new_replicate(void);
+struct PipelineObject *new_replicate(const char *name);
 
 // always returns NULL
-struct Replicate *delete_replicate(struct Replicate *rep);
+struct PipelineObject *delete_replicate(struct PipelineObject *rep);
 
-void replicate_packet_passed(struct Replicate *rep);
+//TODO receive PipelineIterator instead of packet to have uniform interface with POF
+enum ActionResult replicate_packet_passed(struct PipelineObject *rep, struct PipelineIterator *pi);
 
-struct JsonValue *replicate_get_state_json(const void *obj);
+// use sprintf_state_json() instead of this
+char *repl_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep);
 
 #endif // R2_REPLICATE_H

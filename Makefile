@@ -13,14 +13,14 @@ LFLAGS += -lm
 #TODO gnu libc doesn't need this
 LFLAGS += -lpthread
 
-OBJECTS = main.o action.o delay.o header.o interface.o log.o oam.o packet.o parsetree.o pipeline.o protocol.o utils.o
+OBJECTS = main.o action.o delay.o header.o interface.o log.o oam.o object.o packet.o parsetree.o pipeline.o protocol.o utils.o
 OBJECTS += if_eth.o if_internal.o if_ip.o if_oam.o if_oam_cmd.o if_udp_in.o if_udp_out.o if_utils.o
-OBJECTS += seq_gen.o seq_recov.o pof.o replicate.o
+OBJECTS += pof.o replicate.o seq_gen.o seq_recov.o
 OBJECTS += json.o
 OBJECTS += configfile.o conf_actions.o conf_interface.o conf_object.o conf_packet.o conf_streams.o conf_oam.o conf_utils.o
 OBJECTS += inifile/hashmap.o inifile/inifile.o
 
-HEADERS = action.h delay.h header.h interface.h packet.h parsetree.h pipeline.h protocol.h utils.h oam.h log.h
+HEADERS = action.h delay.h header.h interface.h log.h oam.h object.h packet.h parsetree.h pipeline.h protocol.h utils.h
 HEADERS += time_utils.h version.h
 HEADERS += if_eth.h if_internal.h if_ip.h if_udp_in.h if_udp_out.h if_utils.h if_oam.h if_oam_cmd.h
 HEADERS += seq_gen.h seq_recov.h pof.h replicate.h

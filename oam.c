@@ -1,17 +1,17 @@
 // Copyright (c) 2023, Ericsson AB and Ericsson Telecommunication Hungary
 // All rights reserved.
 
-#define _GNU_SOURCE
+#define _GNU_SOURCE /* for pthread_setname_np */
 
 #include "oam.h"
 #include "conf_oam.h"
-#include "conf_object.h"
 #include "hashmap.h"
 #include "if_oam.h"
 #include "if_oam_cmd.h"
 #include "interface.h"
 #include "json.h"
 #include "log.h"
+#include "object.h"
 #include "packet.h"
 #include "pipeline.h"
 #include "time_utils.h"
@@ -215,7 +215,7 @@ void oam_set_pipeline_for_mep_start(const char *stream_name, struct Pipeline *pi
     hashmap_foreach(mep_starts, set_pipe_cb, &params);
 }
 
-struct OamEndPoint *oam_create_endpoint(const char *name, const char *stream, int level, struct ConfObject *target, bool stop)
+struct OamEndPoint *oam_create_endpoint(const char *name, const char *stream, int level, struct PipelineObject *target, bool stop)
 {
     struct OamEndPoint *ret = calloc_struct(OamEndPoint);
     ret->name = strdup(name);
@@ -1151,153 +1151,6 @@ void oam_cli_alert(const char *fmt, ...)
 }
 
 /*
- *  Formatted dump functions for printing object specific json
- */
-static int dump_seqgen_state(char *str, struct JsonValue *jos, const char *record_sep, const char *line_sep){
-    char tmp[128];
-    struct JsonValue *ini = json_object_get_bool(jos, "use_init_flag");
-    if(ini == NULL) {
-        log_error("No use_init_flag in object in reply.\n");
-        return -1;
-    }
-    struct JsonValue *rst = json_object_get_bool(jos, "use_reset_flag");
-    if(rst == NULL) {
-        log_error("No use_init_flag in object in reply.\n");
-        return -1;
-    }
-    snprintf(tmp, sizeof(tmp), "use_init_flag: %s%s use_reset_flag: %s%s", (ini->type == JSON_TRUE)? "true":"false", record_sep, (rst->type == JSON_TRUE)? "true":"false", line_sep);
-    strcat(str, tmp);
-
-    return 0;
-}
-
-static int dump_seqrec_state(char *str, struct JsonValue *jos, const char *record_sep, const char *line_sep){
-    char tmp[1000] = { 0 };
-    bool vector = false;
-    struct JsonValue *type = json_object_get_string(jos, "type");
-    struct JsonValue *reset_msec = json_object_get_number(jos, "reset_msec");
-    struct JsonValue *algo = json_object_get_string(jos, "recovery_algorithm");
-    struct JsonValue *seq = json_object_get_number(jos, "recovery_seq_num");
-    struct JsonValue *passed = json_object_get_number(jos, "passed_packets");
-    struct JsonValue *discarded = json_object_get_number(jos, "discarded_packets");
-    struct JsonValue *resets = json_object_get_number(jos, "seq_recovery_resets");
-
-    struct JsonValue *hist_len, *reset_flag, *init_flag, *err_paths, *err_resets, *errs, *hist;
-    if (!(type && reset_msec && algo && seq && passed && discarded && resets)) {
-        log_error("Malformed recovery object state reply\n");
-        return -1;
-    }
-    if (strcmp(algo->v.string, "match") != 0) {
-        vector = true;
-        hist_len = json_object_get_number(jos, "history_length");
-        reset_flag = json_object_get_bool(jos, "use_reset_flag");
-        init_flag = json_object_get_bool(jos, "use_init_flag");
-        err_paths = json_object_get_number(jos, "latent_error_paths");
-        err_resets = json_object_get_number(jos, "latent_error_resets");
-        errs = json_object_get_number(jos, "latent_errors");
-        hist = json_object_get_string(jos, "history");
-        if (!(hist_len && reset_flag && init_flag && err_paths && err_resets && errs && hist)) {
-            log_error("Malformed vector recovery object state reply\n");
-            return -1;
-        }
-    }
-    const char *fmt_match = "recovery_algorithm: %s%s reset_timer: %.0fms%s" \
-        "latest_valid_sequence_number: %.0f%s passed: %.0f%s discarded: %.0f%s" \
-        "number_of_resets: %.0f%s";
-
-    const char *fmt_vector = "recovery_algorithm: %s%s use_init_flag: %s%s use_reset_flag: %s%s" \
-        "reset_timer: %.0fms%s history_length: %.0f%s" \
-        "latest_valid_sequence_number: %.0f%s passed: %.0f%s discarded: %.0f%s" \
-        "history_content: %s%s" \
-        "latent_error_paths: %.0f%s latent_error_resets: %.0f%s"
-        "number_of_resets: %.0f%s";
-    if (vector) {
-        bool init = init_flag->type == JSON_TRUE ? true : false;
-        bool reset = reset_flag->type == JSON_TRUE ? true : false;
-        snprintf(tmp, sizeof(tmp), fmt_vector, algo->v.string, record_sep, init ? "true" : "false", record_sep, reset ? "true" : "false", line_sep,
-                 reset_msec->v.number, record_sep, hist_len->v.number, line_sep,
-                 seq->v.number, record_sep, passed->v.number, record_sep, discarded->v.number, line_sep,
-                 hist->v.string, line_sep,
-                 err_paths->v.number, record_sep, errs->v.number, line_sep,
-                 resets->v.number, line_sep);
-    } else {
-        snprintf(tmp, sizeof(tmp), fmt_match, algo->v.string, record_sep, reset_msec->v.number, line_sep,
-                 seq->v.number, record_sep, passed->v.number, record_sep, discarded->v.number, line_sep,
-                 resets->v.number, line_sep);
-    }
-    strcat(str, tmp);
-    return 0;
-}
-
-static int dump_repl_state(char *str, struct JsonValue *jos, const char *record_sep, const char *line_sep){
-    (void)record_sep;
-    char tmp[128];
-    struct JsonValue *pass = json_object_get_number(jos, "packets_passed");
-    if(pass == NULL) {
-        log_error("No packets_passed in object in reply.\n");
-        return -1;
-    }
-    snprintf(tmp, sizeof(tmp), "packets_passed: %.0f%s", pass->v.number, line_sep);
-    strcat(str, tmp);
-
-    return 0;
-}
-
-static int dump_pof_state(char *str, struct JsonValue *jos, const char *record_sep, const char *line_sep){
-    char tmp[128] = { 0 };
-    struct JsonValue *buff_size = json_object_get_number(jos, "max_buffer_length");
-    struct JsonValue *max_delay = json_object_get_number(jos, "max_delay");
-    struct JsonValue *take_any_time = json_object_get_number(jos, "take_any_time");
-    struct JsonValue *buff_len = json_object_get_number(jos, "current_buffer_length");
-    struct JsonValue *last_sent = json_object_get_number(jos, "last_sent");
-    if (!(buff_size && max_delay && take_any_time && buff_len && last_sent)) {
-        log_error("Malformed POF object state reply");
-        return -1;
-    }
-    const char *fmt = "max_buffer_length: %.0f%s max_delay: %.0fms%s take_any_time: %.0fms%s" \
-        "current_buffer_length: %.0f%s last_sent: %.0f%s";
-    snprintf(tmp, sizeof(tmp), fmt, buff_size->v.number, record_sep, max_delay->v.number, record_sep, take_any_time->v.number, line_sep,
-              buff_len->v.number, record_sep, last_sent->v.number, line_sep);
-    strcat(str, tmp);
-    return 0;
-}
-
-static int dump_object_state(char *str, struct JsonValue *jos, const char *record_sep, const char *line_sep){
-    char tmp[500] = { 0 };
-
-    sprintf(tmp, "Object ");
-    struct JsonValue *oname = json_object_get_string(jos, "name");
-    strcat(tmp, oname->v.string);
-    strcat(tmp, " type ");
-    struct JsonValue *type = json_object_get_string(jos, "type");
-    strcat(tmp, type->v.string);
-    strcat(tmp, line_sep);
-
-    // dump according to the type
-    if(strcmp(type->v.string,"seqgen")==0){
-        dump_seqgen_state(tmp, jos, record_sep, line_sep);
-    }
-    else if(strcmp(type->v.string,"seqrec")==0){
-        dump_seqrec_state(tmp, jos, record_sep, line_sep);
-    }
-    else if(strcmp(type->v.string,"replicate")==0){
-        dump_repl_state(tmp, jos, record_sep, line_sep);
-    }
-    else if(strcmp(type->v.string,"pof")==0){
-        dump_pof_state(tmp, jos, record_sep, line_sep);
-    }
-    else {  // unknown type, just dump
-        unsigned jos_length;
-        char *jos_string = json_serialize(jos, &jos_length);
-        strcat(tmp, jos_string);
-        free(jos_string);
-    }
-    strcat(str, tmp);
-
-    return 0;
-}
-
-/*
  * Handle received UDP OAM reply mesage
  * Msg: pointer to the message
  * Return 0 on success
@@ -1312,7 +1165,7 @@ int oam_recv_reply(const char *msg)
         return -1;                                                  \
     }
 
-    char reply_str[1400], rr_str[512], obj_str_log[1000], obj_str[1000];
+    char reply_str[1400], rr_str[512];
     struct JsonValue *j = json_parse(msg, strlen(msg));
     if (j == NULL || j->type != JSON_OBJECT) {
         //log_error("JSON in reply is invalid.\n");
@@ -1429,15 +1282,18 @@ int oam_recv_reply(const char *msg)
         }
 
         // different format between log/dump
-        obj_str[0] = 0; obj_str_log[0] = 0;
+        char *obj_str = NULL;
+        char *obj_str_log = NULL;
         struct JsonValue *jos = json_object_get_object(j, "object");
         if (jos && jos->type == JSON_OBJECT){
-            dump_object_state(obj_str, jos, ",", "\n\t\t");
-            dump_object_state(obj_str_log, jos, ",", "; ");
+            obj_str = sprintf_state_json(jos, ", ", "\n\t\t");
+            obj_str_log = sprintf_state_json(jos, ", ", "; ");
         }
+        if (obj_str_log == NULL) obj_str_log = strdup("");
 
         // Logging
         log_info("%s %s %s", reply_str, rr_str, obj_str_log);
+        free(obj_str_log);
 
         json_delete(j);
 
@@ -1458,9 +1314,10 @@ int oam_recv_reply(const char *msg)
                     strcat(reply_str, "\n\t");
                     strcat(reply_str, rr_str);
                 }
-                if(jos){
+                if (obj_str) {
                     strcat(reply_str, "\n\t");
                     strcat(reply_str, obj_str);
+                    free(obj_str);
                 }
                 if (oam_command_connection) {
                     fprintf(oam_command_connection->cmd_w, "%s\n", reply_str);
@@ -1565,9 +1422,8 @@ static bool process_ping_request(struct OamEndPoint *oam, struct Packet *p, stru
     // if object state is requested
     struct JsonValue *jos = json_object_get_any(j, "object");
     if(jos!=NULL){
-        if (oam->target && oam->target->print_state) {
-            struct JsonValue *objinfo = oam->target->print_state(oam->target->object);
-            json_object_insert(objinfo, "name", json_string(oam->target->name));
+        if (oam->target) {
+            struct JsonValue *objinfo = oam->target->get_state(oam->target);
             json_object_insert(j, "object", objinfo);
         }
     }
