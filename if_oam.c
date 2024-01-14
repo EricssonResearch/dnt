@@ -191,10 +191,10 @@ static value_producer *oam_get_property_reader(const struct Interface *iface, co
     return NULL;
 }*/
 
-bool init_oam_interface(struct Interface *iface, const char *name,
+struct Interface *new_oam_interface(const char *name,
                         const char *oam_ip, unsigned port)
 {
-    bzero(iface, sizeof(*iface));
+    struct Interface *iface = calloc_struct(Interface);
     iface->name = strdup(name);
     iface->type = IF_OAM;
     iface->state = IFS_INIT;
@@ -210,5 +210,5 @@ bool init_oam_interface(struct Interface *iface, const char *name,
     oid->port = port;
     //note: oid->uid will be set in open()
 
-    return true;
+    return iface;
 }

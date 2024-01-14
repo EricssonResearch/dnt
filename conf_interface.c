@@ -25,9 +25,7 @@
 DEFAULT_LOGGING_MODULE(CONFIG, WARNING)
 
 struct ConfIfacesState {
-    struct Interface *ifaces;
-    unsigned iface_count;
-    unsigned i;
+    struct HashMap *ifaces;
 };
 
 struct TokenState {
@@ -108,17 +106,23 @@ static int iface_cb(const char *key, void *value, void *userdata)
             THROW("hw interface is unspecified");
         }
         //TODO additional parameter: use 8 sockets or eBPF priority setting
-        if (!init_eth_interface(state->ifaces+state->i, key, tstate.iface)) {
+        struct Interface *iface = new_eth_interface(key, tstate.iface);
+        if (!iface) {
             THROW("failed to create ethernet interface");
         }
+        hashmap_insert(state->ifaces, iface->name, iface);
     } else if (strcmp(tstate.type, "internal") == 0) {
-        if (!init_internal_interface(state->ifaces+state->i, key)) {
+        struct Interface *iface = new_internal_interface(key);
+        if (!iface) {
             THROW("failed to create internal interface");
         }
+        hashmap_insert(state->ifaces, iface->name, iface);
     } else if (strcmp(tstate.type, "ip") == 0) {
-        if (!init_ip_interface(state->ifaces+state->i, key, tstate.iface)) {
+        struct Interface *iface = new_ip_interface(key, tstate.iface);
+        if (!iface) {
             THROW("failed to create ip interface");
         }
+        hashmap_insert(state->ifaces, iface->name, iface);
     } else if (strcmp(tstate.type, "udp-in") == 0) {
         unsigned port = 6635;
         unsigned ipver = 4;
@@ -143,9 +147,11 @@ static int iface_cb(const char *key, void *value, void *userdata)
         if (tstate.iface == NULL) {
             THROW("hw interface is unspecified");
         }
-        if (!init_udp_in_interface(state->ifaces+state->i, key, tstate.iface, port, ipver)) {
+        struct Interface *iface = new_udp_in_interface(key, tstate.iface, port, ipver);
+        if (!iface) {
             THROW("failed to create udp-in interface");
         }
+        hashmap_insert(state->ifaces, iface->name, iface);
     } else if (strcmp(tstate.type, "udp-out") == 0) {
         unsigned srcport = 0;
         unsigned dstport = 6635;
@@ -182,9 +188,11 @@ static int iface_cb(const char *key, void *value, void *userdata)
         if (tstate.iface == NULL) {
             THROW("hw interface is unspecified");
         }
-        if (!init_udp_out_interface(state->ifaces+state->i, key, tstate.iface, srcport, dst_ip, dstport, priority)) {
+        struct Interface *iface = new_udp_out_interface(key, tstate.iface, srcport, dst_ip, dstport, priority);
+        if (!iface) {
             THROW("failed to create udp-out interface");
         }
+        hashmap_insert(state->ifaces, iface->name, iface);
     } else if (strcmp(tstate.type, "oam_cmd") == 0) {
         unsigned port = OAM_CMD_PORT;
         unsigned u;
@@ -198,9 +206,11 @@ static int iface_cb(const char *key, void *value, void *userdata)
                 THROW("oam_cmd_port '%s' is invalid", port_str);
             port = u;
         }
-        if (!init_oam_cmd_interface(state->ifaces+state->i, key, tstate.iface, oam_cmd_ip, port)) {
+        struct Interface *iface = new_oam_cmd_interface(key, tstate.iface, oam_cmd_ip, port);
+        if (!iface) {
             THROW("failed to create oam_cmd interface");
         }
+        hashmap_insert(state->ifaces, iface->name, iface);
     } else if (strcmp(tstate.type, "oam") == 0) {
         unsigned oam_port = OAM_PORT;
         unsigned u;
@@ -217,13 +227,14 @@ static int iface_cb(const char *key, void *value, void *userdata)
                 THROW("oam_port '%s' is invalid", port_str);
             oam_port = u;
         }
-        if (!init_oam_interface(state->ifaces+state->i, key, oam_ip, oam_port)) {
+        struct Interface *iface = new_oam_interface(key, oam_ip, oam_port);
+        if (!iface) {
             THROW("failed to create oam interface");
         }
+        hashmap_insert(state->ifaces, iface->name, iface);
     } else {
         THROW("unknown interface type '%s'", tstate.type);
     }
-    state->i++;
 
     free(tstate.type);
     free(tstate.iface);
@@ -232,31 +243,32 @@ static int iface_cb(const char *key, void *value, void *userdata)
 #undef THROW
 }
 
-struct Interface *parse_interfaces(struct IniSection *interfaces_section, unsigned *iface_count)
+static int iface_delete_cb(const char *key, void *value, void *userdata)
+{
+    (void)key; // owned by the interface
+    (void)userdata;
+    struct Interface *iface = value;
+    close_iface(iface);
+    return 1;
+}
+
+struct HashMap *parse_interfaces(struct IniSection *interfaces_section)
 {
     struct ConfIfacesState state = {0};
-    state.iface_count = hashmap_count(interfaces_section->contents);
-    state.ifaces = calloc_struct_array(Interface, state.iface_count); //TODO this overallocates
+    state.ifaces = new_hashmap(11, iface_delete_cb, NULL);
 
     if (!hashmap_foreach(interfaces_section->contents, iface_cb, &state)) {
         log_error("an interface is invalid\n");
-        for (unsigned i=0; i<state.iface_count; i++) {
-            iface_unref(&state.ifaces[i]);
-        }
-        free(state.ifaces);
+        delete_hashmap(state.ifaces);
         return NULL;
     }
 
-    //TODO realloc state.ifaces (or store them in a hash table)
-    //      note: here we can realloc but later streams will have direct pointers into this array
-    *iface_count = state.i;
     return state.ifaces;
 }
 
 
 struct ConfIfaceStreamsState {
-    struct Interface *ifaces;
-    unsigned iface_count;
+    struct HashMap *ifaces;
     struct HashMap *streams;
     struct HashMap *iface_streams;
 };
@@ -302,13 +314,7 @@ static int iface_stream_cb(const char *key, void *value, void *userdata)
 
     // find the interface
     char *ifname = strndup(key, is-key);
-    struct Interface *iface = NULL;
-    for (unsigned i=0; i<state->iface_count; i++) {
-        if (strcmp(state->ifaces[i].name, ifname) == 0) {
-            iface = &state->ifaces[i];
-            break;
-        }
-    }
+    struct Interface *iface = hashmap_find(state->ifaces, ifname);
     if (iface == NULL) {
         log_error("parsing streams for interfaces: unknown interface '%s'\n", ifname);
         free(ifname);
@@ -349,11 +355,10 @@ static int iface_stream_delete_cb(const char *key, void *value, void *userdata)
 }
 
 struct HashMap *parse_interface_streams(struct IniSection *interfaces_section,
-        struct Interface *ifaces, unsigned iface_count, struct HashMap *streams)
+        struct HashMap *ifaces, struct HashMap *streams)
 {
     struct ConfIfaceStreamsState state = {
         .ifaces = ifaces,
-        .iface_count = iface_count,
         .streams = streams,
         .iface_streams = new_hashmap(13, iface_stream_delete_cb, NULL),
     };

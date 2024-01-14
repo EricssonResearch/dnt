@@ -5,11 +5,9 @@
 #ifndef R2_IF_ETH_H
 #define R2_IF_ETH_H
 
-#include <stdbool.h>
-
 struct Interface;
 
 // @returns true if successful
-bool init_eth_interface(struct Interface *iface, const char *name, const char *ifname);
+struct Interface *new_eth_interface(const char *name, const char *ifname);
 
 #endif // R2_IF_ETH_H

@@ -59,7 +59,24 @@ static void sigusr1_handler(int sig, siginfo_t *si, void *uc)
     hashmap_foreach(config->objects, reset_all_seq_generators, NULL);
 }
 
-static void recv_loop(struct Interface *ifaces, unsigned iface_count)
+static int add_iface_to_epollfd(const char *key, void *value, void *userdata) {
+    struct Interface *iface = value;
+    int *epollfd = userdata;
+    if (iface->recvfd == 0) return 1;
+
+    log_debug("adding interface %s to epoll", key);
+
+    struct epoll_event ev;
+    ev.events = EPOLLIN;
+    ev.data.ptr = iface;
+    if (epoll_ctl(*epollfd, EPOLL_CTL_ADD, iface->recvfd, &ev) < 0) {
+        perror("epoll_ctl"); //TODO better error message
+        return 0;
+    }
+    return 1;
+}
+
+static void recv_loop(struct HashMap *ifaces)
 {
     struct sigaction sa;
     //struct sigevent sev;
@@ -87,16 +104,8 @@ static void recv_loop(struct Interface *ifaces, unsigned iface_count)
         return;
     }
 
-    for (unsigned i=0; i<iface_count; i++) {
-        if (ifaces[i].recvfd == 0) continue;
-
-        struct epoll_event ev;
-        ev.events = EPOLLIN;
-        ev.data.ptr = &ifaces[i];
-        if (epoll_ctl(epollfd, EPOLL_CTL_ADD, ifaces[i].recvfd, &ev) < 0) {
-            perror("epoll_ctl"); //TODO better error message
-            //TODO return?
-        }
+    if (hashmap_foreach(ifaces, add_iface_to_epollfd, &epollfd) == 0) {
+        return;
     }
 
     struct timespec last_perfcheck_time;
@@ -118,7 +127,7 @@ static void recv_loop(struct Interface *ifaces, unsigned iface_count)
             struct Packet *p = recvif->recv(recvif);
             if (p == NULL)
                 continue;
-            //printf("received packet length %u on %s\n", p->len, recvif->name);
+            //log_packet("received packet length %u on %s\n", p->len, recvif->name);
             struct Pipeline *pipe = parsetree_process(recvif->parsetree, p);
             if (pipe == NULL) {
                 log_packet("no pipeline found, unknown stream\n");
@@ -146,6 +155,14 @@ static void recv_loop(struct Interface *ifaces, unsigned iface_count)
             last_perfcheck_time = now;
         }
     }
+}
+
+static int open_interface(const char *key, void *value, void *userdata)
+{
+    (void)userdata;
+    log_debug("opening interface %s", key);
+    struct Interface *iface = value;
+    return iface->open(iface);
 }
 
 static char args_doc[] = "CONFIGFILE";
@@ -234,22 +251,14 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
-    //TODO do this in read_config()?
-    for (unsigned i=0; i<config->ifcount; i++) {
-        iface_set_parsetree(&config->ifaces[i], new_parsetree(&config->ifaces[i]));
-    }
-
     if (!config_add_streams_to_interfaces(config)) {
         delete_config(config);
         return EXIT_FAILURE;
     }
 
-    for (unsigned i=0; i<config->ifcount; i++) {
-        if (!config->ifaces[i].open(&config->ifaces[i])) {
-            fprintf(stderr, "could not open interface %s\n", config->ifaces[i].name);
-            delete_config(config);
-            return EXIT_FAILURE;
-        }
+    if (hashmap_foreach(config->ifaces, open_interface, NULL) == 0) {
+        delete_config(config);
+        return EXIT_FAILURE;
     }
 
     if (!init_delay()) {
@@ -258,12 +267,12 @@ int main(int argc, char **argv)
     }
 
     if(!init_oam(config->oam)) {
-        printf("OAM init failed\n");
+        fprintf(stderr, "OAM init failed\n");
         delete_config(config);
         return EXIT_FAILURE;
     }
 
-    recv_loop(config->ifaces, config->ifcount);
+    recv_loop(config->ifaces);
     printf("receive loop ended\n");
 
     finish_oam();

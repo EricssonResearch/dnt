@@ -5,7 +5,6 @@
 #ifndef R2_CONF_STREAMS_H
 #define R2_CONF_STREAMS_H
 
-#include "pipeline.h"
 struct ConfAction;
 struct IniSection;
 struct Interface;
@@ -19,8 +18,7 @@ struct ConfStream {
 
 // @returns hash of ConfStream keyed by stream name
 struct HashMap *parse_streams(struct IniSection *streams_section,
-        struct Interface *ifaces, unsigned ifcount,
-        struct HashMap *objects);
+        struct HashMap *ifaces, struct HashMap *objects);
 
 struct ConfStream *delete_confstream(struct ConfStream *stream);
 

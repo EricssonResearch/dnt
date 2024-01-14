@@ -143,7 +143,7 @@ bool init_delay(void)
     }
     if ((errno = pthread_attr_setinheritsched(&attr, PTHREAD_EXPLICIT_SCHED)) != 0) {
         perror("pthread_attr_setinheritsched");
-        return -1;
+        return false;
     }
 
     if (pthread_create(&delay_tid, &attr, &delay_thread, NULL) != 0) {

@@ -6,6 +6,7 @@
 #include "interface.h"
 #include "log.h"
 #include "packet.h"
+#include "parsetree.h"
 #include "utils.h"
 
 #include <stdio.h>
@@ -116,10 +117,9 @@ static bool int_close(struct Interface *iface)
     return true;
 }
 
-bool init_internal_interface(struct Interface *iface, const char *name)
+struct Interface *new_internal_interface(const char *name)
 {
-    //printf("init_internal_interface %s\n", name);
-    bzero(iface, sizeof(*iface));
+    struct Interface *iface = calloc_struct(Interface);
     iface->name = strdup(name);
     iface->ifname = NULL;
     iface->type = IF_INTERNAL;
@@ -132,5 +132,8 @@ bool init_internal_interface(struct Interface *iface, const char *name)
 
     iface->iface_private = new_packetfifo();
 
-    return true;
+    iface->parsetree = new_parsetree(iface);
+    parsetree_ref(iface->parsetree);
+
+    return iface;
 }

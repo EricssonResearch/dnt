@@ -7,6 +7,7 @@
 #include "interface.h"
 #include "log.h"
 #include "packet.h"
+#include "parsetree.h"
 #include "utils.h"
 
 #include <stdio.h>
@@ -222,11 +223,10 @@ static value_producer *udpin_get_property_reader(const struct Interface *iface, 
     return NULL;
 }
 
-bool init_udp_in_interface(struct Interface *iface, const char *name, const char *ifname,
+struct Interface *new_udp_in_interface(const char *name, const char *ifname,
         unsigned port, unsigned ipversion)
 {
-    //printf("init_udp_in_interface %s %s\n", name, ifname);
-    bzero(iface, sizeof(*iface));
+    struct Interface *iface = calloc_struct(Interface);
     iface->name = strdup(name);
     iface->ifname = strdup(ifname);
     iface->type = IF_UDP_IN;
@@ -242,5 +242,8 @@ bool init_udp_in_interface(struct Interface *iface, const char *name, const char
     uid->port = port;
     uid->family = ipversion == 6 ? AF_INET6 : AF_INET;
 
-    return true;
+    iface->parsetree = new_parsetree(iface);
+    parsetree_ref(iface->parsetree);
+
+    return iface;
 }

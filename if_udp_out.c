@@ -7,6 +7,7 @@
 #include "interface.h"
 #include "log.h"
 #include "packet.h"
+#include "parsetree.h"
 #include "utils.h"
 
 #include <stdio.h>
@@ -206,11 +207,10 @@ static value_producer *udpout_get_property_reader(const struct Interface *iface,
     return NULL;
 }
 
-bool init_udp_out_interface(struct Interface *iface, const char *name, const char *ifname,
+struct Interface *new_udp_out_interface(const char *name, const char *ifname,
         unsigned src_port, const char *dst_ip, unsigned dst_port, unsigned priority)
 {
-    //printf("init_udp_out_interface %s %s\n", name, ifname);
-    bzero(iface, sizeof(*iface));
+    struct Interface *iface = calloc_struct(Interface);
     iface->name = strdup(name);
     iface->ifname = strdup(ifname);
     iface->type = IF_UDP_OUT;
@@ -321,5 +321,8 @@ bool init_udp_out_interface(struct Interface *iface, const char *name, const cha
     uid->priority = priority;
     freeaddrinfo(result);
 
-    return true;
+    iface->parsetree = new_parsetree(iface);
+    parsetree_ref(iface->parsetree);
+
+    return iface;
 }

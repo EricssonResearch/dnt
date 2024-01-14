@@ -7,6 +7,7 @@
 #include "if_utils.h"
 #include "interface.h"
 #include "packet.h"
+#include "parsetree.h"
 #include "utils.h"
 
 #include <stdio.h>
@@ -242,10 +243,9 @@ static value_producer *ip_get_property_reader(const struct Interface *iface, con
     return NULL;
 }
 
-bool init_ip_interface(struct Interface *iface, const char *name, const char *ifname)
+struct Interface *new_ip_interface(const char *name, const char *ifname)
 {
-    //printf("init_ip_interface %s %s\n", name, ifname);
-    bzero(iface, sizeof(*iface));
+    struct Interface *iface = calloc_struct(Interface);
     iface->name = strdup(name);
     iface->ifname = strdup(ifname);
     iface->type = IF_IP;
@@ -259,5 +259,8 @@ bool init_ip_interface(struct Interface *iface, const char *name, const char *if
     struct IpIfData *iid = calloc_struct(IpIfData);
     iface->iface_private = iid;
 
-    return true;
+    iface->parsetree = new_parsetree(iface);
+    parsetree_ref(iface->parsetree);
+
+    return iface;
 }

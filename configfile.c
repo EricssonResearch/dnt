@@ -142,7 +142,7 @@ struct R2d2Config *read_config(const char *filename)
         THROW("unknown section '%s'", sec_err);
     }
 
-    ret->ifaces = parse_interfaces(interfaces_sec, &ret->ifcount);
+    ret->ifaces = parse_interfaces(interfaces_sec);
     if (ret->ifaces == NULL) {
         THROW("interfaces are invalid");
     }
@@ -157,12 +157,12 @@ struct R2d2Config *read_config(const char *filename)
         ret->objects = new_hashmap(1, NULL, NULL);
     }
 
-    ret->streams = parse_streams(streams_sec, ret->ifaces, ret->ifcount, ret->objects);
+    ret->streams = parse_streams(streams_sec, ret->ifaces, ret->objects);
     if (ret->streams == NULL) {
         THROW("streams are invalid");
     }
 
-    ret->iface_streams = parse_interface_streams(interfaces_sec, ret->ifaces, ret->ifcount, ret->streams);
+    ret->iface_streams = parse_interface_streams(interfaces_sec, ret->ifaces, ret->streams);
     if (ret->iface_streams == NULL) {
         THROW("interface stream lists are invalid");
     }
@@ -189,22 +189,14 @@ struct R2d2Config *delete_config(struct R2d2Config *config)
     delete_hashmap(config->objects);
     delete_hashmap(config->iface_streams);
     delete_hashmap(config->oam);
-
-    if (config->ifaces) {
-        for (unsigned i=0; i<config->ifcount; i++) {
-            close_iface(&config->ifaces[i]);
-        }
-    }
-    free(config->ifaces);
-
+    delete_hashmap(config->ifaces);
     free(config);
 
     return NULL;
 }
 
 struct AddstreamState {
-    struct Interface *ifaces;
-    unsigned iface_count;
+    struct HashMap *ifaces;
     struct HashMap *pipe_cache;
 };
 
@@ -213,13 +205,7 @@ static int addstream_cb(const char *key, void *value, void *userdata)
     struct AddstreamState *state = userdata;
     struct ConfStreamList *streamlist = value;
 
-    struct Interface *iface = NULL;
-    for (unsigned i=0; i<state->iface_count; i++) {
-        if (strcmp(state->ifaces[i].name, key) == 0) {
-            iface = &state->ifaces[i];
-            break;
-        }
-    }
+    struct Interface *iface = hashmap_find(state->ifaces, key);
     if (iface == NULL) {
         log_error("adding streams to interfaces: unknown interface '%s'\n", key);
         return 0;
@@ -285,7 +271,6 @@ bool config_add_streams_to_interfaces(struct R2d2Config *config)
 {
     struct AddstreamState state = {
         .ifaces = config->ifaces,
-        .iface_count = config->ifcount,
         .pipe_cache = new_hashmap(29, pipe_cache_delete_cb, NULL),
     };
     if (!hashmap_foreach(config->iface_streams, addstream_cb, &state)) {

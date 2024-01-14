@@ -6,6 +6,7 @@
 #include "if_utils.h"
 #include "interface.h"
 #include "packet.h"
+#include "parsetree.h"
 #include "protocol.h"
 #include "utils.h"
 #include "log.h"
@@ -282,10 +283,9 @@ static value_producer *eth_get_property_reader(const struct Interface *iface, co
     return eth_mac_producer;
 }
 
-bool init_eth_interface(struct Interface *iface, const char *name, const char *ifname)
+struct Interface *new_eth_interface(const char *name, const char *ifname)
 {
-    //printf("init_eth_interface %s %s\n", name, ifname);
-    bzero(iface, sizeof(*iface));
+    struct Interface *iface = calloc_struct(Interface);
     iface->name = strdup(name);
     iface->ifname = strdup(ifname);
     iface->type = IF_ETH;
@@ -299,5 +299,8 @@ bool init_eth_interface(struct Interface *iface, const char *name, const char *i
     struct EthIfData *eid = calloc_struct(EthIfData);
     iface->iface_private = eid;
 
-    return true;
+    iface->parsetree = new_parsetree(iface);
+    parsetree_ref(iface->parsetree);
+
+    return iface;
 }

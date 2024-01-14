@@ -174,8 +174,7 @@ struct StageState {
     const char *stream;
     struct ConfAction *actions;
     struct HeaderDescriptor *headers;
-    struct Interface *ifaces;
-    unsigned ifcount;
+    struct HashMap *ifaces;
     struct HashMap *objects;
     struct IniSection *streams_sec;
     bool had_final;
@@ -265,15 +264,6 @@ static unsigned header_index(const struct HeaderDescriptor *headers, const struc
     unsigned pos_idx = 0;
     for (const struct HeaderDescriptor *h=headers; h!=pos; h=h->next) pos_idx++;
     return pos_idx;
-}
-
-static struct Interface *find_interface(struct StageState *stst, const char *name)
-{
-    for (unsigned i=0; i<stst->ifcount; i++) {
-        if (strcmp(stst->ifaces[i].name, name) == 0)
-            return stst->ifaces + i;
-    }
-    return NULL;
 }
 
 static struct HeaderField *header_get_field_of_type(struct HeaderDescriptor *hdr, unsigned hdr_idx,
@@ -469,7 +459,7 @@ static bool process_assignment_rhs(struct StageState *stst, struct ConfAssignmen
             }
         }
 
-        struct Interface *iface = find_interface(stst, key);
+        struct Interface *iface = hashmap_find(stst->ifaces, key);
         if (iface) {
             //log_info("rhs is an interface!");
             if (iface->get_property_reader) {
@@ -857,7 +847,7 @@ static bool process_token(char *token, void *userdata)
             if (newaction->d.send.iface) {
                 THROW("we can only send on one interface at once");
             } else {
-                struct Interface *iface = find_interface(stst, token);
+                struct Interface *iface = hashmap_find(stst->ifaces, token);
                 if (iface == NULL) {
                     THROW("unknown interface '%s'", token);
                 }
@@ -1444,7 +1434,7 @@ static bool process_stage(char *stage, void *userdata)
 
 struct ConfAction *parse_actions_line(const char *stream, char *line,
         const struct HeaderDescriptor *headers,
-        struct Interface *ifaces, unsigned ifcount,
+        struct HashMap *ifaces,
         struct HashMap *objects, struct IniSection *streams_sec)
 {
     struct StageState stst = {
@@ -1452,7 +1442,6 @@ struct ConfAction *parse_actions_line(const char *stream, char *line,
         .actions = NULL,
         .headers = copy_header_list(headers),
         .ifaces = ifaces,
-        .ifcount = ifcount,
         .objects = objects,
         .streams_sec = streams_sec,
         .had_final = false,

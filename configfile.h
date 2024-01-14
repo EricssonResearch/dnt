@@ -12,8 +12,7 @@ struct HashMap;
 
 // holds all the data we read from the config file
 struct R2d2Config {
-    struct Interface *ifaces; //TODO store the interfaces in a hash table
-    unsigned ifcount;
+    struct HashMap *ifaces; // name -> struct Interface
     struct HashMap *objects; // name -> struct ConfObject
     struct HashMap *streams; // name -> struct ConfStream
     struct HashMap *iface_streams; // ifname -> ConfStreamList

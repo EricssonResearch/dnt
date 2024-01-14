@@ -21,8 +21,7 @@ DEFAULT_LOGGING_MODULE(CONFIG, WARNING)
 struct ConfStreamState {
     struct HashMap *streams;
     struct IniSection *streams_section;
-    struct Interface *ifaces;
-    unsigned ifcount;
+    struct HashMap *ifaces;
     struct HashMap *objects;
 };
 
@@ -84,7 +83,7 @@ static int packetline_cb(const char *key, void *value, void *userdata)
                 THROW("actions line not found");
             }
             actions = parse_actions_line(streamname, actionline,
-                    headers, state->ifaces, state->ifcount,
+                    headers, state->ifaces,
                     state->objects, state->streams_section);
             if (actions == NULL) {
                 THROW("actions invalid");
@@ -142,13 +141,11 @@ static int delstream_cb(const char *key, void *value, void *userdata)
 }
 
 struct HashMap *parse_streams(struct IniSection *streams_section,
-        struct Interface *ifaces, unsigned ifcount,
-        struct HashMap *objects)
+        struct HashMap *ifaces, struct HashMap *objects)
 {
     struct ConfStreamState state = {
         .streams_section = streams_section,
         .ifaces = ifaces,
-        .ifcount = ifcount,
         .objects = objects,
         .streams = new_hashmap(29, delstream_cb, NULL),
     };

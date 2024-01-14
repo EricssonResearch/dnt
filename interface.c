@@ -18,19 +18,9 @@ static void try_delete_interface(struct Interface *iface)
         iface->close_(iface);
         free(iface->name);
         free(iface->ifname);
-        iface->state = IFS_DONE;
+        free(iface);
         //TODO somehow we need to signal the main thread that we are done
         //TODO the main thread should only exit when all interfaces gave the signal
-    }
-}
-
-void iface_set_parsetree(struct Interface *iface, struct ParseTree *pt)
-{
-    if (iface->parsetree) {
-        log_error("interface %s already has a parsetree\n", iface->name);
-    } else {
-        iface->parsetree = pt;
-        parsetree_ref(pt);
     }
 }
 
@@ -39,10 +29,6 @@ void close_iface(struct Interface *iface)
 {
     if (iface->state == IFS_SHUTDOWN) {
         log_error("interface %s close called twice\n", iface->name);
-        return;
-    }
-    if (iface->state == IFS_DONE) {
-        log_error("interface close called when it was already deleted\n");
         return;
     }
     iface->state = IFS_SHUTDOWN;

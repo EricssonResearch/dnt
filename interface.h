@@ -28,7 +28,6 @@ enum IfaceState {
     IFS_INIT = 1, // created but not yet opened
     IFS_OPEN, // opened and ready to send/recv
     IFS_SHUTDOWN, // closing, can still send but not recv
-    IFS_DONE, // fully closed and uninitialized TODO get rid of this state
 };
 
 // receive a packet on @fd
@@ -77,22 +76,18 @@ struct Interface {
     struct ParseTree *parsetree;
 };
 
-// no global init(), each interface type has its own
+// no global constructor, each type has its own
 
-// TODO we should keep the interfaces in a hash, not an array
-
-void iface_set_parsetree(struct Interface *iface, struct ParseTree *pt);
-
-// closes the interface but doesn't free the given pointer (iface is in an array!)
-// this just sets the shutdown state so it won't receive packets
-// the interface will really close when no pipeline references it anymore
+// closes the interface and marks the object for deletion
+// the state will be IFS_SHUTDOWN, and stops receiving packets
+// the interface will really be deleted when no pipeline references it anymore
 void close_iface(struct Interface *iface);
 
 // add a reference to the interface
 void iface_ref(struct Interface *iface);
 
 // remove a reference from the interface
-// the interface closes when shutdown=true AND refcount=0
+// the interface closes when its state is IFS_SHUTDOWN AND refcount=0
 void iface_unref(struct Interface *iface);
 
 

@@ -152,18 +152,19 @@ static bool oam_cmd_close(struct Interface *iface)
 }
 
 
-bool init_oam_cmd_interface(struct Interface *iface, const char *name, const char *ifname,
+struct Interface *new_oam_cmd_interface(const char *name, const char *ifname,
                             const char *oam_cmd_ip, unsigned port)
 {
-    bzero(iface, sizeof(*iface));
+    struct Interface *iface = calloc_struct(Interface);
     iface->name = strdup(name);
-    if (ifname != NULL)
+    if (ifname != NULL) {
         if(strcmp(ifname,"any")==0)
-          iface->ifname = NULL;
+            iface->ifname = NULL;
         else
-          iface->ifname = strdup(ifname);
-    else
-      iface->ifname = NULL;
+            iface->ifname = strdup(ifname);
+    } else {
+        iface->ifname = NULL;
+    }
     iface->type = IF_OAM_CMD;
     iface->state = IFS_INIT;
     iface->recv = oam_cmd_recv;
@@ -189,5 +190,5 @@ bool init_oam_cmd_interface(struct Interface *iface, const char *name, const cha
     }
     log_info("OAM Cmd Family: %d\n", oid->family);
 
-    return true;
+    return iface;
 }

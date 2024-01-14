@@ -5,14 +5,12 @@
 #ifndef R2_IF_OAM_CMD_H
 #define R2_IF_OAM_CMD_H
 
-#include <stdbool.h>
-#include <stdio.h>
 
 struct Interface;
 
 #define OAM_CMD_PORT  8000
 
-bool init_oam_cmd_interface(struct Interface *iface, const char *name, const char *ifname,
+struct Interface *new_oam_cmd_interface(const char *name, const char *ifname,
         const char *oam_cmd_ip, unsigned port);
 
 #endif // R2_IF_OAM_CMD_H

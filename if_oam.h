@@ -5,13 +5,11 @@
 #ifndef R2_IF_OAM_H
 #define R2_IF_OAM_H
 
-#include <stdbool.h>
-
 struct Interface;
 
 #define OAM_PORT      6634
 
-bool init_oam_interface(struct Interface *iface, const char *name,
+struct Interface *new_oam_interface(const char *name,
         const char *oam_ip, unsigned port);
 
 const char *oamif_get_ip(const struct Interface *iface);
