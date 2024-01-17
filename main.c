@@ -39,11 +39,10 @@ struct R2d2Config *config;
 
 static void sigint_handler(int sig, siginfo_t *si, void *uc)
 {
-    (void)sig;
     (void)si;
     (void)uc;
 
-    printf("SIGINT or SIGTERM caught\n");
+    printf("%s signal caught\n", strsignal(sig));
     sigint_count++;
 }
 

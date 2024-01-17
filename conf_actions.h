@@ -10,7 +10,6 @@ struct Action;
 struct HeaderDescriptor;
 struct HashMap;
 struct IniSection;
-struct Interface;
 
 // parse the "*:actions" line for a stream
 // modifies the given @line

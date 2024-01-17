@@ -130,6 +130,7 @@ static int log_level_to_syslog_level(LOGGING_LEVELS level)
 
 struct ModuleInstance {
     struct __log_module *mod;
+    const char *file;
     struct ModuleInstance *next;
 };
 
@@ -148,7 +149,7 @@ static int log_module_delete_cb(const char *key, void *value, void *userdata)
     return 1;
 }
 
-void __register_log_module(struct __log_module *mod)
+void __register_log_module(const char *file, struct __log_module *mod)
 {
     if (mod_instances == NULL) {
         mod_instances = new_hashmap(11, log_module_delete_cb, NULL);
@@ -156,9 +157,15 @@ void __register_log_module(struct __log_module *mod)
 
     struct ModuleInstance *n = calloc_struct(ModuleInstance);
     n->mod = mod;
+    n->file = file;
 
     struct ModuleInstance *inst = hashmap_find(mod_instances, mod->name);
     if (inst) {
+        if (mod->level != inst->mod->level) {
+            fprintf(stderr, "Inconsistent log level for module %s: %s %s vs. %s %s\n", mod->name,
+                    file, log_string_from_level(mod->level),
+                    inst->file, log_string_from_level(inst->mod->level));
+        }
         n->next = inst->next;
         inst->next = n;
     } else {

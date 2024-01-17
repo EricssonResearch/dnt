@@ -48,7 +48,7 @@ struct __log_module {
     LOGGING_LEVELS level;
 };
 
-void __register_log_module(struct __log_module *mod);
+void __register_log_module(const char *file, struct __log_module *mod);
 
 int __log_func(LOGGING_LEVELS level, const char *logmodule, const char *frmt, ...)
     __attribute__((format(printf, 3, 4)))
@@ -59,7 +59,7 @@ int __log_func(LOGGING_LEVELS level, const char *logmodule, const char *frmt, ..
 #define LOGGING_MODULE(_name, _default_level)                               \
 static struct __log_module __log_module_##_name = {#_name, _default_level}; \
 static void __attribute((constructor)) register_module_##_name(void) {      \
-    __register_log_module(&__log_module_##_name);                           \
+    __register_log_module(__FILE__, &__log_module_##_name);                 \
 }
 
 // declare a module for logging that can be used without supplying the name
@@ -68,7 +68,7 @@ static void __attribute((constructor)) register_module_##_name(void) {      \
 static struct __log_module __log_module_##_name = {#_name, _default_level}; \
 static struct __log_module *__default_log_module = &__log_module_##_name;   \
 static void __attribute((constructor)) register_module_##_name(void) {      \
-    __register_log_module(&__log_module_##_name);                           \
+    __register_log_module(__FILE__, &__log_module_##_name);                 \
 }
 
 #define log_debug_m(_name, ...)                                             \

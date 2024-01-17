@@ -13,7 +13,7 @@ struct HashMap;
 // holds all the data we read from the config file
 struct R2d2Config {
     struct HashMap *ifaces; // name -> struct Interface
-    struct HashMap *objects; // name -> struct ConfObject
+    struct HashMap *objects; // name -> struct PipelineObject
     struct HashMap *streams; // name -> struct ConfStream
     struct HashMap *iface_streams; // ifname -> ConfStreamList
     struct HashMap *oam;     // name -> command string
