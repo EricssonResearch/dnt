@@ -16,7 +16,7 @@
 #include <unistd.h>
 #include <sys/eventfd.h>
 
-DEFAULT_LOGGING_MODULE(MAIN, WARNING)
+DEFAULT_LOGGING_MODULE(IFINTERNAL, WARNING)
 
 // fifo queue
 struct PacketFifo {

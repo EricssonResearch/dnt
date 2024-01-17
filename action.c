@@ -15,7 +15,6 @@
 #include "seq_recov.h"
 #include "utils.h"
 #include "pof.h"
-#include "log.h"
 
 #include <stdlib.h>
 #include <string.h>

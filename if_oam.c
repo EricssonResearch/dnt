@@ -21,7 +21,7 @@
 #include <netinet/in.h>
 #include <netdb.h>
 
-DEFAULT_LOGGING_MODULE(OAM, WARNING)
+DEFAULT_LOGGING_MODULE(IFOAM, WARNING)
 LOGGING_MODULE(CONFIG, WARNING)
 
 struct OamIfData {
@@ -73,7 +73,7 @@ static bool oam_open(struct Interface *iface)
 {
     struct OamIfData *oid = iface->iface_private;
     if (iface->state != IFS_INIT) {
-        log_error_m(OAM, "open OAM interface %s: already opened\n", iface->name);
+        log_error("open OAM interface %s: already opened\n", iface->name);
         return false;
     }
 
@@ -87,7 +87,7 @@ static bool oam_open(struct Interface *iface)
     hints.ai_flags = 0; //TODO AI_NUMERICHOST?
     int err = getaddrinfo(oid->oam_ip_str, port_str, &hints, &result);
     if (err) {
-        log_error_m(OAM, "oam interface: invalid ip '%s' : %s\n", oid->oam_ip_str, port_str);
+        log_error("oam interface: invalid ip '%s' : %s\n", oid->oam_ip_str, port_str);
         return false;
     }
 
@@ -110,7 +110,7 @@ static bool oam_open(struct Interface *iface)
         close(sock);
     }
     if (rp == NULL) {
-        log_error_m(OAM, "oam interface: could not bind to ip '%s' : %s\n", oid->oam_ip_str, port_str);
+        log_error("oam interface: could not bind to ip '%s' : %s\n", oid->oam_ip_str, port_str);
         freeaddrinfo(result);
         return false;
     }
@@ -118,11 +118,11 @@ static bool oam_open(struct Interface *iface)
     if (rp->ai_family == AF_INET6) {
         struct sockaddr_in6 *i6 = (struct sockaddr_in6 *)(rp->ai_addr);
         oid->uid = ntohs(i6->sin6_addr.s6_addr16[7]);
-        log_info_m(OAM, "oam if ip6 '%s' uid 0x%.4x\n", oid->oam_ip_str, oid->uid);
+        log_info("oam if ip6 '%s' uid 0x%.4x\n", oid->oam_ip_str, oid->uid);
     } else {
         struct sockaddr_in *i4 = (struct sockaddr_in *)(rp->ai_addr);
         oid->uid = ntohl(i4->sin_addr.s_addr) & 0xffff;
-        log_info_m(OAM, "oam if ip4 '%s' uid 0x%.4x\n", oid->oam_ip_str, oid->uid);
+        log_info("oam if ip4 '%s' uid 0x%.4x\n", oid->oam_ip_str, oid->uid);
     }
     freeaddrinfo(result);
 

@@ -21,7 +21,7 @@
 #include <arpa/inet.h> /* ntohs() */
 #include <netdb.h> /* getaddrinfo() */
 
-DEFAULT_LOGGING_MODULE(OAM, WARNING)
+DEFAULT_LOGGING_MODULE(IFUDPOUT, WARNING)
 
 struct UdpOutIfData {
     int sock;

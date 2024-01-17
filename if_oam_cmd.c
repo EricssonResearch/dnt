@@ -23,7 +23,7 @@
 #include <errno.h>
 #include <netinet/in.h>
 
-DEFAULT_LOGGING_MODULE(OAM, WARNING)
+DEFAULT_LOGGING_MODULE(IFOAMCMD, WARNING)
 #define BACKLOG 2   // how many pending connections queue will hold
 
 struct OamCmdIfData {

@@ -24,7 +24,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 
-DEFAULT_LOGGING_MODULE(MAIN, WARNING)
+DEFAULT_LOGGING_MODULE(POF, WARNING)
 LOGGING_MODULE(OAM, WARNING)
 
 enum PofEvent { //TODO this is never used as a bitfield
