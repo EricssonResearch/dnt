@@ -6,7 +6,7 @@
 #define R2_ACTION_H
 
 #include "protocol.h"
-#include "transfer.h"
+#include "value.h"
 
 enum ActionType {
     ACT_ADD = 1,

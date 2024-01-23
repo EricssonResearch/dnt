@@ -1,115 +1,131 @@
 
-# How to transfer values between objects?
+# Value transfer to/from packet header fields
 
-This problem mostly arises when reading or writing header fields in the packet.
+We developed a universal value passing architecture to have a universal `edit` action that can manipulate any protocol header in a generic way. In this architecture the header field editing is reduced to copying bit sequences, using the universal value passing. The appropriate offsets and bit counts for the transfer are read from protocol header descriptors.
 
-We use a Producer--Consumer model. Both of them are functions.
+This value transfer architecture was designed to be more generic than a simple header read/write. In the original design of R2DTWO one could transfer values to/from packet header fields, packet property (metadata) slots, stateful objects, interface properties etc. Currently R2DTWO doesn't fully utilize the possible capabilities, just reads and writes packet headers.
 
-* Producer creates the value on its stack, calls the Consumer function with it
-* Consumer receives the value and processes it (e.g. writes it into the packet)
+The scope of the `edit` action was reduced with commit 9e4c5ab95 (March 2023) to read/write header fields only, in favor of dedicated actions (e.g. `readseq`/`writeseq`) handling the packet property slots. This document also describes the removed features (and the planned but never realized ones), but for completeness' sake only.
 
-Rationale behind this architecture:
+
+## Producer-Consumer model
+
+The value passing is based on a Producer-Consumer model, both of them are functions.
+
+* *Producer* function creates the value on its stack, and calls the Consumer function with it
+* *Consumer* function receives the value and processes it (e.g. writes it into the packet)
+
+Rationale behind this calling convention:
 
 * we want both functions to be re-entrant
 * we don't want to malloc a temporary storage to pass the value
 * we don't want to have a fixed-length buffer to pass the value
 
-How to create a matching pair? The config compiler should know everything we need.
+The value to be transferred is a sequence of bits starting at a specified bit offset from the beginning of a buffer. To be compatible with IEEE and IETF protocols, the buffer contents must be in big endian byte order, MSB-first.
 
-* Producers can tell what type of data they will produce (offset, length)
-* Consumers can tell what they need as input (also offset, length)
+Both the Producer and the Consumer have a state parameter that configures the function for working on the correct number of bits with the correct offset. This state is constructed by the config compiler once (when processing the `edit` action), and used during the lifetime of the action pipeline.
 
-TODO we may also need to consider the type of the value (address, time etc.)
+In the current implementation the Producer and Consumer function pair and their parameter settings must be compatible by referring to
 
-TODO we may need adaptors when the Consumer wants some offset or something the Producer can't create TODO do we know of such a scenario?
+* same number of bits
+* same bit offset within a byte
+
+The original plan also included adaptor functions that can move the data created by a Producer to make it compatible with a Consumer, but we never needed this in practice, so this was never implemented.
+
+How to get a compatible pair of Producer and Consumer functions? For the `edit` action the config compiler checks the types of the operands and their compatibility.
+
+Where to find the code related to this value transfer architecture:
+
+* `value.h` contains the prototypes
+* `header.h` has functions that return Producer and Consumer functions for header fields
+* `interface.h` has the base class for interfaces, see the `get_property_reader()` virtual method
+
+To see how the assignments of the `edit` action are processed into Producer-Consumer pairings, see `process_assignment_lhs()` and `process_assignment_rhs()` in `conf_actions.c`.
 
 ## Consumer
 
 This function has three parameters:
 
-* value to read from: comes from the Producer
-    * start pointer, offset, length (this is a stream of bits in network byte order)
-* state depending on the type of the consumer
-    * field writer: header field to write to (header index, bit offset, bit length)
-    * other object types have their own state
-* packet: the current packet of the action pipeline
-    * field writer: this is where the target header field is
-    * maybe not all consumer objects need the packet
+* `state` depending on the type of the Consumer
+    * e.g. for the header field writer: header field to write to (header index, bitoffset, bitcount)
+    * other types have their own state
+* `value` to read from: comes from the Producer
+    * start pointer, bitoffset, bitcount
+* `packet` the current packet of the action pipeline
+    * for the header field writer: this is where the target header field is
+    * not all consumer types need the packet
 
-The state is radically different for each Consumer, the parameter has to be void\*. The config compiler will know how to construct the appropriate state.
+The state is different for each Consumer type. The config compiler has to know how to construct the appropriate state.
 
-### Field writer
+The following Consumer functions were considered for R2DTWO at some point.
 
-We need a series of such functions for various bit lengths and offsets. We must consider both the target field and the source value.
+### Header field writer
 
-* both length and offset are multiple of 8 (simple memcpy)
-* length is <8 and offset is such that it doesn't span multiple bytes
-* length is < 16 and offset is such that it only spans 2 bytes
-* length is < 8 and offset is such that it spans at least 3 bytes
+In `header.h` the function `header_get_field_writer()` returns a Consumer function that can write the given *target* header field from the given *source* value, or NULL when they are incompatible. It returns one of the following (private) bit copy implementations:
 
-The input value should be prepared such that this writer doesn't need to do bit-shift on it.
-TODO this applies to all Consumers
-TODO if we do need shift, do it with an adaptor?
+* copy whole bytes
+* copy bits in a single byte
+* generic copy
 
-### Object
+The state for the returned function should be the same *target*. The `HeaderField` structure for *target* can be created from a *ProtocolField* and a header index with `new_headerfield()`. To get a *ProtocolField* see e.g. `protocol_get_field_by_name()` in `protocol.h`.
 
-The object receives its input by having a method act as a Consumer function.
+### Object (never implemented)
 
-TODO document the objects that act as a Consumer: Sequence Recovery, Delay, POF etc.
+The stateful pipeline object receives its input by having a method act as a Consumer function. Possible candidates for value Consumer: Sequence Recovery, Delay, POF. In the current design these objects use the packet property slots as their input.
 
-### Packet metadata
+### Packet property (removed)
 
-Currently both our metadata are uint32 (sequence number, timestamp), this Consumer type will write the given value into the metadata slots. The Producer for these is typically a field reader, but we have appropriate generators too.
+Currently the `Packet` structure has two property slots: `timestamp` and `sequence`. In the original design they could be accessed by the `edit` action, and in `packet.h` there were helper functions for getting the respective Consumer and Producer functions for them. R2DTWO currently has dedicated actions (e.g. `readseq`/`writeseq`) handling the packet property slots.
+
+The `ttl` property of the packet needs special treatment (see the `ttlcheck` and `ttlreduce` actions), it was never meant to be accessed by the `edit` action. The `ttl` field of a header can be read/written by an `edit` action if necessary.
+
 
 ## Producer
 
 This function has four parameters:
 
-* producer state: depends on the type of the producer
-* consumer function: this will be called on the generated value
-* consumer state: opaque state of the consumer
-* packet: the current packet of the action pipeline
+* `producer state` depends on the type of the Producer
+* `consumer` this function will be called on the generated value
+* `consumer state` opaque state of the Consumer
+* `packet` the current packet of the action pipeline
 
-Producer types:
+The producer state is different for each Producer type. The config compiler has to know how to construct the appropriate state.
 
-* Constant value: we don't have a producer function, just a value
-    * constants should be typed, the config compiler should check the type against its usage
-    * when we are at the assignment we no longer have types just start, offset, length
-* Generated value: Producer creates it on its stack, calls the Consumer
-    * sequence number
-    * timestamp
-    * interface property
-    * packet property: arrival time, sequence number
-    * Header field: format in config: headername.fieldname
-
-The Producer can be stateful, but it must be re-entrant: it receives its state as a parameter. As this parameter is radically different for each Producer, the parameter is void\*. The config compiler will know how to construct the appropriate state.
-
-The producer may need input to generate the value. This input comes from the state parameter.
+The following Producer functions were considered for R2DTWO at some point.
 
 ### Constant value
 
-Do we need a Producer for constant values? Isn't it enough if we just have the value and call the Consumer on it? Currently the Edit action has this simplification.
+This doesn't have a producer function, the constant value is stored directly in a Value object, and it is fed directly to the Consumer.
+
+When processing constants the config compiler checks that the given value fits into the target, and that it has the correct type for the target (e.g. a header field with type IPv6 expects a constant in the usual IPv6 address format). The type checking happens during config compilation time, the packet processing is typeless.
+
+### Header field reader
+
+In `header.h` the function `header_get_field_reader()` returns a Producer function that can read the given *source* header field into the given *target* value, or NULL when they are incompatible. The state for the returned function should be the same *source*. For more info on `HeaderField` see the field writer section.
+
+### Interface property
+
+Interfaces can have read-only properties (e.g. MAC address, IP address) that assignments in `edit` actions can use as data source. The optional `get_property_reader()` virtual method returns the appropriate value Producer for the properties based on their names, and checks compatibility with the given target where the produced value is intended to be stored.
+
+### Object (never implemented)
+
+The stateful pipeline object generates its data, and it is fed to a Consumer as an assignment in an `edit` action. Possible candidate for value Producer: Sequence Generator. In the current design the Sequence Generator writes into the packet property slot `sequence`.
+
+### Packet property (removed)
+
+Similarly to the property reader, this capability of the `edit` action was removed in favor of dedicated actions for accessing the packet property slots.
 
 
-### Field reader
+## Value comparison
 
-Similar to field writer.
+In addition to the `edit` action the generic value infrastructure is also used by the `Parsetree` object to match header fields against constant values to determine which stream the packet belongs to. The header field comparison is done with a Comparator function that has three parameters:
 
-### Sequence Generator
+* `state` depending on the type of the comparator
+    * in the current `Parsetree` implementation this is always a `HeaderField`
+* `value` is always a constant value, currently no Producers are supported
+* `packet` the current packet that needs to be identified by the `Parsetree`
 
-Receives a Consumer that will know what to do with the generated sequence number. The two most common Consumers: field writer, metadata writer.
+In `header.h` the function `header_get_field_comprator()` returns a Comparator function that compare the given *target* header field with the given *match* value, or NULL when they are incompatible.
 
-### Packet metadata
-
-This producer reads the packet metadata and supplies it to a Consumer, which is typically a field writer.
-
-## Timestamps
-
-The system time is `struct timespec` with seconds and nanoseconds. The TSN timestamp is a 21 bit value where 20 bits encode microseconds (2^20 is a little over 1 million) and the MSB is one second. We need to convert between these types. TODO where?
-
-## Questions
-
-Isn't this overkill? See Maxim #37
-
-How can this be used by the packet matching? It needs to use the packet header field extractor Producer somehow.
+There were discussions about supporting generic value-value comparisons and Producer functions, but the current implementation is good enough for the `Parsetree`.
 

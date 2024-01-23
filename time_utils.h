@@ -54,6 +54,10 @@
                + (tsp)->tv_sec * 1000;                      \
     } while (0)
 
+// TSN timestamp format:
+//      20 bit microsec (enough to count to 999999)
+//      21th bit is sec (in total we can count up to 2 seconds)
+//      0x01000000 is the TTAG indicator bit
 #define timespec_to_tsntstamp(tsnts, tsp)                   \
     do {                                                    \
         (tsnts) = 0x08000000 + (((tsp)->tv_sec % 2) << 20)  \

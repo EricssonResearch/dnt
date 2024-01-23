@@ -6,7 +6,7 @@
 #define R2_INTERFACE_H
 
 #include "protocol.h"
-#include "transfer.h"
+#include "value.h"
 
 #include <stdbool.h>
 
@@ -63,20 +63,22 @@ struct Interface {
     int recvfd; // receives packets on this file descriptor
     char *name;
     char *ifname;
-    // all of these callbacks are mandatory
+    void *iface_private;
+    int dropstat_cntr;
+    int dropstat_last_warn;
+    struct ParseTree *parsetree;
+
+    // all of these methods are mandatory
     iface_recv *recv;
     iface_send *send;
     iface_open *open;
     iface_close *close_; // private TODO mark all private members
-    iface_get_property_reader *get_property_reader;
-    void *iface_private;
-    int dropstat_cntr;
-    int dropstat_last_warn;
 
-    struct ParseTree *parsetree;
+    // this method is optional
+    iface_get_property_reader *get_property_reader;
 };
 
-// no global constructor, each type has its own
+// no global constructor, each interface type has its own, they all return Interface*
 
 // closes the interface and marks the object for deletion
 // the state will be IFS_SHUTDOWN, and stops receiving packets

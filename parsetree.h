@@ -6,7 +6,7 @@
 #define R2_PARSETREE_H
 
 #include "protocol.h"
-#include "transfer.h"
+#include "value.h"
 
 #include <stdbool.h>
 
