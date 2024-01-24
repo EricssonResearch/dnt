@@ -5,7 +5,6 @@
 #ifndef R2_PIPELINE_H
 #define R2_PIPELINE_H
 
-#include "configfile.h"
 #include <stdbool.h>
 
 struct Action;

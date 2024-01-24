@@ -16,6 +16,7 @@ LOGGING_MODULE(OAM, WARNING)
 
 static unsigned packet_count = 0;
 static unsigned char *dummybuf = NULL;
+static unsigned next_packet_id = 0;
 
 static void __attribute__((destructor)) free_dummybuf(void)
 {
@@ -37,6 +38,8 @@ struct Packet *new_packet(struct Interface *from)
     // this offset is divisible with 4, so the start position is okay
     ret->start = PACKET_START_OFFSET;
     ret->from = from;
+    ret->id = __atomic_fetch_add(&next_packet_id, 1, __ATOMIC_RELAXED);
+    ret->original_id = ret->id;
     return ret;
 }
 
@@ -55,6 +58,7 @@ struct Packet *copy_packet(const struct Packet *p)
 {
     struct Packet *newp = calloc_struct(Packet);
     *newp = *p;
+    newp->id = __atomic_fetch_add(&next_packet_id, 1, __ATOMIC_RELAXED);
 #if 0
     newp->buf = memdup(p->buf, PACKET_BUF_LEN);
 #else
@@ -70,14 +74,10 @@ struct Packet *copy_packet(const struct Packet *p)
 struct Packet *serialize_packet(const struct Packet *p)
 {
     struct Packet *ret = calloc_struct(Packet);
+    *ret = *p;
+
     ret->buf = calloc(1, PACKET_BUF_LEN);
-    __atomic_fetch_add(&packet_count, 1, __ATOMIC_RELAXED);
     ret->start = PACKET_START_OFFSET;
-    ret->from = p->from;
-    ret->recv_time = p->recv_time;
-    ret->timestamp = p->timestamp;
-    ret->sequence = p->sequence;
-    ret->ttl = p->ttl;
     unsigned dstlen = 0;
     for (unsigned i=0; i<p->header_count; i++) {
         unsigned char *src = p->buf + p->headers[i].start;
@@ -87,6 +87,9 @@ struct Packet *serialize_packet(const struct Packet *p)
         dstlen += len;
     }
     ret->len = dstlen;
+
+    ret->id = __atomic_fetch_add(&next_packet_id, 1, __ATOMIC_RELAXED);
+    __atomic_fetch_add(&packet_count, 1, __ATOMIC_RELAXED);
     return ret;
 }
 

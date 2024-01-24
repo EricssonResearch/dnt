@@ -7,6 +7,7 @@
 
 #include "interface.h"
 #include "pipeline.h"
+#include "hashmap.h"
 
 #define SEQ_IS_OAM(seq)     \
     (ntohl(seq) & 0x10000000u)

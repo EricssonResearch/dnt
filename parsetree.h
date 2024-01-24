@@ -18,8 +18,9 @@ struct Pipeline;
 struct HeaderMatch {
     struct HeaderField *field;
     struct Value value;
-    struct HeaderMatch *next;
     value_comparator *comparator;
+
+    struct HeaderMatch *next;
 };
 
 struct HeaderDescriptor {
