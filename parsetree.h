@@ -5,18 +5,18 @@
 #ifndef R2_PARSETREE_H
 #define R2_PARSETREE_H
 
+#include "header.h"
 #include "protocol.h"
 #include "value.h"
 
 #include <stdbool.h>
 
-struct ConfStream;
 struct Interface;
 struct Packet;
 struct Pipeline;
 
 struct HeaderMatch {
-    struct HeaderField *field;
+    struct HeaderField field;
     struct Value value;
     value_comparator *comparator;
 
@@ -26,7 +26,7 @@ struct HeaderMatch {
 struct HeaderDescriptor {
     char *name; // format: type[_identifier]
     enum ProtocolID id;
-    struct HeaderMatch *matches; //TODO hash table instead of linked list?
+    struct HeaderMatch *matches;
 
     struct HeaderDescriptor *next;
 };
@@ -40,7 +40,6 @@ void parsetree_ref(struct ParseTree *pt);
 void parsetree_unref(struct ParseTree *pt);
 
 // adds a new stream to the decision tree
-// the @state of each header must be CH_PACKET
 // this will add a reference to @pipe
 // this should not alter @headers, dynconf will need it later
 bool parsetree_add_stream(struct ParseTree *pt, struct HeaderDescriptor *headers, struct Pipeline *pipe);

@@ -95,7 +95,7 @@ static int packetline_cb(const char *key, void *value, void *userdata)
 
             struct ConfStream *stream = calloc_struct(ConfStream);
             stream->actions = actions;
-            stream->packet = headers;
+            stream->headers = headers;
             hashmap_insert(state->streams, strdup(streamname), stream);
             free(streamname);
             free(matchname);
@@ -170,7 +170,7 @@ struct ConfStream *delete_confstream(struct ConfStream *stream)
 {
     if (!stream) return NULL;
 
-    delete_header_list(stream->packet);
+    delete_header_list(stream->headers);
     delete_confaction_list(stream->actions);
     free(stream);
 

@@ -13,7 +13,7 @@ struct HeaderDescriptor;
 
 struct ConfStream {
     struct ConfAction *actions;
-    struct HeaderDescriptor *packet;
+    struct HeaderDescriptor *headers;
 };
 
 // @returns hash of ConfStream keyed by stream name

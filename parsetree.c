@@ -71,7 +71,7 @@ static bool parsetree_match_header(const struct HeaderMatch *fields, const struc
     const struct HeaderMatch *f = fields;
     bool matched = true;
     while (f) {
-        matched &= f->comparator(f->field, &f->value, p);
+        matched &= f->comparator(&f->field, &f->value, p);
         f = f->next;
     }
     return matched;
@@ -115,7 +115,6 @@ struct HeaderMatch *delete_match_list(struct HeaderMatch *matches)
         struct HeaderMatch *d = m;
         m = m->next;
         free(d->value.value);
-        free(d->field);
         free(d);
     }
     return NULL;

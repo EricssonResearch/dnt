@@ -104,12 +104,13 @@ static bool process_match_token(char *token, void *userdata)
             newmatch->next = stst->current_header->matches;
             stst->current_header->matches = newmatch;
             struct HeaderField *hf = new_headerfield(stst->current_idx, f);
-            newmatch->field = hf;
+            newmatch->field = *hf;
+            free(hf);
             newmatch->value = init_value(f->bitoffset, f->bitcount);
             if (!read_constant(&newmatch->value, stst->current_header->id, f->type, val)) {
                 THROW("value '%s' doesn't fit into field '%s'", val, key);
             }
-            newmatch->comparator = header_get_field_comprator(hf, &newmatch->value);
+            newmatch->comparator = header_get_field_comprator(&newmatch->field, &newmatch->value);
             if(!newmatch->comparator) {
                 THROW("can't find comparator function for the '%s' value", key);
             }
@@ -208,7 +209,7 @@ void confheaders_print(const struct HeaderDescriptor *headers)
             log_info("  matches:\n");
             for (const struct HeaderMatch *m=h->matches; m; m=m->next) {
                 log_info("    field idx %u bitoffset %u bitcount %u value bitoffset %u bitlength %u\n",
-                        m->field->header_idx, m->field->bitoffset, m->field->bitcount,
+                        m->field.header_idx, m->field.bitoffset, m->field.bitcount,
                         m->value.bitoffset, m->value.bitcount);
                 unsigned bytes = DIVCEIL(m->value.bitoffset + m->value.bitcount, 8);
                 unsigned char *cst = m->value.value;
