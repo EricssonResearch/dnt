@@ -191,7 +191,7 @@ static bool compare_generic(const void *state, const struct Value *value, const 
     unsigned byteoffset = 1;
 
     if (remaining_bytes) {
-        if (memcmp(hdr_data+1, match_data+1, remaining_bytes) == 0)
+        if (memcmp(hdr_data+1, match_data+1, remaining_bytes) != 0)
             return false;
         remaining_bits -= remaining_bytes * 8;
         byteoffset += remaining_bytes;
