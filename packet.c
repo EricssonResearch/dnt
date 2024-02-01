@@ -11,7 +11,7 @@
 #include <stdio.h>
 #include <string.h>
 
-DEFAULT_LOGGING_MODULE(MAIN, WARNING)
+DEFAULT_LOGGING_MODULE(PACKET, WARNING)
 LOGGING_MODULE(OAM, WARNING)
 
 static unsigned packet_count = 0;
@@ -101,11 +101,11 @@ bool packet_dummy(const struct Packet *p)
 void packet_identify_header(struct Packet *p, enum ProtocolID type, unsigned offset, unsigned len)
 {
     if (p->header_count == PACKET_MAX_HEADER_NUM) {
-        log_debug("packet_identify_header: already at maximum header count\n");
+        log_error("packet_identify_header: already at maximum header count");
         return;
     }
     if (p->header_count > 0 && p->headers[p->header_count-1].start > p->start + offset) {
-        log_debug("packet_identify_header: new offset % is smaller than the previous %u\n",
+        log_error("packet_identify_header: new offset % is smaller than the previous %u",
                 offset, p->headers[p->header_count-1].start);
         return;
     }
@@ -134,7 +134,7 @@ void packet_add_header(struct Packet *p, unsigned idx, enum ProtocolID type, uns
     }
     if (idx > p->header_count) {
         //TODO if this error happens, the config compiler is broken
-        log_debug("packet_add_header index too large %u > %u\n", idx, p->header_count);
+        log_error("packet_add_header index too large %u > %u", idx, p->header_count);
         return;
     }
     int start = scratch_alloc(p, len);
@@ -172,9 +172,8 @@ void packet_clear_headers(struct Packet *p)
 void packets_check_performance(void)
 {
     if (packet_count > PACKET_COUNT_LIMIT * 0.9) {
-        log_warning_m(OAM, "\033[0;31mSEVERE PERFORMANCE WARNING: too many packets in the system\033[0m\n");
+        log_warning_m(OAM, "\033[0;31mSEVERE PERFORMANCE WARNING: too many packets in the system\033[0m");
     } else if (packet_count > PACKET_COUNT_LIMIT * 0.5) {
-        log_warning_m(OAM, "\033[0;33mPERFORMANCE WARNING: too many packets in the system\033[0m\n");
+        log_warning_m(OAM, "\033[0;33mPERFORMANCE WARNING: too many packets in the system\033[0m");
     }
-    //else log_warning_m(OAM, "\033[0;32mPERFORMANCE okay\033[0m\n");
 }

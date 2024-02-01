@@ -40,7 +40,7 @@ struct UdpOutIfData {
 
 static struct Packet *udpout_recv(struct Interface *iface)
 {
-    log_warning("udp-out interface %s recv how??\n", iface->name);
+    log_warning("udp-out interface %s recv how??", iface->name);
     return NULL;
 }
 
@@ -55,7 +55,7 @@ static bool udpout_open(struct Interface *iface)
 {
     struct UdpOutIfData *uid = iface->iface_private;
     if (iface->state != IFS_INIT) {
-        log_error("open udp-out interface %s: already opened\n", iface->name);
+        log_error("open udp-out interface %s: already opened", iface->name);
         return false;
     }
     int sock = uid->sock;
@@ -168,22 +168,22 @@ static value_producer *udpout_get_property_reader(const struct Interface *iface,
 
     if (strcmp(property, "srcport") == 0) {
         if (target_type != FT_NUMBER) {
-            log_error("udpout_get_property_reader 'srcport' target type %d invalid\n", target_type);
+            log_error("udpout_get_property_reader 'srcport' target type %d invalid", target_type);
             return NULL;
         }
         if ((target->bitoffset % 8) || (target->bitcount != 2*8)) {
-            log_error("udpout_get_property_reader 'srcport' target position %u %u invalid\n",
+            log_error("udpout_get_property_reader 'srcport' target position %u %u invalid",
                     target->bitoffset, target->bitcount);
             return NULL;
         }
         return udpout_srcport_producer;
     } else if (strcmp(property, "dstport") == 0) {
         if (target_type != FT_NUMBER) {
-            log_error("udpout_get_property_reader 'dstport' target type %d invalid\n", target_type);
+            log_error("udpout_get_property_reader 'dstport' target type %d invalid", target_type);
             return NULL;
         }
         if ((target->bitoffset % 8) || (target->bitcount != 2*8)) {
-            log_error("udpout_get_property_reader 'dstport' target position %u %u invalid\n",
+            log_error("udpout_get_property_reader 'dstport' target position %u %u invalid",
                     target->bitoffset, target->bitcount);
             return NULL;
         }
@@ -192,18 +192,18 @@ static value_producer *udpout_get_property_reader(const struct Interface *iface,
         enum ProtocolFieldType ftype = uid->family == AF_INET6 ? FT_IPV6ADDRESS : FT_IPV4ADDRESS;
         unsigned bitcount = uid->family == AF_INET6 ? 128 : 32;
         if (target_type != ftype) {
-            log_error("udpout_get_property_reader 'srcip' target type %d invalid\n", target_type);
+            log_error("udpout_get_property_reader 'srcip' target type %d invalid", target_type);
             return NULL;
         }
         if ((target->bitoffset % 8) || (target->bitcount != bitcount)) {
-            log_error("udpout_get_property_reader 'srcip' target position %u %u invalid\n",
+            log_error("udpout_get_property_reader 'srcip' target position %u %u invalid",
                     target->bitoffset, target->bitcount);
             return NULL;
         }
         return udpout_dstip_producer;
     }
 
-    log_error("udpout_get_property_reader unknown property '%s'\n", property);
+    log_error("udpout_get_property_reader unknown property '%s'", property);
     return NULL;
 }
 
@@ -237,7 +237,7 @@ struct Interface *new_udp_out_interface(const char *name, const char *ifname,
     int err = getaddrinfo(dst_ip, port_str, &hints, &result);
 
     if (err) {
-        log_error("udp-out invalid dstip '%s'\n", dst_ip);
+        log_error("udp-out invalid dstip '%s'", dst_ip);
         return false;
     }
 
@@ -300,7 +300,7 @@ struct Interface *new_udp_out_interface(const char *name, const char *ifname,
     }
 
     if (sock < 0) {
-        log_error("udp-out can't make socket with dstip '%s'\n", dst_ip);
+        log_error("udp-out can't make socket with dstip '%s'", dst_ip);
         freeaddrinfo(result);
         return false;
     }
@@ -320,9 +320,6 @@ struct Interface *new_udp_out_interface(const char *name, const char *ifname,
     }
     uid->priority = priority;
     freeaddrinfo(result);
-
-    iface->parsetree = new_parsetree(iface);
-    parsetree_ref(iface->parsetree);
 
     return iface;
 }

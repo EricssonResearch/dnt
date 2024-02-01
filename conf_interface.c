@@ -39,7 +39,7 @@ static bool iface_token_cb(char *token, void *userdata)
 {
 #define THROW(msg, ...)                                             \
     do {                                                            \
-        log_error("interface %s error: " msg "\n",            \
+        log_error("interface %s error: " msg,                       \
                 tstate->ifname, ##__VA_ARGS__);                     \
         return false;                                               \
     } while (0)
@@ -76,7 +76,7 @@ static int iface_cb(const char *key, void *value, void *userdata)
 {
 #define THROW(msg, ...)                                             \
     do {                                                            \
-        log_error("interface %s error: " msg "\n",            \
+        log_error("interface %s error: " msg,                       \
                 key, ##__VA_ARGS__);                                \
         free(tstate.type);                                          \
         delete_hashmap(tstate.params);                              \
@@ -258,7 +258,7 @@ struct HashMap *parse_interfaces(const struct IniSection *interfaces_section)
     state.ifaces = new_hashmap(11, iface_delete_cb, NULL);
 
     if (!hashmap_foreach(interfaces_section->contents, iface_cb, &state)) {
-        log_error("an interface is invalid\n");
+        log_error("an interface is invalid");
         delete_hashmap(state.ifaces);
         return NULL;
     }
@@ -291,7 +291,7 @@ static bool iface_stream_token_cb(char *token, void *userdata)
         tstate->iface_stream_list = sl;
         return true;
     } else {
-        log_error("no stream named '%s'\n", token);
+        log_error("no stream named '%s'", token);
         return false;
     }
 }
@@ -308,7 +308,7 @@ static int iface_stream_cb(const char *key, void *value, void *userdata)
 
     // verify that there is no garbage after :streams
     if (is-key != (long int)strlen(key) - 8) {
-        log_error("interface streams '%s' invalid\n", key);
+        log_error("interface streams '%s' invalid", key);
         return 0;
     }
 
@@ -316,7 +316,7 @@ static int iface_stream_cb(const char *key, void *value, void *userdata)
     char *ifname = strndup(key, is-key);
     struct Interface *iface = hashmap_find(state->ifaces, ifname);
     if (iface == NULL) {
-        log_error("parsing streams for interfaces: unknown interface '%s'\n", ifname);
+        log_error("parsing streams for interfaces: unknown interface '%s'", ifname);
         free(ifname);
         return 0;
     }
@@ -326,16 +326,16 @@ static int iface_stream_cb(const char *key, void *value, void *userdata)
         .iface_stream_list = NULL,
     };
     if (!foreach_tokens(str, iface_stream_token_cb, &tokstate)) {
-        log_error("invalid streams for interface '%s'\n", ifname);
+        log_error("invalid streams for interface '%s'", ifname);
         free(ifname);
         return 0;
     }
 
     REVERSE_LIST(tokstate.iface_stream_list);
     hashmap_insert(state->iface_streams, ifname, tokstate.iface_stream_list);
-    log_info("interface %s receives streams:\n", ifname);
+    log_info("interface %s receives streams:", ifname);
     for (struct ConfStreamList *i=tokstate.iface_stream_list; i; i=i->next) {
-        log_info("  %s\n", i->stream_name);
+        log_info("  %s", i->stream_name);
     }
     return 1;
 }
@@ -364,7 +364,7 @@ struct HashMap *parse_interface_streams(const struct IniSection *interfaces_sect
     };
 
     if (!hashmap_foreach(interfaces_section->contents, iface_stream_cb, &state)) {
-        log_error("an interface streams line is invalid\n");
+        log_error("an interface streams line is invalid");
         delete_hashmap(state.iface_streams);
         return NULL;
     }

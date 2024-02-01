@@ -27,7 +27,7 @@ static void try_delete_interface(struct Interface *iface)
 void close_iface(struct Interface *iface)
 {
     if (iface->state == IFS_SHUTDOWN) {
-        log_error("interface %s close called twice\n", iface->name);
+        log_error("interface %s close called twice", iface->name);
         return;
     }
     iface->state = IFS_SHUTDOWN;

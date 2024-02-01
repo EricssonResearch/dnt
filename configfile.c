@@ -107,7 +107,7 @@ struct R2d2Config *read_config(const char *filename)
 {
 #define THROW(msg, ...)                                             \
     do {                                                            \
-        log_error("config '%s' error: " msg "\n",             \
+        log_error("config '%s' error: " msg,                        \
                  filename, ##__VA_ARGS__);                          \
         delete_inisection(ini);                                     \
         return delete_config(ret);                                  \
@@ -207,7 +207,7 @@ static int addstream_cb(const char *key, void *value, void *userdata)
 
     struct Interface *iface = hashmap_find(state->ifaces, key);
     if (iface == NULL) {
-        log_error("adding streams to interfaces: unknown interface '%s'\n", key);
+        log_error("adding streams to interfaces: unknown interface '%s'", key);
         return 0;
     }
 
@@ -222,12 +222,12 @@ static int addstream_cb(const char *key, void *value, void *userdata)
             unsigned action_count;
             struct Action *actions = assemble_actions(s->stream_name, s->stream->actions, &action_count);
             if (!actions) {
-                log_error("failed to assemble actions for stream %s\n", s->stream_name);
+                log_error("failed to assemble actions for stream %s", s->stream_name);
                 return 0;
             }
             pipe = new_pipeline(s->stream_name, actions, action_count);
             if (!pipe) { //TODO this never happens
-                log_error("failed to create action pipeline for stream %s\n", s->stream_name);
+                log_error("failed to create action pipeline for stream %s", s->stream_name);
                 for (unsigned i=0; i<action_count; i++) {
                     delete_action(actions+i);
                 }
@@ -280,7 +280,7 @@ bool config_add_streams_to_interfaces(struct R2d2Config *config)
         .pipe_cache = new_hashmap(29, pipe_cache_delete_cb, NULL),
     };
     if (!hashmap_foreach(config->iface_streams, addstream_cb, &state)) {
-        log_error("failed to add streams to interfaces\n");
+        log_error("failed to add streams to interfaces");
         delete_hashmap(state.pipe_cache);
         return false;
     }

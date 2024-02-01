@@ -79,7 +79,7 @@ static bool token_cb(char *str, void *userdata)
 {
 #define THROW(msg, ...)                                             \
     do {                                                            \
-        log_error("object %s error: " msg "\n",               \
+        log_error("object %s error: " msg,                          \
                 info->name, ##__VA_ARGS__);                         \
         return false;                                               \
     } while (0)
@@ -250,7 +250,7 @@ static int object_cb(const char *key, void *value, void *userdata)
     info.name = key;
 
     if (!foreach_tokens(desc, token_cb, &info)) {
-        log_error("error parsing parameters for object '%s'\n", key);
+        log_error("parsing parameters failed for object '%s'", key);
         return 0;
     }
 
@@ -280,7 +280,7 @@ static int object_cb(const char *key, void *value, void *userdata)
 
     }
     if (obj == NULL) {
-        log_error("error creating object '%s'\n", key);
+        log_error("creating object '%s' failed", key);
         return 0;
     } else {
         hashmap_insert(state->objects, obj->name, obj);
@@ -303,7 +303,7 @@ struct HashMap *parse_objects(const struct IniSection *objects_section)
     state.objects = new_hashmap(13, delete_cb, NULL);
 
     if (!hashmap_foreach(objects_section->contents, object_cb, &state)) {
-        log_error("error in the objects section\n");
+        log_error("error in the objects section");
         delete_hashmap(state.objects);
         return NULL;
     } else {

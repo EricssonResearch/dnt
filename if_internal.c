@@ -97,7 +97,7 @@ static bool int_send(struct Interface *iface, struct Packet *p)
 static bool int_open(struct Interface *iface)
 {
     if (iface->state != IFS_INIT) {
-        log_error("open internal interface %s: already opened\n", iface->name);
+        log_error("open internal interface %s: already opened", iface->name);
         return false;
     }
     iface->recvfd = eventfd(0, EFD_SEMAPHORE);

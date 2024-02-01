@@ -36,17 +36,19 @@ struct IpIfData {
 
 static struct Packet *ip_recv(struct Interface *iface)
 {
-    log_warning("ip interface %s recv how??\n", iface->name);
+    log_warning("ip interface %s recv how??", iface->name);
     return NULL;
 }
 
 static bool ip_send(struct Interface *iface, struct Packet *p)
 {
     struct IpIfData *iid = iface->iface_private;
+
     if (p->header_count < 1) {
-        log_error("ip %s send: packet doesn't have headers\n", iface->name);
+        log_error("ip %s send: packet doesn't have headers", iface->name);
         return false;
     }
+
     if (p->headers[0].type == PROTO_ID_IPv4) {
         struct sockaddr_in socket_address;
         memset(&socket_address, 0, sizeof(struct sockaddr_in));
@@ -64,7 +66,7 @@ static bool ip_send(struct Interface *iface, struct Packet *p)
         memset(socket_address.sll_addr, 0xff, ETH_ALEN);
         return iface_common_send(iface, p, iid->sock6, &socket_address, sizeof(socket_address));
     } else {
-        log_error("ip %s send: first header of the packet is not IP\n", iface->name);
+        log_error("ip %s send: first header of the packet is not IP", iface->name);
         return false;
     }
 }
@@ -73,12 +75,8 @@ static bool ip_open(struct Interface *iface)
 {
     struct IpIfData *iid = iface->iface_private;
     if (iface->state != IFS_INIT) {
-        log_error("open ip interface %s: already opened\n", iface->name);
+        log_error("open ip interface %s: already opened", iface->name);
         return false;
-    }
-    if (iface->parsetree == NULL) {
-        log_warning("open ip interface %s: no parsetree, expect trouble\n", iface->name);
-        //TODO fatal?
     }
 
     // the dummy protocol type signals that we don't want to receive things
@@ -167,7 +165,7 @@ static bool ip_open(struct Interface *iface)
 
     freeifaddrs(ifaddr);
     if (!srcip4_set && !srcip6_set) {
-        log_error("open ip interface %s: no address on interface %s\n", iface->name, iface->ifname);
+        log_error("open ip interface %s: no address on interface %s", iface->name, iface->ifname);
         close(sock4);
         close(sock6);
         return false;
@@ -221,25 +219,25 @@ static value_producer *ip_get_property_reader(const struct Interface *iface, con
     if (strcmp(property, "srcip") == 0) {
         if (target_type == FT_IPV4ADDRESS) {
             if ((target->bitoffset % 8) || (target->bitcount != 4*8)) {
-                log_error("ip_get_property_reader 'srcip' target position %u %u invalid\n",
+                log_error("ip_get_property_reader 'srcip' target position %u %u invalid",
                         target->bitoffset, target->bitcount);
                 return NULL;
             }
             return ip_ipv4_producer;
         } else if (target_type == FT_IPV6ADDRESS) {
             if ((target->bitoffset % 8) || (target->bitcount != 16*8)) {
-                log_error("ip_get_property_reader 'srcip' target position %u %u invalid\n",
+                log_error("ip_get_property_reader 'srcip' target position %u %u invalid",
                         target->bitoffset, target->bitcount);
                 return NULL;
             }
             return ip_ipv6_producer;
         } else {
-            log_error("ip_get_property_reader 'srcip' target type %d invalid\n", target_type);
+            log_error("ip_get_property_reader 'srcip' target type %d invalid", target_type);
             return NULL;
         }
     }
 
-    log_error("ip_get_property_reader unknown property '%s'\n", property);
+    log_error("ip_get_property_reader unknown property '%s'", property);
     return NULL;
 }
 
@@ -258,9 +256,6 @@ struct Interface *new_ip_interface(const char *name, const char *ifname)
 
     struct IpIfData *iid = calloc_struct(IpIfData);
     iface->iface_private = iid;
-
-    iface->parsetree = new_parsetree(iface);
-    parsetree_ref(iface->parsetree);
 
     return iface;
 }

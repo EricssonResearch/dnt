@@ -475,7 +475,7 @@ static void recovery_diagnostic(struct SequenceRecovery *rec)
 {
 #define ALERT(msg, ...)                                     \
     do {                                                    \
-        log_warning_m(DIAGNOSTIC, msg "\n", ##__VA_ARGS__);      \
+        log_warning_m(DIAGNOSTIC, msg, ##__VA_ARGS__);      \
         oam_cli_alert(msg, ##__VA_ARGS__);                  \
     } while (0)                                             \
 
@@ -491,7 +491,7 @@ static void recovery_diagnostic(struct SequenceRecovery *rec)
         goto update;
     } else if (diff >= diag->latent_error_difference) {
         int more_percent = (discarded_diff * 100) / ((diag->latent_error_paths - 1) * passed_diff);
-        ALERT("%s: MORE_PACKETS_THAN_EXPECTED with %d percent\n", rec->base.name, more_percent);
+        ALERT("%s: MORE_PACKETS_THAN_EXPECTED with %d percent", rec->base.name, more_percent);
         goto update;
     }
     unsigned int working_ceil = (discarded_diff + diag->latent_error_difference - 1) / passed_diff;
@@ -532,7 +532,7 @@ static void latent_error_test(struct SequenceRecovery *rec)
         if (diff < 0)
             diff = -diff;
         if (diff > rec->diag.latent_error_difference) {
-            log_warning_m(DIAGNOSTIC, "%s: Latent error signal\n", rec->base.name);
+            log_warning_m(DIAGNOSTIC, "%s: Latent error signal", rec->base.name);
             rec->latent_errors += 1;
         }
         recovery_diagnostic(rec);
@@ -589,7 +589,7 @@ static void *reset_thread(void *arg)
         clock_nanosleep(CLOCK_REALTIME, TIMER_ABSTIME, &sleep_until, NULL);
         clock_gettime(CLOCK_REALTIME, &now);
         if (timespeccmp(&now, &sleep_until, <)) {
-            log_debug("%s: Early wakeup. continue sleep...\n", rec->base.name);
+            log_debug("%s: Early wakeup. continue sleep...", rec->base.name);
             // Unlikely early wake up, continue with sleeping
             continue;
         }

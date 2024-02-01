@@ -92,11 +92,11 @@ static bool eth_send(struct Interface *iface, struct Packet *p)
     struct EthIfData *eid = iface->iface_private;
 
     if (p->header_count < 1) {
-        log_debug("eth %s send: packet doesn't have headers\n", iface->name);
+        log_error("eth %s send: packet doesn't have headers", iface->name);
         return false;
     }
     if (p->headers[0].type != PROTO_ID_ETH) {
-        log_debug("eth %s send: first header of the packet is not eth\n", iface->name);
+        log_error("eth %s send: first header of the packet is not eth", iface->name);
         return false;
     }
 
@@ -125,12 +125,8 @@ static bool eth_open(struct Interface *iface)
     struct EthIfData *eid = iface->iface_private;
 
     if (iface->state != IFS_INIT) {
-        log_error("open eth interface %s: already opened\n", iface->name);
+        log_error("open eth interface %s: already opened", iface->name);
         return false;
-    }
-    if (iface->parsetree == NULL) {
-        log_warning("open eth interface %s: no parsetree, expect trouble\n", iface->name);
-        //TODO fatal?
     }
 
     //TODO only need 1 socket if using the eBPF prioritizing filter
@@ -268,15 +264,15 @@ static value_producer *eth_get_property_reader(const struct Interface *iface, co
     (void)iface;
     // eth only has one property
     if (strcmp(property, "mac") != 0) {
-        log_error("eth_get_property_reader unknown property '%s'\n", property);
+        log_error("eth_get_property_reader unknown property '%s'", property);
         return NULL;
     }
     if (target_type != FT_MACADDRESS) {
-        log_error("eth_get_property_reader target type %d is not mac address\n", target_type);
+        log_error("eth_get_property_reader target type %d is not mac address", target_type);
         return NULL;
     }
     if ((target->bitoffset % 8) || (target->bitcount != 6*8)) {
-        log_error("eth_get_property_reader target position %u %u invalid\n",
+        log_error("eth_get_property_reader target position %u %u invalid",
                 target->bitoffset, target->bitcount);
         return NULL;
     }

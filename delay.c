@@ -45,7 +45,7 @@ int ev_fds;
 static void *delay_thread(void *arg)
 {
     (void)arg;
-    log_info("Delay thread starting\n");
+    log_info("Delay thread starting");
     pthread_setname_np(pthread_self(), "delay thread");
 
     fd_set  readfds;
@@ -148,15 +148,15 @@ bool init_delay(void)
 
     if (pthread_create(&delay_tid, &attr, &delay_thread, NULL) != 0) {
         if (pthread_create(&delay_tid, NULL, &delay_thread, NULL) != 0) {
-            log_error("could not create delay thread\n");
+            log_error("could not create delay thread");
             return false;
         }
-        log_warning("could not set priority for delay thread, need CAP_SYS_NICE\n");
+        log_warning("could not set priority for delay thread, need CAP_SYS_NICE");
     }
 
     ev_fds = eventfd(0, EFD_NONBLOCK);
     if(ev_fds == -1){
-        log_error("Create eventfd failed. \n");
+        log_error("Create eventfd failed.");
         return false;
     }
 
@@ -177,7 +177,7 @@ void delay_insert(struct PipelineIterator *pi, unsigned timestamp, unsigned dela
     // alloc and fill in the tt_queue entry
     struct DelayQueue* pDelayQueueEntry = calloc_struct(DelayQueue);
     if(pDelayQueueEntry == NULL){
-        log_warning("Insufficient memory.\n");
+        log_warning("Insufficient memory.");
         // TODO handle error
         return;
     }
@@ -248,14 +248,14 @@ void delay_insert(struct PipelineIterator *pi, unsigned timestamp, unsigned dela
 
             // interrupt current pselect
             if(write(ev_fds, &val, sizeof(val)) <= 0)
-                printf ("write event fd error!!!\n");       // TODO: THROW
+                log_error("write event fd error!!!");       // TODO: THROW
 
             // unlock mutex
             pthread_mutex_unlock (&mutex);
         }
     } else {  // not first, insert into the queue
         if(delay_queue == NULL)
-            printf("Should not happen\n");
+            log_error("Should not happen");
 
         // put in the queue
         pDelayQueueEntry->next = pDelayQueueIteratorPrev->next;

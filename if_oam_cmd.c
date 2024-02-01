@@ -24,6 +24,7 @@
 #include <netinet/in.h>
 
 DEFAULT_LOGGING_MODULE(IFOAMCMD, WARNING)
+
 #define BACKLOG 2   // how many pending connections queue will hold
 
 struct OamCmdIfData {
@@ -61,7 +62,7 @@ static struct Packet *oam_cmd_recv(struct Interface *iface)
     }
 
     inet_ntop(their_addr.ss_family, get_in_addr((struct sockaddr *)&their_addr), s, sizeof s);
-    log_info("got connection from %s\n", s);
+    log_info("got connection from %s", s);
 
     oam_start_command_connection(new_fd);
     return NULL;
@@ -70,7 +71,7 @@ static struct Packet *oam_cmd_recv(struct Interface *iface)
 static bool oam_cmd_send(struct Interface *iface, struct Packet *p)
 {
     (void)p;
-    log_error("oam cmd interface %s should not send packet\n", iface->name);
+    log_error("oam cmd interface %s should not send packet", iface->name);
     return false;
 }
 
@@ -78,7 +79,7 @@ static bool oam_cmd_open(struct Interface *iface)
 {
     struct OamCmdIfData *oid = iface->iface_private;
     if (iface->state != IFS_INIT) {
-        log_error("open OAM cmd interface %s: already opened\n", iface->name);
+        log_error("open OAM cmd interface %s: already opened", iface->name);
         return false;
     }
     int sock = socket(oid->family, SOCK_STREAM, 0);
@@ -188,7 +189,7 @@ struct Interface *new_oam_cmd_interface(const char *name, const char *ifname,
         // this will also accept v4 connections
         oid->family = AF_INET6;
     }
-    log_info("OAM Cmd Family: %d\n", oid->family);
+    log_info("OAM Cmd Family: %d", oid->family);
 
     return iface;
 }

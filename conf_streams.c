@@ -30,7 +30,7 @@ static int packetline_cb(const char *key, void *value, void *userdata)
 {
 #define THROW(msg, ...)                                             \
     do {                                                            \
-        log_error("stream '%s' error: " msg "\n",                   \
+        log_error("stream '%s' error: " msg,                        \
                  streamname, ##__VA_ARGS__);                        \
         free(streamname);                                           \
         free(matchname);                                            \
@@ -52,7 +52,7 @@ static int packetline_cb(const char *key, void *value, void *userdata)
             struct HeaderDescriptor *headers = NULL;
             struct ConfAction *actions = NULL;
 
-            log_info("Parsing stream '%s'\n", streamname);
+            log_info("Parsing stream '%s'", streamname);
 
             headers = parse_packet_line(streamname, packetline);
             if (headers == NULL) {
@@ -71,7 +71,7 @@ static int packetline_cb(const char *key, void *value, void *userdata)
                 THROW("match line invalid");
             }
 
-            log_info("Stream %s headers:\n", streamname);
+            log_info("Stream %s headers:", streamname);
             confheaders_print(headers);
 
             // find the corresponding :actions line
@@ -89,7 +89,7 @@ static int packetline_cb(const char *key, void *value, void *userdata)
                 THROW("actions invalid");
             }
 
-            log_info("Stream %s actions:\n", streamname);
+            log_info("Stream %s actions:", streamname);
             confactions_print(actions);
 
 
@@ -116,12 +116,12 @@ static int checkline_cb(const char *key, void *value, void *userdata)
         if (strcmp(colon+1, "actions") == 0) {
             /* TODO we agreed that we don't need this restriction
             if (!hashmap_contains(state->streams, streamname)) {
-                log_error("stream '%s' has actions line but no packet line\n", streamname);
+                log_error("stream '%s' has actions line but no packet line", streamname);
                 return 0;
             }*/
         } else if (strcmp(colon+1, "match") == 0) {
             if (!hashmap_contains(state->streams, streamname)) {
-                log_error("stream '%s' has match line but no packet line\n", streamname);
+                log_error("stream '%s' has match line but no packet line", streamname);
                 free(streamname);
                 return 0;
             }
@@ -151,14 +151,14 @@ struct HashMap *parse_streams(const struct IniSection *streams_section,
     };
 
     if (!hashmap_foreach(streams_section->contents, packetline_cb, &state)) {
-        log_error("failed to parse the streams\n");
+        log_error("failed to parse the streams");
         delete_hashmap(state.streams);
         return NULL;
     }
 
     // search for :actions and :match lines that have no corresponding :packet line
     if (!hashmap_foreach(streams_section->contents, checkline_cb, &state)) {
-        log_error("failed to parse the streams\n");
+        log_error("failed to parse the streams");
         delete_hashmap(state.streams);
         return NULL;
     }

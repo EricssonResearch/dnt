@@ -23,7 +23,7 @@ static int oam_cb(const char *key, void *value, void *userdata)
     char *cmdline = value;
     struct ConfOamState *state = userdata;
 
-    log_info("  new OAM session %s -> %s\n", key, cmdline);
+    log_info("  OAM background session %s: %s", key, cmdline);
 
     //TODO we are just copying the hash table...
     hashmap_insert(state->oam, strdup(key), strdup(cmdline));
@@ -36,10 +36,10 @@ struct HashMap *parse_oam(const struct IniSection *oam_section)
         .oam = new_hashmap(7, NULL, NULL),
     };
 
-    log_info("Parsing OAM section:\n");
+    log_info("Parsing OAM section:");
 
     if (!hashmap_foreach(oam_section->contents, oam_cb, &state)) {
-        log_error("failed to parse oam\n");
+        log_error("failed to parse oam");
         return NULL;
     }
 

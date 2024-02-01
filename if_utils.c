@@ -85,7 +85,7 @@ static void get_rx_tstamp(struct msghdr *msg, struct Packet *p, void *userdata)
                 if (cmsg->cmsg_type == SCM_TIMESTAMPING) {
                     struct timespec *tstamp;
                     if (cmsg->cmsg_len < sizeof(struct cmsghdr)+3*sizeof(struct timespec)) {
-                        log_error("cmsg_len %zu tstamp %zu cmsghdr %zu\n",
+                        log_error("alignment problem cmsg_len %zu tstamp %zu cmsghdr %zu",
                                 cmsg->cmsg_len, sizeof(struct timespec), sizeof(struct cmsghdr));
                     } else {
                         // we aligned msg.msg_control so the alignment should be okay here
@@ -128,7 +128,7 @@ struct Packet *iface_common_recv(struct Interface *iface, msghdr_process_cb *msg
     }
 
     if (packet_dummy(p)) {
-        log_debug("packet overflow, received on interface %s\n", iface->name);
+        log_debug("packet overflow, received on interface %s", iface->name);
         return delete_packet(p);
     }
     if (iface->state != IFS_OPEN) {
@@ -146,7 +146,7 @@ struct Packet *iface_common_recv(struct Interface *iface, msghdr_process_cb *msg
     if (msg_cb)
         msg_cb(&msg, p, userdata);
 
-    log_packet("IFACE %s recv %u\n", iface->name, p->len);
+    log_packet("IFACE %s recv %u bytes", iface->name, p->len);
     return p;
 }
 
@@ -156,13 +156,13 @@ static void dropstat(struct Interface *iface, int socket)
         struct tpacket_stats stats;
         unsigned optlen = sizeof(stats);
         if (getsockopt(socket, SOL_PACKET, PACKET_STATISTICS, &stats, &optlen) < 0) {
-            log_warning("eth %s send: can't get packet statistics\n", iface->name);
+            log_warning("eth %s send: can't get packet statistics", iface->name);
         } else {
             if (stats.tp_drops >= PKT_DROP_WARNING_THRESHOLD) {
                 struct timespec now;
                 clock_gettime(CLOCK_REALTIME, &now);
                 if (now.tv_sec - iface->dropstat_last_warn >= PKT_DROP_WARNING_INTERVAL_SEC) {
-                    log_warning("eth %s send: drop count %d\n", iface->name, stats.tp_drops);
+                    log_warning("eth %s send: drop count %d", iface->name, stats.tp_drops);
                     iface->dropstat_last_warn = now.tv_sec;
                 }
             }
@@ -174,12 +174,12 @@ static void dropstat(struct Interface *iface, int socket)
 bool iface_common_send(struct Interface *iface, struct Packet *p, int socket, void *dst, unsigned dstlen)
 {
     if (iface->state != IFS_OPEN) {
-        log_warning("send on %s: interface is not open\n", iface->name);
+        log_warning("send on %s: interface is not open", iface->name);
         return false;
     }
 
     if (p->header_count < 1) {
-        log_error("send on %s: packet doesn't have headers\n", iface->name);
+        log_error("send on %s: packet doesn't have headers", iface->name);
         return false;
     }
 
@@ -262,17 +262,17 @@ static void *socket_monitor_thread(void *param)
             if (cmsg->cmsg_level == SOL_IP && cmsg->cmsg_type == IP_RECVERR) {
                 struct sock_extended_err *serr = (void *) CMSG_DATA(cmsg);
                 // serr->ee_origin = 2 (SO_EE_ORIGIN_ICMP)
-                log_error("error on %s '%s' ICMP type %u code %u\n",
+                log_error("error on %s '%s' ICMP type %u code %u",
                         st->name, strerror(serr->ee_errno),
                         serr->ee_type, serr->ee_code);
             } else if (cmsg->cmsg_level == SOL_IPV6 && cmsg->cmsg_type == IPV6_RECVERR) {
                 struct sock_extended_err *serr = (void *) CMSG_DATA(cmsg);
                 // serr->ee_origin = 3 (SO_EE_ORIGIN_ICMP6)
-                log_error("error on %s '%s' ICMPv6 type %u code %u\n",
+                log_error("error on %s '%s' ICMPv6 type %u code %u",
                         st->name, strerror(serr->ee_errno),
                         serr->ee_type, serr->ee_code);
             } else {
-                log_error("unexpected error on %s level %u type %u\n",
+                log_error("unexpected error on %s level %u type %u",
                         st->name, cmsg->cmsg_level, cmsg->cmsg_type);
             }
         }
@@ -296,7 +296,7 @@ void *monitor_error_queue(int socket, int family, const char *name)
             return false;
         }
     } else {
-        log_error("cannot monitor error queue on socket family %d\n", family);
+        log_error("cannot monitor error queue on socket family %d", family);
         return false;
     }
 
@@ -306,7 +306,7 @@ void *monitor_error_queue(int socket, int family, const char *name)
     st->family = family;
 
     if (pthread_create(&st->tid, NULL, socket_monitor_thread, st) < 0) {
-        log_error("could not create error queue monitoring thread\n");
+        log_error("could not create error queue monitoring thread");
         free(st);
         //TODO disable RECVERR?
         return NULL;

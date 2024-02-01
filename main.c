@@ -32,7 +32,6 @@
 
 DEFAULT_LOGGING_MODULE(MAIN, INFO);
 LOGGING_MODULE(CONFIG, INFO);
-LOGGING_MODULE(PACKET, INFO);
 
 int sigint_count = 0;
 struct R2d2Config *config;
@@ -126,15 +125,15 @@ static void recv_loop(struct HashMap *ifaces)
             struct Packet *p = recvif->recv(recvif);
             if (p == NULL)
                 continue;
-            //log_packet("received packet length %u on %s\n", p->len, recvif->name);
+            //log_packet("received packet length %u on %s", p->len, recvif->name);
             struct Pipeline *pipe = parsetree_process(recvif->parsetree, p);
             if (pipe == NULL) {
-                log_packet("no pipeline found, unknown stream\n");
+                log_packet("no pipeline found, unknown stream");
                 delete_packet(p);
             } else {
-                log_packet("parsetree identified %u headers, pipe %s\n", p->header_count, pipe->name);
+                log_packet("parsetree identified %u headers, pipe %s", p->header_count, pipe->name);
                 for (unsigned i=0; i<p->header_count; i++) {
-                    log_packet("  header %u is %s at %u len %u\n", i,
+                    log_packet("  header %u is %s at %u len %u", i,
                             protocol_list[p->headers[i].type].name, p->headers[i].start, p->headers[i].len);
                 }
                 // the iterator owns the packet

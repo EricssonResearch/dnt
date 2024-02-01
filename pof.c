@@ -25,7 +25,6 @@
 #include <arpa/inet.h>
 
 DEFAULT_LOGGING_MODULE(POF, WARNING)
-LOGGING_MODULE(OAM, WARNING)
 
 enum PofEvent { //TODO this is never used as a bitfield
     POF_IN_ORDER_PKT = 1,
@@ -71,12 +70,11 @@ static inline __attribute__((unused)) void pof_debug(const struct Pof *pof)
         return;
     }
     struct PofElem *iter = pof->q_head;
-    log_debug("POF: len=%d queue=", pof->queue_len);
+    log_debug("queue len=%d sequence numbers:", pof->queue_len);
     while (iter != NULL) {
-        log_debug("%d ", iter->seq);
+        log_debug("    %d", iter->seq);
         iter = iter->next;
     }
-    log_debug("\n");
 }
 
 static struct JsonValue *get_state_json(const struct PipelineObject *obj)
@@ -187,7 +185,7 @@ enum ActionResult pof_insert(struct PipelineObject *p, struct PipelineIterator *
     }
 
     if (pof->queue_len >= pof->queue_max_len) {
-        log_warning_m(OAM, "POF buffer is full, drop new packet.\n");
+        log_warning("buffer is full, dropping new packet.");
         return ACR_DONE; //TODO pof should NEVER return this!!!
     }
 
@@ -255,7 +253,7 @@ static void pof_reset(struct Pof *pof)
     while (pof->q_head)
         pof_pop_item(pof->q_head);
     if (pof->take_any == false) {
-        log_info("POF reset\n");
+        log_info("reset");
         pof->take_any = true;
     }
 }

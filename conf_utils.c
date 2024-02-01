@@ -154,7 +154,7 @@ bool read_constant(struct Value *val, enum ProtocolID proto, enum ProtocolFieldT
 {
 #define THROW(msg, ...)                                     \
     do {                                                    \
-        log_error("read_constant '%s': " msg "\n",  \
+        log_error("read_constant '%s': " msg,               \
                 string, ##__VA_ARGS__);                     \
         return false;                                       \
     } while (0)
@@ -215,10 +215,10 @@ bool read_constant(struct Value *val, enum ProtocolID proto, enum ProtocolFieldT
             }
             return true;
         case FT_TSNSEQ:
-            log_warning("It's not a good practice to set sequence number from constant\n");
+            log_warning("It's not a good practice to set sequence number from constant");
             return read_constant(val, proto, FT_NUMBER, string);
         case FT_TSNTSTAMP:
-            log_warning("It's not a good practice to set timestamp from constant\n");
+            log_warning("It's not a good practice to set timestamp from constant");
             return read_constant(val, proto, FT_NUMBER, string);
         case FT_NEXTHEADER: {
             enum ProtocolID val_id = protocol_id_from_type(string);

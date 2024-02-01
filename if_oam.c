@@ -22,7 +22,6 @@
 #include <netdb.h>
 
 DEFAULT_LOGGING_MODULE(IFOAM, WARNING)
-LOGGING_MODULE(CONFIG, WARNING)
 
 struct OamIfData {
     unsigned port;
@@ -65,7 +64,7 @@ static struct Packet *oam_recv(struct Interface *iface)
 static bool oam_send(struct Interface *iface, struct Packet *p)
 {
     (void)p;
-    log_warning("oam interface %s should not send packet\n", iface->name);
+    log_warning("oam interface %s should not send packet", iface->name);
     return false;
 }
 
@@ -73,7 +72,7 @@ static bool oam_open(struct Interface *iface)
 {
     struct OamIfData *oid = iface->iface_private;
     if (iface->state != IFS_INIT) {
-        log_error("open OAM interface %s: already opened\n", iface->name);
+        log_error("open OAM interface %s: already opened", iface->name);
         return false;
     }
 
@@ -87,7 +86,7 @@ static bool oam_open(struct Interface *iface)
     hints.ai_flags = 0; //TODO AI_NUMERICHOST?
     int err = getaddrinfo(oid->oam_ip_str, port_str, &hints, &result);
     if (err) {
-        log_error("oam interface: invalid ip '%s' : %s\n", oid->oam_ip_str, port_str);
+        log_error("oam interface: invalid ip '%s' : %s", oid->oam_ip_str, port_str);
         return false;
     }
 
@@ -110,7 +109,7 @@ static bool oam_open(struct Interface *iface)
         close(sock);
     }
     if (rp == NULL) {
-        log_error("oam interface: could not bind to ip '%s' : %s\n", oid->oam_ip_str, port_str);
+        log_error("oam interface: could not bind to ip '%s' : %s", oid->oam_ip_str, port_str);
         freeaddrinfo(result);
         return false;
     }
@@ -118,11 +117,11 @@ static bool oam_open(struct Interface *iface)
     if (rp->ai_family == AF_INET6) {
         struct sockaddr_in6 *i6 = (struct sockaddr_in6 *)(rp->ai_addr);
         oid->uid = ntohs(i6->sin6_addr.s6_addr16[7]);
-        log_info("oam if ip6 '%s' uid 0x%.4x\n", oid->oam_ip_str, oid->uid);
+        log_info("oam if ip6 '%s' uid 0x%.4x", oid->oam_ip_str, oid->uid);
     } else {
         struct sockaddr_in *i4 = (struct sockaddr_in *)(rp->ai_addr);
         oid->uid = ntohl(i4->sin_addr.s_addr) & 0xffff;
-        log_info("oam if ip4 '%s' uid 0x%.4x\n", oid->oam_ip_str, oid->uid);
+        log_info("oam if ip4 '%s' uid 0x%.4x", oid->oam_ip_str, oid->uid);
     }
     freeaddrinfo(result);
 
@@ -163,11 +162,11 @@ static value_producer *oam_get_property_reader(const struct Interface *iface, co
     struct OamIfData *oid = iface->iface_private;
     if (strcmp(property, "port") == 0) {
         if (target_type != FT_NUMBER) {
-            log_error_m(OAM, "oam_get_property_reader 'port' target type %d invalid\n", target_type);
+            log_error("oam_get_property_reader 'port' target type %d invalid", target_type);
             return NULL;
         }
         if ((target->bitoffset % 8) || (target->bitcount != 2*8)) {
-            log_error_m(OAM, "oam_get_property_reader 'port' target position %u %u invalid\n",
+            log_error("oam_get_property_reader 'port' target position %u %u invalid",
                     target->bitoffset, target->bitcount);
             return NULL;
         }
@@ -176,18 +175,18 @@ static value_producer *oam_get_property_reader(const struct Interface *iface, co
         enum ProtocolFieldType ftype = oid->family == AF_INET6 ? FT_IPV6ADDRESS : FT_IPV4ADDRESS;
         unsigned bitcount = oid->family == AF_INET6 ? 128 : 32;
         if (target_type != ftype) {
-            log_error_m(OAM, "oam_get_property_reader 'ip' target type %d invalid\n", target_type);
+            log_error("oam_get_property_reader 'ip' target type %d invalid", target_type);
             return NULL;
         }
         if ((target->bitoffset % 8) || (target->bitcount != bitcount)) {
-            log_error_m(OAM, "oam_get_property_reader 'ip' target position %u %u invalid\n",
+            log_error("oam_get_property_reader 'ip' target position %u %u invalid",
                     target->bitoffset, target->bitcount);
             return NULL;
         }
         return oam_ip_producer;
     }
 
-    log_error_m(OAM, "oam_get_property_reader unknown property '%s'\n", property);
+    log_error("oam_get_property_reader unknown property '%s'", property);
     return NULL;
 }*/
 
