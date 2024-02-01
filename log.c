@@ -194,10 +194,35 @@ int __log_func(LOGGING_LEVELS level, const char *logmodule, const char *frmt, ..
         char date[32];
         strftime(date, sizeof(date), "%Y.%m.%d %H:%M:%S", &now_tm);
 
-        return fprintf(logfile, "%s [%s] [%s] %s", date, logmodule, log_level_strings[level], msg);
+        return fprintf(logfile, "%s [%s] [%s] %s\n", date, logmodule, log_level_strings[level], msg);
     } else {
         int syslog_prio = log_level_to_syslog_level(level);
         syslog(syslog_prio, "[%s] %s", logmodule, msg);
+        return 0;
+    }
+}
+
+int __log_perror_func(const char *logmodule, const char *frmt, ...)
+{
+    char msg[1024];
+    va_list argp;
+    va_start(argp, frmt);
+    vsnprintf(msg, sizeof(msg), frmt, argp);
+    va_end(argp);
+
+    if (log_output != SYSLOG) {
+        time_t now;
+        time(&now);
+        struct tm now_tm;
+        localtime_r(&now, &now_tm);
+        char date[32];
+        strftime(date, sizeof(date), "%Y.%m.%d %H:%M:%S", &now_tm);
+
+        return fprintf(logfile, "%s [%s] [%s] %s: %s\n", date, logmodule, log_level_strings[ERROR], msg,
+                strerror(errno));
+    } else {
+        int syslog_prio = log_level_to_syslog_level(ERROR);
+        syslog(syslog_prio, "[%s] %s: %s", logmodule, msg, strerror(errno));
         return 0;
     }
 }

@@ -75,7 +75,7 @@ static struct Packet *int_recv(struct Interface *iface)
     uint64_t one;
     int ret = read(iface->recvfd, &one, 8);
     if (ret < 0)
-        perror("read");
+        log_perror("read interface %s", iface->name);
     struct Packet *p = packetfifo_get(pf);
     return p;
 }
@@ -89,7 +89,7 @@ static bool int_send(struct Interface *iface, struct Packet *p)
         uint64_t one = 1;
         int ret = write(iface->recvfd, &one, 8);
         if (ret < 0)
-            perror("write");
+            log_perror("write interface %s", iface->name);
     }
     return true;
 }

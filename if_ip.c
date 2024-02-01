@@ -84,7 +84,7 @@ static bool ip_open(struct Interface *iface)
     // the dummy protocol type signals that we don't want to receive things
     int sock4 = socket(AF_INET, SOCK_RAW, IPPROTO_BEETPH);
     if (sock4 < 0) {
-        perror("socket4");
+        log_perror("create socket4 for %s", iface->name);
         return false;
     }
 
@@ -94,12 +94,12 @@ static bool ip_open(struct Interface *iface)
     strncpy(if_mtu.ifr_name, iface->ifname, IFNAMSIZ-1);
     strncpy(if_idx.ifr_name, iface->ifname, IFNAMSIZ-1);
     if (ioctl(sock4, SIOCGIFMTU, &if_mtu) < 0) {
-        perror("SIOCGIFMTU");
+        log_perror("SIOCGIFMTU for %s on %s", iface->name, iface->ifname);
         close(sock4);
         return false;
     }
     if (ioctl(sock4, SIOCGIFINDEX, &if_idx) < 0) {
-        perror("SIOCGIFINDEX");
+        log_perror("SIOCGIFINDEX for %s on %s", iface->name, iface->ifname);
         close(sock4);
         return false;
     }
@@ -107,14 +107,14 @@ static bool ip_open(struct Interface *iface)
     iid->ifindex = if_idx.ifr_ifindex;
 
     if (setsockopt(sock4, SOL_SOCKET, SO_BINDTODEVICE, iface->ifname, strlen(iface->ifname)) < 0) {
-        perror("ip setsockopt SO_BINDTODEVICE");
+        log_perror("ip4 setsockopt SO_BINDTODEVICE for %s on %s", iface->name, iface->ifname);
         close(sock4);
         return false;
     }
 
     int enable = 1;
     if (setsockopt(sock4, IPPROTO_IP, IP_HDRINCL, &enable, sizeof(enable)) < 0) {
-        perror("ip setsockopt IP_HDRINCL");
+        log_perror("ip4 setsockopt IP_HDRINCL for %s", iface->name);
         close(sock4);
         return false;
     }
@@ -123,13 +123,13 @@ static bool ip_open(struct Interface *iface)
     // proto=0 means no reception
     int sock6 = socket(AF_PACKET, SOCK_DGRAM, 0);
     if (sock6 < 0) {
-        perror("socket6");
+        log_perror("create socket6 for %s", iface->name);
         close(sock4);
         return false;
     }
 
     if (setsockopt(sock6, SOL_SOCKET, SO_BINDTODEVICE, iface->ifname, strlen(iface->ifname)) < 0) {
-        perror("ip setsockopt SO_BINDTODEVICE");
+        log_perror("ip6 setsockopt SO_BINDTODEVICE for %s on %s", iface->name, iface->ifname);
         close(sock4);
         close(sock6);
         return false;
@@ -137,7 +137,7 @@ static bool ip_open(struct Interface *iface)
 
     struct ifaddrs *ifaddr;
     if (getifaddrs(&ifaddr) < 0) {
-        perror("ip getifaddrs");
+        log_perror("ip getifaddrs for %s", iface->name);
         close(sock4);
         close(sock6);
         return false;

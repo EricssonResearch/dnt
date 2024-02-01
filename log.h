@@ -54,6 +54,10 @@ int __log_func(LOGGING_LEVELS level, const char *logmodule, const char *frmt, ..
     __attribute__((format(printf, 3, 4)))
     __attribute__((nonnull(3)));
 
+int __log_perror_func(const char *logmodule, const char *frmt, ...)
+    __attribute__((format(printf, 2, 3)))
+    __attribute__((nonnull(2)));
+
 // declare a module name and default level limit for logging
 // the same module name can be declared in multiple compilation units
 #define LOGGING_MODULE(_name, _default_level)                               \
@@ -91,6 +95,10 @@ static void __attribute((constructor)) register_module_##_name(void) {      \
     if (__log_module_##_name.level >= ERROR)                                \
         __log_func(ERROR, __log_module_##_name.name, ##__VA_ARGS__)
 
+#define log_perror_m(_name, ...)                                            \
+    if (__log_module_##_name.level >= ERROR)                                \
+        __log_perror_func(__log_module_##_name.name, ##__VA_ARGS__)
+
 
 #define log_debug(...)                                                      \
     if (__default_log_module->level >= DEBUG)                               \
@@ -112,6 +120,9 @@ static void __attribute((constructor)) register_module_##_name(void) {      \
     if (__default_log_module->level >= ERROR)                               \
         __log_func(ERROR, __default_log_module->name, ##__VA_ARGS__)
 
+#define log_perror(...)                                                     \
+    if (__default_log_module->level >= ERROR)                               \
+        __log_perror_func(__default_log_module->name, ##__VA_ARGS__)
 
 typedef int log_getlevel_cb(const char *mod_name, LOGGING_LEVELS current_level, void *userdata);
 

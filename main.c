@@ -69,7 +69,7 @@ static int add_iface_to_epollfd(const char *key, void *value, void *userdata) {
     ev.events = EPOLLIN;
     ev.data.ptr = iface;
     if (epoll_ctl(*epollfd, EPOLL_CTL_ADD, iface->recvfd, &ev) < 0) {
-        perror("epoll_ctl"); //TODO better error message
+        log_perror("add interface %s to epoll", iface->name);
         return 0;
     }
     return 1;
@@ -83,23 +83,23 @@ static void recv_loop(struct HashMap *ifaces)
     sa.sa_sigaction = sigint_handler;
     sigemptyset(&sa.sa_mask);
     if (sigaction(SIGINT, &sa, NULL) < 0) {
-        perror("sigaction");
+        log_perror("sigaction for SIGINT");
         return;
     }
     if (sigaction(SIGTERM, &sa, NULL) < 0) {    // SIGTERM is received when terminated via kill
-        perror("sigaction");
+        log_perror("sigaction for SIGTERM");
         return;
     }
 
     sa.sa_sigaction = sigusr1_handler;
     if (sigaction(SIGUSR1, &sa, NULL) < 0) {
-        perror("sigaction");
+        log_perror("sigaction for SIGUSR1");
         return;
     }
 
     int epollfd = epoll_create1(0);
     if (epollfd < 0) {
-        perror("epoll_create1");
+        log_perror("epoll_create1 failed");
         return;
     }
 
@@ -117,7 +117,7 @@ static void recv_loop(struct HashMap *ifaces)
             if (errno == EINTR) {
                 continue;
             }
-            perror("epoll_wait");
+            log_perror("epoll_wait");
             return;
         }
 
