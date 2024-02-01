@@ -41,7 +41,6 @@ const char* colors[] = {
 
 char *logname_from_config(const char *config_name)
 {
-    char *logname = calloc(1, PATH_MAX);
     pid_t pid = getpid();
     const char *start = config_name;
     for (const char *c=config_name; *c; c++) {
@@ -51,23 +50,15 @@ char *logname_from_config(const char *config_name)
     for (const char *c=start; *c; c++) {
         if (*c == '.') end = c;
     }
-    char *confname = end ? strndupa(start, end-start) : strdupa(start);
-    sprintf(logname, "r2dtwo-%s-%u", confname, pid);
-    return logname;
+    const char *confname = end ? strndupa(start, end-start) : start;
+    return strdup_printf("r2dtwo-%s-%u.log", confname, pid);
 }
 
-bool open_log(int level, OUTPUT out, char *logname)
+bool open_log(OUTPUT out, char *logname)
 {
-    if (level != -1) {
-        //TODO: proper per-module verbosity from CLI
-        if (log_set_level("ALL", level) == false) {
-            fprintf(stderr, "Failed to set loglevel '%s'\n", log_string_from_level(level));
-            return false;
-        }
-    }
     if (out == LOGFILE) {
         log_output = LOGFILE;
-        logfile = fopen(strcat(logname, ".log"), "a");
+        logfile = fopen(logname, "a");
         if(NULL == logfile) {
             fprintf(stderr, "%sError:%s could not open log file '%s': %s\n",
                     colors[ERROR], logname, colors[RESET], strerror(errno));
@@ -264,10 +255,13 @@ static int mod_setlevel_all_cb(const char *key, void *value, void *userdata)
 
 bool log_set_level(const char *mod_name, LOGGING_LEVELS new_level)
 {
+    if (new_level > ALL) new_level = ALL;
+
     if (strcmp(mod_name, "ALL") == 0) {
         hashmap_foreach(mod_instances, mod_setlevel_all_cb, &new_level);
         return true;
     }
+
     struct ModuleInstance *inst = hashmap_find(mod_instances, mod_name);
     if (inst == NULL) return false;
     while (inst) {

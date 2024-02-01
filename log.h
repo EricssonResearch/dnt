@@ -28,13 +28,12 @@ typedef enum {
 /**
  * @brief Function to initialize the logger.
  *
- * @params[in] level Log level.
  * @params[in] out Log output (stdout/logfile/syslog).
  * @params[in] filename Path to the log file (in case of logfile output)
  *
  * @retval true if successful.
  */
-bool open_log(int level, OUTPUT out, char *log_filename);
+bool open_log(OUTPUT out, char *log_filename);
 
 /* Close the log facility.
  * Closes the logfile

@@ -172,7 +172,7 @@ static struct argp_option options[] = {
 };
 
 static struct arguments {
-    LOGGING_LEVELS verbosity;
+    int verbosity;
     OUTPUT output;
     char *configfile;
 } arguments;
@@ -235,12 +235,15 @@ int main(int argc, char **argv)
     argp_parse(&argp, argc, argv, 0, NULL, &arguments);
 
     char *logname = logname_from_config(arguments.configfile);
-    if (!open_log(arguments.verbosity, arguments.output, logname)) {
+    if (!open_log(arguments.output, logname)) {
         fprintf(stderr, "Failed to initialize the logging.\n");
         free(logname);
         return EXIT_FAILURE;
     }
     free(logname);
+    if (arguments.verbosity >= 0) {
+        log_set_level("ALL", arguments.verbosity); //TODO proper per-module verbosity from CLI
+    }
 
     log_info_m(CONFIG, "Reading config '%s'", arguments.configfile);
     config = read_config(arguments.configfile);
