@@ -99,7 +99,7 @@ static bool oam_open(struct Interface *iface)
             continue;
 
         if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable)) < 0) {
-            perror("oam setsockopt SO_REUSEADDR");
+            log_perror("oam setsockopt SO_REUSEADDR");
             close(sock);
             return false;
         }

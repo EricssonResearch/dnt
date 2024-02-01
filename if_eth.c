@@ -137,12 +137,12 @@ static bool eth_open(struct Interface *iface)
     for (unsigned i=0; i<8; i++) {
         int sock = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
         if (sock < 0) {
-            perror("socket");
+            log_perror("if_eth %s socket %d", iface->name, i);
             return false; //TODO cleanup on error
         }
 
         if (setsockopt(sock, SOL_SOCKET, SO_PRIORITY, &i, sizeof(i)) < 0) {
-            perror("setsockopt SO_PRIORITY");
+            log_perror("setsockopt SO_PRIORITY");
             close(sock);
             return false; //TODO cleanup on error
         }
@@ -156,15 +156,15 @@ static bool eth_open(struct Interface *iface)
             strncpy(if_mac.ifr_name, iface->ifname, IFNAMSIZ-1);
             strncpy(if_idx.ifr_name, iface->ifname, IFNAMSIZ-1);
             if (ioctl(sock, SIOCGIFMTU, &if_mtu) < 0) {
-                perror("SIOCGIFMTU");
+                log_perror("SIOCGIFMTU");
                 return false;
             }
             if (ioctl(sock, SIOCGIFHWADDR, &if_mac) < 0) {
-                perror("SIOCGIFHWADDR");
+                log_perror("SIOCGIFHWADDR");
                 return false;
             }
             if (ioctl(sock, SIOCGIFINDEX, &if_idx) < 0) {
-                perror("SIOCGIFINDEX");
+                log_perror("SIOCGIFINDEX");
                 return false;
             }
             eid->mtu = if_mtu.ifr_mtu;
@@ -174,7 +174,7 @@ static bool eth_open(struct Interface *iface)
 
             int enable = 1;
             if (setsockopt(sock, SOL_PACKET, PACKET_AUXDATA, &enable, sizeof(enable)) < 0) {
-                perror("setsockopt PACKET_AUXDATA");
+                log_perror("setsockopt PACKET_AUXDATA");
                 return false;
             }
 
@@ -186,7 +186,7 @@ static bool eth_open(struct Interface *iface)
             socket_address.sll_protocol = htons(ETH_P_ALL);
             socket_address.sll_ifindex = if_idx.ifr_ifindex;
             if (bind(sock, (struct sockaddr *)&socket_address, sizeof(socket_address)) < 0) {
-                perror("bind sock to iface");
+                log_perror("bind sock to iface");
                 return false;
             }
             // set iface to promiscuous mode
@@ -196,7 +196,7 @@ static bool eth_open(struct Interface *iface)
             mreq.mr_alen = 0;
             memset(&mreq.mr_address, 0, sizeof(mreq.mr_address));
             if (setsockopt(sock, SOL_PACKET, PACKET_ADD_MEMBERSHIP, &mreq, sizeof(mreq)) < 0) {
-                perror("setsockopt mreq promisc");
+                log_perror("setsockopt mreq promisc");
                 return false;
             }
 
@@ -213,7 +213,7 @@ static bool eth_open(struct Interface *iface)
                 .filter = filter
             };
             if (setsockopt(sock, SOL_SOCKET, SO_ATTACH_FILTER, &bpf, sizeof(bpf)) < 0) {
-                perror("setsockopt attach eBPF filter");
+                log_perror("setsockopt attach eBPF filter");
                 return false;
             }
         } else {
@@ -221,11 +221,11 @@ static bool eth_open(struct Interface *iface)
             int recvbuf_len = 0;
             socklen_t sl = sizeof(recvbuf_len);
             if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF, &recvbuf_len, sl) < 0) {
-                perror("setsockopt SO_RCVBUF");
+                log_perror("setsockopt SO_RCVBUF");
                 return false;
             }
             /*if (getsockopt(sock, SOL_SOCKET, SO_RCVBUF, &recvbuf_len, &sl) < 0) {
-                perror("getsockopt SO_RCVBUF");
+                log_perror("getsockopt SO_RCVBUF");
                 return false;
             }
             printf("eth %s %s sock %u recvbuf_len %d\n", iface->name, iface->ifname, i, recvbuf_len);*/

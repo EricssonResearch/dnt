@@ -120,7 +120,7 @@ static void *delay_thread(void *arg)
 bool init_delay(void)
 {
     if (sem_init(&delay_sem, 0, 0) < 0) {
-        perror("init_delay sem_init");
+        log_perror("init_delay sem_init");
         return false;
     }
 
@@ -128,21 +128,21 @@ bool init_delay(void)
 
     pthread_attr_t attr;
     if ((errno = pthread_attr_init(&attr)) != 0) {
-        perror("delay thread pthread_attr_init");
+        log_perror("delay thread pthread_attr_init");
         return false;
     }
     if ((errno = pthread_attr_setschedpolicy(&attr, SCHED_FIFO)) != 0) {
-        perror("delay thread pthread_attr_setschedpolicy");
+        log_perror("delay thread pthread_attr_setschedpolicy");
         return false;
     }
     struct sched_param param;
     param.sched_priority = 97;
     if ((errno = pthread_attr_setschedparam(&attr, &param)) != 0) {
-        perror("delay thread pthread_attr_setschedparam");
+        log_perror("delay thread pthread_attr_setschedparam");
         return false;
     }
     if ((errno = pthread_attr_setinheritsched(&attr, PTHREAD_EXPLICIT_SCHED)) != 0) {
-        perror("pthread_attr_setinheritsched");
+        log_perror("delay pthread_attr_setinheritsched");
         return false;
     }
 

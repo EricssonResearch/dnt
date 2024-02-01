@@ -67,7 +67,7 @@ void enable_rx_tstamp(int sock, const char *sockname,
         0;
     if (setsockopt(sock, SOL_SOCKET, SO_TIMESTAMPING,
                 &so_timestamping_flags, sizeof(so_timestamping_flags)) < 0) {
-        perror("setsockopt SO_TIMESTAMPING");
+        log_perror("setsockopt SO_TIMESTAMPING");
     } else {
         if (0) printf("setsockopt SO_TIMESTAMPING success for '%s' on '%s'\n",
                 sockname, ifname);
@@ -123,7 +123,7 @@ struct Packet *iface_common_recv(struct Interface *iface, msghdr_process_cb *msg
     int res = recvmsg(iface->recvfd, &msg, 0);
     //printf("recvmsg %d controllen %zu\n", res, msg.msg_controllen);
     if (res < 0) {
-        perror("recvmsg");
+        log_perror("recvmsg on %s", iface->name);
         return delete_packet(p);
     }
 
@@ -162,7 +162,7 @@ static void dropstat(struct Interface *iface, int socket)
                 struct timespec now;
                 clock_gettime(CLOCK_REALTIME, &now);
                 if (now.tv_sec - iface->dropstat_last_warn >= PKT_DROP_WARNING_INTERVAL_SEC) {
-                    log_warning("eth %s send: drop count %d\n", iface->name, stats.tp_drops); //TODO log_warn()?
+                    log_warning("eth %s send: drop count %d\n", iface->name, stats.tp_drops);
                     iface->dropstat_last_warn = now.tv_sec;
                 }
             }
@@ -198,7 +198,7 @@ bool iface_common_send(struct Interface *iface, struct Packet *p, int socket, vo
     msg.msg_iovlen = p->header_count;
 
     if (sendmsg(socket, &msg, 0) < 0) {
-        perror("sendmsg");
+        log_perror("sendmsg on %s", iface->name);
         return false;
     }
 
@@ -231,7 +231,7 @@ static void *socket_monitor_thread(void *param)
         if (poll_num == -1) {
             if (errno == EINTR)
                 continue;
-            perror("poll");
+            log_perror("poll on sockerr");
             continue;
         }
         if (poll_num == 0)
@@ -254,7 +254,7 @@ static void *socket_monitor_thread(void *param)
         int res = recvmsg(st->socket, &msg, MSG_ERRQUEUE);
         //printf("res %d controllen %zu\n", res, msg.msg_controllen);
         if (res < 0) {
-            perror("recvmsg");
+            log_perror("recvmsg on sockerr");
             continue;
         }
 
@@ -286,13 +286,13 @@ void *monitor_error_queue(int socket, int family, const char *name)
     if (family == AF_INET6) {
         int enable = 1;
         if (setsockopt(socket, IPPROTO_IPV6, IPV6_RECVERR, &enable, sizeof(enable)) < 0) {
-            perror("setsockopt IPV6_RECVERR");
+            log_perror("setsockopt IPV6_RECVERR");
             return false;
         }
     } else if (family == AF_INET) {
         int enable = 1;
         if (setsockopt(socket, IPPROTO_IP, IP_RECVERR, &enable, sizeof(enable)) < 0) {
-            perror("setsockopt IP_RECVERR");
+            log_perror("setsockopt IP_RECVERR");
             return false;
         }
     } else {
@@ -325,12 +325,12 @@ void stop_monitoring_error_queue(void *monitor)
         if (st->family == AF_INET6) {
             int enable = 0;
             if (setsockopt(st->socket, IPPROTO_IPV6, IPV6_RECVERR, &enable, sizeof(enable)) < 0) {
-                perror("setsockopt IPV6_RECVERR");
+                log_perror("setsockopt IPV6_RECVERR");
             }
         } else if (st->family == AF_INET) {
             int enable = 0;
             if (setsockopt(st->socket, IPPROTO_IP, IP_RECVERR, &enable, sizeof(enable)) < 0) {
-                perror("setsockopt IP_RECVERR");
+                log_perror("setsockopt IP_RECVERR");
             }
         }
     }

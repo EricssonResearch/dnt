@@ -66,11 +66,11 @@ static bool udpout_open(struct Interface *iface)
     strncpy(if_mtu.ifr_name, iface->ifname, IFNAMSIZ-1);
     strncpy(if_idx.ifr_name, iface->ifname, IFNAMSIZ-1);
     if (ioctl(sock, SIOCGIFMTU, &if_mtu) < 0) {
-        perror("udp-out SIOCGIFMTU");
+        log_perror("udp-out SIOCGIFMTU");
         return false;
     }
     if (ioctl(sock, SIOCGIFINDEX, &if_idx) < 0) {
-        perror("udp-out SIOCGIFINDEX");
+        log_perror("udp-out SIOCGIFINDEX");
         return false;
     }
     uid->mtu = if_mtu.ifr_mtu;
@@ -79,35 +79,35 @@ static bool udpout_open(struct Interface *iface)
     if (uid->family == AF_INET6) {
         int tos = (uid->priority & 7) << 5;
         if (setsockopt(sock, IPPROTO_IPV6, IPV6_TCLASS, &tos, sizeof(int)) < 0) {
-            perror("udp-out setsockopt IPV6_TCLASS");
+            log_perror("udp-out setsockopt IPV6_TCLASS");
             return false;
         }
         // it seems that setting IPv6 MTU discovery mode is also needed here
         int val = IPV6_PMTUDISC_PROBE;
         if (setsockopt(sock, IPPROTO_IPV6, IPV6_MTU_DISCOVER, &val, sizeof(val)) < 0) {
-            perror("udp-out setsockopt IP_MTU_DISCOVER");
+            log_perror("udp-out setsockopt IP_MTU_DISCOVER");
             return false;
         }
     } else {
         int tos = (uid->priority & 7) << 5;
         if (setsockopt(sock, IPPROTO_IP, IP_TOS, &tos, sizeof(int)) < 0) {
-            perror("udp-out setsockopt IP_TOS");
+            log_perror("udp-out setsockopt IP_TOS");
             return false;
         }
         // it seems that setting IPv4 MTU discovery mode is also needed here
         int val = IP_PMTUDISC_PROBE;
         if (setsockopt(sock, IPPROTO_IP, IP_MTU_DISCOVER, &val, sizeof(val)) < 0) {
-            perror("udp-out setsockopt IP_MTU_DISCOVER");
+            log_perror("udp-out setsockopt IP_MTU_DISCOVER");
             return false;
         }
     }
     if (setsockopt(sock, SOL_SOCKET, SO_PRIORITY, &uid->priority, sizeof(int)) < 0) {
-        perror("udp-out setsockopt SO_PRIORITY");
+        log_perror("udp-out setsockopt SO_PRIORITY");
         return false;
     }
 
     if (setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, iface->ifname, strlen(iface->ifname)) < 0) {
-        perror("udp-out setsockopt SO_BINDTODEVICE");
+        log_perror("udp-out setsockopt SO_BINDTODEVICE");
         return false;
     }
 /*
@@ -117,7 +117,7 @@ static bool udpout_open(struct Interface *iface)
      int optval = 1;
      int optlen = sizeof(optval);
      if (setsockopt (sock, SOL_SOCKET, SO_DONTROUTE, (void*) &optval, optlen) == -1)
-        perror("udp-out setsockopt SO_DONTROUTE");
+        log_perror("udp-out setsockopt SO_DONTROUTE");
 */
 
     uid->errq_monitor = monitor_error_queue(sock, uid->family, iface->name);
@@ -247,7 +247,7 @@ struct Interface *new_udp_out_interface(const char *name, const char *ifname,
         if (sock < 0) continue;
 
         if (setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, ifname, strlen(ifname)) < 0) {
-            perror("udp-out setsockopt SO_BINDTODEVICE");
+            log_perror("udp-out setsockopt SO_BINDTODEVICE");
             close(sock);
             sock = -1;
             continue;
@@ -261,7 +261,7 @@ struct Interface *new_udp_out_interface(const char *name, const char *ifname,
                 addr6.sin6_addr = in6addr_any;
                 addr6.sin6_port = htons(src_port);
                 if (bind(sock, (struct sockaddr*)&addr6, sizeof(addr6)) < 0) {
-                    perror("udp-out bind sock udp6");
+                    log_perror("udp-out bind sock udp6");
                     close(sock);
                     sock = -1;
                     continue;
@@ -269,7 +269,7 @@ struct Interface *new_udp_out_interface(const char *name, const char *ifname,
                 /* set IPv6 MTU discovery mode before connecting */
                 int val = IPV6_PMTUDISC_PROBE;
                 if (setsockopt(sock, IPPROTO_IPV6, IPV6_MTU_DISCOVER, &val, sizeof(val)) < 0) {
-                    perror("udp-out setsockopt IP_MTU_DISCOVER");
+                    log_perror("udp-out setsockopt IP_MTU_DISCOVER");
                     return false;
                 }
             } else {
@@ -279,7 +279,7 @@ struct Interface *new_udp_out_interface(const char *name, const char *ifname,
                 addr.sin_addr.s_addr = htonl(INADDR_ANY);
                 addr.sin_port = htons(src_port);
                 if (bind(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
-                    perror("udp-out bind sock udp");
+                    log_perror("udp-out bind sock udp4");
                     close(sock);
                     sock = -1;
                     continue;
@@ -287,14 +287,14 @@ struct Interface *new_udp_out_interface(const char *name, const char *ifname,
                 /* set IPv4 MTU discovery mode before connecting */
                 int val = IP_PMTUDISC_PROBE;
                 if (setsockopt(sock, IPPROTO_IP, IP_MTU_DISCOVER, &val, sizeof(val)) < 0) {
-                    perror("udp-out setsockopt IP_MTU_DISCOVER");
+                    log_perror("udp-out setsockopt IP_MTU_DISCOVER");
                     return false;
                 }
             }
         }
 
     if (connect(sock, rp->ai_addr, rp->ai_addrlen) == 0) break;
-        perror("udp-out connect");
+        log_perror("udp-out connect");
         close(sock);
         sock = -1;
     }

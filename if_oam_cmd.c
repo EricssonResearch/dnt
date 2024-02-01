@@ -57,11 +57,11 @@ static struct Packet *oam_cmd_recv(struct Interface *iface)
     sin_size = sizeof their_addr;
     int new_fd = accept(iface->recvfd, (struct sockaddr *)&their_addr, &sin_size);
     if (new_fd == -1) {
-        perror("accept");
+        log_perror("oam cmd accept");
     }
 
     inet_ntop(their_addr.ss_family, get_in_addr((struct sockaddr *)&their_addr), s, sizeof s);
-    printf("OAM server: got connection from %s\n", s);
+    log_info("got connection from %s\n", s);
 
     oam_start_command_connection(new_fd);
     return NULL;
@@ -83,13 +83,13 @@ static bool oam_cmd_open(struct Interface *iface)
     }
     int sock = socket(oid->family, SOCK_STREAM, 0);
     if (sock < 0) {
-        perror("oam cmd socket");
+        log_perror("socket");
         return false;
     }
 
     int enable = 1;
     if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable)) < 0) {
-        perror("oam cmd setsockopt SO_REUSEADDR");
+        log_perror("setsockopt SO_REUSEADDR");
         close(sock);
         return false;
     }
@@ -101,7 +101,7 @@ static bool oam_cmd_open(struct Interface *iface)
         addr6.sin6_addr = oid->srcip.v6;
         addr6.sin6_port = htons(oid->port);
         if (bind(sock, (struct sockaddr*)&addr6, sizeof(addr6)) < 0) {
-            perror("oam cmd bind sock6");
+            log_perror("bind sock6");
             close(sock);
             return false;
         }
@@ -112,7 +112,7 @@ static bool oam_cmd_open(struct Interface *iface)
         addr.sin_addr = oid->srcip.v4;
         addr.sin_port = htons(oid->port);
         if (bind(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
-            perror("oam cmd bind sock");
+            log_perror("bind sock4");
             close(sock);
             return false;
         }
@@ -121,14 +121,14 @@ static bool oam_cmd_open(struct Interface *iface)
     if (iface->ifname) {
         //TODO check that the given interface has the given ip?
         if (setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, iface->ifname, strlen(iface->ifname)) < 0) {
-            perror("oam cmd setsockopt SO_BINDTODEVICE");
+            log_perror("setsockopt SO_BINDTODEVICE");
             close(sock);
             return false;
         }
     }
 
     if (listen(sock, BACKLOG) == -1) {
-        perror("oam cmd listen");
+        log_perror("listen");
         close(sock);
         return false;
     }

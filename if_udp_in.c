@@ -63,13 +63,13 @@ static bool udpin_open(struct Interface *iface)
 
     int sock = socket(uid->family, SOCK_DGRAM, 0);
     if (sock < 0) {
-        perror("socket");
+        log_perror("udp-in socket");
         return false;
     }
 
     int enable = 1;
     if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable)) < 0) {
-        perror("udp-in setsockopt SO_REUSEADDR");
+        log_perror("udp-in setsockopt SO_REUSEADDR");
         close(sock);
         return false;
     }
@@ -80,12 +80,12 @@ static bool udpin_open(struct Interface *iface)
     strncpy(if_mtu.ifr_name, iface->ifname, IFNAMSIZ-1);
     strncpy(if_idx.ifr_name, iface->ifname, IFNAMSIZ-1);
     if (ioctl(sock, SIOCGIFMTU, &if_mtu) < 0) {
-        perror("udp-in SIOCGIFMTU");
+        log_perror("udp-in SIOCGIFMTU");
         close(sock);
         return false;
     }
     if (ioctl(sock, SIOCGIFINDEX, &if_idx) < 0) {
-        perror("udp-in SIOCGIFINDEX");
+        log_perror("udp-in SIOCGIFINDEX");
         close(sock);
         return false;
     }
@@ -94,7 +94,7 @@ static bool udpin_open(struct Interface *iface)
 
     struct ifaddrs *ifaddr;
     if (getifaddrs(&ifaddr) < 0) {
-        perror("udp-in getifaddrs");
+        log_perror("udp-in getifaddrs");
         close(sock);
         return false;
     }
@@ -130,7 +130,7 @@ static bool udpin_open(struct Interface *iface)
     //      see https://olegkutkov.me/2018/02/14/monitoring-linux-networking-state-using-netlink/
 
     if (setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, iface->ifname, strlen(iface->ifname)) < 0) {
-        perror("udp-in setsockopt SO_BINDTODEVICE");
+        log_perror("udp-in setsockopt SO_BINDTODEVICE");
         close(sock);
         return false;
     }
@@ -142,7 +142,7 @@ static bool udpin_open(struct Interface *iface)
         addr6.sin6_addr = in6addr_any;
         addr6.sin6_port = htons(uid->port);
         if (bind(sock, (struct sockaddr*)&addr6, sizeof(addr6)) < 0) {
-            perror("udp-in bind sock udp6");
+            log_perror("udp-in bind sock udp6");
             return false;
         }
     } else {
@@ -152,7 +152,7 @@ static bool udpin_open(struct Interface *iface)
         addr.sin_addr.s_addr = htonl(INADDR_ANY);
         addr.sin_port = htons(uid->port);
         if (bind(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
-            perror("udp-in bind sock udp");
+            log_perror("udp-in bind sock udp4");
             return false;
         }
     }

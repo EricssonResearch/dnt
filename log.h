@@ -7,6 +7,8 @@
 
 #include <stdbool.h>
 
+void perror(const char *s) __attribute__((deprecated));
+
 typedef enum {
     NONE=0,
     ERROR,

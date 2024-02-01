@@ -119,7 +119,7 @@ struct PipelineObject *new_pof(const char *name, unsigned pof_max_delay, unsigne
 {
     struct Pof *ret = calloc_struct(Pof);
     if (ret == NULL) {
-        perror("calloc");
+        log_perror("calloc");
         return NULL;
     }
     ret->base.type = PO_POF;
@@ -134,15 +134,15 @@ struct PipelineObject *new_pof(const char *name, unsigned pof_max_delay, unsigne
     ret->take_any = true;
     ret->evfd = eventfd(0, EFD_NONBLOCK);
     if (ret->evfd < 0) {
-        perror("eventfd");
+        log_perror("eventfd");
         goto err_evfd;
     }
     if (pthread_mutex_init(&ret->lock, NULL)) {
-        perror("pthread_mutex_init");
+        log_perror("pthread_mutex_init");
         goto err_thread;
     }
     if (pthread_create(&ret->thread_id, NULL, pof_thread, ret) != 0) {
-        perror("pthread_create");
+        log_perror("pthread_create");
         goto err_thread;
     }
     return (struct PipelineObject*)ret;
@@ -219,7 +219,7 @@ enum ActionResult pof_insert(struct PipelineObject *p, struct PipelineIterator *
     }
     if (write(pof->evfd, &event, sizeof(event)) != sizeof(event)) {
         // TODO: might be fatal, terminate r2dtwo
-        perror("write");
+        log_perror("write");
     }
     pthread_mutex_unlock(&pof->lock); // TODO: check if OK
     return ACR_HOLD;
@@ -330,7 +330,7 @@ static void *pof_thread(void *arg)
     while (true) {
         int ret = ppoll(&fd, 1, &timeout, NULL);
         if (ret < 0) {
-            perror("ppoll");
+            log_perror("ppoll");
             continue;
         }
         /* pof_debug(pof); */
@@ -339,7 +339,7 @@ static void *pof_thread(void *arg)
             unsigned long event;
             ret = read(fd.fd, &event, sizeof(event));
             if (ret < 0) {
-                perror("read");
+                log_perror("read");
                 goto out;
             }
             if (event & POF_IN_ORDER_PKT) {

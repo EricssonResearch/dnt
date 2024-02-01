@@ -409,7 +409,7 @@ static bool initiate_request(struct oam_request *ping_req)
     } else {
         pthread_attr_t attr;
         if ((errno = pthread_attr_init(&attr)) != 0) {
-            perror("oam ping thread pthread_attr_init");
+            log_perror("oam ping thread pthread_attr_init");
             return false;
         }
 
@@ -1085,7 +1085,7 @@ static void command_loop(struct command_connection *conn)
         }
         else {
             if (n < 0) {
-                perror("read");
+                log_perror("oam commandline read");
             }
             break;
         }
@@ -1112,7 +1112,7 @@ void oam_start_command_connection(int fd)
     if (oam_command_connection) {
         //TODO support multiple connections
         if (send(fd, "OAM busy.\n", 10, 0) == -1)
-            perror("send");
+            log_perror("oam commandline send");
         close(fd);
         return;
     }
@@ -1128,13 +1128,13 @@ void oam_start_command_connection(int fd)
 
     pthread_attr_t attr;
     if ((errno = pthread_attr_init(&attr)) != 0) {
-        perror("oam thread pthread_attr_init");
+        log_perror("oam thread pthread_attr_init");
         return;
     }
 
     oam_command_connection = conn; //TODO save conn in a hash (key?)
     if (pthread_create(&conn->tid, &attr, &command_thread, conn) != 0) {
-        perror("could not create new oam thread");
+        log_perror("could not create new oam thread");
         return;
     }
 }
@@ -1362,7 +1362,7 @@ static int oam_send_reply(const char *address, unsigned port, const char *msg, u
         if (sock < 0) continue;
 
         if (sendto(sock, msg, msg_len, 0, rp->ai_addr, rp->ai_addrlen) == 0) {
-            perror("oam repy sendto");
+            log_perror("oam repy sendto");
             freeaddrinfo(res);
             close(sock);
             return -1;
