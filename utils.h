@@ -5,11 +5,6 @@
 #ifndef R2_UTILS_H
 #define R2_UTILS_H
 
-#include <time.h>
-#include <stdint.h>
-
-#define NSEC_PER_SEC 1000000000L
-
 #define calloc_struct(T) (struct T *)calloc(1, sizeof(struct T))
 
 #define calloc_struct_array(T, n) (struct T *)calloc((n), sizeof(struct T))

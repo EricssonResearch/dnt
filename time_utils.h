@@ -40,7 +40,7 @@
 	    (tsp)->tv_nsec >= 0 && (tsp)->tv_nsec < 1000000000L)
 /* end of timespec operations */
 
-//#define NSEC_PER_SEC 1000000000L - already defined in utils.h
+#define NSEC_PER_SEC 1000000000L
 
 #define timespec_from_msec(tsp, msec)                       \
     do {                                                    \
