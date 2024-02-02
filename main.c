@@ -156,18 +156,70 @@ static int open_interface(const char *key, void *value, void *userdata)
     return iface->open(iface);
 }
 
+// expected format: "MOD1:LEVEL1,MOD2:LEVEL2"
+static bool set_loglevels(const char *levels)
+{
+#define THROW(msg, ...)                             \
+    do {                                            \
+        fprintf(stderr, msg "\n", ##__VA_ARGS__);   \
+        free(s);                                    \
+        return false;                               \
+    } while (0)
+
+    char *s = strdup(levels);
+    char *p = s;
+
+    while (1) {
+        char *m = p;
+        char *colon = strchr(m, ':');
+        if (colon) {
+            *colon = 0;
+            char *l = colon + 1;
+            char *comma = strchr(l, ',');
+            if (comma) {
+                *comma = 0;
+                //printf("module '%s' level '%s'\n", m, l);
+                int nlvl = log_level_from_string(l);
+                if (nlvl < 0) {
+                    THROW("Log level '%s' invalid", l);
+                }
+                if (!log_set_level(m, nlvl)) {
+                    THROW("Module '%s' does not exist", m);
+                }
+                p = comma + 1;
+            } else {
+                //printf("last module '%s' level '%s'\n", m, l);
+                int nlvl = log_level_from_string(l);
+                if (nlvl < 0) {
+                    THROW("Log level '%s' invalid", l);
+                }
+                if (!log_set_level(m, nlvl)) {
+                    THROW("Module '%s' does not exist", m);
+                }
+                return true;
+            }
+        } else {
+            THROW("Missing log level");
+        }
+    }
+
+    free(s);
+    return true;
+#undef THROW
+}
+
 static char args_doc[] = "CONFIGFILE";
 
 static struct argp_option options[] = {
-    {"verbose", 'v', "DEFAULT", 0, "Available loglevels: NONE, ERROR, WARNING, INFO, PACKET, DEBUG, ALL", 0},
+    {"verbose", 'v', "MODULE:LEVEL", 0, "Available levels: NONE, ERROR, WARNING, INFO, PACKET, DEBUG, ALL", 0},
     {"output", 'o', "logfile", 0, "Output: log[f]ile, sys[l]og, [s]tdout (default), std[e]rr", 0},
     { 0 }
 };
 
 static struct arguments {
-    int verbosity;
-    LOG_OUTPUT output;
     char *configfile;
+    char *verbosity;
+    LOG_OUTPUT output;
 } arguments;
 
 static error_t parse_opt(int key, char *arg, struct argp_state *state)
@@ -177,12 +229,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
         argp_error(state, "Too many arguments");
     switch (key) {
         case 'v': {
-            int level = log_level_from_string(arg);
-            if (level != -1)
-                args->verbosity = level;
-            else {
-                argp_error(state, "Invalid verbosity level '%s'", arg);
-            }
+            args->verbosity = arg;
         }
         break;
         case 'o': {
@@ -226,8 +273,16 @@ int main(int argc, char **argv)
     printf("R2DTWO - Reliable & Robust Deterministic Tool for netWOrking\n"
             "Version %d.%d\n", VERSION_MAJOR, VERSION_MINOR);
 
+    const char *verbose_env = getenv("R2DTWO_VERBOSE");
+    if (verbose_env) {
+        if (!set_loglevels(verbose_env)) {
+            fprintf(stderr, "Verbosity string '%s' is invalid\n", verbose_env);
+            return EXIT_FAILURE;
+        }
+    }
+
     arguments.output = LOG_OUT_STDOUT;
-    arguments.verbosity = -1;
+    arguments.verbosity = NULL;
     arguments.configfile = NULL;
     argp_parse(&argp, argc, argv, 0, NULL, &arguments);
 
@@ -238,8 +293,12 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
     free(logname);
-    if (arguments.verbosity >= 0) {
-        log_set_level("ALL", arguments.verbosity); //TODO proper per-module verbosity from CLI
+
+    if (arguments.verbosity) {
+        if (!set_loglevels(arguments.verbosity)) {
+            fprintf(stderr, "Verbosity string '%s' is invalid\n", arguments.verbosity);
+            return EXIT_FAILURE;
+        }
     }
 
     //TODO test log levels
