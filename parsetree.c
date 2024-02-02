@@ -102,9 +102,18 @@ struct Pipeline *parsetree_process(struct ParseTree *pt_head, struct Packet *p)
         }
         if (full_stream_match) {
             packet_identify_header(p, PROTO_ID_PAYLOAD, offset, p->len-offset);
+
+            log_packet("identified %u headers, pipe %s", p->header_count, pt->pipe->name);
+            for (unsigned i=0; i<p->header_count; i++) {
+                //TODO less verbose, compress it into a single line
+                log_packet("  header %u is %s at %u len %u", i,
+                        protocol_list[p->headers[i].type].name, p->headers[i].start, p->headers[i].len);
+            }
+
             return pt->pipe;
         }
     }
+    log_packet("no pipeline found, unknown stream");
     return NULL;
 }
 

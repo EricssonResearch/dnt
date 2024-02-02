@@ -31,7 +31,6 @@
 #define MAX_EVENTS 10
 
 DEFAULT_LOGGING_MODULE(MAIN, INFO);
-LOGGING_MODULE(CONFIG, INFO);
 
 int sigint_count = 0;
 struct R2d2Config *config;
@@ -128,14 +127,8 @@ static void recv_loop(struct HashMap *ifaces)
             //log_packet("received packet length %u on %s", p->len, recvif->name);
             struct Pipeline *pipe = parsetree_process(recvif->parsetree, p);
             if (pipe == NULL) {
-                log_packet("no pipeline found, unknown stream");
                 delete_packet(p);
             } else {
-                log_packet("parsetree identified %u headers, pipe %s", p->header_count, pipe->name);
-                for (unsigned i=0; i<p->header_count; i++) {
-                    log_packet("  header %u is %s at %u len %u", i,
-                            protocol_list[p->headers[i].type].name, p->headers[i].start, p->headers[i].len);
-                }
                 // the iterator owns the packet
                 struct PipelineIterator *pi = new_pipe_iterator(pipe, p);
                 // the iterator deletes itself when it's done
@@ -184,7 +177,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
         argp_error(state, "Too many arguments");
     switch (key) {
         case 'v': {
-            char level = log_level_from_string(arg);
+            int level = log_level_from_string(arg);
             if (level != -1)
                 args->verbosity = level;
             else {
@@ -215,8 +208,10 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
             args->configfile = arg;
         break;
         case ARGP_KEY_END:
-            if (state->arg_num != 1)
+            if (state->arg_num != 1) {
+                argp_state_help(state, state->out_stream, ARGP_HELP_LONG | ARGP_HELP_SHORT_USAGE);
                 argp_error(state, "Config file required!");
+            }
         break;
         default:
             return ARGP_ERR_UNKNOWN;
@@ -247,7 +242,15 @@ int main(int argc, char **argv)
         log_set_level("ALL", arguments.verbosity); //TODO proper per-module verbosity from CLI
     }
 
-    log_info_m(CONFIG, "Reading config '%s'", arguments.configfile);
+    //TODO test log levels
+    /*log_set_level("MAIN", ALL);
+    log_error("error");
+    log_warning("warning");
+    log_info("info");
+    log_packet("packet");
+    log_debug("debug");*/
+
+    printf("Reading config '%s'\n", arguments.configfile);
     config = read_config(arguments.configfile);
     if (config == NULL) {
         fprintf(stderr, "the config is invalid\n");

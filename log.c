@@ -17,8 +17,6 @@
 #include <time.h>
 #include <unistd.h>
 
-DEFAULT_LOGGING_MODULE(LOG, INFO)
-
 static FILE *logfile = NULL;
 static LOG_OUTPUT log_output = LOG_OUT_STDOUT;
 static bool color = false;
@@ -70,7 +68,7 @@ bool open_log(LOG_OUTPUT out, char *logname)
         color = false;
         printf("%sInfo:%s File '%s' opened for logging.\n", colors[INFO], colors[RESET], logname);
         setbuf(logfile, NULL); // this is slower but more reliable
-        log_info("File '%s' opened for logging.\n", logname);
+        fprintf(logfile, "File '%s' opened for logging.\n", logname);
     } else if (out == LOG_OUT_STDOUT) {
         logfile = stdout;
         color = isatty(STDOUT_FILENO);
