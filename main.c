@@ -167,13 +167,13 @@ static char args_doc[] = "CONFIGFILE";
 
 static struct argp_option options[] = {
     {"verbose", 'v', "DEFAULT", 0, "Available loglevels: NONE, ERROR, WARNING, INFO, PACKET, DEBUG, ALL", 0},
-    {"output", 'o', "logfile", 0, "Output: log[f]ile, sys[l]og, [s]tdout", 0},
+    {"output", 'o', "logfile", 0, "Output: log[f]ile, sys[l]og, [s]tdout (default), std[e]rr", 0},
     { 0 }
 };
 
 static struct arguments {
     int verbosity;
-    OUTPUT output;
+    LOG_OUTPUT output;
     char *configfile;
 } arguments;
 
@@ -195,16 +195,18 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
         case 'o': {
             if (strlen(arg) == 1) {
                 switch (arg[0]) {
-                    case 'f': args->output = LOGFILE; break;
-                    case 'l': args->output = SYSLOG; break;
-                    case 's': args->output = STDOUT; break;
+                    case 'f': args->output = LOG_OUT_LOGFILE; break;
+                    case 'l': args->output = LOG_OUT_SYSLOG; break;
+                    case 's': args->output = LOG_OUT_STDOUT; break;
+                    case 'e': args->output = LOG_OUT_STDERR; break;
                     default:
                         argp_error(state, "Invalid value '%c' for output argument.", arg[0]);
                 }
             } else {
-                if (strncmp(arg, "logfile", 7) == 0) args->output = LOGFILE;
-                else if (strncmp(arg, "syslog", 6) == 0) args->output = SYSLOG;
-                else if (strncmp(arg, "stdout", 6) == 0) args->output = STDOUT;
+                if (strcmp(arg, "logfile") == 0) args->output = LOG_OUT_LOGFILE;
+                else if (strcmp(arg, "syslog") == 0) args->output = LOG_OUT_SYSLOG;
+                else if (strcmp(arg, "stdout") == 0) args->output = LOG_OUT_STDOUT;
+                else if (strcmp(arg, "stderr") == 0) args->output = LOG_OUT_STDERR;
                 else argp_error(state, "Invalid value '%s' for output argument.", arg);
             }
         }
@@ -229,7 +231,7 @@ int main(int argc, char **argv)
     printf("R2DTWO - Reliable & Robust Deterministic Tool for netWOrking\n"
             "Version %d.%d\n", VERSION_MAJOR, VERSION_MINOR);
 
-    arguments.output = SYSLOG;
+    arguments.output = LOG_OUT_STDOUT;
     arguments.verbosity = -1;
     arguments.configfile = NULL;
     argp_parse(&argp, argc, argv, 0, NULL, &arguments);

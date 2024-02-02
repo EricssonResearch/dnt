@@ -17,8 +17,11 @@
 #include <time.h>
 #include <unistd.h>
 
+DEFAULT_LOGGING_MODULE(LOG, INFO)
+
 static FILE *logfile = NULL;
-static OUTPUT log_output = SYSLOG;
+static LOG_OUTPUT log_output = LOG_OUT_STDOUT;
+static bool color = false;
 
 static const char* log_level_strings[] = {
     "NONE",
@@ -31,11 +34,12 @@ static const char* log_level_strings[] = {
 };
 
 const char* colors[] = {
-    "\x1B[0m",
-    "\x1B[34m",
-    "\x1B[32m",
-    "\x1B[33m",
-    "\x1B[31m",
+    "\033[0m",
+    "\033[1;31m",
+    "\033[0;31m",
+    "\033[0;33m",
+    "\033[0;32m",
+    "\033[0;34m",
 };
 #define RESET 0
 
@@ -54,38 +58,43 @@ char *logname_from_config(const char *config_name)
     return strdup_printf("r2dtwo-%s-%u.log", confname, pid);
 }
 
-bool open_log(OUTPUT out, char *logname)
+bool open_log(LOG_OUTPUT out, char *logname)
 {
-    if (out == LOGFILE) {
-        log_output = LOGFILE;
+    if (out == LOG_OUT_LOGFILE) {
         logfile = fopen(logname, "a");
         if(NULL == logfile) {
             fprintf(stderr, "%sError:%s could not open log file '%s': %s\n",
                     colors[ERROR], logname, colors[RESET], strerror(errno));
             return false;
         }
-        fprintf(stderr, "%sInfo:%s File '%s' opened for logging.\n", colors[INFO], colors[RESET], logname);
+        color = false;
+        printf("%sInfo:%s File '%s' opened for logging.\n", colors[INFO], colors[RESET], logname);
         setbuf(logfile, NULL); // this is slower but more reliable
-        return true;
-    } else if (out == STDOUT) {
+        log_info("File '%s' opened for logging.\n", logname);
+    } else if (out == LOG_OUT_STDOUT) {
+        logfile = stdout;
+        color = isatty(STDOUT_FILENO);
+        printf("%sInfo:%s Logging to standard output.\n", colors[INFO], colors[RESET]);
+    } else if (out == LOG_OUT_STDERR) {
         logfile = stderr;
-        log_output = STDOUT;
-        fprintf(stderr, "%sInfo:%s Logging to standard output.\n", colors[INFO], colors[RESET]);
-        return true;
-    } else if (out == SYSLOG) {
-        log_output = SYSLOG;
-        fprintf(stderr, "%sInfo:%s Logging to syslog.\n", colors[INFO], colors[RESET]);
+        color = isatty(STDERR_FILENO);
+        printf("%sInfo:%s Logging to standard error.\n", colors[INFO], colors[RESET]);
+    } else if (out == LOG_OUT_SYSLOG) {
+        printf("%sInfo:%s Logging to syslog.\n", colors[INFO], colors[RESET]);
+        color = false;
         openlog(strdup(logname), 0, LOG_USER);
-        return true;
+    } else {
+        return false;
     }
-    return false;
+    log_output = out;
+    return true;
 }
 
 void close_log(void)
 {
-    if (logfile != NULL && logfile != stderr) {
+    if (logfile != NULL && logfile != stderr && logfile != stdout) {
         fclose(logfile);
-        fprintf(stderr, "%sInfo:%s Logfile closed.\n", colors[INFO], colors[RESET]);
+        printf("%sInfo:%s Logfile closed.\n", colors[INFO], colors[RESET]);
     }
 }
 
@@ -177,7 +186,7 @@ int __log_func(LOGGING_LEVELS level, const char *logmodule, const char *frmt, ..
     vsnprintf(msg, sizeof(msg), frmt, argp);
     va_end(argp);
 
-    if (log_output != SYSLOG) {
+    if (log_output != LOG_OUT_SYSLOG) {
         time_t now;
         time(&now);
         struct tm now_tm;
@@ -185,7 +194,13 @@ int __log_func(LOGGING_LEVELS level, const char *logmodule, const char *frmt, ..
         char date[32];
         strftime(date, sizeof(date), "%Y.%m.%d %H:%M:%S", &now_tm);
 
-        return fprintf(logfile, "%s [%s] [%s] %s\n", date, logmodule, log_level_strings[level], msg);
+        if (color) {
+            return fprintf(logfile, "%s [\033[1m%s\033[0m] [%s%s%s] %s\n",
+                    date, logmodule, colors[level], log_level_strings[level], colors[RESET], msg);
+        } else {
+            return fprintf(logfile, "%s [%s] [%s] %s\n",
+                    date, logmodule, log_level_strings[level], msg);
+        }
     } else {
         int syslog_prio = log_level_to_syslog_level(level);
         syslog(syslog_prio, "[%s] %s", logmodule, msg);
@@ -201,7 +216,7 @@ int __log_perror_func(const char *logmodule, const char *frmt, ...)
     vsnprintf(msg, sizeof(msg), frmt, argp);
     va_end(argp);
 
-    if (log_output != SYSLOG) {
+    if (log_output != LOG_OUT_SYSLOG) {
         time_t now;
         time(&now);
         struct tm now_tm;
@@ -209,8 +224,15 @@ int __log_perror_func(const char *logmodule, const char *frmt, ...)
         char date[32];
         strftime(date, sizeof(date), "%Y.%m.%d %H:%M:%S", &now_tm);
 
-        return fprintf(logfile, "%s [%s] [%s] %s: %s\n", date, logmodule, log_level_strings[ERROR], msg,
-                strerror(errno));
+        if (color) {
+            return fprintf(logfile, "%s [\033[1m%s\033[0m] [%s%s%s] %s: %s\n",
+                    date, logmodule, colors[ERROR], log_level_strings[ERROR], colors[RESET], msg,
+                    strerror(errno));
+        } else {
+            return fprintf(logfile, "%s [%s] [%s] %s: %s\n",
+                    date, logmodule, log_level_strings[ERROR], msg,
+                    strerror(errno));
+        }
     } else {
         int syslog_prio = log_level_to_syslog_level(ERROR);
         syslog(syslog_prio, "[%s] %s: %s", logmodule, msg, strerror(errno));

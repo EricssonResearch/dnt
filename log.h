@@ -10,6 +10,7 @@
 void perror(const char *s) __attribute__((deprecated));
 
 typedef enum {
+    //TODO these need prefix (syslog squats on LOG_xxx)
     NONE=0,
     ERROR,
     WARNING,
@@ -20,10 +21,11 @@ typedef enum {
 } LOGGING_LEVELS;
 
 typedef enum {
-    STDOUT = 0,
-    SYSLOG,
-    LOGFILE
-} OUTPUT;
+    LOG_OUT_STDOUT = 0,
+    LOG_OUT_STDERR,
+    LOG_OUT_SYSLOG,
+    LOG_OUT_LOGFILE,
+} LOG_OUTPUT;
 
 /**
  * @brief Function to initialize the logger.
@@ -33,7 +35,7 @@ typedef enum {
  *
  * @retval true if successful.
  */
-bool open_log(OUTPUT out, char *log_filename);
+bool open_log(LOG_OUTPUT out, char *log_filename);
 
 /* Close the log facility.
  * Closes the logfile
