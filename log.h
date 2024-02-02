@@ -127,6 +127,14 @@ static void __attribute((constructor)) register_module_##_name(void) {      \
     if (__default_log_module->level >= ERROR)                               \
         __log_perror_func(__default_log_module->name, ##__VA_ARGS__)
 
+
+#define log_enabled(_level)                                                 \
+        (__default_log_module->level >= _level)
+
+#define log_enabled_m(_name, _level)                                        \
+        (__log_module_##_name.level >= _level)
+
+
 typedef int log_getlevel_cb(const char *mod_name, LOGGING_LEVELS current_level, void *userdata);
 
 // @userdata is supplied to the callback
