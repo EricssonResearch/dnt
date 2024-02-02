@@ -13,7 +13,7 @@
 #include <string.h>
 #include <inttypes.h>
 
-DEFAULT_LOGGING_MODULE(HEADER, WARNING)
+DEFAULT_LOGGING_MODULE(HEADER, WARNING);
 
 struct HeaderField *new_headerfield(unsigned header_idx, const struct ProtocolField *pfield)
 {

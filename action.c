@@ -15,11 +15,14 @@
 #include "seq_recov.h"
 #include "utils.h"
 #include "pof.h"
+#include "log.h"
 
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 #include <arpa/inet.h> /* htonl() */
+
+DEFAULT_LOGGING_MODULE(PIPELINE, WARNING);
 
 const char *action_name_from_type(enum ActionType type)
 {

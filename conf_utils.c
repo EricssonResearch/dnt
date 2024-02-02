@@ -15,7 +15,7 @@
 #include <arpa/inet.h>
 #include <netinet/ether.h>
 
-DEFAULT_LOGGING_MODULE(CONFIG, WARNING)
+DEFAULT_LOGGING_MODULE(CONFIG, WARNING);
 
 bool foreach_stages(char *line, foreach_callback *cb, void *userdata)
 {

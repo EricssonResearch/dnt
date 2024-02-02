@@ -12,7 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-DEFAULT_LOGGING_MODULE(CONFIG, WARNING)
+DEFAULT_LOGGING_MODULE(CONFIG, WARNING);
 
 struct ConfOamState {
     struct HashMap *oam;

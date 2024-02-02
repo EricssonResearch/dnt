@@ -67,7 +67,8 @@ int __log_perror_func(const char *logmodule, const char *frmt, ...)
 static struct __log_module __log_module_##_name = {#_name, _default_level}; \
 static void __attribute((constructor)) register_module_##_name(void) {      \
     __register_log_module(__FILE__, &__log_module_##_name);                 \
-}
+}                                                                           \
+struct require_a_semicolon
 
 // declare a module for logging that can be used without supplying the name
 // only one default can be declared in a compilation unit
@@ -75,8 +76,9 @@ static void __attribute((constructor)) register_module_##_name(void) {      \
 static struct __log_module __log_module_##_name = {#_name, _default_level}; \
 static struct __log_module *__default_log_module = &__log_module_##_name;   \
 static void __attribute((constructor)) register_module_##_name(void) {      \
-    __register_log_module(__FILE__, &__log_module_##_name);                 \
-}
+    __register_log_module(__FILE__, __default_log_module);                  \
+}                                                                           \
+struct require_a_semicolon
 
 #define log_debug_m(_name, ...)                                             \
     if (__log_module_##_name.level >= DEBUG)                                \

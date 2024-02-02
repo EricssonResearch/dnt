@@ -29,7 +29,7 @@
 
 #include <arpa/inet.h> /* ntohs() */
 
-DEFAULT_LOGGING_MODULE(CONFIG, WARNING)
+DEFAULT_LOGGING_MODULE(CONFIG, WARNING);
 
 enum ConfActionType {
     CA_UNDEF,

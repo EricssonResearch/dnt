@@ -25,7 +25,7 @@
 
 //TODO: we need a thread_utils.h
 //TODO: Cleanup the code, remove legacy bits
-DEFAULT_LOGGING_MODULE(DELAY, WARNING)
+DEFAULT_LOGGING_MODULE(DELAY, WARNING);
 
 
 struct DelayQueue {
