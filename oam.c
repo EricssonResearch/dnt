@@ -36,7 +36,7 @@
 #define OAM_PING_TTL 64
 #define OAM_CHANNEL 1 /* Management Communication Channel (MCC), similar format to ours */
 
-DEFAULT_LOGGING_MODULE(OAM, INFO);
+DEFAULT_LOGGING_MODULE(OAM, WARNING);
 
 struct MepStart {
     char *name;

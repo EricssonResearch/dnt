@@ -23,7 +23,7 @@
 #include <errno.h>
 #include <netinet/in.h>
 
-DEFAULT_LOGGING_MODULE(IFOAMCMD, WARNING)
+DEFAULT_LOGGING_MODULE(INTERFACE, WARNING)
 
 #define BACKLOG 2   // how many pending connections queue will hold
 
