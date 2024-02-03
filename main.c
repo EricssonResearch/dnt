@@ -196,6 +196,7 @@ static bool set_loglevels(const char *levels)
                 if (!log_set_level(m, nlvl)) {
                     THROW("Module '%s' does not exist", m);
                 }
+                free(s);
                 return true;
             }
         } else {
