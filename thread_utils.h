@@ -1,0 +1,52 @@
+// Copyright (c) 2023, Ericsson AB and Ericsson Telecommunication Hungary
+// All rights reserved.
+
+
+#ifndef R2_THREAD_H
+#define R2_THREAD_H
+
+// handle for a named background thread
+struct R2Thread;
+
+// create a named thread, @thread_fn receives @thread_arg
+struct R2Thread *thread_launch(const char *name, void* (*thread_fn)(void *), void *thread_arg);
+
+// create a named thread, @thread_fn receives @thread_arg
+// fails unless we have CAP_SYS_NICE
+struct R2Thread *thread_launch_priority(const char *name, void* (*thread_fn)(void *), void *thread_arg, int priority);
+
+// always returns NULL
+struct R2Thread *thread_stop(struct R2Thread *thread);
+
+
+// thread-safe FIFO queue
+// intended for one-way message passing between threads
+struct MessageQueue;
+
+// creates an empty queue
+struct MessageQueue *new_messagequeue(void);
+
+// deletes the queue
+// messages still in the queue will be lost
+// always returns NULL
+struct MessageQueue *delete_messagequeue(struct MessageQueue *q);
+
+// adds @message to the end of the queue
+void messagequeue_push(struct MessageQueue *q, void *message);
+
+// wait while @q is empty or @usec microseconds have elapsed
+// returns immediately if there is an item in @q
+// removes and returns the first item
+// returns NULL on timeout
+// if there are multiple items in @q, the one pushed first is returned
+// negative @usec means no timeout (waits indefinitely)
+// zero @usec means return immediately even if @q is empty
+void *messagequeue_pop(struct MessageQueue *q, int usec);
+
+// calls @cb for each item in the queue, @userdata is passed to @cb
+// stops and returns false when @cb returns false
+// returns true on success
+int messagequeue_foreach(struct MessageQueue *q, int (*cb)(const void *item, void *userdata), void *userdata);
+
+
+#endif // R2_THREAD_H
