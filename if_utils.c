@@ -1,19 +1,18 @@
 // Copyright (c) 2023, Ericsson AB and Ericsson Telecommunication Hungary
 // All rights reserved.
 
-#define _GNU_SOURCE /* for pthread_setname_np */
 
 #include "if_utils.h"
 #include "interface.h"
 #include "log.h"
 #include "packet.h"
 #include "time_utils.h"
+#include "thread_utils.h"
 #include "utils.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <pthread.h>
 #include <poll.h>
 #include <errno.h>
 
@@ -211,14 +210,12 @@ struct MonitorState {
     const char *name;
     int socket;
     int family;
-    pthread_t tid;
+    struct Thread *thread;
 };
 
 static void *socket_monitor_thread(void *param)
 {
     struct MonitorState *st = param;
-
-    pthread_setname_np(pthread_self(), "sockerr monitor");
 
     nfds_t nfds = 1;
     struct pollfd fds[1];
@@ -231,7 +228,7 @@ static void *socket_monitor_thread(void *param)
         if (poll_num == -1) {
             if (errno == EINTR)
                 continue;
-            log_perror("poll on sockerr");
+            log_perror("poll on sockerr for %s", st->name);
             continue;
         }
         if (poll_num == 0)
@@ -254,7 +251,7 @@ static void *socket_monitor_thread(void *param)
         int res = recvmsg(st->socket, &msg, MSG_ERRQUEUE);
         //printf("res %d controllen %zu\n", res, msg.msg_controllen);
         if (res < 0) {
-            log_perror("recvmsg on sockerr");
+            log_perror("recvmsg on sockerr for %s", st->name);
             continue;
         }
 
@@ -305,8 +302,11 @@ void *monitor_error_queue(int socket, int family, const char *name)
     st->socket = socket;
     st->family = family;
 
-    if (pthread_create(&st->tid, NULL, socket_monitor_thread, st) < 0) {
-        log_error("could not create error queue monitoring thread");
+    char thname[16];
+    snprintf(thname, sizeof(thname), "sockmon %s", name);
+    st->thread = thread_launch(thname, socket_monitor_thread, st);
+    if (st->thread == NULL) {
+        log_error("could not create error queue monitoring thread for %s", name);
         free(st);
         //TODO disable RECVERR?
         return NULL;
@@ -319,8 +319,7 @@ void stop_monitoring_error_queue(void *monitor)
 {
     struct MonitorState *st = monitor;
     if (st) {
-        pthread_cancel(st->tid);
-        pthread_join(st->tid, NULL);
+        thread_stop(st->thread);
 
         if (st->family == AF_INET6) {
             int enable = 0;
