@@ -65,7 +65,7 @@ int __log_perror_func(const char *logmodule, const char *frmt, ...)
 // the same module name can be declared in multiple compilation units
 #define LOGGING_MODULE(_name, _default_level)                               \
 static struct __log_module __log_module_##_name = {#_name, _default_level}; \
-static void __attribute((constructor)) register_module_##_name(void) {      \
+static void __attribute__((constructor)) register_module_##_name(void) {    \
     __register_log_module(__FILE__, &__log_module_##_name);                 \
 }                                                                           \
 struct require_a_semicolon
@@ -75,7 +75,7 @@ struct require_a_semicolon
 #define DEFAULT_LOGGING_MODULE(_name, _default_level)                       \
 static struct __log_module __log_module_##_name = {#_name, _default_level}; \
 static struct __log_module *__default_log_module = &__log_module_##_name;   \
-static void __attribute((constructor)) register_module_##_name(void) {      \
+static void __attribute__((constructor)) register_module_##_name(void) {    \
     __register_log_module(__FILE__, __default_log_module);                  \
 }                                                                           \
 struct require_a_semicolon

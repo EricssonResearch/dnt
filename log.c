@@ -21,6 +21,13 @@ static FILE *logfile = NULL;
 static LOG_OUTPUT log_output = LOG_OUT_STDOUT;
 static bool color = false;
 
+static void __attribute__((constructor)) init_logfile(void)
+{
+    // this is a sane default, so we don't require open_log()
+    // it seems stdout is not constant, so we can't assign it directly to the static variable
+    logfile = stdout;
+}
+
 static const char* log_level_strings[] = {
     "NONE",
     "ERROR",
