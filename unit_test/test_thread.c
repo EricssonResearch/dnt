@@ -46,10 +46,11 @@ static void test_thread(void)
 struct ThreadMQParam {
     int counter;
     int timeouts;
+    int errors;
     struct MessageQueue *q;
 };
 
-static void *thread_mq_func(void *arg)
+static void *thread_mq_timeout_func(void *arg)
 {
     struct ThreadMQParam *param = arg;
 
@@ -66,14 +67,70 @@ static void *thread_mq_func(void *arg)
     return NULL;
 }
 
+static void *thread_mq_immediate_func(void *arg)
+{
+    struct ThreadMQParam *param = arg;
+
+    while (1) {
+        struct ThreadTestParam *message = messagequeue_pop(param->q, 0);
+        if (message) {
+            param->counter += message->counter;
+            free(message);
+        } else {
+            param->timeouts++;
+            usleep(1000*20);
+        }
+    }
+
+    return NULL;
+}
+
+static void *thread_mq_notimeout_func(void *arg)
+{
+    struct ThreadMQParam *param = arg;
+
+    while (1) {
+        struct ThreadTestParam *message = messagequeue_pop(param->q, -1);
+        if (message) {
+            param->counter += message->counter;
+            free(message);
+        } else {
+            param->timeouts++;
+        }
+    }
+
+    return NULL;
+}
+
+static void *thread_mq_multi_func(void *arg)
+{
+    struct ThreadMQParam *param = arg;
+
+    while (1) {
+        struct ThreadTestParam *message = messagequeue_pop(param->q, 1000*200);
+        if (message) {
+            if (message->counter != param->counter + 1) {
+                param->errors++;
+            }
+            param->counter = message->counter;
+            free(message);
+        } else {
+            param->timeouts++;
+        }
+    }
+
+    return NULL;
+}
+
 static void test_mq(void)
 {
     struct ThreadMQParam param;
     param.counter = 0;
     param.timeouts = 0;
+    param.errors = 0;
     param.q = new_messagequeue();
     OK_FATAL(param.q, "have queue");
-    struct R2Thread *th = thread_launch("test thread", thread_mq_func, &param);
+    struct R2Thread *th = thread_launch("test mq timeout", thread_mq_timeout_func, &param);
     OK_FATAL(th, "have thread object");
 
     usleep(1000*300);
@@ -99,6 +156,59 @@ static void test_mq(void)
 
     th = thread_stop(th);
     OK_FATAL(th == NULL, "thread object gone");
+    param.counter = 0;
+    param.timeouts = 0;
+
+    th = thread_launch("test mq immediate", thread_mq_immediate_func, &param);
+    OK_FATAL(th, "have thread object");
+    usleep(1000*50);
+    OK(param.counter == 0, "counter %d", param.counter);
+    OK(param.timeouts == 3, "timeouts %d", param.timeouts);
+    message = malloc(sizeof(struct ThreadTestParam));
+    message->counter = 9;
+    messagequeue_push(param.q, message);
+    usleep(1000*50);
+    OK(param.counter == 9, "counter %d", param.counter);
+    OK(param.timeouts == 5, "timeouts %d", param.timeouts);
+
+    th = thread_stop(th);
+    OK_FATAL(th == NULL, "thread object gone");
+    param.counter = 0;
+    param.timeouts = 0;
+
+    th = thread_launch("test mq notimeout", thread_mq_notimeout_func, &param);
+    OK_FATAL(th, "have thread object");
+    usleep(1000*200);
+    OK(param.counter == 0, "counter %d", param.counter);
+    OK(param.timeouts == 0, "timeouts %d", param.timeouts);
+    message = malloc(sizeof(struct ThreadTestParam));
+    message->counter = 5;
+    messagequeue_push(param.q, message);
+    usleep(1000*50);
+    OK(param.counter == 5, "counter %d", param.counter);
+    OK(param.timeouts == 0, "timeouts %d", param.timeouts);
+
+    th = thread_stop(th);
+    OK_FATAL(th == NULL, "thread object gone");
+    param.counter = 0;
+    param.timeouts = 0;
+
+    // test pushing multiple items
+    for (int i=1; i<20; i++) {
+        message = malloc(sizeof(struct ThreadTestParam));
+        message->counter = i;
+        messagequeue_push(param.q, message);
+    }
+    th = thread_launch("test mq multiple msg", thread_mq_multi_func, &param);
+    OK_FATAL(th, "have thread object");
+    usleep(1000*100);
+    OK(param.counter == 19, "counter %d", param.counter);
+    OK(param.timeouts == 0, "timeouts %d", param.timeouts);
+    OK(param.errors == 0, "errors %d", param.errors);
+
+    th = thread_stop(th);
+    OK_FATAL(th == NULL, "thread object gone");
+
     param.q = delete_messagequeue(param.q);
     OK(param.q == NULL, "queue gone");
 }
