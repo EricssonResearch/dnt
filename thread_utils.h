@@ -6,17 +6,20 @@
 #define R2_THREAD_H
 
 // handle for a named background thread
-struct R2Thread;
+struct Thread;
 
 // create a named thread, @thread_fn receives @thread_arg
-struct R2Thread *thread_launch(const char *name, void* (*thread_fn)(void *), void *thread_arg);
+struct Thread *thread_launch(const char *name, void* (*thread_fn)(void *), void *thread_arg);
 
 // create a named thread, @thread_fn receives @thread_arg
 // fails unless we have CAP_SYS_NICE
-struct R2Thread *thread_launch_priority(const char *name, void* (*thread_fn)(void *), void *thread_arg, int priority);
+struct Thread *thread_launch_priority(const char *name, void* (*thread_fn)(void *), void *thread_arg, int priority);
 
 // always returns NULL
-struct R2Thread *thread_stop(struct R2Thread *thread);
+struct Thread *thread_stop(struct Thread *thread);
+
+// returns the name of the thread
+const char *thread_getname(struct Thread *thread);
 
 
 // thread-safe FIFO queue

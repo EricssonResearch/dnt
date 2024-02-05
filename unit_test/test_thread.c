@@ -25,7 +25,7 @@ static void test_thread(void)
 {
     struct ThreadTestParam param;
     param.counter = 0;
-    struct R2Thread *th = thread_launch("test thread", thread_func, &param);
+    struct Thread *th = thread_launch("test thread", thread_func, &param);
     OK_FATAL(th, "have thread object");
     usleep(1000*50); // is this enough?
     OK(param.counter == 1, "thread worked");
@@ -130,7 +130,7 @@ static void test_mq(void)
     param.errors = 0;
     param.q = new_messagequeue();
     OK_FATAL(param.q, "have queue");
-    struct R2Thread *th = thread_launch("test mq timeout", thread_mq_timeout_func, &param);
+    struct Thread *th = thread_launch("test mq timeout", thread_mq_timeout_func, &param);
     OK_FATAL(th, "have thread object");
 
     usleep(1000*300);

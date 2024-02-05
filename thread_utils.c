@@ -20,14 +20,14 @@
 DEFAULT_LOGGING_MODULE(THREAD, WARNING);
 
 
-struct R2Thread {
+struct Thread {
     pthread_t tid;
     char *name;
 };
 
-static struct R2Thread *launch_with_attr(const char *name, void* (*thread_fn)(void *), void *thread_arg, pthread_attr_t *attr)
+static struct Thread *launch_with_attr(const char *name, void* (*thread_fn)(void *), void *thread_arg, pthread_attr_t *attr)
 {
-    struct R2Thread *ret = calloc_struct(R2Thread);
+    struct Thread *ret = calloc_struct(Thread);
     ret->name = strdup(name);
 
     errno = pthread_create(&ret->tid, attr, thread_fn, thread_arg);
@@ -43,12 +43,12 @@ static struct R2Thread *launch_with_attr(const char *name, void* (*thread_fn)(vo
     return ret;
 }
 
-struct R2Thread *thread_launch(const char *name, void* (*thread_fn)(void *), void *thread_arg)
+struct Thread *thread_launch(const char *name, void* (*thread_fn)(void *), void *thread_arg)
 {
     return launch_with_attr(name, thread_fn, thread_arg, NULL);
 }
 
-struct R2Thread *thread_launch_priority(const char *name, void* (*thread_fn)(void *), void *thread_arg, int priority)
+struct Thread *thread_launch_priority(const char *name, void* (*thread_fn)(void *), void *thread_arg, int priority)
 {
     pthread_attr_t attr;
     if ((errno = pthread_attr_init(&attr)) != 0) {
@@ -73,9 +73,10 @@ struct R2Thread *thread_launch_priority(const char *name, void* (*thread_fn)(voi
     return launch_with_attr(name, thread_fn, thread_arg, &attr);
 }
 
-struct R2Thread *thread_stop(struct R2Thread *thread)
+struct Thread *thread_stop(struct Thread *thread)
 {
     log_debug("stopping thread %s", thread->name);
+    if (thread == NULL) return NULL;
     pthread_cancel(thread->tid);
     pthread_join(thread->tid, NULL);
     free(thread->name);
@@ -83,6 +84,10 @@ struct R2Thread *thread_stop(struct R2Thread *thread)
     return NULL;
 }
 
+const char *thread_getname(struct Thread *thread)
+{
+    return thread->name;
+}
 
 struct Message {
     void *data;
