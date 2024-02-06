@@ -1,7 +1,6 @@
 // Copyright (c) 2023, Ericsson AB and Ericsson Telecommunication Hungary
 // All rights reserved.
 
-#define _GNU_SOURCE /* for pthread_setname_np */
 
 #include "seq_recov.h"
 #include "action.h"
@@ -10,13 +9,13 @@
 #include "packet.h"
 #include "pipeline.h"
 #include "time_utils.h"
+#include "thread_utils.h"
 #include "utils.h"
 #include "json.h"
 
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <pthread.h>
 
 #include <arpa/inet.h>
 #include <time.h>
@@ -65,7 +64,7 @@ struct SequenceRecovery {
     int consecutive_loss_max;
     int skip_loss_after_reset_guard;
 
-    pthread_t reset_thread;
+    struct Thread *reset_thread;
     char *session_id; // for OAM only
 };
 
@@ -237,7 +236,14 @@ struct PipelineObject *new_seq_rec(const char *name, enum SequenceRecoveryAlgori
     ret->take_any = true;
     ret->init_take_any = true;
     ret->session_id = NULL;
-    pthread_create(&ret->reset_thread, NULL, reset_thread, ret); //TODO check for success
+
+    char thname[16];
+    snprintf(thname, sizeof(thname), "seq reset %s", name);
+    ret->reset_thread = thread_launch(thname, reset_thread, ret);
+    if (ret->reset_thread == NULL) {
+        log_error("cant't create reset thread for %s", name);
+        //TODO what now?
+    }
 
     return (struct PipelineObject *)ret;
 }
@@ -245,8 +251,7 @@ struct PipelineObject *new_seq_rec(const char *name, enum SequenceRecoveryAlgori
 struct PipelineObject *delete_seq_rec(struct PipelineObject *r)
 {
     struct SequenceRecovery *rec = (struct SequenceRecovery *)r;
-    pthread_cancel(rec->reset_thread);
-    pthread_join(rec->reset_thread, NULL);
+    thread_stop(rec->reset_thread);
     free(rec->history);
     free(rec->init_history);
     free(rec->session_id);
@@ -574,7 +579,6 @@ static void *reset_thread(void *arg)
 {
     struct SequenceRecovery *rec = arg;
     struct timespec sleep_until, delta, now;
-    pthread_setname_np(pthread_self(), "seq reset");
 
     //TODO grab mutex
 
