@@ -48,6 +48,7 @@ const char* colors[] = {
 };
 #define RESET 0
 
+
 char *logname_from_config(const char *config_name)
 {
     pid_t pid = getpid();

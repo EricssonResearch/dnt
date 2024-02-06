@@ -97,6 +97,7 @@ void pipe_iterator_run(struct PipelineIterator *pi)
     while (!iterator_done(pi)) {
         struct Action *a = &pi->pipe->actions[pi->pos];
         log_packet("  action type %d %s '%s'", a->type, action_name_from_type(a->type), a->text);
+        packet_logcat(pi->packet, "%s ", action_name_from_type(a->type));
         enum ActionResult res = a->execute(a, pi);
         switch (res) {
             case ACR_CONTINUE:

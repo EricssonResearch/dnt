@@ -7,11 +7,13 @@
 #include "utils.h"
 #include "log.h"
 
+#include <stdarg.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
 DEFAULT_LOGGING_MODULE(PACKET, WARNING);
+LOGGING_MODULE(PACKETTRACE, WARNING);
 LOGGING_MODULE(OAM, WARNING);
 
 static unsigned packet_count = 0;
@@ -176,4 +178,35 @@ void packets_check_performance(void)
     } else if (packet_count > PACKET_COUNT_LIMIT * 0.5) {
         log_warning_m(OAM, "\033[0;33mPERFORMANCE WARNING: too many packets in the system\033[0m");
     }
+}
+
+void packet_logcat(struct Packet *p, const char *frmt, ...)
+{
+    if (__log_module_PACKETTRACE.level < PACKET)
+        return;
+
+    char msg[PACKET_LOG_BUF_SIZE];
+    va_list argp;
+
+    if (p->logbuf[PACKET_LOG_BUF_SIZE - 2] != '\0')
+        return;
+
+    const size_t buflen = strlen(p->logbuf);
+
+    va_start(argp, frmt);
+    size_t n = vsnprintf(msg, sizeof(msg), frmt, argp);
+    va_end(argp);
+
+    strncpy(p->logbuf+buflen, msg, PACKET_LOG_BUF_SIZE-buflen-1);
+
+    if (n + buflen >= PACKET_LOG_BUF_SIZE - 1)
+        sprintf(&p->logbuf[PACKET_LOG_BUF_SIZE - 4], "...");
+}
+
+void packet_print(const struct Packet *p)
+{
+    if (__log_module_PACKETTRACE.level < PACKET)
+        return;
+
+    log_packet_m(PACKETTRACE, "[id=%u oid=%u] %s", p->id, p->original_id, p->logbuf);
 }

@@ -81,7 +81,7 @@ struct Pipeline *parsetree_process(struct ParseTree *pt_head, struct Packet *p)
 {
     for (struct ParseTree *pt = pt_head; pt != NULL; pt = pt->next) {
         if (pt->headers == NULL) {
-            log_error("parsetree %s has no streams", pt->iface->name);
+            log_error("parsetree %s: packet matched none of the streams\n", pt->iface->name);
             return NULL;
         }
 
