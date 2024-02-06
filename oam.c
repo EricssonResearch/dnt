@@ -170,10 +170,22 @@ static int alloc_session_id(const char *stream_name, struct oam_request *req, FI
     }
 }
 
+static int mep_start_delete_cb(const char *key, void *value, void *userdata)
+{
+    (void)key;
+    (void)userdata;
+    struct MepStart *mepstart = value;
+    free(mepstart->name);
+    free(mepstart->mep_name);
+    free(mepstart->stream_name);
+    free(mepstart);
+    return 1;
+}
+
 bool oam_create_mep_start(const char *stream_name, const char *mep_name, int level, unsigned idx)
 {
     if (mep_starts == NULL) {
-        mep_starts = new_hashmap(59, NULL, NULL);
+        mep_starts = new_hashmap(13, mep_start_delete_cb, NULL);
     }
     struct MepStart *mepstart = hashmap_find(mep_starts, mep_name);
     if (mepstart) {
@@ -1825,4 +1837,6 @@ void finish_oam(void)
 {
     struct ListParams params = {NULL};
     hashmap_foreach(session_ids, close_sessions_cb, &params);
+    delete_hashmap(session_ids);
+    delete_hashmap(mep_starts);
 }
