@@ -242,7 +242,7 @@ struct PipelineObject *new_seq_rec(const char *name, enum SequenceRecoveryAlgori
     ret->reset_thread = thread_launch(thname, reset_thread, ret);
     if (ret->reset_thread == NULL) {
         log_error("cant't create reset thread for %s", name);
-        //TODO what now?
+        return delete_seq_rec((struct PipelineObject *)ret);
     }
 
     return (struct PipelineObject *)ret;

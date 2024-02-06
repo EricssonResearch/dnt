@@ -19,7 +19,6 @@
 #include <pthread.h>
 #include <semaphore.h>
 #include <sys/eventfd.h>
-#include <sys/socket.h>
 #include <sys/select.h>
 
 
