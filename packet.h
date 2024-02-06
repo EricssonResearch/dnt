@@ -12,6 +12,7 @@
 
 //TODO move the defines in a central location?
 #define PACKET_BUF_LEN 10000
+#define PACKET_LOG_BUF_SIZE 256
 #define PACKET_MAX_HEADER_NUM 20
 #define PACKET_COUNT_LIMIT 200
 #define PACKET_START_OFFSET 1024
@@ -54,6 +55,10 @@ struct Packet {
 
     // filled by the ttlreduce action, verified by the ttlcheck action
     unsigned ttl;
+
+    // log buffer for packet logging
+    // TODO: dynamic allocation in packet_logcat
+    char logbuf[PACKET_LOG_BUF_SIZE];
 };
 
 // returns a newly allocated packet that has a buffer
@@ -93,5 +98,13 @@ void packet_clear_headers(struct Packet *p);
 
 // prints a warning if there are too many packets in the system
 void packets_check_performance(void);
+
+// append text messages to the packet's log buffer
+void packet_logcat(struct Packet *p, const char *frmt, ...)
+    __attribute__((format(printf, 2, 3)))
+    __attribute__((nonnull(2)));
+
+// print the packet log buffer to the appropriate output
+void packet_print(const struct Packet *p);
 
 #endif // R2_PACKET_H
