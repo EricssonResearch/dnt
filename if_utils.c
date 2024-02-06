@@ -201,6 +201,7 @@ bool iface_common_send(struct Interface *iface, struct Packet *p, int socket, vo
         return false;
     }
 
+    packet_logcat(p, "%s", iface->name);
     packet_print(p);
 
     dropstat(iface, socket);

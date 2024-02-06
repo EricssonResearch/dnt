@@ -125,8 +125,10 @@ static void recv_loop(struct HashMap *ifaces)
             if (p == NULL)
                 continue;
             //log_packet("received packet length %u on %s", p->len, recvif->name);
+            packet_logcat(p, "%s %u ", recvif->name, p->len);
             struct Pipeline *pipe = parsetree_process(recvif->parsetree, p);
             if (pipe == NULL) {
+                packet_print(p);
                 delete_packet(p);
             } else {
                 // the iterator owns the packet
