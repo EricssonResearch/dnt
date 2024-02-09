@@ -4,35 +4,35 @@
 OAM functions include service basic ping and remote ping functionality, initiated either from telnet-like CLI or configuration file.
 The OAM functionality requires the following pre-requisites:
 
-* Configure 'oam' and 'oam_cmd' interfaces
-* Add 'mep-start', 'mip' and 'mep-stop' actions to the stream actions
+* Configure `oam` and `oam_cmd` interfaces
+* Add `mep-start`, `mip` and `mep-stop` actions to the stream actions
 * optionally configure OAM background commands to be executed
 
 Examples for the interface and command parameters can be found in **inispec.md**.
 
-The OAM CLI can be reached via 'telnet' command to the address:port specified for the oam_cmd interface.
+The OAM CLI can be reached via `telnet` command to the address:port specified for the `oam_cmd` interface.
 
 ## OAM CLI commands
 
-The main OAM commands are 'ping' and 'rping'. There also are several helping commands. Commands cannot be abbreviated.
+The main OAM commands are `ping` and `rping`. There also are several helping commands. Commands cannot be abbreviated.
 
 The available commands are:
 
-* help - get help
-* exit, quit, CTRL+D - exit OAM
-* log [module newlevel] - get current log levels or set it for the given module.
-* list - list monitoring start points
-* rlist[@if] <stream:mep-start/mip> <mep-stop/mip/any> <level> - list monitoring start points of the remote node.
-* mode <mode> - terminal mode. Mode can be 'dump' or 'json'.
-* sessions [stream] - list active sessions for stream. If no 'stream' specified, lists all sessions
-* stop [stream session_id] - stop a running OAM session, identified by 'stream:session_id'. Without parameters it stops the last session
-* returns - list return interfaces
-* ping[@if] <stream:mep-start> <mep-stop/mip/any> <level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]
-* rping[@if] <remote stream:mep-stop/mip> <stream:mep-start> <mep-stop/mip/any> <level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]
+* `help `- get help
+* `exit,` quit, CTRL+D - exit OAM
+* `log [module newlevel]` - get current log levels or set it for the given module.
+* `list` - list monitoring start points
+* `rlist[@if] <stream:mep-start/mip> <mep-stop/mip/any> <level>` - list monitoring start points of the remote node.
+* `mode <mode>` - terminal mode. Mode can be 'dump' or 'json'.
+* `sessions [stream]` - list active sessions for stream. If no 'stream' specified, lists all sessions
+* `stop [stream session_id]` - stop a running OAM session, identified by 'stream:session_id'. Without parameters it stops the last session
+* `returns` - list return interfaces
+* `ping[@if] <stream:mep-start> <mep-stop/mip/any> <level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]`
+* `rping[@if] <remote stream:mep-stop/mip> <stream:mep-start> <mep-stop/mip/any> <level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]`
 
-The **ping** command sends a ping request inside a stream, and the responder will send a ping reply out-of-bound to the OAM return interface. The **rping** command on an *originator* node is sent to the *initiator* node, which in turn will send a normal ping request to the given target.
+The `ping` command sends a ping request inside a stream, and the responder will send a ping reply out-of-bound to the OAM return interface. The `rping` command on an *originator* node is sent to the *initiator* node, which in turn will send a normal ping request to the given target.
 
-If **@if** parameter specifies the OAM return interface for *ping/rping/rlist*, where the reply will be sent by the responder. If unspecified, the default OAM return interface will be used. For rping, the @if parameter refers to the interface at the originator node.
+If `@if` parameter specifies the OAM return interface for *ping/rping/rlist*, where the reply will be sent by the responder. If unspecified, the default OAM return interface will be used. For `rping`, the `@if` parameter refers to the interface at the originator node.
 
 It is also possible to specify an IP address and port instead of the name of a return interface, if e.g. one is using a central report collection server. The accepted formats are: IPv4, IPv4:port, IPv6, [IPv6], [IPv6]:port. The port defaults to 6634.
 

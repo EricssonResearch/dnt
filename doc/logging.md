@@ -72,7 +72,7 @@ Currently available modules:
 
 ## PACKETTRACE module
 
-The PACKET and DEBUG logging levels print multiple lines for each packet.
+The `PACKET` and `DEBUG` logging levels print multiple lines for each packet.
 This is useful for a detailed understanding of how packets are handled by the application (receive interface, math stream, parsed headers, action pipeline, etc.).
 
 However, for a quick overview of the packets, there is the `PACKETTRACE` module.
