@@ -284,6 +284,7 @@ static int object_cb(const char *key, void *value, void *userdata)
         return 0;
     } else {
         hashmap_insert(state->objects, obj->name, obj);
+        log_info("object %s type %s", obj->name, pipelineobject_name_from_type(obj->type));
         return 1;
     }
 }

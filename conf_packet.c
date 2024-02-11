@@ -208,14 +208,19 @@ void confheaders_print(const struct HeaderDescriptor *headers)
         if (h->matches) {
             log_info("  matches:");
             for (const struct HeaderMatch *m=h->matches; m; m=m->next) {
-                log_info("    field idx %u bitoffset %u bitcount %u value bitoffset %u bitlength %u",
-                        m->field.header_idx, m->field.bitoffset, m->field.bitcount,
-                        m->value.bitoffset, m->value.bitcount);
                 unsigned bytes = DIVCEIL(m->value.bitoffset + m->value.bitcount, 8);
                 unsigned char *cst = m->value.value;
-                for (unsigned i=0; i<bytes; i++) {
-                    log_info("      0x%.2x", cst[i]);
+                char b_str[32];
+                unsigned b_off = 0;
+                if (log_enabled(INFO)) {
+                    for (unsigned i=0; i<bytes; i++) {
+                        b_off += snprintf(b_str+b_off, sizeof(b_str)-b_off, " 0x%.2x", cst[i]);
+                    }
                 }
+
+                log_info("    field idx %u bitoffset %u bitcount %u value bitoffset %u bitlength %u bytes%s",
+                        m->field.header_idx, m->field.bitoffset, m->field.bitcount,
+                        m->value.bitoffset, m->value.bitcount, b_str);
             }
         }
     }

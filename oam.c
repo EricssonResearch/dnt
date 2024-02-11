@@ -69,8 +69,7 @@ struct oam_request{
     char *error;
 };
 
-static int nr_oam_ifaces = 0;
-static struct Interface *oam_ifaces[16];
+static struct HashMap *oam_ifaces;
 static struct Interface *oam_default_iface = NULL;
 static struct Interface *oam_cmd_iface = NULL;
 static struct HashMap *mep_starts = NULL; // name -> struct MEPStart
@@ -105,29 +104,30 @@ bool set_oam_cmd_if(struct Interface *iface)
     }
 }
 
+static int oam_if_del_cb(const char *key, void *value, void *userdata)
+{
+    // we don't own the key or the value
+    (void)key;
+    (void)value;
+    (void)userdata;
+    return 1;
+}
+
 void add_oam_if(struct Interface *iface)
 {
-    if (nr_oam_ifaces < 16) {
-        oam_ifaces[nr_oam_ifaces] = iface;
-        if (oam_default_iface == NULL) {
+    if (oam_ifaces == NULL) {
+        oam_ifaces = new_hashmap(9, oam_if_del_cb, NULL);
+    }
+    hashmap_insert(oam_ifaces, iface->name, iface);
+
+    if (oam_default_iface == NULL) {
+        oam_default_iface = iface;
+    } else {
+        if (strcmp(iface->name, oam_default_iface->name) < 0)
             oam_default_iface = iface;
-        } else {
-            if (strcmp(iface->name, oam_default_iface->name) < 0)
-                oam_default_iface = iface;
-        }
-        nr_oam_ifaces++;
     }
 }
 
-static struct Interface *get_oam_if(const char *name)
-{
-    for (int i = 0; i < nr_oam_ifaces; ++i) {
-        if (strcmp(name, oam_ifaces[i]->name) == 0) {
-            return oam_ifaces[i];
-        }
-    }
-    return NULL;
-}
 
 static int alloc_session_id(const char *stream_name, struct oam_request *req, FILE *cmd_w)
 {
@@ -182,6 +182,8 @@ static int mep_start_delete_cb(const char *key, void *value, void *userdata)
     return 1;
 }
 
+//TODO sometimes @stream_name and @mep_name are not enough to distinguish between start points
+//      somehow we need to introduce the concept of "compound stream"
 bool oam_create_mep_start(const char *stream_name, const char *mep_name, int level, unsigned idx)
 {
     if (mep_starts == NULL) {
@@ -518,7 +520,7 @@ static bool parse_ip_port(const char *str, char **ip, unsigned *port)
 
 static bool parse_ping_returnif(struct oam_request *ping_req, const char *ifname)
 {
-    struct Interface *iface = ifname[0] ? get_oam_if(ifname) : oam_default_iface;
+    struct Interface *iface = ifname[0] ? hashmap_find(oam_ifaces, ifname) : oam_default_iface;
     if (iface == NULL) {
         ping_req->return_port = OAM_PORT;
         if (parse_ip_port(ifname, &ping_req->return_ip, &ping_req->return_port)) {
@@ -837,6 +839,24 @@ static int list_log_modules_cb(const char *mod_name, LOGGING_LEVELS current_leve
     return 1;
 }
 
+static int list_oam_ifaces_cb(const char *ifname, void *value, void *userdata)
+{
+    struct ListParams *params = userdata;
+    struct Interface *iface = value;
+
+    const char *return_ip = oamif_get_ip(iface);
+    unsigned return_port = oamif_get_port(iface);
+    fprintf(params->cmd_w, "%s ip %s port %u",
+            ifname, return_ip, return_port);
+    if (iface == oam_default_iface) {
+        fprintf(params->cmd_w, " (default, node id %u)\n", oamif_get_uid(iface));
+    } else {
+        fprintf(params->cmd_w, "\n");
+    }
+
+    return 1;
+}
+
 #define TELNET_IAC         0xff /* Interpret As Command */
 #define TELNET_INTERRUPT   0xf4 /* interrupt process */
 #define TELNET_WILL        0xfb
@@ -914,8 +934,8 @@ static const char *terminal_format_name(enum TerminalFormat f)
 
 struct command_connection {
     //TODO: protect with mutex
-    FILE *cmd_w;
-    int read_fd;
+    int socket_fd; // RW
+    FILE *cmd_w; // WRONLY
     pthread_t tid;
     enum TerminalFormat mode;
 };
@@ -928,7 +948,7 @@ static void command_loop(struct command_connection *conn)
             ##__VA_ARGS__);                         \
     continue
 
-    int cmd_fd = conn->read_fd;
+    int cmd_fd = conn->socket_fd;
     FILE *cmd_w = conn->cmd_w;
 
     char oam_command[255], last_command[255];
@@ -1052,18 +1072,8 @@ static void command_loop(struct command_connection *conn)
             }
             else if (strcmp(oam_command, "returns") == 0) {
                 fprintf(cmd_w, "Available OAM return interfaces:\n");
-                for (int i=0; i<nr_oam_ifaces; i++) {
-                    const char *return_ip = oamif_get_ip(oam_ifaces[i]);
-                    unsigned return_port = oamif_get_port(oam_ifaces[i]);
-                    fprintf(cmd_w, "%s ip %s port %u",
-                            oam_ifaces[i]->name, return_ip, return_port);
-                    if (oam_ifaces[i] == oam_default_iface) {
-                        unsigned short node_id = oamif_get_uid(oam_ifaces[i]);
-                        fprintf(cmd_w, " (default, node id %u)\n", node_id);
-                    } else {
-                        fprintf(cmd_w, "\n");
-                    }
-                }
+                struct ListParams lp = {cmd_w};
+                hashmap_foreach(oam_ifaces, list_oam_ifaces_cb, &lp);
             }
             else if (strncmp(oam_command, "ping", 4) == 0) {
                 struct oam_request *ping_req = parse_ping_command(oam_command+4, true, true, cmd_w);
@@ -1133,7 +1143,7 @@ void oam_start_command_connection(int fd)
         return;
     }
     struct command_connection *conn = calloc_struct(command_connection);
-    conn->read_fd = fd;
+    conn->socket_fd = fd;
     // note: inverse operation is fd=fileno(file)
     conn->cmd_w = fdopen(fd, "w");
     //TODO if we want to fread() we need to duplicate the handle
@@ -1820,7 +1830,7 @@ static int oam_start_background_ping_cb(const char *key, void *value, void *user
 
 bool init_oam(struct HashMap *config_oam)
 {
-    printf("Init OAM fuctionality.\n");
+    log_info("Init OAM fuctionality");
 
     pthread_mutex_init(&session_lock, NULL);
     session_ids = new_hashmap(11, NULL, NULL);
@@ -1839,4 +1849,5 @@ void finish_oam(void)
     hashmap_foreach(session_ids, close_sessions_cb, &params);
     delete_hashmap(session_ids);
     delete_hashmap(mep_starts);
+    delete_hashmap(oam_ifaces);
 }

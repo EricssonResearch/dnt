@@ -1764,7 +1764,7 @@ struct Action *assemble_actions(const char *stream_name, const struct ConfAction
 void confactions_print(const struct ConfAction *ca_list)
 {
     for (const struct ConfAction *ca = ca_list; ca; ca=ca->next) {
-        log_info("ConfAction %s '%s'",
+        log_info(" ConfAction %s '%s'",
                 confaction_name_from_type(ca->type), ca->text);
         switch (ca->type) {
             case CA_UNDEF:
@@ -1801,12 +1801,16 @@ void confactions_print(const struct ConfAction *ca_list)
                     if (a->rhs.type == CVT_FIELD) {
                         log_info("      index %u", a->rhs.v.header.field->header_idx);
                     } else if (a->rhs.type == CVT_CONST) {
-                        log_info("      constant:");
                         unsigned bytes = DIVCEIL(a->rhs.value.bitoffset + a->rhs.value.bitcount, 8);
                         unsigned char *cst = a->rhs.value.value;
-                        for (unsigned i=0; i<bytes; i++) {
-                            log_info(" 0x%.2x", cst[i]);
+                        char b_str[32];
+                        unsigned b_off = 0;
+                        if (log_enabled(INFO)) {
+                            for (unsigned i=0; i<bytes; i++) {
+                                b_off += snprintf(b_str+b_off, sizeof(b_str)-b_off, " 0x%.2x", cst[i]);
+                            }
                         }
+                        log_info("      constant:%s", b_str);
                     }
                 }
                 break;
