@@ -9,6 +9,10 @@ CFLAGS += -Wall -Wextra -Wshadow -Wstrict-prototypes -Wmissing-declarations -Wwr
 CFLAGS += -Werror
 CFLAGS += -Iinifile
 
+# ASan is incompatible with Valgrind
+#CFLAGS += -fsanitize=address
+#LFLAGS += -lasan
+
 LFLAGS += -lm
 #TODO gnu libc doesn't need this
 LFLAGS += -lpthread
