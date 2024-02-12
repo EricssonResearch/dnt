@@ -1116,7 +1116,7 @@ static void command_loop(struct command_connection *conn)
             break;
         }
     }
-    printf("Telnet closed.\n");
+    log_info("Telnet closed");
     // cleanup
     struct ListParams lp = {cmd_w};
     hashmap_foreach(session_ids, close_sessions_cb, &lp);
@@ -1130,6 +1130,7 @@ static void *command_thread(void *arg)
     fclose(conn->cmd_w); // we only need to close the FILE*
     free(conn); //TODO remove from hash
     oam_command_connection = NULL;
+    pthread_detach(pthread_self());
     return NULL;
 }
 
