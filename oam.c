@@ -421,7 +421,7 @@ static bool initiate_request(struct oam_request *ping_req)
         send_request(ping_req);
         delete_oam_request(ping_req);
     } else {
-        stream->sessions[session_id].multireq_thread = thread_launch("oam request", oam_request_thread, ping_req);
+        stream->sessions[session_id].multireq_thread = thread_launch(oam_request_thread, ping_req, "oam req %d", session_id);
         if (stream->sessions[session_id].multireq_thread == NULL) {
             log_error("could not create new ping thread");
             return false;
@@ -1151,7 +1151,7 @@ void oam_start_command_connection(int fd)
 
     oam_command_connection = conn; //TODO save conn in a hash (key?)
 
-    conn->thread = thread_launch("command", command_thread, conn);
+    conn->thread = thread_launch(command_thread, conn, "command");
     if (conn->thread == NULL) {
         log_perror("could not create new oam thread");
         fclose(conn->cmd_w); // we only need to close the FILE*

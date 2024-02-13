@@ -4,6 +4,7 @@
 #include "thread_utils.h"
 
 #include <stdlib.h>
+#include <string.h>
 
 TEST_INIT("Thread Utils");
 
@@ -25,22 +26,26 @@ static void test_thread(void)
 {
     struct ThreadTestParam param;
     param.counter = 0;
-    struct Thread *th = thread_launch("test thread", thread_func, &param);
+    struct Thread *th = thread_launch(thread_func, &param, "test thread %d", param.counter);
     OK_FATAL(th, "have thread object");
     usleep(1000*50); // is this enough?
     OK(param.counter == 1, "thread worked");
+    OK(strcmp(thread_getname(th), "test thread 0") == 0, "good name");
     th = thread_stop(th);
     OK_FATAL(th == NULL, "thread object gone");
 
-    th = thread_launch_priority("test thread", thread_func, &param, 10);
+    th = thread_launch_priority(thread_func, &param, 10, "test thread %s", "prio");
     if (th) {
         usleep(1000*50); // is this enough?
         OK(param.counter == 2, "priority thread worked");
+        OK(strcmp(thread_getname(th), "test thread prio") == 0, "good name");
         th = thread_stop(th);
         OK_FATAL(th == NULL, "thread object gone");
     } else {
         SKIP("need CAP_SYS_NICE for the thread priority test");
     }
+
+    //TODO thread_exit()
 }
 
 struct ThreadMQParam {
@@ -130,7 +135,7 @@ static void test_mq(void)
     param.errors = 0;
     param.q = new_messagequeue();
     OK_FATAL(param.q, "have queue");
-    struct Thread *th = thread_launch("test mq timeout", thread_mq_timeout_func, &param);
+    struct Thread *th = thread_launch(thread_mq_timeout_func, &param, "test mq timeout");
     OK_FATAL(th, "have thread object");
 
     usleep(1000*300);
@@ -159,7 +164,7 @@ static void test_mq(void)
     param.counter = 0;
     param.timeouts = 0;
 
-    th = thread_launch("test mq immediate", thread_mq_immediate_func, &param);
+    th = thread_launch(thread_mq_immediate_func, &param, "test mq immediate");
     OK_FATAL(th, "have thread object");
     usleep(1000*50);
     OK(param.counter == 0, "counter %d", param.counter);
@@ -176,7 +181,7 @@ static void test_mq(void)
     param.counter = 0;
     param.timeouts = 0;
 
-    th = thread_launch("test mq notimeout", thread_mq_notimeout_func, &param);
+    th = thread_launch(thread_mq_notimeout_func, &param, "test mq notimeout");
     OK_FATAL(th, "have thread object");
     usleep(1000*200);
     OK(param.counter == 0, "counter %d", param.counter);
@@ -199,7 +204,7 @@ static void test_mq(void)
         message->counter = i;
         messagequeue_push(param.q, message);
     }
-    th = thread_launch("test mq multiple msg", thread_mq_multi_func, &param);
+    th = thread_launch(thread_mq_multi_func, &param, "test mq multiple msg");
     OK_FATAL(th, "have thread object");
     usleep(1000*100);
     OK(param.counter == 19, "counter %d", param.counter);

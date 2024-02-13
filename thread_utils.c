@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdarg.h>
 #include <errno.h>
 
 #include <pthread.h>
@@ -43,12 +44,18 @@ static struct Thread *launch_with_attr(const char *name, void* (*thread_fn)(void
     return ret;
 }
 
-struct Thread *thread_launch(const char *name, void* (*thread_fn)(void *), void *thread_arg)
+struct Thread *thread_launch(void* (*thread_fn)(void *), void *thread_arg, const char *name, ...)
 {
-    return launch_with_attr(name, thread_fn, thread_arg, NULL);
+    char thname[16];
+    va_list args;
+    va_start(args, name);
+    vsnprintf(thname, sizeof(thname), name, args);
+    va_end(args);
+
+    return launch_with_attr(thname, thread_fn, thread_arg, NULL);
 }
 
-struct Thread *thread_launch_priority(const char *name, void* (*thread_fn)(void *), void *thread_arg, int priority)
+struct Thread *thread_launch_priority(void* (*thread_fn)(void *), void *thread_arg, int priority, const char *name, ...)
 {
     pthread_attr_t attr;
     if ((errno = pthread_attr_init(&attr)) != 0) {
@@ -70,7 +77,13 @@ struct Thread *thread_launch_priority(const char *name, void* (*thread_fn)(void 
         return NULL;
     }
 
-    return launch_with_attr(name, thread_fn, thread_arg, &attr);
+    char thname[16];
+    va_list args;
+    va_start(args, name);
+    vsnprintf(thname, sizeof(thname), name, args);
+    va_end(args);
+
+    return launch_with_attr(thname, thread_fn, thread_arg, &attr);
 }
 
 struct Thread *thread_stop(struct Thread *thread)

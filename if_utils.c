@@ -305,9 +305,7 @@ void *monitor_error_queue(int socket, int family, const char *name)
     st->socket = socket;
     st->family = family;
 
-    char thname[16];
-    snprintf(thname, sizeof(thname), "sockmon %s", name);
-    st->thread = thread_launch(thname, socket_monitor_thread, st);
+    st->thread = thread_launch(socket_monitor_thread, st, "sockmon %s", name);
     if (st->thread == NULL) {
         log_error("could not create error queue monitoring thread for %s", name);
         free(st);

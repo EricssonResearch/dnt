@@ -9,12 +9,17 @@
 struct Thread;
 
 // create a named thread, @thread_fn receives @thread_arg
-// TODO name last, support printf substitution
-struct Thread *thread_launch(const char *name, void* (*thread_fn)(void *), void *thread_arg);
+struct Thread *thread_launch(void* (*thread_fn)(void *), void *thread_arg, const char *name, ...)
+    __attribute__((format(printf, 3, 4)))
+    __attribute__((nonnull(3)))
+    __attribute__((nonnull(1)));
 
 // create a named thread, @thread_fn receives @thread_arg
 // fails unless we have CAP_SYS_NICE
-struct Thread *thread_launch_priority(const char *name, void* (*thread_fn)(void *), void *thread_arg, int priority);
+struct Thread *thread_launch_priority(void* (*thread_fn)(void *), void *thread_arg, int priority, const char *name, ...)
+    __attribute__((format(printf, 4, 5)))
+    __attribute__((nonnull(4)))
+    __attribute__((nonnull(1)));
 
 // stop the given thread and free the resources
 // doesn't do anything if called from the thread itself
