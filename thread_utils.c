@@ -75,13 +75,26 @@ struct Thread *thread_launch_priority(const char *name, void* (*thread_fn)(void 
 
 struct Thread *thread_stop(struct Thread *thread)
 {
-    log_debug("stopping thread %s", thread->name);
     if (thread == NULL) return NULL;
+    if (thread->tid == pthread_self()) return NULL;
+    log_debug("stopping thread %s", thread->name);
     pthread_cancel(thread->tid);
     pthread_join(thread->tid, NULL);
     free(thread->name);
     free(thread);
     return NULL;
+}
+
+void thread_exit(struct Thread *thread)
+{
+    if (thread == NULL) return;
+    if (thread->tid != pthread_self()) return;
+    log_debug("thread %s exiting", thread->name);
+    pthread_t tid = thread->tid;
+    free(thread->name);
+    free(thread);
+    pthread_detach(tid);
+    pthread_cancel(tid);
 }
 
 const char *thread_getname(struct Thread *thread)

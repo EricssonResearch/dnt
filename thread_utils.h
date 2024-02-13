@@ -9,14 +9,23 @@
 struct Thread;
 
 // create a named thread, @thread_fn receives @thread_arg
+// TODO name last, support printf substitution
 struct Thread *thread_launch(const char *name, void* (*thread_fn)(void *), void *thread_arg);
 
 // create a named thread, @thread_fn receives @thread_arg
 // fails unless we have CAP_SYS_NICE
 struct Thread *thread_launch_priority(const char *name, void* (*thread_fn)(void *), void *thread_arg, int priority);
 
+// stop the given thread and free the resources
+// doesn't do anything if called from the thread itself
 // always returns NULL
+// TODO return error somehow if the thread already exited
 struct Thread *thread_stop(struct Thread *thread);
+
+// the thread stops itself
+// the other threads don't need to wait for it or join with it
+// doesn't do anything if called from another thread
+void thread_exit(struct Thread *thread);
 
 // returns the name of the thread
 const char *thread_getname(struct Thread *thread);
