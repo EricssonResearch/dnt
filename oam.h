@@ -26,7 +26,7 @@ bool init_oam(struct HashMap *config_oam);
 void finish_oam(void);
 
 // receive on the return interface
-int oam_recv_reply(const char *msg);
+void oam_recv_reply(const char *msg);
 
 // receive on the action pipeline
 // @returns true if the packet should be forwarded

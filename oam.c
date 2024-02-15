@@ -92,6 +92,9 @@ struct StreamSessions {
 static struct HashMap *session_ids = NULL; // stream_name -> struct StreamSessions
 static pthread_mutex_t session_lock;
 
+static struct Thread *reply_thread = NULL;
+static struct MessageQueue *reply_q = NULL;
+
 bool set_oam_cmd_if(struct Interface *iface)
 {
     if (oam_cmd_iface == NULL) {
@@ -1171,12 +1174,8 @@ void oam_cli_alert(const char *fmt, ...)
     }
 }
 
-/*
- * Handle received UDP OAM reply mesage
- * Msg: pointer to the message
- * Return 0 on success
-*/
-int oam_recv_reply(const char *msg)
+
+static int process_reply(const char *msg)
 {
 #define JS_OBJECT_GET(_key, _type, _json)                           \
     struct JsonValue *_key = json_object_get_##_type(_json, #_key); \
@@ -1353,6 +1352,25 @@ int oam_recv_reply(const char *msg)
     }
     return 0;
     #undef JS_OBJECT_GET
+}
+
+static void *reply_thread_fn(void *arg)
+{
+    (void)arg;
+
+    while (1) {
+        char *msg = messagequeue_pop(reply_q, -1);
+        process_reply(msg);
+        free(msg);
+    }
+
+    return NULL;
+}
+
+void oam_recv_reply(const char *msg)
+{
+    // @msg is an on-stack buffer in if_oam recv
+    messagequeue_push(reply_q, strdup(msg));
 }
 
 /*
@@ -1830,6 +1848,9 @@ bool init_oam(struct HashMap *config_oam)
     pthread_mutex_init(&session_lock, NULL);
     session_ids = new_hashmap(11, NULL, NULL);
 
+    reply_q = new_messagequeue();
+    reply_thread = thread_launch(reply_thread_fn, NULL, "oam reply");
+
     // Start OAM background streams
     if (!hashmap_foreach(config_oam, oam_start_background_ping_cb, NULL)) {
         log_error("failed to start oam background command");
@@ -1840,6 +1861,8 @@ bool init_oam(struct HashMap *config_oam)
 
 void finish_oam(void)
 {
+    thread_stop(reply_thread);
+    delete_messagequeue(reply_q);
     struct ListParams params = {NULL};
     hashmap_foreach(session_ids, close_sessions_cb, &params);
     delete_hashmap(session_ids);
