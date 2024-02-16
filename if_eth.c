@@ -64,13 +64,13 @@ static void restore_vlan(struct msghdr *msg, struct Packet *p, void *userdata)
     }
 }
 
-static struct Packet *eth_recv(struct Interface *iface)
+static bool eth_recv(struct Interface *iface)
 {
     struct EthIfData *eid = iface->iface_private;
     (void)eid;
 
     struct Packet *p = iface_common_recv(iface, restore_vlan, NULL);
-    if (p == NULL) return NULL;
+    if (p == NULL) return false;
 
     uint16_t *p_vlan = (uint16_t*)(p->buf + p->start + 2*6);
     unsigned short ethertype = ntohs(*p_vlan);
@@ -83,8 +83,9 @@ static struct Packet *eth_recv(struct Interface *iface)
         p_vlan[0] = htons(ETH_P_8021Q);
         p_vlan[1] = 0;
     }
+    packet_logcat(p, "%s %u ", iface->name, p->len);
 
-    return p;
+    return iface_common_process(iface, p);
 }
 
 static bool eth_send(struct Interface *iface, struct Packet *p)
@@ -295,8 +296,8 @@ struct Interface *new_eth_interface(const char *name, const char *ifname)
     struct EthIfData *eid = calloc_struct(EthIfData);
     iface->iface_private = eid;
 
-    iface->parsetree = new_parsetree(iface);
-    parsetree_ref(iface->parsetree);
+    iface->parsetree_ = new_parsetree(iface);
+    parsetree_ref(iface->parsetree_);
 
     return iface;
 }

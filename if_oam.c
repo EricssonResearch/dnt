@@ -47,7 +47,7 @@ unsigned short oamif_get_uid(const struct Interface *iface)
     return oid->uid;
 }
 
-static struct Packet *oam_recv(struct Interface *iface)
+static bool oam_recv(struct Interface *iface)
 {
     char buffer[2000];
     int n;
@@ -58,7 +58,7 @@ static struct Packet *oam_recv(struct Interface *iface)
         oam_recv_reply(buffer);
     }
 
-    return NULL;
+    return true;
 }
 
 static bool oam_send(struct Interface *iface, struct Packet *p)

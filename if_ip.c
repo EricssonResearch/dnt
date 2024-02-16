@@ -34,10 +34,10 @@ struct IpIfData {
     struct in6_addr ipv6;
 };
 
-static struct Packet *ip_recv(struct Interface *iface)
+static bool ip_recv(struct Interface *iface)
 {
-    log_warning("ip interface %s recv how??", iface->name);
-    return NULL;
+    log_error("ip interface %s recv how??", iface->name);
+    return false;
 }
 
 static bool ip_send(struct Interface *iface, struct Packet *p)

@@ -237,13 +237,13 @@ static int addstream_cb(const char *key, void *value, void *userdata)
             oam_set_pipeline_for_mep_start(s->stream_name, pipe);
         }
 
-        if (iface->parsetree == NULL) {
+        if (iface->parsetree_ == NULL) {
             log_error("interface %s doesn't have parsetree, cannot receive stream %s",
                     key, s->stream_name);
             pipeline_unref(pipe); //TODO verify the refcounting scheme, including the error path
             return 0;
         }
-        if (!parsetree_add_stream(iface->parsetree, s->stream->headers, pipe)) {
+        if (!parsetree_add_stream(iface->parsetree_, s->stream->headers, pipe)) {
             log_error("failed to add stream %s to the parsetree of interface %s",
                     s->stream_name, key);
             pipeline_unref(pipe); //TODO verify the refcounting scheme, including the error path

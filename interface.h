@@ -32,8 +32,8 @@ enum IfaceState {
 
 // receive a packet on @fd
 // blocks if no packet is in the rx queue!
-// @returns the receivec packet or NULL if reception failed
-typedef struct Packet *iface_recv(struct Interface *iface);
+// @returns true if the reception was successful
+typedef bool iface_recv(struct Interface *iface);
 
 // sends the packet on the interface
 // @returns false if the packet sending failed
@@ -66,7 +66,7 @@ struct Interface {
     void *iface_private;
     int dropstat_cntr;
     int dropstat_last_warn;
-    struct ParseTree *parsetree;
+    struct ParseTree *parsetree_; // private
 
     // all of these methods are mandatory
     iface_recv *recv;

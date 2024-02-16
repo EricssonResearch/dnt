@@ -38,10 +38,10 @@ struct UdpOutIfData {
     void *errq_monitor;
 };
 
-static struct Packet *udpout_recv(struct Interface *iface)
+static bool udpout_recv(struct Interface *iface)
 {
-    log_warning("udp-out interface %s recv how??", iface->name);
-    return NULL;
+    log_error("udp-out interface %s recv how??", iface->name);
+    return false;
 }
 
 static bool udpout_send(struct Interface *iface, struct Packet *p)

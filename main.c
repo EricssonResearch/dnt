@@ -121,20 +121,8 @@ static void recv_loop(struct HashMap *ifaces)
 
         for (int n=0; n<nfds; n++) {
             struct Interface *recvif = events[n].data.ptr;
-            struct Packet *p = recvif->recv(recvif);
-            if (p == NULL)
-                continue;
-            //log_packet("received packet length %u on %s", p->len, recvif->name);
-            packet_logcat(p, "%s %u ", recvif->name, p->len);
-            struct Pipeline *pipe = parsetree_process(recvif->parsetree, p);
-            if (pipe == NULL) {
-                packet_print(p);
-                delete_packet(p);
-            } else {
-                // the iterator owns the packet
-                struct PipelineIterator *pi = new_pipe_iterator(pipe, p);
-                // the iterator deletes itself when it's done
-                pipe_iterator_run(pi);
+            if (!recvif->recv(recvif)) {
+                //TODO log_error?
             }
         }
 

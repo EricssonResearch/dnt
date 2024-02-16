@@ -48,7 +48,7 @@ void *get_in_addr(struct sockaddr *sa)
     return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
-static struct Packet *oam_cmd_recv(struct Interface *iface)
+static bool oam_cmd_recv(struct Interface *iface)
 {
     //struct OamCmdIfData *oid = iface->iface_private;
 
@@ -65,7 +65,7 @@ static struct Packet *oam_cmd_recv(struct Interface *iface)
     log_info("got connection from %s", s);
 
     oam_start_command_connection(new_fd);
-    return NULL;
+    return true;
 }
 
 static bool oam_cmd_send(struct Interface *iface, struct Packet *p)

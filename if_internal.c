@@ -3,6 +3,7 @@
 
 
 #include "if_internal.h"
+#include "if_utils.h"
 #include "interface.h"
 #include "log.h"
 #include "packet.h"
@@ -69,7 +70,7 @@ static struct Packet *packetfifo_get(struct PacketFifo *pf)
 }
 
 
-static struct Packet *int_recv(struct Interface *iface)
+static bool int_recv(struct Interface *iface)
 {
     struct PacketFifo *pf = iface->iface_private;
     uint64_t one;
@@ -77,7 +78,7 @@ static struct Packet *int_recv(struct Interface *iface)
     if (ret < 0)
         log_perror("read interface %s", iface->name);
     struct Packet *p = packetfifo_get(pf);
-    return p;
+    return iface_common_process(iface, p);
 }
 
 static bool int_send(struct Interface *iface, struct Packet *p)
@@ -132,8 +133,8 @@ struct Interface *new_internal_interface(const char *name)
 
     iface->iface_private = new_packetfifo();
 
-    iface->parsetree = new_parsetree(iface);
-    parsetree_ref(iface->parsetree);
+    iface->parsetree_ = new_parsetree(iface);
+    parsetree_ref(iface->parsetree_);
 
     return iface;
 }

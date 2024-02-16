@@ -34,12 +34,15 @@ struct UdpInIfData {
     } srcip;
 };
 
-static struct Packet *udpin_recv(struct Interface *iface)
+static bool udpin_recv(struct Interface *iface)
 {
     struct UdpInIfData *uid = iface->iface_private;
     (void)uid;
 
-    return iface_common_recv(iface, NULL, NULL);
+    struct Packet *p = iface_common_recv(iface, NULL, NULL);
+    if (p == NULL) return false;
+    packet_logcat(p, "%s %u ", iface->name, p->len);
+    return iface_common_process(iface, p);
 }
 
 static bool udpin_send(struct Interface *iface, struct Packet *p)
@@ -238,8 +241,8 @@ struct Interface *new_udp_in_interface(const char *name, const char *ifname,
     uid->port = port;
     uid->family = ipversion == 6 ? AF_INET6 : AF_INET;
 
-    iface->parsetree = new_parsetree(iface);
-    parsetree_ref(iface->parsetree);
+    iface->parsetree_ = new_parsetree(iface);
+    parsetree_ref(iface->parsetree_);
 
     return iface;
 }
