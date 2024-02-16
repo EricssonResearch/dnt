@@ -112,3 +112,8 @@ void pipe_iterator_run(struct PipelineIterator *pi)
     }
     delete_iterator(pi);
 }
+
+void pipe_iteraror_cancel(struct PipelineIterator *pi)
+{
+    delete_iterator(pi);
+}

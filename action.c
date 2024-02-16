@@ -550,12 +550,15 @@ static enum ActionResult action_MEP_execute(struct Action *a, struct PipelineIte
 {
     struct Packet *p = pi->packet;
     struct OamEndPoint *oam  = a->action_private;
+    // note: we made sure in conf_actions.c that at this point of the pipeline the packet starts with mpls+dcw
     unsigned char *oam_hdr = p->buf + p->headers[1].start;
 
-    if(oam_hdr[0] == 0x11)
-        return oam_recv_request(oam, p) ? ACR_CONTINUE : ACR_DONE;
-    else
+    if(oam_hdr[0] == 0x11) {
+        oam_recv_request(oam, pi);
+        return ACR_HOLD;
+    } else {
         return ACR_CONTINUE;
+    }
 }
 
 #define action_MEPSTOP_execute action_MEP_execute

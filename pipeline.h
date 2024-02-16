@@ -39,7 +39,11 @@ void pipeline_unref(struct Pipeline *pipe);
 struct PipelineIterator *new_pipe_iterator(struct Pipeline *pipe, struct Packet *p);
 
 // process the pipeline
-// the iterator will delete itself when it's done
+// the iterator will delete itself and the associated packet when it's done
 void pipe_iterator_run(struct PipelineIterator *pi);
+
+// drop the iterator and the associated packet
+// only needed in very specific cases
+void pipe_iteraror_cancel(struct PipelineIterator *pi);
 
 #endif // R2_PIPELINE_H

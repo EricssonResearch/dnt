@@ -92,6 +92,8 @@ struct StreamSessions {
 static struct HashMap *session_ids = NULL; // stream_name -> struct StreamSessions
 static pthread_mutex_t session_lock;
 
+static struct Thread *request_thread = NULL;
+static struct MessageQueue *request_q = NULL;
 static struct Thread *reply_thread = NULL;
 static struct MessageQueue *reply_q = NULL;
 
@@ -1670,7 +1672,7 @@ static bool process_rlist_request(struct OamEndPoint *oam, struct Packet *p, str
     return true;
 }
 
-bool oam_recv_request(struct OamEndPoint *oam, struct Packet *p)
+static bool process_request(struct OamEndPoint *oam, struct Packet *p)
 {
     // note: we made sure in conf_actions.c that at this point of the pipeline the packet starts with mpls+dcw
 
@@ -1809,6 +1811,37 @@ bool oam_recv_request(struct OamEndPoint *oam, struct Packet *p)
     }
 }
 
+struct request_msg {
+    struct OamEndPoint *oam;
+    struct PipelineIterator *pi;
+};
+static void *request_thread_fn(void *arg)
+{
+    (void)arg;
+
+    while (1) {
+        struct request_msg *msg = messagequeue_pop(request_q, -1);
+        if (process_request(msg->oam, msg->pi->packet)) {
+            msg->pi->pos += 1;
+            pipe_iterator_run(msg->pi);
+        } else {
+            pipe_iteraror_cancel(msg->pi);
+        }
+        free(msg);
+    }
+
+    return NULL;
+}
+
+void oam_recv_request(struct OamEndPoint *oam, struct PipelineIterator *pi)
+{
+    struct request_msg *msg = calloc_struct(request_msg);
+    msg->oam = oam;
+    msg->pi = pi;
+    messagequeue_push(request_q, msg);
+}
+
+
 static int oam_start_background_ping_cb(const char *key, void *value, void *userdata)
 {
     (void) userdata;
@@ -1848,7 +1881,9 @@ bool init_oam(struct HashMap *config_oam)
     pthread_mutex_init(&session_lock, NULL);
     session_ids = new_hashmap(11, NULL, NULL);
 
+    request_q = new_messagequeue();
     reply_q = new_messagequeue();
+    request_thread = thread_launch(request_thread_fn, NULL, "oam request");
     reply_thread = thread_launch(reply_thread_fn, NULL, "oam reply");
 
     // Start OAM background streams
@@ -1861,7 +1896,9 @@ bool init_oam(struct HashMap *config_oam)
 
 void finish_oam(void)
 {
+    thread_stop(request_thread);
     thread_stop(reply_thread);
+    delete_messagequeue(request_q);
     delete_messagequeue(reply_q);
     struct ListParams params = {NULL};
     hashmap_foreach(session_ids, close_sessions_cb, &params);

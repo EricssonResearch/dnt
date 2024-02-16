@@ -29,8 +29,7 @@ void finish_oam(void);
 void oam_recv_reply(const char *msg);
 
 // receive on the action pipeline
-// @returns true if the packet should be forwarded
-bool oam_recv_request(struct OamEndPoint *oam, struct Packet *p);
+void oam_recv_request(struct OamEndPoint *oam, struct PipelineIterator *pi);
 
 // receive connection on the command (telnet) interface
 void oam_start_command_connection(int fd);
