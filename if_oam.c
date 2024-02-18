@@ -21,7 +21,7 @@
 #include <netinet/in.h>
 #include <netdb.h>
 
-DEFAULT_LOGGING_MODULE(INTERFACE, WARNING);
+DEFAULT_LOGGING_MODULE(INTERFACE, INFO);
 
 struct OamIfData {
     unsigned port;
@@ -117,11 +117,11 @@ static bool oam_open(struct Interface *iface)
     if (rp->ai_family == AF_INET6) {
         struct sockaddr_in6 *i6 = (struct sockaddr_in6 *)(rp->ai_addr);
         oid->uid = ntohs(i6->sin6_addr.s6_addr16[7]);
-        log_info("oam if ip6 '%s' uid 0x%.4x", oid->oam_ip_str, oid->uid);
+        log_info("OAM interface IPv6 '%s' port %s uid 0x%.4x", oid->oam_ip_str, port_str, oid->uid);
     } else {
         struct sockaddr_in *i4 = (struct sockaddr_in *)(rp->ai_addr);
         oid->uid = ntohl(i4->sin_addr.s_addr) & 0xffff;
-        log_info("oam if ip4 '%s' uid 0x%.4x", oid->oam_ip_str, oid->uid);
+        log_info("OAM interface IPv4 '%s' port %s uid 0x%.4x", oid->oam_ip_str, port_str, oid->uid);
     }
     freeaddrinfo(result);
 

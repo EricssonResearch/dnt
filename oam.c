@@ -36,7 +36,7 @@
 #define OAM_PING_TTL 64
 #define OAM_CHANNEL 1 /* Management Communication Channel (MCC), similar format to ours */
 
-DEFAULT_LOGGING_MODULE(OAM, WARNING);
+DEFAULT_LOGGING_MODULE(OAM, INFO);
 
 struct MepStart {
     char *name;
@@ -958,6 +958,8 @@ static void command_loop(struct command_connection *conn)
     if (oam_default_iface) {
         fprintf(cmd_w, "OAM ready.\n");
     } else {
+        //TODO allow commands that need no return
+        //      also allow ping when the return point is a remote ip
         fprintf(cmd_w, "OAM has no configured return interface.\n");
         return;
     }
@@ -1846,16 +1848,16 @@ static int oam_start_background_ping_cb(const char *key, void *value, void *user
 {
     (void) userdata;
     const char *request = value;
-    log_debug("starting OAM background ping command '%s'", key);
+    log_info("starting background ping command '%s'", key);
 
     if (strncmp(request, "ping", 4) != 0) {
-        log_error("OAM background command '%s' is not ping", key);
+        log_error("background command '%s' is not ping", key);
         return 0;
     }
     struct oam_request *ping_req = parse_ping_command(request+4, true, false, stderr);
 
     if (ping_req->error) {
-        log_error("OAM background ping command '%s' invalid: %s", key, ping_req->error);
+        log_error("background ping command '%s' invalid: %s", key, ping_req->error);
         delete_oam_request(ping_req);
         return 0;
     }
@@ -1867,6 +1869,7 @@ static int oam_start_background_ping_cb(const char *key, void *value, void *user
     if(stream){
         for (int i=0; i<16; i++) if (stream->sessions[i].live) live_session_count++;
         if (live_session_count >= 14) {
+            log_error("stream %s has too many sessions, can't start background ping", ping_req->mep_start->stream_name);
             free(ping_req);
             return 0;
         }
@@ -1876,7 +1879,13 @@ static int oam_start_background_ping_cb(const char *key, void *value, void *user
 
 bool init_oam(struct HashMap *config_oam)
 {
-    log_info("Init OAM fuctionality");
+    if (oam_default_iface || oam_cmd_iface) {
+        log_info("Init OAM fuctionality:%s%s",
+                oam_cmd_iface?" telnet interface":"",
+                oam_default_iface?" reply interface":"");
+    } else {
+        return true;
+    }
 
     pthread_mutex_init(&session_lock, NULL);
     session_ids = new_hashmap(11, NULL, NULL);
@@ -1905,4 +1914,5 @@ void finish_oam(void)
     delete_hashmap(session_ids);
     delete_hashmap(mep_starts);
     delete_hashmap(oam_ifaces);
+    log_info("Stopped OAM functionality");
 }

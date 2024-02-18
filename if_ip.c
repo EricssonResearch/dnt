@@ -23,7 +23,7 @@
 #include <linux/if_packet.h> /* struct sockaddr_ll TODO netpacket/packet.h? */
 #include <ifaddrs.h>
 
-DEFAULT_LOGGING_MODULE(INTERFACE, WARNING);
+DEFAULT_LOGGING_MODULE(INTERFACE, INFO);
 
 struct IpIfData {
     int sock4;
@@ -178,6 +178,7 @@ static bool ip_open(struct Interface *iface)
     iface->dropstat_cntr = 0;
     iface->dropstat_last_warn = 0;
     iface->state = IFS_OPEN;
+    log_info("IP-out interface %s on device %s", iface->name, iface->ifname);
 
     return true;
 }

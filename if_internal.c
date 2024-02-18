@@ -17,7 +17,7 @@
 #include <unistd.h>
 #include <sys/eventfd.h>
 
-DEFAULT_LOGGING_MODULE(INTERFACE, WARNING);
+DEFAULT_LOGGING_MODULE(INTERFACE, INFO);
 
 // fifo queue
 struct PacketFifo {
@@ -101,6 +101,7 @@ static bool int_open(struct Interface *iface)
         log_error("open internal interface %s: already opened", iface->name);
         return false;
     }
+    log_info("Internal interface %s", iface->name);
     iface->recvfd = eventfd(0, EFD_SEMAPHORE);
     iface->state = IFS_OPEN;
     return true;

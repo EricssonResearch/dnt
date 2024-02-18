@@ -9,7 +9,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-DEFAULT_LOGGING_MODULE(INTERFACE, WARNING);
+DEFAULT_LOGGING_MODULE(INTERFACE, INFO);
 
 static void try_delete_interface(struct Interface *iface)
 {

@@ -21,7 +21,7 @@
 #include <arpa/inet.h> /* ntohs() */
 #include <netdb.h> /* getaddrinfo() */
 
-DEFAULT_LOGGING_MODULE(INTERFACE, WARNING);
+DEFAULT_LOGGING_MODULE(INTERFACE, INFO);
 
 struct UdpOutIfData {
     int sock;
@@ -122,6 +122,7 @@ static bool udpout_open(struct Interface *iface)
 
     uid->errq_monitor = monitor_error_queue(sock, uid->family, iface->name);
 
+    log_info("Udp-out interface %s destination %s", iface->name, iface->ifname);
     iface->dropstat_cntr = 0;
     iface->dropstat_last_warn = 0;
     iface->state = IFS_OPEN;

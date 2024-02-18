@@ -23,7 +23,7 @@
 #include <errno.h>
 #include <netinet/in.h>
 
-DEFAULT_LOGGING_MODULE(INTERFACE, WARNING);
+DEFAULT_LOGGING_MODULE(INTERFACE, INFO);
 
 #define BACKLOG 2   // how many pending connections queue will hold
 
@@ -136,6 +136,7 @@ static bool oam_cmd_open(struct Interface *iface)
 
     iface->recvfd = sock;
     if (set_oam_cmd_if(iface)) {
+        log_info("OAM Command interface on IPv%d", oid->family==AF_INET6?6:4);
         iface->state = IFS_OPEN;
         return true;
     } else {
@@ -189,7 +190,6 @@ struct Interface *new_oam_cmd_interface(const char *name, const char *ifname,
         // this will also accept v4 connections
         oid->family = AF_INET6;
     }
-    log_info("OAM Cmd Family: %d", oid->family);
 
     return iface;
 }

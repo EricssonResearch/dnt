@@ -267,7 +267,7 @@ int main(int argc, char **argv)
     const char *verbose_env = getenv("R2DTWO_VERBOSE");
     if (verbose_env) {
         if (!set_loglevels(verbose_env)) {
-            fprintf(stderr, "Verbosity string '%s' is invalid\n", verbose_env);
+            fprintf(stderr, "Verbosity environment '%s' is invalid\n", verbose_env);
             return EXIT_FAILURE;
         }
     }
@@ -287,7 +287,7 @@ int main(int argc, char **argv)
 
     if (arguments.verbosity) {
         if (!set_loglevels(arguments.verbosity)) {
-            fprintf(stderr, "Verbosity string '%s' is invalid\n", arguments.verbosity);
+            fprintf(stderr, "Verbosity argument '%s' is invalid\n", arguments.verbosity);
             return EXIT_FAILURE;
         }
     }
@@ -300,10 +300,10 @@ int main(int argc, char **argv)
     log_packet("packet");
     log_debug("debug");*/
 
-    printf("Reading config '%s'\n", arguments.configfile);
+    log_info("Reading config '%s'\n", arguments.configfile);
     config = read_config(arguments.configfile);
     if (config == NULL) {
-        fprintf(stderr, "the config is invalid\n");
+        log_error("the config is invalid");
         return EXIT_FAILURE;
     }
 
@@ -323,13 +323,12 @@ int main(int argc, char **argv)
     }
 
     if(!init_oam(config->oam)) {
-        fprintf(stderr, "OAM init failed\n");
         delete_config(config);
         return EXIT_FAILURE;
     }
 
     recv_loop(config->ifaces);
-    printf("receive loop ended\n");
+    log_info("receive loop ended\n");
 
     finish_oam();
 

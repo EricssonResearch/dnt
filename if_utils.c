@@ -27,7 +27,7 @@
 #include <linux/errqueue.h>
 #include <linux/if_packet.h> /* PACKET_STATISTICS */
 
-DEFAULT_LOGGING_MODULE(INTERFACE, WARNING);
+DEFAULT_LOGGING_MODULE(INTERFACE, INFO);
 
 #define PKT_DROP_WARNING_THRESHOLD 10
 #define PKT_DROP_WARNING_INTERVAL_SEC 5
@@ -203,7 +203,7 @@ bool iface_common_send(struct Interface *iface, struct Packet *p, int socket, vo
         return false;
     }
 
-    packet_logcat(p, "%s", iface->name);
+    packet_logcat(p, "%s ", iface->name);
     packet_print(p);
 
     dropstat(iface, socket);

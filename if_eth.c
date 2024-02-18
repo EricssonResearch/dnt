@@ -27,7 +27,7 @@
 #include <linux/if_packet.h> /* struct sockaddr_ll, PACKET_AUXDATA TODO netpacket/packet.h? */
 #include <linux/filter.h> /* eBPF */
 
-DEFAULT_LOGGING_MODULE(INTERFACE, WARNING);
+DEFAULT_LOGGING_MODULE(INTERFACE, INFO);
 
 struct EthIfData {
     int ifindex;
@@ -231,6 +231,7 @@ static bool eth_open(struct Interface *iface)
         eid->pcp_used[i] = 1;
     }
 
+    log_info("Eth interface %s on device %s", iface->name, iface->ifname);
     iface->recvfd = eid->sockfd[0];
     iface->dropstat_cntr = 0;
     iface->dropstat_last_warn = 0;

@@ -21,7 +21,7 @@
 #include <arpa/inet.h> /* ntohs() */
 #include <ifaddrs.h>
 
-DEFAULT_LOGGING_MODULE(INTERFACE, WARNING);
+DEFAULT_LOGGING_MODULE(INTERFACE, INFO);
 
 struct UdpInIfData {
     int ifindex;
@@ -157,6 +157,7 @@ static bool udpin_open(struct Interface *iface)
     }
 
     enable_rx_tstamp(sock, "udp-in", iface->ifname/*, HWTSTAMP_FILTER_ALL*/);
+    log_info("Udp-in interface %s on device %s", iface->name, iface->ifname);
 
     iface->recvfd = sock;
     iface->state = IFS_OPEN;
