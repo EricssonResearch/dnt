@@ -12,6 +12,7 @@ TEST_INIT("Thread Utils");
 
 struct ThreadTestParam {
     int counter;
+    struct Thread *th;
 };
 
 static void *thread_func(void *arg)
@@ -19,6 +20,16 @@ static void *thread_func(void *arg)
     struct ThreadTestParam *param = arg;
     param->counter++;
     while (1) { usleep(1000*1000); }
+    return NULL;
+}
+
+static void *thread_exit_func(void *arg)
+{
+    struct ThreadTestParam *param = arg;
+    usleep(2000); // make sure the assignment to param->th is done
+    thread_stop(param->th); // should do nothing
+    param->counter = 21;
+    thread_exit(param->th);
     return NULL;
 }
 
@@ -34,6 +45,19 @@ static void test_thread(void)
     th = thread_stop(th);
     OK_FATAL(th == NULL, "thread object gone");
 
+    // thread_stop() doesn't do anything to self
+    param.counter = 0;
+    param.th = thread_launch(thread_exit_func, &param, "test exit");
+    usleep(4000); // wait for the thread
+    OK(param.counter == 21, "thread_stop didn't stop itself");
+
+    // thread_exit() doesn't do anything to others
+    param.counter = 0;
+    param.th = thread_launch(thread_exit_func, &param, "test exit");
+    thread_exit(param.th); // should do nothing
+    usleep(4000); // wait for the thread
+    OK(param.counter == 21, "thread_exit didn't stop the thread");
+
     th = thread_launch_priority(thread_func, &param, 10, "test thread %s", "prio");
     if (th) {
         usleep(1000*50); // is this enough?
@@ -44,8 +68,6 @@ static void test_thread(void)
     } else {
         SKIP("need CAP_SYS_NICE for the thread priority test");
     }
-
-    //TODO thread_exit()
 }
 
 struct ThreadMQParam {
