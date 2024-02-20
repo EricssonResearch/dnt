@@ -266,7 +266,7 @@ int log_get_levels(log_getlevel_cb *cb, void *userdata)
 {
     if (cb == NULL) return 1;
     struct ModuleForeachState ms = {cb, userdata};
-    return hashmap_foreach(mod_instances, mod_foreach_cb, &ms);
+    return hashmap_foreach_sorted(mod_instances, mod_foreach_cb, &ms);
 }
 
 static int mod_setlevel_all_cb(const char *key, void *value, void *userdata)
