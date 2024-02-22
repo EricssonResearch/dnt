@@ -149,6 +149,7 @@ static bool oam_cmd_close(struct Interface *iface)
     struct OamCmdIfData *oid = iface->iface_private;
     close(iface->recvfd);
     free(oid);
+    log_info("OAM Command interface closed");
     return true;
 }
 

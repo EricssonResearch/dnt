@@ -115,6 +115,7 @@ static bool int_close(struct Interface *iface)
     }
     free(pf); // the sentinel
     close(iface->recvfd);
+    log_info("Internal interface %s closed", iface->name);
     return true;
 }
 

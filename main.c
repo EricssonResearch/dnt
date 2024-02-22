@@ -38,7 +38,7 @@ static void sigint_handler(int sig, siginfo_t *si, void *uc)
     (void)si;
     (void)uc;
 
-    printf("%s signal caught\n", strsignal(sig));
+    log_info("%s signal caught\n", strsignal(sig));
     sigint_count++;
 }
 
@@ -49,8 +49,8 @@ static void sigusr1_handler(int sig, siginfo_t *si, void *uc)
 
     if (sig != SIGUSR1)
         return;
-    printf("SIGUSR1 caught\n");
 
+    log_info("SIGUSR1 caught, resetting seq generators\n");
     hashmap_foreach(config->objects, reset_all_seq_generators, NULL);
 }
 
@@ -149,7 +149,7 @@ static bool set_loglevels(const char *levels)
 {
 #define THROW(msg, ...)                             \
     do {                                            \
-        fprintf(stderr, msg "\n", ##__VA_ARGS__);   \
+        log_error(msg "\n", ##__VA_ARGS__);         \
         free(s);                                    \
         return false;                               \
     } while (0)
@@ -259,13 +259,10 @@ static struct argp argp = { options, parse_opt, args_doc, NULL, NULL, NULL, NULL
 
 int main(int argc, char **argv)
 {
-    printf("R2DTWO - Reliable & Robust Deterministic Tool for netWOrking\n"
-            "Version %d.%d\n", VERSION_MAJOR, VERSION_MINOR);
-
     const char *verbose_env = getenv("R2DTWO_VERBOSE");
     if (verbose_env) {
         if (!set_loglevels(verbose_env)) {
-            fprintf(stderr, "Verbosity environment '%s' is invalid\n", verbose_env);
+            log_error("Verbosity environment '%s' is invalid\n", verbose_env);
             return EXIT_FAILURE;
         }
     }
@@ -277,7 +274,7 @@ int main(int argc, char **argv)
 
     char *logname = logname_from_config(arguments.configfile);
     if (!open_log(arguments.output, logname)) {
-        fprintf(stderr, "Failed to initialize the logging.\n");
+        log_error("Failed to open the log.");
         free(logname);
         return EXIT_FAILURE;
     }
@@ -285,10 +282,12 @@ int main(int argc, char **argv)
 
     if (arguments.verbosity) {
         if (!set_loglevels(arguments.verbosity)) {
-            fprintf(stderr, "Verbosity argument '%s' is invalid\n", arguments.verbosity);
+            log_error("Verbosity argument '%s' is invalid\n", arguments.verbosity);
             return EXIT_FAILURE;
         }
     }
+
+    log_info("R2DTWO - Reliable & Robust Deterministic Tool for netWOrking %d.%d", VERSION_MAJOR, VERSION_MINOR);
 
     //TODO test log levels
     /*log_set_level("MAIN", ALL);
@@ -328,11 +327,11 @@ int main(int argc, char **argv)
     recv_loop(config->ifaces);
     log_info("receive loop ended\n");
 
-    finish_oam();
-
     fini_delay();
 
     delete_config(config);
+
+    finish_oam();
 
     close_log();
 

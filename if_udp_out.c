@@ -122,7 +122,7 @@ static bool udpout_open(struct Interface *iface)
 
     uid->errq_monitor = monitor_error_queue(sock, uid->family, iface->name);
 
-    log_info("Udp-out interface %s destination %s", iface->name, iface->ifname);
+    log_info("Udp-out interface %s on device %s", iface->name, iface->ifname);
     iface->dropstat_cntr = 0;
     iface->dropstat_last_warn = 0;
     iface->state = IFS_OPEN;
@@ -135,6 +135,7 @@ static bool udpout_close(struct Interface *iface)
     stop_monitoring_error_queue(uid->errq_monitor);
     close(uid->sock);
     free(uid);
+    log_info("Udp-out interface %s closed", iface->name);
     return true;
 }
 

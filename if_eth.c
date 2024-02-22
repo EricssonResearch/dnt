@@ -74,7 +74,7 @@ static bool eth_recv(struct Interface *iface)
     uint16_t *p_vlan = (uint16_t*)(p->buf + p->start + 2*6);
     unsigned short ethertype = ntohs(*p_vlan);
     if (ethertype != ETH_P_8021Q && ethertype != ETH_P_8021AD) {
-        //printf("adding default cvlan to untagged packet\n");
+        log_packet("adding default cvlan to untagged packet %u\n", p->id);
         memmove(p->buf + p->start - 4, p->buf + p->start, 2*6);
         p->start -= 4;
         p->len += 4;
@@ -247,6 +247,7 @@ static bool eth_close(struct Interface *iface)
         }
     }
     free(eid);
+    log_info("Eth interface %s closed", iface->name);
     return true;
 }
 

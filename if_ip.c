@@ -188,6 +188,7 @@ static bool ip_close(struct Interface *iface)
     close(iid->sock4);
     close(iid->sock6);
     free(iid);
+    log_info("IP-out interface %s closed", iface->name);
     return true;
 }
 

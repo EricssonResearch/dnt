@@ -168,6 +168,7 @@ static bool udpin_close(struct Interface *iface)
     struct UdpInIfData *uid = iface->iface_private;
     close(iface->recvfd);
     free(uid);
+    log_info("Udp-in interface %s closed", iface->name);
     return true;
 }
 

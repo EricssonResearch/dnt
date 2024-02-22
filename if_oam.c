@@ -117,11 +117,11 @@ static bool oam_open(struct Interface *iface)
     if (rp->ai_family == AF_INET6) {
         struct sockaddr_in6 *i6 = (struct sockaddr_in6 *)(rp->ai_addr);
         oid->uid = ntohs(i6->sin6_addr.s6_addr16[7]);
-        log_info("OAM interface IPv6 '%s' port %s uid 0x%.4x", oid->oam_ip_str, port_str, oid->uid);
+        log_info("OAM interface %s IPv6 '%s' port %s uid 0x%.4x", iface->name, oid->oam_ip_str, port_str, oid->uid);
     } else {
         struct sockaddr_in *i4 = (struct sockaddr_in *)(rp->ai_addr);
         oid->uid = ntohl(i4->sin_addr.s_addr) & 0xffff;
-        log_info("OAM interface IPv4 '%s' port %s uid 0x%.4x", oid->oam_ip_str, port_str, oid->uid);
+        log_info("OAM interface %s IPv4 '%s' port %s uid 0x%.4x", iface->name, oid->oam_ip_str, port_str, oid->uid);
     }
     freeaddrinfo(result);
 
@@ -137,6 +137,7 @@ static bool oam_close(struct Interface *iface)
     close(iface->recvfd);
     free(oid->oam_ip_str);
     free(oid);
+    log_info("OAM interface %s closed", iface->name);
     return true;
 }
 
