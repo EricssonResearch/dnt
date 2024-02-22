@@ -16,7 +16,6 @@
 #include "if_udp_out.h"
 #include "if_oam.h"
 #include "if_oam_cmd.h"
-#include "oam.h"
 
 #include <stdlib.h>
 #include <string.h>

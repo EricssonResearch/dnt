@@ -3,7 +3,6 @@
 
 
 #include "oam.h"
-#include "conf_oam.h"
 #include "hashmap.h"
 #include "if_oam.h"
 #include "if_oam_cmd.h"

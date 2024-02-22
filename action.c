@@ -19,7 +19,6 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 #include <arpa/inet.h> /* htonl() */
 
 DEFAULT_LOGGING_MODULE(PIPELINE, WARNING);

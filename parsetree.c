@@ -10,10 +10,7 @@
 #include "protocol.h"
 #include "utils.h"
 
-#include "conf_streams.h"
-
 #include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
 
 DEFAULT_LOGGING_MODULE(PARSER, WARNING);

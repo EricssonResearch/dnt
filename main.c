@@ -5,7 +5,6 @@
 #include "delay.h"
 #include "hashmap.h"
 #include "interface.h"
-#include "if_eth.h"
 #include "packet.h"
 #include "parsetree.h"
 #include "pipeline.h"
@@ -17,7 +16,6 @@
 #include "version.h"
 
 #include <argp.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>

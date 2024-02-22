@@ -7,7 +7,6 @@
 #include "parsetree.h"
 
 #include <stdlib.h>
-#include <stdio.h>
 
 DEFAULT_LOGGING_MODULE(INTERFACE, INFO);
 

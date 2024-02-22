@@ -5,13 +5,11 @@
 #include "pipeline.h"
 #include "action.h"
 #include "interface.h"
-#include "conf_streams.h"
 #include "inifile.h"
 #include "log.h"
 #include "packet.h"
 #include "utils.h"
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 

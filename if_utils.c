@@ -12,7 +12,6 @@
 #include "thread_utils.h"
 #include "utils.h"
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <poll.h>
@@ -70,7 +69,7 @@ void enable_rx_tstamp(int sock, const char *sockname,
                 &so_timestamping_flags, sizeof(so_timestamping_flags)) < 0) {
         log_perror("setsockopt SO_TIMESTAMPING");
     } else {
-        if (0) printf("setsockopt SO_TIMESTAMPING success for '%s' on '%s'\n",
+        if (0) log_info("setsockopt SO_TIMESTAMPING success for '%s' on '%s'\n",
                 sockname, ifname);
     }
 }
@@ -356,11 +355,10 @@ void stop_monitoring_error_queue(void *monitor)
     free(st);
 }
 
-// Used for debugging, always print to stdout
 void print_ifaddrs(struct ifaddrs *ifa)
 {
     int family = ifa->ifa_addr->sa_family;
-    printf("IFAddress of %s family %s ", ifa->ifa_name, (family == AF_PACKET) ? "AF_PACKET" :
+    log_debug("IFAddress of %s family %s ", ifa->ifa_name, (family == AF_PACKET) ? "AF_PACKET" :
             (family == AF_INET) ? "AF_INET" :
             (family == AF_INET6) ? "AF_INET6" : "unknown");
     if (family == AF_INET || family == AF_INET6) {
@@ -371,12 +369,12 @@ void print_ifaddrs(struct ifaddrs *ifa)
                 NULL, 0, NI_NUMERICHOST);
 
         if (err) {
-            printf("getnameinfo() failed with %s\n", gai_strerror(err));
+            log_error("getnameinfo() failed with %s", gai_strerror(err));
         } else {
-            printf("%s\n", host);
+            log_debug("host %s", host);
         }
     } else {
         //TODO this is usually AF_PACKET
-        printf("\n");
+        //log_debug("");
     }
 }
