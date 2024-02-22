@@ -1888,6 +1888,9 @@ static int oam_start_background_ping_cb(const char *key, void *value, void *user
 
 bool init_oam(struct HashMap *config_oam)
 {
+    request_q = new_messagequeue();
+    request_thread = thread_launch(request_thread_fn, NULL, "oam request");
+
     if (oam_default_iface || oam_cmd_iface) {
         log_info("Init OAM fuctionality:%s%s",
                 oam_cmd_iface?" telnet interface":"",
@@ -1899,9 +1902,7 @@ bool init_oam(struct HashMap *config_oam)
     pthread_mutex_init(&session_lock, NULL);
     session_ids = new_hashmap(11, NULL, NULL);
 
-    request_q = new_messagequeue();
     reply_q = new_messagequeue();
-    request_thread = thread_launch(request_thread_fn, NULL, "oam request");
     reply_thread = thread_launch(reply_thread_fn, NULL, "oam reply");
 
     // Start OAM background streams
