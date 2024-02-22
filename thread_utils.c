@@ -181,6 +181,7 @@ struct MessageQueue *new_messagequeue(void)
 
 struct MessageQueue *delete_messagequeue(struct MessageQueue *q)
 {
+    if (q == NULL) return NULL;
     pthread_mutex_destroy(&q->mutex);
     sem_destroy(&q->semaphore);
     free(q);

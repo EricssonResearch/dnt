@@ -58,6 +58,9 @@ static void test_thread(void)
     usleep(4000); // wait for the thread
     OK(param.counter == 21, "thread_exit didn't stop the thread");
 
+    OK(thread_stop(NULL) == NULL, "stop NULL thread");
+    thread_exit(NULL); // exit NULL thread shouldn't segfault either
+
     th = thread_launch_priority(thread_func, &param, 10, "test thread %s", "prio");
     if (th) {
         usleep(1000*50); // is this enough?
@@ -238,6 +241,8 @@ static void test_mq(void)
 
     param.q = delete_messagequeue(param.q);
     OK(param.q == NULL, "queue gone");
+
+    OK(delete_messagequeue(NULL) == NULL, "delete NULL queue");
 }
 
 TEST_CASES = {
