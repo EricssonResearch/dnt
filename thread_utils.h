@@ -33,7 +33,10 @@ struct Thread *thread_stop(struct Thread *thread);
 void thread_exit(struct Thread *thread);
 
 // returns the name of the thread
-const char *thread_getname(struct Thread *thread);
+const char *thread_getname(const struct Thread *thread);
+
+// returns an unique identifier number for the thread
+unsigned thread_getid(const struct Thread *thread);
 
 
 // thread-safe FIFO queue

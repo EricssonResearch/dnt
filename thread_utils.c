@@ -24,12 +24,16 @@ DEFAULT_LOGGING_MODULE(THREAD, WARNING);
 struct Thread {
     pthread_t tid;
     char *name;
+    unsigned id; // pthread_t is unusable as a stable, unique identifier
 };
+
+static unsigned next_id = 1;
 
 static struct Thread *launch_with_attr(const char *name, void* (*thread_fn)(void *), void *thread_arg, pthread_attr_t *attr)
 {
     struct Thread *ret = calloc_struct(Thread);
     ret->name = strdup(name);
+    ret->id = __atomic_fetch_add(&next_id, 1, __ATOMIC_RELAXED);
 
     errno = pthread_create(&ret->tid, attr, thread_fn, thread_arg);
     if (errno != 0) {
@@ -110,9 +114,14 @@ void thread_exit(struct Thread *thread)
     pthread_cancel(tid);
 }
 
-const char *thread_getname(struct Thread *thread)
+const char *thread_getname(const struct Thread *thread)
 {
     return thread->name;
+}
+
+unsigned thread_getid(const struct Thread *thread)
+{
+    return thread->id;
 }
 
 struct Message {

@@ -39,6 +39,7 @@ static void test_thread(void)
     param.counter = 0;
     struct Thread *th = thread_launch(thread_func, &param, "test thread %d", param.counter);
     OK_FATAL(th, "have thread object");
+    unsigned id1 = thread_getid(th);
     usleep(1000*50); // is this enough?
     OK(param.counter == 1, "thread worked");
     OK(strcmp(thread_getname(th), "test thread 0") == 0, "good name");
@@ -48,15 +49,23 @@ static void test_thread(void)
     // thread_stop() doesn't do anything to self
     param.counter = 0;
     param.th = thread_launch(thread_exit_func, &param, "test exit");
+    OK_FATAL(param.th, "have thread object");
+    unsigned id2 = thread_getid(param.th);
     usleep(4000); // wait for the thread
     OK(param.counter == 21, "thread_stop didn't stop itself");
 
     // thread_exit() doesn't do anything to others
     param.counter = 0;
     param.th = thread_launch(thread_exit_func, &param, "test exit");
+    OK_FATAL(param.th, "have thread object");
+    unsigned id3 = thread_getid(param.th);
     thread_exit(param.th); // should do nothing
     usleep(4000); // wait for the thread
     OK(param.counter == 21, "thread_exit didn't stop the thread");
+
+    OK(id1 != id2, "different id");
+    OK(id1 != id3, "different id");
+    OK(id2 != id3, "different id");
 
     OK(thread_stop(NULL) == NULL, "stop NULL thread");
     thread_exit(NULL); // exit NULL thread shouldn't segfault either
