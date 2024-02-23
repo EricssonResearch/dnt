@@ -37,6 +37,20 @@
 
 DEFAULT_LOGGING_MODULE(OAM, INFO);
 
+enum TerminalFormat {
+    TF_DUMP, //TODO why is this called dump mode?
+    TF_JSON,
+};
+
+struct command_connection {
+    char *name;
+    int socket_fd; // RW
+    FILE *cmd_w; // WRONLY
+    int w_users;
+    enum TerminalFormat mode;
+    struct Thread *thread;
+};
+
 struct MepStart {
     char *name;
     char *mep_name;
@@ -46,8 +60,8 @@ struct MepStart {
     int level;
 };
 
-struct oam_request{
-    FILE *cmd_w;
+struct oam_request {
+    char *conn_name; // NULL if not issued from a command connection
     char *return_ip;
     unsigned return_port;
     unsigned session_id, seq;
@@ -68,13 +82,8 @@ struct oam_request{
     char *error;
 };
 
-static struct HashMap *oam_ifaces;
-static struct Interface *oam_default_iface = NULL;
-static struct Interface *oam_cmd_iface = NULL;
-static struct HashMap *mep_starts = NULL; // name -> struct MEPStart
-
 struct SessionTracker {
-    FILE* cmd_w; //TODO this is not good if the cmd connection closes before we get the reply
+    char *conn_name; // NULL if not issued from a command connection
     time_t access_time;
     unsigned interval_ms;
     struct Thread *multireq_thread;
@@ -87,13 +96,22 @@ struct StreamSessions {
     unsigned last_session; // last request session on this stream TODO should be local to command thread
 };
 
+
+static struct HashMap *oam_ifaces;
+static struct Interface *oam_default_iface = NULL;
+static struct Interface *oam_cmd_iface = NULL;
+static struct HashMap *mep_starts = NULL; // name -> struct MEPStart
+
 static struct HashMap *session_ids = NULL; // stream_name -> struct StreamSessions
 static pthread_mutex_t session_lock; // should be used to protect the whole session_ids hash
 
-enum TerminalFormat {
-    TF_DUMP, //TODO why is this called dump mode?
-    TF_JSON,
-};
+static struct command_connection *oam_command_connection = NULL; //TODO hash (key? thread id converted to string)
+
+static struct Thread *request_thread = NULL;
+static struct MessageQueue *request_q = NULL;
+static struct Thread *reply_thread = NULL;
+static struct MessageQueue *reply_q = NULL;
+
 
 static const char *terminal_format_name(enum TerminalFormat f)
 {
@@ -105,25 +123,6 @@ static const char *terminal_format_name(enum TerminalFormat f)
     }
     return NULL;
 }
-
-struct command_connection {
-    //TODO: protect with mutex
-    int socket_fd; // RW
-    FILE *cmd_w; // WRONLY
-    enum TerminalFormat mode;
-    struct Thread *thread;
-};
-static struct command_connection *oam_command_connection = NULL; //TODO hash (key? thread id converted to string)
-
-struct ListParams { //TODO better name, now it's used more widely
-    FILE *cmd_w;
-};
-
-
-static struct Thread *request_thread = NULL;
-static struct MessageQueue *request_q = NULL;
-static struct Thread *reply_thread = NULL;
-static struct MessageQueue *reply_q = NULL;
 
 bool set_oam_cmd_if(struct Interface *iface)
 {
@@ -161,6 +160,37 @@ void add_oam_if(struct Interface *iface)
     }
 }
 
+
+static struct command_connection *find_command_connection(const char *name)
+{
+    if (name == NULL) return NULL;
+    //TODO we'll eventually need a hash lookup
+    return oam_command_connection;
+}
+
+static bool command_connection_is_same(const struct command_connection *conn, const char *name)
+{
+    // no connection, no name -> same
+    if (conn == NULL && name == NULL) return true;
+    // have connection, have name -> compare
+    if (conn && name) return strcmp(conn->name, name) == 0;
+    // definitely different
+    return false;
+}
+
+static FILE *command_connection_get_w(struct command_connection *conn)
+{
+    if (conn == NULL) return NULL;
+    __atomic_fetch_add(&conn->w_users, 1, __ATOMIC_RELAXED);
+    return conn->cmd_w;
+}
+
+static void command_connection_release_w(struct command_connection *conn)
+{
+    if (conn == NULL) return;
+    __atomic_fetch_sub(&conn->w_users, 1, __ATOMIC_RELAXED);
+}
+
 static struct StreamSessions *get_stream_sessions(const char *stream_name)
 {
     pthread_mutex_lock(&session_lock);
@@ -181,7 +211,7 @@ static bool known_stream(const char *stream_name)
     return contains ? true: false;
 }
 
-static int alloc_session_id(struct StreamSessions *stream, struct oam_request *req, FILE *cmd_w)
+static int alloc_session_id(struct StreamSessions *stream, struct oam_request *req)
 {
     pthread_mutex_lock(&session_lock);
 
@@ -195,7 +225,9 @@ static int alloc_session_id(struct StreamSessions *stream, struct oam_request *r
         if (now.tv_sec > stream->sessions[id].access_time + timeout) {
             //log_info("session %u timeouted", id);
             stream->sessions[id].live = false;
-            stream->sessions[id].multireq_thread = NULL;
+            stream->sessions[id].multireq_thread = thread_stop(stream->sessions[id].multireq_thread);
+            free(stream->sessions[id].conn_name);
+            stream->sessions[id].conn_name = NULL;
             break;
         }
         id = (id + 1) % 16;
@@ -207,17 +239,17 @@ static int alloc_session_id(struct StreamSessions *stream, struct oam_request *r
         return -1;
     } else {
         stream->last_session = id;
-        stream->sessions[id].live = 1;
+        stream->sessions[id].live = true;
         stream->sessions[id].access_time = now.tv_sec + 1;
         stream->sessions[id].req = req;
         stream->sessions[id].multireq_thread = NULL;
-        stream->sessions[id].cmd_w = cmd_w;
+        stream->sessions[id].conn_name = req->conn_name ? strdup(req->conn_name) : NULL;
         pthread_mutex_unlock(&session_lock);
         return id;
     }
 }
 
-static int stream_live_session_count(struct StreamSessions *stream)
+static int stream_live_session_count(const struct StreamSessions *stream)
 {
     pthread_mutex_lock(&session_lock);
     int live_session_count = 0;
@@ -228,15 +260,21 @@ static int stream_live_session_count(struct StreamSessions *stream)
 
 static void stream_stop_session(struct StreamSessions *stream, int session, struct command_connection *conn)
 {
+    FILE *cmd_w = command_connection_get_w(conn);
     if(stream->sessions[session].live){
         if (stream->sessions[session].multireq_thread) {
             stream->sessions[session].multireq_thread = thread_stop(stream->sessions[session].multireq_thread);
-            fprintf(conn->cmd_w," - stopped.\n");
+            free(stream->sessions[session].conn_name);
+            stream->sessions[session].conn_name = NULL;
+            fprintf(cmd_w,"stopped.");
+        } else {
+            fprintf(cmd_w,"not running.");
         }
         stream->sessions[session].live = false;
     } else {
-        fprintf(conn->cmd_w," - not running.\n");
+        fprintf(cmd_w,"not live.");
     }
+    command_connection_release_w(conn);
 }
 
 static void stop_session(const char *stream_name, int session, struct command_connection *conn)
@@ -245,8 +283,11 @@ static void stop_session(const char *stream_name, int session, struct command_co
     struct StreamSessions *stream = get_stream_sessions(stream_name);
     if (session==-1)
         session = stream->last_session;
-    fprintf(conn->cmd_w, "Stopping stream:session %s:%d ", stream_name, session);
+    FILE *cmd_w = command_connection_get_w(conn);
+    if (cmd_w) fprintf(cmd_w, "Stopping stream:session %s:%d - ", stream_name, session);
     stream_stop_session(stream, session, conn);
+    if (cmd_w) fprintf(cmd_w, "\n");
+    command_connection_release_w(conn);
     pthread_mutex_unlock(&session_lock);
 }
 
@@ -254,12 +295,17 @@ static int stop_sessions_cb(const char *key, void *value, void *userdata)
 {
     struct StreamSessions *stream = value;
     struct command_connection *conn = userdata;
+    FILE *cmd_w = command_connection_get_w(conn);
+
     for (int i=0; i<16; i++) {
-        if (stream->sessions[i].live && (stream->sessions[i].cmd_w == conn->cmd_w)) {
-            fprintf(conn->cmd_w, "Stopping stream:session %s:%d ", key, i);
+        if (stream->sessions[i].live == false) continue;
+        if (command_connection_is_same(conn, stream->sessions[i].conn_name)) {
+            if (cmd_w) fprintf(cmd_w, "Stopping stream:session %s:%d - ", key, i);
             stream_stop_session(stream, i, conn);
+            if (cmd_w) fprintf(cmd_w, "\n");
         }
     }
+    command_connection_release_w(conn);
     return 1;
 }
 
@@ -340,11 +386,11 @@ struct OamEndPoint *oam_create_endpoint(const char *name, const char *stream, in
     return ret;
 }
 
-static struct oam_request *new_oam_request(const char *type, FILE *cmd_w)
+static struct oam_request *new_oam_request(const char *type, struct command_connection *conn)
 {
     struct oam_request *req = calloc_struct(oam_request);
 
-    req->cmd_w = cmd_w;
+    req->conn_name = conn ? strdup(conn->name) : NULL;
     req->type = type;
     req->ttl = OAM_PING_TTL;
     req->count = 1;
@@ -358,6 +404,7 @@ static struct oam_request *delete_oam_request(struct oam_request *req)
     free(req->error);
     free(req->remote_command);
     free(req->return_ip);
+    free(req->conn_name);
     free(req);
     return NULL;
 }
@@ -480,28 +527,33 @@ static void *oam_request_thread(void *arg)
         if((req->count != 0) && (seq >= req->count)) break;
         usleep(req->interval_ms * 1000);
     }
-    stream->sessions[req->session_id].live = false;
+    struct Thread *th = stream->sessions[req->session_id].multireq_thread;
+    //TODO keep the session live until we receive the replies
+    // stream->sessions[req->session_id].live = false;
     stream->sessions[req->session_id].multireq_thread = NULL;
     delete_oam_request(req);
-    //TODO thread_exit() to not leak resources
+    thread_exit(th);
     return NULL;
 }
 
 // returns true on success
 static bool initiate_request(struct oam_request *req)
 {
-    FILE *cmd_w = req->cmd_w;
+    struct command_connection *conn = find_command_connection(req->conn_name);
+    FILE *cmd_w = command_connection_get_w(conn);
 
     struct Pipeline *pipe = req->mep_start->pipe;
     if (!pipe) {
-        fprintf(cmd_w, "mep start '%s' has no pipeline!?!\n", req->mep_start->name);
+        if (cmd_w) fprintf(cmd_w, "mep start '%s' has no pipeline!?!\n", req->mep_start->name);
+        command_connection_release_w(conn);
         return false;
     }
 
     struct StreamSessions *stream = get_stream_sessions(req->mep_start->stream_name);
-    int session_id = alloc_session_id(stream, req, cmd_w);
+    int session_id = alloc_session_id(stream, req);
     if (session_id < 0) {
-        fprintf(cmd_w, "stream %s has no free session id\n", req->mep_start->stream_name);
+        if (cmd_w) fprintf(cmd_w, "stream %s has no free session id\n", req->mep_start->stream_name);
+        command_connection_release_w(conn);
         return false;
     }
 
@@ -514,9 +566,11 @@ static bool initiate_request(struct oam_request *req)
              req->seq, req->level, req->type, req->mep_start->name, req->mep_stop, req->count, req->interval_ms,
              req->record_route?"yes":"no", req->object_state?"yes":"no", req->return_ip, req->return_port);
 
-    fprintf(cmd_w, "OAM request %s session %u seq %u, %s -> %s level %d, count %d interval %d, rr: %s os: %s\t[reply to ip: %s, port: %u]\n",
+    if (cmd_w) fprintf(cmd_w, "OAM request %s session %u seq %u, %s -> %s level %d count %d interval %d,"
+            " rr: %s os: %s\t[reply to ip: %s, port: %u]\n",
             req->type, req->session_id, req->seq, req->mep_start->name, req->mep_stop, req->level, req->count, req->interval_ms,
             req->record_route?"yes":"no", req->object_state?"yes":"no", req->return_ip, req->return_port);
+    command_connection_release_w(conn);
 
     if(req->count == 1){
         stream->sessions[session_id].multireq_thread = NULL;
@@ -712,13 +766,14 @@ static bool parse_ping_options(struct oam_request *ping_req, const char *options
 }
 
 // always returns a request, sets ret->error to an error message
-static struct oam_request *parse_ping_command(const char *oam_command, bool allow_returniface, bool allow_num, FILE *cmd_w)
+static struct oam_request *parse_ping_command(const char *oam_command, bool allow_returniface, bool allow_num,
+        struct command_connection *conn)
 {
     int l;
     char start_name[32];
     char iface_name[64];
 
-    struct oam_request *ping_req = new_oam_request("ping", cmd_w);
+    struct oam_request *ping_req = new_oam_request("ping", conn);
 
     if (oam_command[0]=='@') {
         if (!allow_returniface) {
@@ -759,13 +814,14 @@ static struct oam_request *parse_ping_command(const char *oam_command, bool allo
 }
 
 // always returns a request, sets ret->error to an error message
-static struct oam_request *parse_rping_command(const char *oam_command, FILE *cmd_w)
+static struct oam_request *parse_rping_command(const char *oam_command,
+        struct command_connection *conn)
 {
     int l;
     char start_name[32];
     char iface_name[32];
 
-    struct oam_request *rping_req = new_oam_request("rping", cmd_w);
+    struct oam_request *rping_req = new_oam_request("rping", conn);
 
     if (oam_command[0]=='@') {
         int k = sscanf(oam_command, "@%s %s %s %d%n",
@@ -801,13 +857,14 @@ static struct oam_request *parse_rping_command(const char *oam_command, FILE *cm
 }
 
 // always returns a request, sets ret->error to an error message
-static struct oam_request *parse_rlist_command(const char *oam_command, FILE *cmd_w)
+static struct oam_request *parse_rlist_command(const char *oam_command,
+        struct command_connection *conn)
 {
     int l;
     char start_name[32];
     char iface_name[32];
 
-    struct oam_request *rlist_req = new_oam_request("rlist", cmd_w);
+    struct oam_request *rlist_req = new_oam_request("rlist", conn);
 
     if (oam_command[0]=='@') {
         int k = sscanf(oam_command, "@%s %s %s %d%n",
@@ -862,13 +919,13 @@ static const char help_str[] =
 static int list_mep_cb(const char *key, void *value, void *userdata)
 {
     struct MepStart *start = value;
-    struct ListParams *params = userdata;
-    fprintf(params->cmd_w, "%s level %d in pipe %s at pos %d\n",
+    FILE *cmd_w = userdata;
+    fprintf(cmd_w, "%s level %d in pipe %s at pos %d\n",
             key, start->level, start->pipe->name, start->pipe_pos_idx);
     return 1;
 }
 
-static int list_sessions_of_stream(struct StreamSessions *stream, struct command_connection *conn)
+static int list_sessions_of_stream(struct StreamSessions *stream, FILE *cmd_w)
 {
     bool has_sessions = false;
     for(int i=0; i<16; i++){
@@ -881,7 +938,7 @@ static int list_sessions_of_stream(struct StreamSessions *stream, struct command
     for(int i=0; i<16; i++){
         if(stream->sessions[i].live){
             struct oam_request *req = stream->sessions[i].req;
-            fprintf(conn->cmd_w,"\t%d\t %s %s -> %s level %d\n",
+            fprintf(cmd_w,"\t%d\t %s %s -> %s level %d\n",
                     i, req->type, req->mep_start->name, req->mep_stop, req->level);
         }
     }
@@ -891,14 +948,15 @@ static int list_sessions_of_stream(struct StreamSessions *stream, struct command
 static int list_all_sessions_cb(const char *key, void *value, void *userdata)
 {
     struct StreamSessions *stream = value;
-    struct command_connection *conn = userdata;
-    fprintf(conn->cmd_w, "Stream %s sessions:\n", key);
-    return list_sessions_of_stream(stream, conn);
+    FILE *cmd_w = userdata;
+    fprintf(cmd_w, "Stream %s sessions:\n", key);
+    return list_sessions_of_stream(stream, cmd_w);
 }
 
-static int list_sessions_of_all_streams(struct command_connection *conn)
+static int list_sessions_of_all_streams(FILE *cmd_w)
 {
-    return hashmap_foreach_sorted(session_ids, list_all_sessions_cb, conn);
+    int ret = hashmap_foreach_sorted(session_ids, list_all_sessions_cb, cmd_w);
+    return ret;
 }
 
 static int list_log_modules_cb(const char *mod_name, LOGGING_LEVELS current_level, void *userdata)
@@ -910,17 +968,17 @@ static int list_log_modules_cb(const char *mod_name, LOGGING_LEVELS current_leve
 
 static int list_oam_ifaces_cb(const char *ifname, void *value, void *userdata)
 {
-    struct ListParams *params = userdata;
     struct Interface *iface = value;
+    FILE *cmd_w = userdata;
 
     const char *return_ip = oamif_get_ip(iface);
     unsigned return_port = oamif_get_port(iface);
-    fprintf(params->cmd_w, "%s ip %s port %u",
+    fprintf(cmd_w, "%s ip %s port %u",
             ifname, return_ip, return_port);
     if (iface == oam_default_iface) {
-        fprintf(params->cmd_w, " (default, node id %u)\n", oamif_get_uid(iface));
+        fprintf(cmd_w, " (default, node id %u)\n", oamif_get_uid(iface));
     } else {
-        fprintf(params->cmd_w, "\n");
+        fprintf(cmd_w, "\n");
     }
 
     return 1;
@@ -1068,8 +1126,7 @@ static void command_loop(struct command_connection *conn)
             }
             else if (strcmp(oam_command, "list") == 0) {
                 fprintf(cmd_w, "Available MEP Start points:\n");
-                struct ListParams lp = {cmd_w};
-                hashmap_foreach_sorted(mep_starts, list_mep_cb, &lp);
+                hashmap_foreach_sorted(mep_starts, list_mep_cb, conn->cmd_w);
             }
             else if (strncmp(oam_command, "log", 3) == 0) {
                 char modulename[64];
@@ -1096,7 +1153,7 @@ static void command_loop(struct command_connection *conn)
             else if (strncmp(oam_command, "sessions", 8) == 0) {
                 int k=sscanf(oam_command, "sessions %s", streamname);
                 if(k==0 || k==EOF){
-                    list_sessions_of_all_streams(oam_command_connection);
+                    list_sessions_of_all_streams(conn->cmd_w);
                 }
                 else if (k==1) {
                     struct StreamSessions *stream = get_stream_sessions(streamname);
@@ -1104,7 +1161,7 @@ static void command_loop(struct command_connection *conn)
                         fprintf(cmd_w, "Invalid stream name '%s'.\n", streamname);
                     } else {
                         fprintf(cmd_w, "Stream %s sessions:\n", streamname);
-                        list_sessions_of_stream(stream, oam_command_connection);
+                        list_sessions_of_stream(stream, conn->cmd_w);
                     }
                 }
                 else {
@@ -1118,19 +1175,18 @@ static void command_loop(struct command_connection *conn)
                     if(last_stream == NULL)
                         fprintf(cmd_w,"No previous command to stop.\n");
                     else
-                        stop_session(last_stream, -1, oam_command_connection);
+                        stop_session(last_stream, -1, conn);
                 } else if(k==2){
-                    stop_session(streamname, session, oam_command_connection);
+                    stop_session(streamname, session, conn);
                 } else
                     fprintf(cmd_w,"invalid parameters for stop.\n");
             }
             else if (strcmp(oam_command, "returns") == 0) {
                 fprintf(cmd_w, "Available OAM return interfaces:\n");
-                struct ListParams lp = {cmd_w};
-                hashmap_foreach_sorted(oam_ifaces, list_oam_ifaces_cb, &lp);
+                hashmap_foreach_sorted(oam_ifaces, list_oam_ifaces_cb, conn->cmd_w);
             }
             else if (strncmp(oam_command, "ping", 4) == 0) {
-                struct oam_request *ping_req = parse_ping_command(oam_command+4, true, true, cmd_w);
+                struct oam_request *ping_req = parse_ping_command(oam_command+4, true, true, conn);
                 CHECK_REQUEST(ping_req);
                 char *req_stream = ping_req->mep_start->stream_name;
                 if (!initiate_request(ping_req)) {
@@ -1139,14 +1195,14 @@ static void command_loop(struct command_connection *conn)
                 last_stream = req_stream;
             }
             else if (strncmp(oam_command, "rping", 5) == 0) {
-                struct oam_request *rping_req = parse_rping_command(oam_command+5, cmd_w);
+                struct oam_request *rping_req = parse_rping_command(oam_command+5, conn);
                 CHECK_REQUEST(rping_req);
                 if (!initiate_request(rping_req)) {
                     ERROR("sending rping command failed");
                 }
             }
             else if (strncmp(oam_command, "rlist", 5) == 0) {
-                struct oam_request *rlist_req = parse_rlist_command(oam_command+5, cmd_w);
+                struct oam_request *rlist_req = parse_rlist_command(oam_command+5, conn);
                 CHECK_REQUEST(rlist_req);
                 if (!initiate_request(rlist_req)) {
                     ERROR("sending rlist command failed");
@@ -1164,7 +1220,7 @@ static void command_loop(struct command_connection *conn)
         }
     }
     log_info("Telnet closed");
-    stop_all_sessions_of_connection(oam_command_connection);
+    stop_all_sessions_of_connection(conn);
 
 #undef ERROR
 #undef CHECK_REQUEST
@@ -1175,7 +1231,9 @@ static void *command_thread(void *arg)
     struct command_connection *conn = arg;
     command_loop(conn);
     struct Thread *thread = conn->thread;
+    //TODO while (conn->w_users > 0) {wait}
     fclose(conn->cmd_w); // we only need to close the FILE*
+    free(conn->name);
     free(conn); //TODO remove from hash
     oam_command_connection = NULL;
     thread_exit(thread);
@@ -1192,6 +1250,7 @@ void oam_start_command_connection(int fd)
         return;
     }
     struct command_connection *conn = calloc_struct(command_connection);
+    conn->name = strdup("the one and only (for now)"); //TODO neither pthread_t nor fd number are useable
     conn->socket_fd = fd;
     // note: inverse operation is fd=fileno(file)
     conn->cmd_w = fdopen(fd, "w");
@@ -1270,7 +1329,8 @@ static int process_reply(const char *msg)
     log_packet("oam recv reply %s:%.0f seq %.0f lvl %.0f D - %s",
             stream->v.string, session->v.number, sequence->v.number, level->v.number, msg);
 
-    //TODO get command connection from session
+    struct command_connection *conn = NULL;
+    if (sess) conn = find_command_connection(sess->conn_name);
 
     if (strcmp(type->v.string, "rlist") == 0) {
         JS_OBJECT_GET(code, string, j);
@@ -1292,8 +1352,8 @@ static int process_reply(const char *msg)
             strcat(reply_str, "\n");
         }
         json_delete(j);
-        if (oam_command_connection) {
-            fprintf(oam_command_connection->cmd_w, "%s\n", reply_str);
+        if (conn) {
+            fprintf(conn->cmd_w, "%s\n", reply_str);
         }
     }
     else if (strcmp(type->v.string, "rping") == 0) {
@@ -1307,8 +1367,8 @@ static int process_reply(const char *msg)
         JS_OBJECT_GET(error, string, j);
         snprintf(reply_str, sizeof(reply_str), "Rping error from %s : %s\n", receiver->v.string, error->v.string);
         json_delete(j);
-        if (oam_command_connection) {
-            fprintf(oam_command_connection->cmd_w, "%s\n", reply_str);
+        if (conn) {
+            fprintf(conn->cmd_w, "%s\n", reply_str);
         }
     }
     else if (strcmp(type->v.string, "ping") == 0) {
@@ -1367,32 +1427,24 @@ static int process_reply(const char *msg)
 
         json_delete(j);
 
-        if (oam_cmd_iface == NULL)
-            return 0;
-        else {
-            // check if we need to print to a telnet session
-            if (sess == NULL) return 0; // no session found
-            if (sess->cmd_w == stderr) return 0; // this is a background ping
+        // check if we need to print to a telnet session
+        if (conn == NULL) return 0; // this is a background ping
 
-            if(oam_command_connection->mode == TF_JSON){
-                if (oam_command_connection) {
-                    fprintf(oam_command_connection->cmd_w, "%s\n", msg);
-                }
-            } else {                                               // DUMP mode
-                if (rr_str[0]) {
-                    strcat(reply_str, "\n\t");
-                    strcat(reply_str, rr_str);
-                }
-                if (obj_str) {
-                    strcat(reply_str, "\n\t");
-                    strcat(reply_str, obj_str);
-                    free(obj_str);
-                }
-                if (oam_command_connection) {
-                    fprintf(oam_command_connection->cmd_w, "%s\n", reply_str);
-                }
+        if(conn->mode == TF_JSON){
+            fprintf(conn->cmd_w, "%s\n", msg);
+        } else {                                               // DUMP mode
+            if (rr_str[0]) {
+                strcat(reply_str, "\n\t");
+                strcat(reply_str, rr_str);
             }
+            if (obj_str) {
+                strcat(reply_str, "\n\t");
+                strcat(reply_str, obj_str);
+                free(obj_str);
+            }
+            fprintf(conn->cmd_w, "%s\n", reply_str);
         }
+
     }
     else {
         log_error("invalid reply type '%s'", type->v.string);
@@ -1620,7 +1672,7 @@ static bool process_rping_request(struct OamEndPoint *oam, struct Packet *p, str
         return false;
     }
 
-    struct oam_request *ping_req = parse_ping_command(cmd->v.string, false, true, stderr);
+    struct oam_request *ping_req = parse_ping_command(cmd->v.string, false, true, NULL);
     ping_req->return_ip = reply_address;
     ping_req->return_port = port;
     if (ping_req->error == NULL) {
@@ -1899,7 +1951,7 @@ static int oam_start_background_ping_cb(const char *key, void *value, void *user
         log_error("background command '%s' is not ping", key);
         return 0;
     }
-    struct oam_request *ping_req = parse_ping_command(request+4, true, false, stderr);
+    struct oam_request *ping_req = parse_ping_command(request+4, true, false, NULL);
 
     if (ping_req->error) {
         log_error("background ping command '%s' invalid: %s", key, ping_req->error);
@@ -1953,6 +2005,7 @@ void finish_oam(void)
     delete_messagequeue(reply_q);
     if (oam_command_connection)
         stop_all_sessions_of_connection(oam_command_connection);
+    stop_all_sessions_of_connection(NULL); // stop the background sessions
     delete_hashmap(session_ids);
     delete_hashmap(mep_starts);
     delete_hashmap(oam_ifaces);
