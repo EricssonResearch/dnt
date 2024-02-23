@@ -105,7 +105,7 @@ static struct HashMap *mep_starts = NULL; // name -> struct MEPStart
 static struct HashMap *session_ids = NULL; // stream_name -> struct StreamSessions
 static pthread_mutex_t session_lock; // should be used to protect the whole session_ids hash
 
-static struct command_connection *oam_command_connection = NULL; //TODO hash (key? thread id converted to string)
+static struct HashMap *command_connections = NULL; // name -> struct command_connection
 
 static struct Thread *request_thread = NULL;
 static struct MessageQueue *request_q = NULL;
@@ -164,8 +164,7 @@ void add_oam_if(struct Interface *iface)
 static struct command_connection *find_command_connection(const char *name)
 {
     if (name == NULL) return NULL;
-    //TODO we'll eventually need a hash lookup
-    return oam_command_connection;
+    return hashmap_find(command_connections, name);
 }
 
 static bool command_connection_is_same(const struct command_connection *conn, const char *name)
@@ -1220,7 +1219,6 @@ static void command_loop(struct command_connection *conn)
         }
     }
     log_info("Telnet closed");
-    stop_all_sessions_of_connection(conn);
 
 #undef ERROR
 #undef CHECK_REQUEST
@@ -1231,26 +1229,14 @@ static void *command_thread(void *arg)
     struct command_connection *conn = arg;
     command_loop(conn);
     struct Thread *thread = conn->thread;
-    //TODO while (conn->w_users > 0) {wait}
-    fclose(conn->cmd_w); // we only need to close the FILE*
-    free(conn->name);
-    free(conn); //TODO remove from hash
-    oam_command_connection = NULL;
+    hashmap_remove(command_connections, conn->name);
     thread_exit(thread);
     return NULL;
 }
 
 void oam_start_command_connection(int fd)
 {
-    if (oam_command_connection) {
-        //TODO support multiple connections
-        if (send(fd, "OAM busy.\n", 10, 0) == -1)
-            log_perror("oam commandline send");
-        close(fd);
-        return;
-    }
     struct command_connection *conn = calloc_struct(command_connection);
-    conn->name = strdup("the one and only (for now)"); //TODO neither pthread_t nor fd number are useable
     conn->socket_fd = fd;
     // note: inverse operation is fd=fileno(file)
     conn->cmd_w = fdopen(fd, "w");
@@ -1260,26 +1246,37 @@ void oam_start_command_connection(int fd)
 
     setvbuf(conn->cmd_w, NULL, _IOLBF, 0);
 
-    oam_command_connection = conn; //TODO save conn in a hash (key?)
-
     conn->thread = thread_launch(command_thread, conn, "command");
     if (conn->thread == NULL) {
         log_perror("could not create new oam thread");
         fclose(conn->cmd_w); // we only need to close the FILE*
-        free(conn); //TODO remove from hash
+        free(conn);
         return;
     }
+    conn->name = strdup_printf("conn %u", thread_getid(conn->thread));
+    hashmap_insert(command_connections, conn->name, conn);
+}
+
+static int alert_cb(const char *key, void *value, void *userdata)
+{
+    (void)key;
+    struct command_connection *conn = value;
+    char *msg = userdata;
+    FILE *cmd_w = command_connection_get_w(conn);
+    if (cmd_w) fprintf(cmd_w, "\n\n%s\n\n", msg);
+    command_connection_release_w(conn);
+    return 1;
 }
 
 void oam_cli_alert(const char *fmt, ...)
 {
-    if (oam_command_connection && oam_command_connection->cmd_w) {
-        va_list args;
-        va_start(args, fmt);
-        vfprintf(oam_command_connection->cmd_w, fmt, args);
-        fprintf(oam_command_connection->cmd_w, "\n");
-        va_end(args);
-    }
+    char msg[200];
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(msg, sizeof(msg), fmt, args);
+    va_end(args);
+
+    hashmap_foreach(command_connections, alert_cb, msg);
 }
 
 
@@ -1970,6 +1967,19 @@ static int oam_start_background_ping_cb(const char *key, void *value, void *user
     return initiate_request(ping_req);
 }
 
+static int command_connection_delete_cb(const char *key, void *value, void *userdata)
+{
+    (void)key; // same as conn->name
+    (void)userdata;
+    struct command_connection *conn = value;
+    //TODO while (conn->w_users > 0) {wait}
+    stop_all_sessions_of_connection(conn);
+    fclose(conn->cmd_w); // we only need to close the FILE*
+    free(conn->name);
+    free(conn);
+    return 1;
+}
+
 bool init_oam(struct HashMap *config_oam)
 {
     request_q = new_messagequeue();
@@ -1989,6 +1999,8 @@ bool init_oam(struct HashMap *config_oam)
     reply_q = new_messagequeue();
     reply_thread = thread_launch(reply_thread_fn, NULL, "oam reply");
 
+    command_connections = new_hashmap(7, command_connection_delete_cb, NULL);
+
     // Start OAM background streams
     if (!hashmap_foreach(config_oam, oam_start_background_ping_cb, NULL)) {
         log_error("failed to start oam background command");
@@ -2003,8 +2015,7 @@ void finish_oam(void)
     thread_stop(reply_thread);
     delete_messagequeue(request_q);
     delete_messagequeue(reply_q);
-    if (oam_command_connection)
-        stop_all_sessions_of_connection(oam_command_connection);
+    delete_hashmap(command_connections);
     stop_all_sessions_of_connection(NULL); // stop the background sessions
     delete_hashmap(session_ids);
     delete_hashmap(mep_starts);

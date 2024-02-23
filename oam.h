@@ -34,10 +34,10 @@ void oam_recv_request(struct OamEndPoint *oam, struct PipelineIterator *pi);
 // receive connection on the command (telnet) interface
 void oam_start_command_connection(int fd);
 
-// If there is an active OAM CLI session this function
-// can print messages into it (e.g. alerting the operator
-// from imporant warnings or failures)
-void oam_cli_alert(const char *fmt, ...);
+// print an alert message to all active command sessions (like wall(1) does)
+void oam_cli_alert(const char *fmt, ...)
+    __attribute__((format(printf, 1, 2)))
+    __attribute__((nonnull(1)));
 
 bool oam_create_mep_start(const char *stream_name, const char *mep_name, int level, unsigned idx);
 void oam_set_pipeline_for_mep_start(const char *stream_name, struct Pipeline *pipe);
