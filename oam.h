@@ -12,6 +12,7 @@
 #define SEQ_IS_OAM(seq)     \
     (ntohl(seq) & 0x10000000u)
 
+// public interface of the OAM module
 
 // state object for a point that receives OAM packets
 struct OamEndPoint {
