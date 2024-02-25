@@ -241,9 +241,9 @@ bool init_oam(struct HashMap *config_oam)
 
 void finish_oam(void)
 {
+    stop_all_sessions_of_connection(NULL); // stop the background sessions
     finish_msg_module();
     finish_cmd_module();
-    stop_all_sessions_of_connection(NULL); // stop the background sessions
     delete_hashmap(mep_starts);
     delete_hashmap(oam_ifaces);
     log_info("Stopped OAM functionality");
