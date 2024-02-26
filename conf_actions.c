@@ -161,7 +161,7 @@ struct ConfAction {
         struct {
             struct HeaderField *field;
         } ttl;
-    } d;
+    } ; // anonymous union needs gnu99 or c11
 };
 
 struct MustWriteField {
@@ -526,10 +526,10 @@ static bool process_token(char *token, void *userdata)
         case CA_UNDEF:
             if        (strcmp(token, "after") == 0) {
                 newaction->type = CA_ADD;
-                newaction->d.add.beforeafter = ADD_AFTER;
+                newaction->add.beforeafter = ADD_AFTER;
             } else if (strcmp(token, "before") == 0) {
                 newaction->type = CA_ADD;
-                newaction->d.add.beforeafter = ADD_BEFORE;
+                newaction->add.beforeafter = ADD_BEFORE;
             } else if (strcmp(token, "del") == 0) {
                 newaction->type = CA_DEL;
             } else if (strcmp(token, "delay") == 0) {
@@ -544,13 +544,13 @@ static bool process_token(char *token, void *userdata)
                 newaction->type = CA_JUMP;
             } else if (strcmp(token, "mep-start") == 0) {
                 newaction->type = CA_MEPSTART;
-                newaction->d.oam.level = -1;
+                newaction->oam.level = -1;
             } else if (strcmp(token, "mep-stop") == 0) {
                 newaction->type = CA_MEPSTOP;
-                newaction->d.oam.level = -1;
+                newaction->oam.level = -1;
             } else if (strcmp(token, "mip") == 0) {
                 newaction->type = CA_MIP;
-                newaction->d.oam.level = -1;
+                newaction->oam.level = -1;
             } else if (strcmp(token, "pof") == 0) {
                 newaction->type = CA_POF;
             } else if (strcmp(token, "readseq") == 0) {
@@ -577,26 +577,26 @@ static bool process_token(char *token, void *userdata)
                     switch (obj->type) {
                         case PO_SEQGEN:
                             newaction->type = CA_SEQGEN;
-                            newaction->d.seq.gen = obj;
+                            newaction->seq.gen = obj;
                             break;
                         case PO_SEQREC:
                             newaction->type = CA_ELIM;
-                            newaction->d.elim.rec = obj;
+                            newaction->elim.rec = obj;
                             break;
                         case PO_POF:
                             newaction->type = CA_POF;
-                            newaction->d.pof.pof = obj;
+                            newaction->pof.pof = obj;
                             break;
                         case PO_REPL:
                             newaction->type = CA_REPL;
-                            newaction->d.repl.replobj = obj;
+                            newaction->repl.replobj = obj;
                             break;
                     }
                 } else {
                     char *pstring = inisection_get(stst->streams_sec, token);
                     if (pstring) {
                         newaction->type = CA_JUMP;
-                        newaction->d.jump.pipename = strdup(token);
+                        newaction->jump.pipename = strdup(token);
                     } else {
                         THROW("'%s' does not name an action, object or action list", token);
                     }
@@ -604,7 +604,7 @@ static bool process_token(char *token, void *userdata)
             }
             break;
         case CA_ADD:
-            if (newaction->d.add.pos == NULL) {
+            if (newaction->add.pos == NULL) {
                 struct HeaderDescriptor *pos = header_list_find_by_name(stst->headers, token);
                 if (pos == NULL) {
                     THROW("no header named '%s' in the packet", token);
@@ -612,33 +612,33 @@ static bool process_token(char *token, void *userdata)
                 if (header_list_find_by_name(pos->next, token)) {
                     THROW("header name '%s' is ambiguous", token);
                 }
-                newaction->d.add.pos = pos;
-            } else if (newaction->d.add.was_add == false) {
+                newaction->add.pos = pos;
+            } else if (newaction->add.was_add == false) {
                 if (strcmp(token, "add") == 0) {
-                    newaction->d.add.was_add = true;
+                    newaction->add.was_add = true;
                 } else {
                     THROW("the 'add' keyword is mising");
                 }
-            } else if (newaction->d.add.newname == NULL) {
-                newaction->d.add.newname = strdup(token);
+            } else if (newaction->add.newname == NULL) {
+                newaction->add.newname = strdup(token);
                 char *type = header_type_from_name(token);
-                newaction->d.add.id = protocol_id_from_type(type);
+                newaction->add.id = protocol_id_from_type(type);
                 free(type);
-                if (newaction->d.add.id < 0) {
+                if (newaction->add.id < 0) {
                     THROW("type is invalid for new header'%s'", token);
                 }
-                newaction->d.add.len = protocol_list[newaction->d.add.id].bytelength;
+                newaction->add.len = protocol_list[newaction->add.id].bytelength;
             } else {
                 char *lhs, *rhs;
                 struct ConfAssignment *a = calloc_struct(ConfAssignment);
-                a->next = newaction->d.add.assignments;
-                newaction->d.add.assignments = a;
+                a->next = newaction->add.assignments;
+                newaction->add.assignments = a;
                 a->text = strdup(token);
                 if (parse_assignment(token, &lhs, &rhs)) {
-                    const struct ProtocolField *f = protocol_get_field_by_name(newaction->d.add.id, lhs);
+                    const struct ProtocolField *f = protocol_get_field_by_name(newaction->add.id, lhs);
                     if (f == NULL) {
                         THROW("header %s has no field '%s'",
-                                newaction->d.add.newname, lhs);
+                                newaction->add.newname, lhs);
                     }
                     init_confvariable(&a->lhs, CVT_FIELD, f);
                     // we don't yet have a header index here, we fix it in process_action()
@@ -653,13 +653,13 @@ static bool process_token(char *token, void *userdata)
             }
             break;
         case CA_DEL:
-            if (newaction->d.del.hdr == NULL) {
+            if (newaction->del.hdr == NULL) {
                 struct HeaderDescriptor *del = header_list_find_by_name(stst->headers, token);
                 if (del) {
                     if (header_list_find_by_name(del->next, token)) {
                         THROW("header name '%s' is ambiguous", token);
                     }
-                    newaction->d.del.hdr = del;
+                    newaction->del.hdr = del;
                 } else {
                     THROW("invalid header '%s' to delete", token);
                 }
@@ -668,9 +668,9 @@ static bool process_token(char *token, void *userdata)
             }
             break;
         case CA_DELAY:
-            if (newaction->d.delay.delay_value == 0) {
+            if (newaction->delay.delay_value == 0) {
                 char err;
-                if (sscanf(token, "%i%c", &newaction->d.delay.delay_value, &err) != 1) {
+                if (sscanf(token, "%i%c", &newaction->delay.delay_value, &err) != 1) {
                     THROW("invalid delay '%s'", token);
                 }
             } else {
@@ -683,8 +683,8 @@ static bool process_token(char *token, void *userdata)
         case CA_EDIT: {
             char *lhs, *rhs;
             struct ConfAssignment *a = calloc_struct(ConfAssignment);
-            a->next = newaction->d.edit.assignments;
-            newaction->d.edit.assignments = a;
+            a->next = newaction->edit.assignments;
+            newaction->edit.assignments = a;
             a->text = strdup(token);
             if (parse_assignment(token, &lhs, &rhs)) {
                 if (!process_assignment_lhs(stst, a, lhs)) {
@@ -699,11 +699,11 @@ static bool process_token(char *token, void *userdata)
             }
             break; }
         case CA_ELIM:
-            if (newaction->d.elim.rec == NULL) {
+            if (newaction->elim.rec == NULL) {
                 struct PipelineObject *obj = hashmap_find(stst->objects, token);
                 if (obj) {
                     if (obj->type == PO_SEQREC) {
-                        newaction->d.elim.rec = obj;
+                        newaction->elim.rec = obj;
                     } else {
                         THROW("first argument of eliminate must be a recovery object");
                     }
@@ -718,8 +718,8 @@ static bool process_token(char *token, void *userdata)
             // the user can't create this action, so nothing to do here
             break;
         case CA_JUMP:
-            if (newaction->d.jump.pipename == NULL) {
-                newaction->d.jump.pipename = strdup(token);
+            if (newaction->jump.pipename == NULL) {
+                newaction->jump.pipename = strdup(token);
             } else {
                 THROW("the only argument is the name of an action pipeline");
             }
@@ -727,36 +727,36 @@ static bool process_token(char *token, void *userdata)
         case CA_MEPSTART:
         case CA_MEPSTOP:
         case CA_MIP:
-            if (newaction->d.oam.name == NULL) {
-                newaction->d.oam.name = strdup(token);
-            } else if (newaction->d.oam.level == -1) {
+            if (newaction->oam.name == NULL) {
+                newaction->oam.name = strdup(token);
+            } else if (newaction->oam.level == -1) {
                 char err;
-                if (sscanf(token, "%d%c", &newaction->d.oam.level, &err) != 1) {
+                if (sscanf(token, "%d%c", &newaction->oam.level, &err) != 1) {
                     THROW("invalid OAM level '%s'", token);
                 }
-                if (newaction->d.oam.level < 0 ||
-                        newaction->d.oam.level > 7) {
+                if (newaction->oam.level < 0 ||
+                        newaction->oam.level > 7) {
                     THROW("invalid OAM level %d (valid range is 0-7)",
-                            newaction->d.oam.level);
+                            newaction->oam.level);
                 }
                 break;
-            } else if (newaction->d.oam.obj == NULL) {
+            } else if (newaction->oam.obj == NULL) {
                 struct PipelineObject *obj = hashmap_find(stst->objects, token);
                 if (!obj) {
                     THROW("unknown object '%s' for OAM action", token);
                 }
-                newaction->d.oam.obj = obj;
+                newaction->oam.obj = obj;
                 break;
             } else {
                 THROW("too many arguments");
             }
             break;
         case CA_POF:
-            if (newaction->d.pof.pof == NULL) {
+            if (newaction->pof.pof == NULL) {
                 struct PipelineObject *obj = hashmap_find(stst->objects, token);
                 if (obj) {
                     if (obj->type == PO_POF) {
-                        newaction->d.pof.pof = obj;
+                        newaction->pof.pof = obj;
                     } else {
                         THROW("pof first argument must be a pof object");
                     }
@@ -771,7 +771,7 @@ static bool process_token(char *token, void *userdata)
         case CA_READTSTAMP:
         case CA_WRITESEQ:
         case CA_WRITETSTAMP:
-            if (newaction->d.meta.field == NULL) {
+            if (newaction->meta.field == NULL) {
                 struct HeaderDescriptor *hdr = header_list_find_by_name(stst->headers, token);
                 if (hdr) {
                     if (header_list_find_by_name(hdr->next, token)) {
@@ -785,7 +785,7 @@ static bool process_token(char *token, void *userdata)
                         THROW("header '%s' doesn't have a field of type %s", hdr->name,
                                 fieldtype_name_from_type(fieldtype));
                     }
-                    newaction->d.meta.field = field;
+                    newaction->meta.field = field;
                 } else {
                     THROW("invalid header '%s'", token);
                 }
@@ -797,12 +797,12 @@ static bool process_token(char *token, void *userdata)
             char *pstring = inisection_get(stst->streams_sec, token);
             if (pstring == NULL) {
                 // first argument can be the name of a state object
-                if (newaction->d.repl.replobj == NULL
-                        && newaction->d.repl.pipelines == NULL) {
+                if (newaction->repl.replobj == NULL
+                        && newaction->repl.pipelines == NULL) {
                     struct PipelineObject *obj = hashmap_find(stst->objects, token);
                     if (obj) {
                         if (obj->type == PO_REPL) {
-                            newaction->d.repl.replobj = obj;
+                            newaction->repl.replobj = obj;
                         } else {
                             THROW("state of replicate action must be a Replicate object");
                         }
@@ -840,11 +840,11 @@ static bool process_token(char *token, void *userdata)
                 }
                 delete_header_list(pstst.headers);
                 REVERSE_LIST(pstst.actions);
-                replicatelist_push(&newaction->d.repl.pipelines, strdup(token), pstst.actions);
+                replicatelist_push(&newaction->repl.pipelines, strdup(token), pstst.actions);
             }
             break; }
         case CA_SEND:
-            if (newaction->d.send.iface) {
+            if (newaction->send.iface) {
                 THROW("we can only send on one interface at once");
             } else {
                 struct Interface *iface = hashmap_find(stst->ifaces, token);
@@ -853,15 +853,15 @@ static bool process_token(char *token, void *userdata)
                 }
                 //TODO dynconf: defer finalizing the iface pointer to assemble_actions() ?
                 //      that's the least of our problems when dynconf changes interfaces :(
-                newaction->d.send.iface = iface;
+                newaction->send.iface = iface;
             }
             break;
         case CA_SEQGEN:
-            if (newaction->d.seq.gen == NULL) {
+            if (newaction->seq.gen == NULL) {
                 struct PipelineObject *obj = hashmap_find(stst->objects, token);
                 if (obj) {
                     if (obj->type == PO_SEQGEN) {
-                        newaction->d.seq.gen = obj;
+                        newaction->seq.gen = obj;
                     } else {
                         THROW("seqgen argument must be a sequence generator object");
                     }
@@ -876,7 +876,7 @@ static bool process_token(char *token, void *userdata)
             THROW("ttlcheck action doesn't take parameters");
             break;
         case CA_TTLREDUCE:
-            if (newaction->d.ttl.field == NULL) {
+            if (newaction->ttl.field == NULL) {
                 struct HeaderDescriptor *hdr = header_list_find_by_name(stst->headers, token);
                 if (hdr) {
                     if (header_list_find_by_name(hdr->next, token)) {
@@ -887,7 +887,7 @@ static bool process_token(char *token, void *userdata)
                     if (field == NULL) {
                         THROW("header '%s' doesn't have a TTL field", hdr->name);
                     }
-                    newaction->d.ttl.field = field;
+                    newaction->ttl.field = field;
                 } else {
                     THROW("invalid header '%s'", token);
                 }
@@ -1034,45 +1034,45 @@ static bool process_action(struct StageState *stst)
             THROW("no action");
         case CA_ADD:
             log_debug("CA_ADD: %s %s %s %s",
-                    newaction->d.add.beforeafter==ADD_BEFORE?"before":"after",
-                    newaction->d.add.pos->name,
-                    newaction->d.add.newname,
-                    protocol_type_from_id(newaction->d.add.id));
-            if (newaction->d.add.newname == NULL) {
+                    newaction->add.beforeafter==ADD_BEFORE?"before":"after",
+                    newaction->add.pos->name,
+                    newaction->add.newname,
+                    protocol_type_from_id(newaction->add.id));
+            if (newaction->add.newname == NULL) {
                 THROW("no new header name");
             }
-            if (newaction->d.add.pos == NULL) {
+            if (newaction->add.pos == NULL) {
                 THROW("no existing header name");
             }
-            if (newaction->d.add.beforeafter == ADD_UNKNOWN) {
+            if (newaction->add.beforeafter == ADD_UNKNOWN) {
                 THROW("no header position specified");
             }
 
             struct HeaderDescriptor *newheader = calloc_struct(HeaderDescriptor);
-            newheader->name = strdup(newaction->d.add.newname);
-            newheader->id = newaction->d.add.id;
+            newheader->name = strdup(newaction->add.newname);
+            newheader->id = newaction->add.id;
 
             // add newheader to stst->headers at the designated position
             struct HeaderDescriptor *prevheader, *nextheader;
-            if (newaction->d.add.beforeafter == ADD_BEFORE) {
-                nextheader = newaction->d.add.pos;
+            if (newaction->add.beforeafter == ADD_BEFORE) {
+                nextheader = newaction->add.pos;
                 if (nextheader == stst->headers) {
                     prevheader = NULL;
                 } else {
                     prevheader = stst->headers;
-                    while (prevheader->next != newaction->d.add.pos)
+                    while (prevheader->next != newaction->add.pos)
                         prevheader = prevheader->next;
                 }
             } else {
-                prevheader = newaction->d.add.pos;
-                nextheader = newaction->d.add.pos->next;
+                prevheader = newaction->add.pos;
+                nextheader = newaction->add.pos->next;
             }
 
             // get the header index and fix it in the assignments
-            unsigned pos_idx = header_index(stst->headers, newaction->d.add.pos);
-            if (newaction->d.add.beforeafter == ADD_AFTER) pos_idx++;
-            newaction->d.add.pos_idx = pos_idx;
-            for (struct ConfAssignment *a=newaction->d.add.assignments; a; a=a->next) {
+            unsigned pos_idx = header_index(stst->headers, newaction->add.pos);
+            if (newaction->add.beforeafter == ADD_AFTER) pos_idx++;
+            newaction->add.pos_idx = pos_idx;
+            for (struct ConfAssignment *a=newaction->add.assignments; a; a=a->next) {
                 a->lhs.v.header.field->header_idx = pos_idx;
             }
 
@@ -1088,7 +1088,7 @@ static bool process_action(struct StageState *stst)
             if (seq_field) {
                 if (stst->seq_set) {
                     struct ConfAction *writeseq = new_confaction(stst, CA_WRITESEQ, newaction->text);
-                    writeseq->d.meta.field = new_headerfield(pos_idx, seq_field);
+                    writeseq->meta.field = new_headerfield(pos_idx, seq_field);
                     if (!process_action(stst)) // now writeseq is the newest action
                         return false;
                 } else {
@@ -1100,15 +1100,15 @@ static bool process_action(struct StageState *stst)
             const struct ProtocolField *tstamp_field = protocol_get_field_by_type(newheader->id, FT_TSNTSTAMP);
             if (tstamp_field) {
                 struct ConfAction *writets = new_confaction(stst, CA_WRITETSTAMP, newaction->text);
-                writets->d.meta.field = new_headerfield(pos_idx, tstamp_field);
+                writets->meta.field = new_headerfield(pos_idx, tstamp_field);
                 if (!process_action(stst)) // now writets is the newest action
                     return false;
             }
 
             // split off the header assignments into a new edit action
             struct ConfAction *edit = new_confaction(stst, CA_EDIT, newaction->text);
-            edit->d.edit.assignments = newaction->d.add.assignments;
-            newaction->d.add.assignments = NULL;
+            edit->edit.assignments = newaction->add.assignments;
+            newaction->add.assignments = NULL;
 
             // set the nexthdr field of newheader either by nextheader's type or by copying from prevheader
             if (protocol_list[newheader->id].get_nexthdr != NULL) {
@@ -1130,8 +1130,8 @@ static bool process_action(struct StageState *stst)
                                 protocol_type_from_id(prevheader->id));
                     }
                 }
-                a->next = edit->d.edit.assignments;
-                edit->d.edit.assignments = a;
+                a->next = edit->edit.assignments;
+                edit->edit.assignments = a;
             }
 
             // set nexthdr of prevheader with newheader's type
@@ -1142,11 +1142,11 @@ static bool process_action(struct StageState *stst)
                             protocol_type_from_id(prevheader->id),
                             protocol_type_from_id(newheader->id));
                 }
-                a->next = edit->d.edit.assignments;
-                edit->d.edit.assignments = a;
+                a->next = edit->edit.assignments;
+                edit->edit.assignments = a;
             }
 
-            if (edit->d.edit.assignments == NULL) {
+            if (edit->edit.assignments == NULL) {
                 stst->actions = edit->next;
                 free(edit->text);
                 free(edit);
@@ -1156,10 +1156,10 @@ static bool process_action(struct StageState *stst)
             }
             break;
         case CA_DEL:
-            if (newaction->d.del.hdr == NULL) {
+            if (newaction->del.hdr == NULL) {
                 THROW("no header to delete");
             }
-            struct HeaderDescriptor *del = newaction->d.del.hdr;
+            struct HeaderDescriptor *del = newaction->del.hdr;
             struct HeaderDescriptor *prev = NULL;
             unsigned idx = 0;
             if (del != stst->headers) {
@@ -1170,13 +1170,13 @@ static bool process_action(struct StageState *stst)
                     prev = prev->next;
                 }
             }
-            newaction->d.del.idx = idx;
+            newaction->del.idx = idx;
 
             // if removing a sequence number tag (= end of tunnel), automatically filter OAM packets
             const struct ProtocolField *dseq_field = protocol_get_field_by_type(del->id, FT_TSNSEQ);
             if (dseq_field) {
                 struct ConfAction *filter = new_confaction(stst, CA_FILTEROAM, del->name);
-                filter->d.filteroam.field = new_headerfield(idx, dseq_field);
+                filter->filteroam.field = new_headerfield(idx, dseq_field);
                 // swap filter and delete so we are filtering before deleting
                 filter->next = newaction->next;
                 newaction->next = filter;
@@ -1224,7 +1224,7 @@ static bool process_action(struct StageState *stst)
 
             if (a) {
                 struct ConfAction *dedit = new_confaction(stst, CA_EDIT, newaction->text);
-                dedit->d.edit.assignments = a;
+                dedit->edit.assignments = a;
                 if (!process_action(stst)) // now dedit is the newest action
                     return false;
 
@@ -1235,9 +1235,9 @@ static bool process_action(struct StageState *stst)
             }
             break;
         case CA_DELAY:
-            if (stst->actions->d.delay.delay_value == 0)
+            if (stst->actions->delay.delay_value == 0)
                 THROW("delay parameter should not be 0");
-            if (stst->actions->d.delay.delay_value >= 2000)
+            if (stst->actions->delay.delay_value >= 2000)
                 THROW("delay parameter should not more than 2 seconds.");
             break;
         case CA_DROP:
@@ -1245,14 +1245,14 @@ static bool process_action(struct StageState *stst)
             break;
         case CA_EDIT:
             log_debug("CA_EDIT: %s", newaction->text);
-            if (newaction->d.edit.assignments != NULL) {
-                REVERSE_LIST(newaction->d.edit.assignments);
+            if (newaction->edit.assignments != NULL) {
+                REVERSE_LIST(newaction->edit.assignments);
             } else {
                 THROW("no assignments in edit");
             }
             break;
         case CA_ELIM:
-            if (newaction->d.elim.rec == NULL) {
+            if (newaction->elim.rec == NULL) {
                 THROW("eliminate needs a sequence recovery object");
             }
             if (!stst->seq_set) {
@@ -1264,14 +1264,14 @@ static bool process_action(struct StageState *stst)
             break;
         case CA_JUMP:
             log_debug("CA_JUMP: %s", newaction->text);
-            if (newaction->d.jump.pipename == NULL) {
+            if (newaction->jump.pipename == NULL) {
                 THROW("no action pipeline to jump to");
             }
-            char *pipestring = inisection_get(stst->streams_sec, newaction->d.jump.pipename);
+            char *pipestring = inisection_get(stst->streams_sec, newaction->jump.pipename);
             if (pipestring) {
                 pipestring = strdup(pipestring);
                 struct StageState jstst = *stst;
-                char *jumpname = strdup_printf("%s.%s", stst->stream, newaction->d.jump.pipename);
+                char *jumpname = strdup_printf("%s.%s", stst->stream, newaction->jump.pipename);
                 jstst.stream = jumpname;
                 jstst.actions = NULL;
                 //TODO limit recursion depth with a counter in stst
@@ -1279,12 +1279,12 @@ static bool process_action(struct StageState *stst)
                     free(pipestring);
                     free(jumpname);
                     delete_confaction_list(jstst.actions);
-                    THROW("failed to process pipeline '%s'", newaction->d.jump.pipename);
+                    THROW("failed to process pipeline '%s'", newaction->jump.pipename);
                 }
                 free(pipestring);
                 free(jumpname);
                 if (jstst.actions == NULL) {
-                    THROW("no actions in pipeline '%s'", newaction->d.jump.pipename);
+                    THROW("no actions in pipeline '%s'", newaction->jump.pipename);
                 }
 
                 // replace jump with the newly read action list
@@ -1297,18 +1297,18 @@ static bool process_action(struct StageState *stst)
                 stst->headers = jstst.headers;
                 delete_confaction_list(jump);
             } else {
-                THROW("action pipeline '%s' not found", newaction->d.jump.pipename);
+                THROW("action pipeline '%s' not found", newaction->jump.pipename);
             }
             stst->had_final = true;
             break;
         case CA_MEPSTART:
         case CA_MEPSTOP:
         case CA_MIP:
-            if (newaction->d.oam.name == NULL) {
+            if (newaction->oam.name == NULL) {
                 THROW("unnamed OAM action (name is mandatory)");
             }
-            if (newaction->d.oam.level == -1) {
-                THROW("no level specified for '%s' OAM action", newaction->d.oam.name);
+            if (newaction->oam.level == -1) {
+                THROW("no level specified for '%s' OAM action", newaction->oam.name);
             }
             //TODO allow OAM on TSN?
             enum ProtocolID expected[] = {PROTO_ID_MPLS, PROTO_ID_DCW};
@@ -1325,7 +1325,7 @@ static bool process_action(struct StageState *stst)
             }
             break;
         case CA_POF:
-            if (newaction->d.pof.pof == NULL) {
+            if (newaction->pof.pof == NULL) {
                 THROW("no POF object specified");
             }
             if (!stst->seq_set) {
@@ -1334,7 +1334,7 @@ static bool process_action(struct StageState *stst)
             break;
         case CA_READSEQ:
         case CA_WRITESEQ:
-            if (newaction->d.meta.field == NULL) {
+            if (newaction->meta.field == NULL) {
                 THROW("no header specified");
             }
             if (newaction->type == CA_READSEQ) {
@@ -1347,20 +1347,20 @@ static bool process_action(struct StageState *stst)
             break;
         case CA_READTSTAMP:
         case CA_WRITETSTAMP:
-            if (newaction->d.meta.field == NULL) {
+            if (newaction->meta.field == NULL) {
                 THROW("no header specified");
             }
             break;
         case CA_REPL:
             log_debug("CA_REPL: %s", newaction->text);
-            if (newaction->d.repl.pipelines == NULL) {
+            if (newaction->repl.pipelines == NULL) {
                 THROW("no pipelines specified");
             }
-            REVERSE_LIST(newaction->d.repl.pipelines);
+            REVERSE_LIST(newaction->repl.pipelines);
             stst->had_final = true;
             break;
         case CA_SEND:
-            if (newaction->d.send.iface == NULL) {
+            if (newaction->send.iface == NULL) {
                 THROW("no send interface specified");
             }
             if (stst->needs_ttlcheck) {
@@ -1383,7 +1383,7 @@ static bool process_action(struct StageState *stst)
             }
             break;
         case CA_SEQGEN:
-            if (newaction->d.seq.gen == NULL) {
+            if (newaction->seq.gen == NULL) {
                 THROW("seqgen needs a sequence generator object");
             }
             stst->seq_set = true;
@@ -1457,7 +1457,7 @@ struct ConfAction *parse_actions_line(const char *stream, char *line,
     if (ttlfield) {
         new_confaction(&stst, CA_TTLREDUCE, "automatic TTL reduce");
         struct HeaderField *field = header_get_field_of_type(stst.headers, 0, FT_TTL);
-        stst.actions->d.ttl.field = field;
+        stst.actions->ttl.field = field;
         stst.ttl_set = true;
         stst.needs_ttlcheck = stst.headers;
     }
@@ -1528,8 +1528,8 @@ struct ConfAction *delete_confaction_list(struct ConfAction *ca_list)
             case CA_UNDEF:
                 break;
             case CA_ADD:
-                free(del->d.add.newname);
-                delete_confassignments(del->d.add.assignments);
+                free(del->add.newname);
+                delete_confassignments(del->add.assignments);
                 break;
             case CA_DEL:
                 break;
@@ -1538,15 +1538,15 @@ struct ConfAction *delete_confaction_list(struct ConfAction *ca_list)
             case CA_DROP:
                 break;
             case CA_EDIT:
-                delete_confassignments(del->d.edit.assignments);
+                delete_confassignments(del->edit.assignments);
                 break;
             case CA_ELIM:
                 break;
             case CA_FILTEROAM:
-                free(del->d.filteroam.field);
+                free(del->filteroam.field);
                 break;
             case CA_JUMP:
-                free(del->d.jump.pipename);
+                free(del->jump.pipename);
                 break;
             case CA_POF:
                 break;
@@ -1554,10 +1554,10 @@ struct ConfAction *delete_confaction_list(struct ConfAction *ca_list)
             case CA_READTSTAMP:
             case CA_WRITESEQ:
             case CA_WRITETSTAMP:
-                free(del->d.meta.field);
+                free(del->meta.field);
                 break;
             case CA_REPL:
-                delete_replicatelist(del->d.repl.pipelines);
+                delete_replicatelist(del->repl.pipelines);
                 break;
             case CA_SEND:
                 break;
@@ -1566,12 +1566,12 @@ struct ConfAction *delete_confaction_list(struct ConfAction *ca_list)
             case CA_TTLCHECK:
                 break;
             case CA_TTLREDUCE:
-                free(del->d.ttl.field);
+                free(del->ttl.field);
                 break;
             case CA_MEPSTART:
             case CA_MEPSTOP:
             case CA_MIP:
-                free(del->d.oam.name);
+                free(del->oam.name);
                 break;
         }
         free(del);
@@ -1653,20 +1653,20 @@ struct Action *assemble_actions(const char *stream_name, const struct ConfAction
                 log_error("cannot assemble undefined action");
                 break;
             case CA_ADD:
-                create_action_add(ret+a, ca->d.add.pos_idx, ca->d.add.id, ca->d.add.len, ca->text);
+                create_action_add(ret+a, ca->add.pos_idx, ca->add.id, ca->add.len, ca->text);
                 break;
             case CA_DEL:
-                create_action_del(ret+a, ca->d.del.idx, ca->text);
+                create_action_del(ret+a, ca->del.idx, ca->text);
                 break;
             case CA_DELAY:
-                create_action_delay(ret+a, ca->d.delay.delay_value, ca->text);
+                create_action_delay(ret+a, ca->delay.delay_value, ca->text);
                 break;
             case CA_DROP:
                 create_action_drop(ret+a, ca->text);
                 break;
             case CA_EDIT: {
                 unsigned acount;
-                struct EditAssign *assigns = assemble_fieldassigns(ca->d.edit.assignments, &acount);
+                struct EditAssign *assigns = assemble_fieldassigns(ca->edit.assignments, &acount);
                 if (assigns == NULL) {
                     //TODO cleanup on error
                     log_error("could not assemble the field assignments for edit action");
@@ -1675,43 +1675,43 @@ struct Action *assemble_actions(const char *stream_name, const struct ConfAction
                 create_action_edit(ret+a, assigns, acount, ca->text);
                 break; }
             case CA_ELIM:
-                create_action_elim(ret+a, ca->d.elim.rec, ca->text);
+                create_action_elim(ret+a, ca->elim.rec, ca->text);
                 break;
             case CA_FILTEROAM:
-                create_action_filteroam(ret+a, ca->d.filteroam.field, ca->text);
+                create_action_filteroam(ret+a, ca->filteroam.field, ca->text);
                 break;
             case CA_JUMP:
                 log_error("assemble_actions() jump should have been inlined");
                 //TODO cleanup on error
                 return NULL;
             case CA_MEPSTART: {
-                if (!oam_create_mep_start(stream_name, ca->d.oam.name, ca->d.oam.level, a)) {
+                if (!oam_create_mep_start(stream_name, ca->oam.name, ca->oam.level, a)) {
                     //TODO cleanup on error
                     return NULL;
                 }
                 break; }
             case CA_MEPSTOP:
-                create_action_mepstop(ret+a, stream_name, ca->d.oam.level, ca->d.oam.obj, ca->d.oam.name, ca->text);
+                create_action_mepstop(ret+a, stream_name, ca->oam.level, ca->oam.obj, ca->oam.name, ca->text);
                 break;
             case CA_MIP:
-                create_action_mip(ret+a, stream_name, ca->d.oam.level, ca->d.oam.obj, ca->d.oam.name, ca->text);
-                if (!oam_create_mep_start(stream_name, ca->d.oam.name, ca->d.oam.level, a+1)) {
+                create_action_mip(ret+a, stream_name, ca->oam.level, ca->oam.obj, ca->oam.name, ca->text);
+                if (!oam_create_mep_start(stream_name, ca->oam.name, ca->oam.level, a+1)) {
                     //TODO: cleanup on error
                     return NULL;
                 }
                 break;
             case CA_POF:
-                create_action_pof(ret+a, ca->d.pof.pof, ca->text);
+                create_action_pof(ret+a, ca->pof.pof, ca->text);
                 break;
             case CA_READSEQ:
-                create_action_readseq(ret+a, ca->d.meta.field, ca->text);
+                create_action_readseq(ret+a, ca->meta.field, ca->text);
                 break;
             case CA_READTSTAMP:
-                create_action_readtstamp(ret+a, ca->d.meta.field, ca->text);
+                create_action_readtstamp(ret+a, ca->meta.field, ca->text);
                 break;
             case CA_REPL: {
                 struct PipelineList *pipes = NULL;
-                for (struct ReplicateList *r=ca->d.repl.pipelines; r; r=r->next) {
+                for (struct ReplicateList *r=ca->repl.pipelines; r; r=r->next) {
                     unsigned r_action_count;
                     struct Action *r_actions = assemble_actions(r->name, r->actions, &r_action_count);
                     if (!r_actions) {
@@ -1732,25 +1732,25 @@ struct Action *assemble_actions(const char *stream_name, const struct ConfAction
                     pipes = p;
                 }
                 REVERSE_LIST(pipes);
-                create_action_repl(ret+a, pipes, ca->d.repl.replobj, ca->text);
+                create_action_repl(ret+a, pipes, ca->repl.replobj, ca->text);
                 break; }
             case CA_SEND:
-                create_action_send(ret+a, ca->d.send.iface, ca->text);
+                create_action_send(ret+a, ca->send.iface, ca->text);
                 break;
             case CA_SEQGEN:
-                create_action_seqgen(ret+a, ca->d.seq.gen, ca->text);
+                create_action_seqgen(ret+a, ca->seq.gen, ca->text);
                 break;
             case CA_TTLCHECK:
                 create_action_ttlcheck(ret+a, ca->text);
                 break;
             case CA_TTLREDUCE:
-                create_action_ttlreduce(ret+a, ca->d.ttl.field, ca->text);
+                create_action_ttlreduce(ret+a, ca->ttl.field, ca->text);
                 break;
             case CA_WRITESEQ:
-                create_action_writeseq(ret+a, ca->d.meta.field, ca->text);
+                create_action_writeseq(ret+a, ca->meta.field, ca->text);
                 break;
             case CA_WRITETSTAMP:
-                create_action_writetstamp(ret+a, ca->d.meta.field, ca->text);
+                create_action_writetstamp(ret+a, ca->meta.field, ca->text);
                 break;
         }
         if (ca->type != CA_MEPSTART) //
@@ -1771,20 +1771,20 @@ void confactions_print(const struct ConfAction *ca_list)
                 break;
             case CA_ADD:
                 log_debug("  new name %s id %d type %s len %u index %u",
-                        ca->d.add.newname, ca->d.add.id,
-                        protocol_type_from_id(ca->d.add.id),
-                        ca->d.add.len, ca->d.add.pos_idx);
+                        ca->add.newname, ca->add.id,
+                        protocol_type_from_id(ca->add.id),
+                        ca->add.len, ca->add.pos_idx);
                 break;
             case CA_DEL:
-                log_debug("  index %u", ca->d.del.idx);
+                log_debug("  index %u", ca->del.idx);
                 break;
             case CA_DELAY:
-                log_info("  delaying %u ms", ca->d.delay.delay_value);
+                log_info("  delaying %u ms", ca->delay.delay_value);
                 break;
             case CA_DROP:
                 break;
             case CA_EDIT:
-                for (struct ConfAssignment *a=ca->d.edit.assignments; a; a=a->next) {
+                for (struct ConfAssignment *a=ca->edit.assignments; a; a=a->next) {
                     log_debug("  %s", a->text);
                     log_debug("      read %p write %p", a->read, a->write);
                     log_debug("    lhs type %s valuetype %s bitoffset %u bitcount %u",
@@ -1818,11 +1818,11 @@ void confactions_print(const struct ConfAction *ca_list)
                 break;
             case CA_FILTEROAM:
                 log_debug("  field idx %u bitoffset %u bitcount %u",
-                        ca->d.filteroam.field->header_idx, ca->d.filteroam.field->bitoffset,
-                        ca->d.filteroam.field->bitcount);
+                        ca->filteroam.field->header_idx, ca->filteroam.field->bitoffset,
+                        ca->filteroam.field->bitcount);
                 break;
             case CA_JUMP:
-                log_debug("  %s", ca->d.jump.pipename);
+                log_debug("  %s", ca->jump.pipename);
                 break;
             case CA_POF:
                 break;
@@ -1831,10 +1831,10 @@ void confactions_print(const struct ConfAction *ca_list)
             case CA_WRITESEQ:
             case CA_WRITETSTAMP:
                 log_debug("  field idx %u bitoffset %u bitcount %u",
-                        ca->d.meta.field->header_idx, ca->d.meta.field->bitoffset, ca->d.meta.field->bitcount);
+                        ca->meta.field->header_idx, ca->meta.field->bitoffset, ca->meta.field->bitcount);
                 break;
             case CA_REPL:
-                for (struct ReplicateList *p=ca->d.repl.pipelines; p; p=p->next) {
+                for (struct ReplicateList *p=ca->repl.pipelines; p; p=p->next) {
                     //TODO use indentation
                     log_info("  vvvvvvvv %s vvvvvvvv", p->name);
                     confactions_print(p->actions);
@@ -1842,7 +1842,7 @@ void confactions_print(const struct ConfAction *ca_list)
                 }
                 break;
             case CA_SEND:
-                log_debug("  iface %s", ca->d.send.iface ? ca->d.send.iface->name : "UNKNOWN");
+                log_debug("  iface %s", ca->send.iface ? ca->send.iface->name : "UNKNOWN");
                 break;
             case CA_SEQGEN:
                 break;
@@ -1850,7 +1850,7 @@ void confactions_print(const struct ConfAction *ca_list)
                 break;
             case CA_TTLREDUCE:
                 log_debug("  field idx %u bitoffset %u bitcount %u",
-                        ca->d.ttl.field->header_idx, ca->d.ttl.field->bitoffset, ca->d.ttl.field->bitcount);
+                        ca->ttl.field->header_idx, ca->ttl.field->bitoffset, ca->ttl.field->bitcount);
                 break;
             case CA_MEPSTART:
             case CA_MEPSTOP:
