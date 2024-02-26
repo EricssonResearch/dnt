@@ -1770,13 +1770,13 @@ void confactions_print(const struct ConfAction *ca_list)
             case CA_UNDEF:
                 break;
             case CA_ADD:
-                log_info("  new name %s id %d type %s len %u index %u",
+                log_debug("  new name %s id %d type %s len %u index %u",
                         ca->d.add.newname, ca->d.add.id,
                         protocol_type_from_id(ca->d.add.id),
                         ca->d.add.len, ca->d.add.pos_idx);
                 break;
             case CA_DEL:
-                log_info("  index %u", ca->d.del.idx);
+                log_debug("  index %u", ca->d.del.idx);
                 break;
             case CA_DELAY:
                 log_info("  delaying %u ms", ca->d.delay.delay_value);
@@ -1785,21 +1785,21 @@ void confactions_print(const struct ConfAction *ca_list)
                 break;
             case CA_EDIT:
                 for (struct ConfAssignment *a=ca->d.edit.assignments; a; a=a->next) {
-                    log_info("  %s", a->text);
-                    log_info("      read %p write %p", a->read, a->write);
-                    log_info("    lhs type %s valuetype %s bitoffset %u bitcount %u",
+                    log_debug("  %s", a->text);
+                    log_debug("      read %p write %p", a->read, a->write);
+                    log_debug("    lhs type %s valuetype %s bitoffset %u bitcount %u",
                             variabletype_name_from_type(a->lhs.type),
                             fieldtype_name_from_type(a->lhs.value_type),
                             a->lhs.value.bitoffset, a->lhs.value.bitcount);
                     if (a->lhs.type == CVT_FIELD) {
-                        log_info("      index %u", a->lhs.v.header.field->header_idx);
+                        log_debug("      index %u", a->lhs.v.header.field->header_idx);
                     }
-                    log_info("    rhs type %s valuetype %s bitoffset %u bitcount %u",
+                    log_debug("    rhs type %s valuetype %s bitoffset %u bitcount %u",
                             variabletype_name_from_type(a->rhs.type),
                             fieldtype_name_from_type(a->rhs.value_type),
                             a->rhs.value.bitoffset, a->rhs.value.bitcount);
                     if (a->rhs.type == CVT_FIELD) {
-                        log_info("      index %u", a->rhs.v.header.field->header_idx);
+                        log_debug("      index %u", a->rhs.v.header.field->header_idx);
                     } else if (a->rhs.type == CVT_CONST) {
                         unsigned bytes = DIVCEIL(a->rhs.value.bitoffset + a->rhs.value.bitcount, 8);
                         unsigned char *cst = a->rhs.value.value;
@@ -1810,19 +1810,19 @@ void confactions_print(const struct ConfAction *ca_list)
                                 b_off += snprintf(b_str+b_off, sizeof(b_str)-b_off, " 0x%.2x", cst[i]);
                             }
                         }
-                        log_info("      constant:%s", b_str);
+                        log_debug("      constant:%s", b_str);
                     }
                 }
                 break;
             case CA_ELIM:
                 break;
             case CA_FILTEROAM:
-                log_info("  field idx %u bitoffset %u bitcount %u",
+                log_debug("  field idx %u bitoffset %u bitcount %u",
                         ca->d.filteroam.field->header_idx, ca->d.filteroam.field->bitoffset,
                         ca->d.filteroam.field->bitcount);
                 break;
             case CA_JUMP:
-                log_info("  %s", ca->d.jump.pipename);
+                log_debug("  %s", ca->d.jump.pipename);
                 break;
             case CA_POF:
                 break;
@@ -1830,25 +1830,26 @@ void confactions_print(const struct ConfAction *ca_list)
             case CA_READTSTAMP:
             case CA_WRITESEQ:
             case CA_WRITETSTAMP:
-                log_info("  field idx %u bitoffset %u bitcount %u",
+                log_debug("  field idx %u bitoffset %u bitcount %u",
                         ca->d.meta.field->header_idx, ca->d.meta.field->bitoffset, ca->d.meta.field->bitcount);
                 break;
             case CA_REPL:
                 for (struct ReplicateList *p=ca->d.repl.pipelines; p; p=p->next) {
+                    //TODO use indentation
                     log_info("  vvvvvvvv %s vvvvvvvv", p->name);
                     confactions_print(p->actions);
                     log_info("  ^^^^^^^^ %s ^^^^^^^^", p->name);
                 }
                 break;
             case CA_SEND:
-                log_info("  iface %s", ca->d.send.iface ? ca->d.send.iface->name : "UNKNOWN");
+                log_debug("  iface %s", ca->d.send.iface ? ca->d.send.iface->name : "UNKNOWN");
                 break;
             case CA_SEQGEN:
                 break;
             case CA_TTLCHECK:
                 break;
             case CA_TTLREDUCE:
-                log_info("  field idx %u bitoffset %u bitcount %u",
+                log_debug("  field idx %u bitoffset %u bitcount %u",
                         ca->d.ttl.field->header_idx, ca->d.ttl.field->bitoffset, ca->d.ttl.field->bitcount);
                 break;
             case CA_MEPSTART:

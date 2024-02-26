@@ -211,13 +211,13 @@ static int addstream_cb(const char *key, void *value, void *userdata)
     }
 
     for (struct ConfStreamList *s=streamlist; s; s=s->next) {
-        log_info("adding stream %s to interface %s\n", s->stream_name, key);
+        log_info("adding stream %s to interface %s", s->stream_name, key);
 
         struct Pipeline *pipe = hashmap_find(state->pipe_cache, s->stream_name);
         if (pipe) {
-            log_info("  reusing already compiled pipeline\n");
+            log_info("  reusing already compiled pipeline");
         } else {
-            log_info("  compiling new pipeline\n");
+            log_info("  compiling new pipeline");
             unsigned action_count;
             struct Action *actions = assemble_actions(s->stream_name, s->stream->actions, &action_count);
             if (!actions) {
