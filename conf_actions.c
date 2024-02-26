@@ -906,7 +906,6 @@ static struct ConfAssignment *assign_nexthdrid_from_header_type(const char *acti
         const struct HeaderDescriptor *dstheader, unsigned dstpos,
         const struct HeaderDescriptor *typeheader)
 {
-    char editbuf[64];
     uint16_t nexthdrnum;
     const struct Protocol *dstpr = &protocol_list[dstheader->id];
     unsigned dst_idx = dstpr->nexthdr_idx;
@@ -916,10 +915,9 @@ static struct ConfAssignment *assign_nexthdrid_from_header_type(const char *acti
     }
 
     nexthdrnum = ntohs(nexthdrnum); // we need it in host order
-    snprintf(editbuf, 64, "%s sets %s.%s=0x%.4x", action_name,
-            dstheader->name, dstf->name, nexthdrnum);
     struct ConfAssignment *a = calloc_struct(ConfAssignment);
-    a->text = strdup(editbuf);
+    a->text = strdup_printf("%s sets %s.%s=0x%.4x", action_name,
+            dstheader->name, dstf->name, nexthdrnum);
     init_confvariable(&a->lhs, CVT_FIELD, dstf);
     init_confvariable(&a->rhs, CVT_CONST, dstf);
     prepare_constant_number(&a->rhs.value, nexthdrnum);
@@ -941,7 +939,6 @@ static struct ConfAssignment *assign_nexthdrid_copy_from_srcheader(const char *a
         const struct HeaderDescriptor *dstheader, unsigned dstpos,
         const struct HeaderDescriptor *srcheader, unsigned srcpos)
 {
-    char editbuf[64];
     const struct Protocol *dstpr = &protocol_list[dstheader->id];
     unsigned dst_idx = dstpr->nexthdr_idx;
     const struct ProtocolField *dstf = &dstpr->header_fields[dst_idx];
@@ -953,10 +950,9 @@ static struct ConfAssignment *assign_nexthdrid_copy_from_srcheader(const char *a
         return NULL;
     }
 
-    snprintf(editbuf, 64, "%s sets %s.%s=%s.%s", action_name,
-            dstheader->name, dstf->name, srcheader->name, srcf->name);
     struct ConfAssignment *a = calloc_struct(ConfAssignment);
-    a->text = strdup(editbuf);
+    a->text = strdup_printf("%s sets %s.%s=%s.%s", action_name,
+            dstheader->name, dstf->name, srcheader->name, srcf->name);
     init_confvariable(&a->lhs, CVT_FIELD, dstf);
     init_confvariable(&a->rhs, CVT_FIELD, srcf);
 
@@ -982,16 +978,16 @@ static struct ConfAssignment *assign_nexthdrid_copy_from_srcheader(const char *a
     return a;
 }
 
-static struct ConfAction *new_blank_confaction(struct StageState *stst, const char *text)
+static struct ConfAction *new_blank_confaction(struct StageState *stst, char *text)
 {
     struct ConfAction *ret = calloc_struct(ConfAction);
-    ret->text = strdup(text);
+    ret->text = text;
     ret->next = stst->actions;
     stst->actions = ret;
     return ret;
 }
 
-static struct ConfAction *new_confaction(struct StageState *stst, enum ConfActionType type, const char *text)
+static struct ConfAction *new_confaction(struct StageState *stst, enum ConfActionType type, char *text)
 {
     struct ConfAction *ret = new_blank_confaction(stst, text);
     ret->type = type;
@@ -1087,7 +1083,8 @@ static bool process_action(struct StageState *stst)
             const struct ProtocolField *seq_field = protocol_get_field_by_type(newheader->id, FT_TSNSEQ);
             if (seq_field) {
                 if (stst->seq_set) {
-                    struct ConfAction *writeseq = new_confaction(stst, CA_WRITESEQ, newaction->text);
+                    struct ConfAction *writeseq = new_confaction(stst, CA_WRITESEQ,
+                            strdup_printf("seq for %s", newaction->text));
                     writeseq->meta.field = new_headerfield(pos_idx, seq_field);
                     if (!process_action(stst)) // now writeseq is the newest action
                         return false;
@@ -1099,15 +1096,17 @@ static bool process_action(struct StageState *stst)
             // set timestamp if the new header has such a field
             const struct ProtocolField *tstamp_field = protocol_get_field_by_type(newheader->id, FT_TSNTSTAMP);
             if (tstamp_field) {
-                struct ConfAction *writets = new_confaction(stst, CA_WRITETSTAMP, newaction->text);
+                struct ConfAction *writets = new_confaction(stst, CA_WRITETSTAMP,
+                        strdup_printf("tstamp for %s", newaction->text));
                 writets->meta.field = new_headerfield(pos_idx, tstamp_field);
                 if (!process_action(stst)) // now writets is the newest action
                     return false;
             }
 
             // split off the header assignments into a new edit action
-            struct ConfAction *edit = new_confaction(stst, CA_EDIT, newaction->text);
-            edit->edit.assignments = newaction->add.assignments;
+            struct ConfAction *edit = new_confaction(stst, CA_EDIT,
+                    strdup_printf("assignments for %s", newaction->text));
+            edit->edit.assignments = newaction->add.assignments; //TODO start with nexthdr setter then the assignments
             newaction->add.assignments = NULL;
 
             // set the nexthdr field of newheader either by nextheader's type or by copying from prevheader
@@ -1175,7 +1174,8 @@ static bool process_action(struct StageState *stst)
             // if removing a sequence number tag (= end of tunnel), automatically filter OAM packets
             const struct ProtocolField *dseq_field = protocol_get_field_by_type(del->id, FT_TSNSEQ);
             if (dseq_field) {
-                struct ConfAction *filter = new_confaction(stst, CA_FILTEROAM, del->name);
+                struct ConfAction *filter = new_confaction(stst, CA_FILTEROAM,
+                        strdup_printf("filter before %s", del->name));
                 filter->filteroam.field = new_headerfield(idx, dseq_field);
                 // swap filter and delete so we are filtering before deleting
                 filter->next = newaction->next;
@@ -1223,7 +1223,8 @@ static bool process_action(struct StageState *stst)
             delete_header_list(del);
 
             if (a) {
-                struct ConfAction *dedit = new_confaction(stst, CA_EDIT, newaction->text);
+                struct ConfAction *dedit = new_confaction(stst, CA_EDIT,
+                        strdup_printf("set nexthdr for %s", newaction->text));
                 dedit->edit.assignments = a;
                 if (!process_action(stst)) // now dedit is the newest action
                     return false;
@@ -1364,7 +1365,7 @@ static bool process_action(struct StageState *stst)
                 THROW("no send interface specified");
             }
             if (stst->needs_ttlcheck) {
-                struct ConfAction *ttlcheck = new_confaction(stst, CA_TTLCHECK, "auto-check before send");
+                struct ConfAction *ttlcheck = new_confaction(stst, CA_TTLCHECK, strdup("auto-check before send"));
                 if (!process_action(stst)) // now ttlcheck is the newest action
                     return false;
 
@@ -1411,7 +1412,7 @@ static bool process_stage(char *stage, void *userdata)
         return false;
     }
 
-    struct ConfAction *newaction = new_blank_confaction(stst, stage);
+    struct ConfAction *newaction = new_blank_confaction(stst, strdup(stage));
 
     if (!foreach_tokens(stage, process_token, stst)) {
         log_error("failed to process action parameters '%s'", newaction->text);
@@ -1455,7 +1456,7 @@ struct ConfAction *parse_actions_line(const char *stream, char *line,
     // automatically reduce TTL & schedule a check, if the very first header has such a field
     const struct ProtocolField *ttlfield = protocol_get_field_by_type(headers->id, FT_TTL);
     if (ttlfield) {
-        new_confaction(&stst, CA_TTLREDUCE, "automatic TTL reduce");
+        new_confaction(&stst, CA_TTLREDUCE, strdup_printf("automatic TTL reduce on %s", headers->name));
         struct HeaderField *field = header_get_field_of_type(stst.headers, 0, FT_TTL);
         stst.actions->ttl.field = field;
         stst.ttl_set = true;
