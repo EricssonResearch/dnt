@@ -1106,8 +1106,6 @@ static bool process_action(struct StageState *stst)
             // split off the header assignments into a new edit action
             struct ConfAction *edit = new_confaction(stst, CA_EDIT,
                     strdup_printf("assignments for %s", newaction->text));
-            edit->edit.assignments = newaction->add.assignments; //TODO start with nexthdr setter then the assignments
-            newaction->add.assignments = NULL;
 
             // set the nexthdr field of newheader either by nextheader's type or by copying from prevheader
             if (protocol_list[newheader->id].get_nexthdr != NULL) {
@@ -1143,6 +1141,15 @@ static bool process_action(struct StageState *stst)
                 }
                 a->next = edit->edit.assignments;
                 edit->edit.assignments = a;
+            }
+
+            // add the assignments to the edit list
+            if (newaction->add.assignments) {
+                struct ConfAssignment *i = newaction->add.assignments;
+                while (i->next) i = i->next;
+                i->next = edit->edit.assignments;
+                edit->edit.assignments = newaction->add.assignments;
+                newaction->add.assignments = NULL;
             }
 
             if (edit->edit.assignments == NULL) {
