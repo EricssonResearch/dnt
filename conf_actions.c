@@ -257,6 +257,15 @@ static struct MustWriteField *copy_mustwrite_list(const struct StageState *stst,
     return ret;
 }
 
+static void delete_must_write_list(struct MustWriteField *must_write)
+{
+    while (must_write) {
+        struct MustWriteField *del = must_write;
+        must_write = must_write->next;
+        free(del);
+    }
+}
+
 // @returns the position of @pos in the linked list @headers
 // @pos must be in the linked list!
 static unsigned header_index(const struct HeaderDescriptor *headers, const struct HeaderDescriptor *pos)
@@ -387,6 +396,7 @@ static bool process_assignment_lhs(struct StageState *stst, struct ConfAssignmen
         lhs->v.header.field = new_headerfield(header_index(stst->headers, h), f);
         assign->lhs_protoid = h->id;
 
+        // remove the must_write entry if we are writing that header field
         struct MustWriteField *mw_last = NULL;
         struct MustWriteField *mw = stst->must_write;
         while (mw) {
@@ -821,8 +831,11 @@ static bool process_token(char *token, void *userdata)
                 pstst.actions = NULL;
                 pstst.must_write = copy_mustwrite_list(stst, pstst.headers);
                 if (stst->must_write && !pstst.must_write) {
+                    //TODO we need a stst destructor
                     free(pstring);
                     free(replname);
+                    delete_header_list(pstst.headers);
+                    delete_must_write_list(pstst.must_write);
                     THROW("failed to copy the must_write list?!?");
                 }
                 if (!foreach_stages(pstring, process_stage, &pstst)) {
@@ -830,15 +843,16 @@ static bool process_token(char *token, void *userdata)
                     free(replname);
                     delete_header_list(pstst.headers);
                     delete_confaction_list(pstst.actions);
+                    delete_must_write_list(pstst.must_write);
                     THROW("failed to process pipeline '%s'", token);
                 }
                 free(pstring);
                 free(replname);
+                delete_must_write_list(pstst.must_write);
+                delete_header_list(pstst.headers);
                 if (pstst.actions == NULL) {
-                    delete_header_list(pstst.headers);
                     THROW("no actions in pipeline '%s'", token);
                 }
-                delete_header_list(pstst.headers);
                 REVERSE_LIST(pstst.actions);
                 replicatelist_push(&newaction->repl.pipelines, strdup(token), pstst.actions);
             }
@@ -1282,6 +1296,8 @@ static bool process_action(struct StageState *stst)
                 char *jumpname = strdup_printf("%s.%s", stst->stream, newaction->jump.pipename);
                 jstst.stream = jumpname;
                 jstst.actions = NULL;
+                // not copying header and must_write lists, because we don't branch (unlike REPLICATE)
+
                 //TODO limit recursion depth with a counter in stst
                 if (!foreach_stages(pipestring, process_stage, &jstst)) {
                     free(pipestring);
@@ -1296,18 +1312,22 @@ static bool process_action(struct StageState *stst)
                 }
 
                 // replace jump with the newly read action list
+                struct ConfAction *newbegin = jstst.actions;
                 struct ConfAction *newend = jstst.actions;
                 while (newend->next) newend = newend->next;
-                newend->next = newaction->next;
                 struct ConfAction *jump = newaction;
+                newend->next = jump->next;
                 jump->next = NULL;
-                stst->actions = jstst.actions;
-                stst->headers = jstst.headers;
                 delete_confaction_list(jump);
+                stst->actions = newbegin;
+
+                stst->headers = jstst.headers;
+                // normally this list is empty, but get it back from jstst anyway
+                stst->must_write = jstst.must_write;
+                stst->had_final = true;
             } else {
                 THROW("action pipeline '%s' not found", newaction->jump.pipename);
             }
-            stst->had_final = true;
             break;
         case CA_MEPSTART:
         case CA_MEPSTOP:
@@ -1494,6 +1514,12 @@ struct ConfAction *parse_actions_line(const char *stream, char *line,
     //TODO in stst.actions set all pointers to stst.headers to NULL
 
     delete_header_list(stst.headers);
+
+    if (stst.must_write) {
+        // strange edge case...
+        log_warning("there was a MEP-START, no EDIT label, no SEND");
+        delete_must_write_list(stst.must_write);
+    }
 
     return stst.actions;
 }
