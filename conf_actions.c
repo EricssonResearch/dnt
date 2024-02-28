@@ -31,6 +31,8 @@
 
 DEFAULT_LOGGING_MODULE(CONFIG, WARNING);
 
+#define MAX_DEPTH 10
+
 // when adding a new action to R2DTWO, start with adding it to this enum
 enum ConfActionType {
     CA_UNDEF,
@@ -183,6 +185,7 @@ struct StageState {
     bool ttl_set; // true if we had an action that sets packet->ttl
     struct HeaderDescriptor *needs_ttlcheck; // points to the header we automatically put a TTLReduce on
     struct MustWriteField *must_write;
+    unsigned depth; // limit recursion depth with JUMP and REPLICATE
 };
 
 
@@ -836,6 +839,9 @@ static bool process_token(char *token, void *userdata)
                     THROW("pipeline or object '%s' not found", token);
                 }
             } else {
+                if (stst->depth > MAX_DEPTH) {
+                    THROW("jump depth exceeded");
+                }
                 pstring = strdup(pstring);
                 struct StageState pstst = *stst;
                 char *replname = strdup_printf("%s.%s", stst->stream, token);
@@ -843,6 +849,7 @@ static bool process_token(char *token, void *userdata)
                 pstst.headers = copy_header_list(stst->headers);
                 pstst.actions = NULL;
                 pstst.must_write = copy_mustwrite_list(stst, pstst.headers);
+                pstst.depth += 1;
                 if (stst->must_write && !pstst.must_write) {
                     //TODO we need a stst destructor
                     free(pstring);
@@ -1307,14 +1314,18 @@ static bool process_action(struct StageState *stst)
             }
             char *pipestring = inisection_get(stst->streams_sec, newaction->jump.pipename);
             if (pipestring) {
+                if (stst->depth > MAX_DEPTH) {
+                    THROW("jump depth exceeded");
+                }
+
                 pipestring = strdup(pipestring);
                 struct StageState jstst = *stst;
                 char *jumpname = strdup_printf("%s.%s", stst->stream, newaction->jump.pipename);
                 jstst.stream = jumpname;
                 jstst.actions = NULL;
+                jstst.depth += 1;
                 // not copying header and must_write lists, because we don't branch (unlike REPLICATE)
 
-                //TODO limit recursion depth with a counter in stst
                 if (!foreach_stages(pipestring, process_stage, &jstst)) {
                     free(pipestring);
                     free(jumpname);
@@ -1490,6 +1501,7 @@ struct ConfAction *parse_actions_line(const char *stream, char *line,
         .ttl_set = false,
         .needs_ttlcheck = NULL,
         .must_write = NULL,
+        .depth = 0,
     };
 
     // automatically reduce TTL & schedule a check, if the very first header has such a field
