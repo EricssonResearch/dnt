@@ -309,7 +309,7 @@ static bool recover(struct SequenceRecovery *rec, unsigned packet_seq, bool init
         rec->passed_packets += 1;
         reset_ticks(rec);
         return true;
-    } else if(delta >= rec->history_length || delta <= -rec->history_length) {
+    } else if(delta > rec->history_length || delta <= -rec->history_length) {
         rec->rogue_packets += 1;
         rec->discarded_packets += 1;
 
