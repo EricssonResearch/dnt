@@ -31,6 +31,7 @@
 
 DEFAULT_LOGGING_MODULE(CONFIG, WARNING);
 
+// when adding a new action to R2DTWO, start with adding it to this enum
 enum ConfActionType {
     CA_UNDEF,
     CA_ADD,
@@ -283,6 +284,18 @@ static struct HeaderField *header_get_field_of_type(struct HeaderDescriptor *hdr
         return new_headerfield(hdr_idx, field);
     else
         return NULL;
+}
+
+// concatenate @a and @b, return the beginning of the new list
+// both @a and @b can be NULL
+static struct ConfAction *confaction_concat(struct ConfAction *a, struct ConfAction *b)
+{
+    if (a == NULL) return b;
+
+    struct ConfAction *p = a;
+    while (p->next) p = p->next;
+    p->next = b;
+    return a;
 }
 
 static const char *confaction_name_from_type(enum ConfActionType type)
@@ -1117,7 +1130,7 @@ static bool process_action(struct StageState *stst)
                     return false;
             }
 
-            // split off the header assignments into a new edit action
+            // split off the header field assignments into a new edit action
             struct ConfAction *edit = new_confaction(stst, CA_EDIT,
                     strdup_printf("assignments for %s", newaction->text));
 
@@ -1198,6 +1211,9 @@ static bool process_action(struct StageState *stst)
                 struct ConfAction *filter = new_confaction(stst, CA_FILTEROAM,
                         strdup_printf("filter before %s", del->name));
                 filter->filteroam.field = new_headerfield(idx, dseq_field);
+                if (!process_action(stst)) // now filter is the newest action
+                    return false;
+
                 // swap filter and delete so we are filtering before deleting
                 filter->next = newaction->next;
                 newaction->next = filter;
@@ -1312,14 +1328,10 @@ static bool process_action(struct StageState *stst)
                 }
 
                 // replace jump with the newly read action list
-                struct ConfAction *newbegin = jstst.actions;
-                struct ConfAction *newend = jstst.actions;
-                while (newend->next) newend = newend->next;
                 struct ConfAction *jump = newaction;
-                newend->next = jump->next;
+                stst->actions = confaction_concat(jstst.actions, jump->next);
                 jump->next = NULL;
                 delete_confaction_list(jump);
-                stst->actions = newbegin;
 
                 stst->headers = jstst.headers;
                 // normally this list is empty, but get it back from jstst anyway
