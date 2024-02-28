@@ -8,7 +8,17 @@ The OAM functionality requires the following pre-requisites:
 * Add `mep-start`, `mip` and `mep-stop` actions to the stream actions
 * optionally configure OAM background commands to be executed
 
-Examples for the interface and command parameters can be found in **inispec.md**.
+For each replication and elimination object, `mip` points are automatically created. In case of replication objects, a `mip` is placed before the replication. in case of elimination objects, a `mip` is placed before AND after the elimination.  
+The automatically generated `mip`s are always uniquely identified, but they also can be listed with the `rlist` command.
+The naming for the auto generated replication `mip` objects is 
+ * o_<stream_action_name>_L<level>_pre_<replication_object_name>. 
+For the elimination objects, the generated `mip`s are:
+ * o_<stream_action_name>_L<level>_pre_<elimination_object_name>. 
+ * o_L<level>_post_<elimination_object_name>. 
+where `stream_action_name` is the name of the stream, or after a jump the name of the action pipeline where the jump refers. This is needed to uniquely identify the streams/substreams. For elimination objects, the post elimination `mip` is uniquely identified by the elimination object name.
+The level is currently fixed to 4. The `replication_object_name` and `elimination_object_name` refer to the replication and elimination objects. 
+
+Examples and naming convention for the interface and command parameters can be found in **inispec.md**.
 
 The OAM CLI can be reached via `telnet` command to the address:port specified for the `oam_cmd` interface.
 
