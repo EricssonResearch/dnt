@@ -26,6 +26,6 @@ struct ConfAction *delete_confaction_list(struct ConfAction *ca_list);
 // creates an Action array from the action descriptor list
 struct Action *assemble_actions(const char *stream_name, const struct ConfAction *ca_list, unsigned *action_count);
 
-void confactions_print(const struct ConfAction *ca_list);
+void confactions_print(const struct ConfAction *ca_list, unsigned indent);
 
 #endif // R2_CONF_ACTIONS_H
