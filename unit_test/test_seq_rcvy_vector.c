@@ -62,9 +62,9 @@ static void test_window(void)
     p->sequence = htonl(start+1 - history_length+1);
     OK(seq_recovery(rec, pi) == ACR_CONTINUE, "window edge inside");
 
-    p->sequence = htonl(start+1 + history_length);
+    p->sequence = htonl(start+1 + history_length+1);
     OK(seq_recovery(rec, pi) == ACR_DONE, "window edge outside");
-    p->sequence = htonl(start+1 + history_length-1);
+    p->sequence = htonl(start+1 + history_length);
     OK(seq_recovery(rec, pi) == ACR_CONTINUE, "window edge inside and move window");
 
     // window center is at start+history_length now
