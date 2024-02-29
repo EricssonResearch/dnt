@@ -1,0 +1,250 @@
+// Copyright (c) 2023, Ericsson AB and Ericsson Telecommunication Hungary
+// All rights reserved.
+
+
+#define OAM_INTERNAL
+
+#include "oam.h"
+#include "oam_command.h"
+#include "oam_core.h"
+#include "oam_message.h"
+
+#include "if_oam.h"
+#include "hashmap.h"
+#include "log.h"
+#include "utils.h"
+
+#include <stdlib.h>
+#include <string.h>
+
+DEFAULT_LOGGING_MODULE(OAM, INFO);
+
+
+static struct HashMap *oam_ifaces;
+static struct Interface *oam_default_iface = NULL;
+static struct Interface *oam_cmd_iface = NULL;
+
+static struct HashMap *mep_starts = NULL; // name -> struct MEPStart
+
+
+bool set_oam_cmd_if(struct Interface *iface)
+{
+    if (oam_cmd_iface == NULL) {
+        oam_cmd_iface = iface;
+        return true;
+    } else {
+        log_error("only one OAM command interface is supported, config has '%s' and '%s'",
+                oam_cmd_iface->name, iface->name);
+        return false;
+    }
+}
+
+static int oam_if_del_cb(const char *key, void *value, void *userdata)
+{
+    // we don't own the key or the value
+    (void)key;
+    (void)value;
+    (void)userdata;
+    return 1;
+}
+
+void add_oam_if(struct Interface *iface)
+{
+    if (oam_ifaces == NULL) {
+        oam_ifaces = new_hashmap(9, oam_if_del_cb, NULL);
+    }
+    hashmap_insert(oam_ifaces, iface->name, iface);
+
+    if (oam_default_iface == NULL) {
+        oam_default_iface = iface;
+    } else {
+        if (strcmp(iface->name, oam_default_iface->name) < 0)
+            oam_default_iface = iface;
+    }
+}
+
+struct Interface *get_oam_interface(const char *ifname)
+{
+    return ifname[0] ? hashmap_find(oam_ifaces, ifname) : oam_default_iface;
+}
+
+static int list_oam_ifaces_cb(const char *ifname, void *value, void *userdata)
+{
+    struct Interface *iface = value;
+    FILE *cmd_w = userdata;
+
+    const char *return_ip = oamif_get_ip(iface);
+    unsigned return_port = oamif_get_port(iface);
+    fprintf(cmd_w, "%s ip %s port %u",
+            ifname, return_ip, return_port);
+    if (iface == oam_default_iface) {
+        fprintf(cmd_w, " (default, node id %u)\n", oamif_get_uid(iface));
+    } else {
+        fprintf(cmd_w, "\n");
+    }
+
+    return 1;
+}
+
+void list_oam_ifaces(FILE *cmd_w)
+{
+    fprintf(cmd_w, "Available OAM return interfaces:\n");
+    hashmap_foreach_sorted(oam_ifaces, list_oam_ifaces_cb, cmd_w);
+}
+
+bool have_default_iface(void)
+{
+    return oam_default_iface != NULL;
+}
+
+unsigned short get_node_id(void)
+{
+    return oamif_get_uid(oam_default_iface);
+}
+
+static int mep_start_delete_cb(const char *key, void *value, void *userdata)
+{
+    (void)key;
+    (void)userdata;
+    struct MepStart *mepstart = value;
+    free(mepstart->name);
+    free(mepstart->mep_name);
+    free(mepstart->stream_name);
+    free(mepstart);
+    return 1;
+}
+
+//TODO sometimes @stream_name and @mep_name are not enough to distinguish between start points
+//      somehow we need to introduce the concept of "compound stream"
+bool oam_create_mep_start(const char *stream_name, const char *mep_name, int level, unsigned idx)
+{
+    if (mep_starts == NULL) {
+        mep_starts = new_hashmap(13, mep_start_delete_cb, NULL);
+    }
+    struct MepStart *mepstart = hashmap_find(mep_starts, mep_name);
+    if (mepstart) {
+        log_error("MEP Start '%s' defined twice, in streams '%s' and '%s'",
+                mep_name, mepstart->stream_name, stream_name);
+        return false;
+    }
+    mepstart = calloc_struct(MepStart);
+    mepstart->name = strdup_printf("%s:%s", stream_name, mep_name);
+    mepstart->mep_name = strdup(mep_name);
+    mepstart->stream_name = strdup(stream_name);
+    mepstart->level = level;
+    mepstart->pipe_pos_idx = idx;
+    // for mepstart->pipe see oam_set_pipeline_for_mep_start()
+    hashmap_insert(mep_starts, mepstart->name, mepstart);
+    return true;
+}
+
+struct MepStart *find_mep_start(const char *name)
+{
+    return hashmap_find(mep_starts, name);
+}
+
+int foreach_mep_start(hashmap_cb *cb, void *userdata)
+{
+    return hashmap_foreach_sorted(mep_starts, cb, userdata);
+}
+
+
+struct SetPipeParam {
+    const char *stream_name;
+    struct Pipeline *pipe;
+};
+
+static int set_pipe_cb(const char *key, void *value, void *userdata)
+{
+    (void)key;
+    struct MepStart *mepstart = value;
+    struct SetPipeParam *params = userdata;
+
+    if (strcmp(mepstart->stream_name, params->stream_name) == 0)
+        mepstart->pipe = params->pipe;
+
+    return 1;
+}
+
+void oam_set_pipeline_for_mep_start(const char *stream_name, struct Pipeline *pipe)
+{
+    struct SetPipeParam params = {stream_name, pipe};
+    hashmap_foreach(mep_starts, set_pipe_cb, &params);
+}
+
+struct OamEndPoint *oam_create_endpoint(const char *name, const char *stream, int level, struct PipelineObject *target, bool stop)
+{
+    struct OamEndPoint *ret = calloc_struct(OamEndPoint);
+    ret->name = strdup(name);
+    ret->stream = strdup(stream);
+    ret->level = level;
+    ret->target = target;
+    ret->stop = stop;
+    return ret;
+}
+
+
+static int oam_start_background_ping_cb(const char *key, void *value, void *userdata)
+{
+    (void) userdata;
+    const char *request = value;
+    log_info("starting background ping command '%s'", key);
+
+    if (strncmp(request, "ping", 4) != 0) {
+        log_error("background command '%s' is not ping", key);
+        return 0;
+    }
+    struct oam_request *ping_req = parse_ping_command(request+4, true, false, NULL);
+
+    if (ping_req->error) {
+        log_error("background ping command '%s' invalid: %s", key, ping_req->error);
+        delete_oam_request(ping_req);
+        return 0;
+    }
+
+    ping_req->count = 0;    // force infinite count
+
+    struct StreamSessions *stream = get_stream_sessions(ping_req->mep_start->stream_name);
+    if (stream_live_session_count(stream) >= 14) {
+        log_error("stream %s has too many sessions, can't start background ping", ping_req->mep_start->stream_name);
+        free(ping_req);
+        return 0;
+    }
+    return initiate_request(ping_req);
+}
+
+
+bool init_oam(struct HashMap *config_oam)
+{
+    bool have_command_iface = oam_cmd_iface != NULL;
+    bool have_reply_iface = oam_default_iface != NULL;
+
+    init_msg_module(have_command_iface, have_reply_iface);
+
+    if (oam_default_iface || oam_cmd_iface) {
+        log_info("Init OAM fuctionality:%s%s",
+                oam_cmd_iface?" telnet interface":"",
+                oam_default_iface?" reply interface":"");
+    } else {
+        return true;
+    }
+
+    init_cmd_module();
+
+    // Start OAM background streams
+    if (!hashmap_foreach(config_oam, oam_start_background_ping_cb, NULL)) {
+        log_error("failed to start oam background command");
+        return false;
+    }
+    return true;
+}
+
+void finish_oam(void)
+{
+    stop_all_sessions_of_connection(NULL); // stop the background sessions
+    finish_msg_module();
+    finish_cmd_module();
+    delete_hashmap(mep_starts);
+    delete_hashmap(oam_ifaces);
+    log_info("Stopped OAM functionality");
+}
