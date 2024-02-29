@@ -12,9 +12,8 @@ struct HashMap;
 struct IniSection;
 
 // parse the "*:actions" line for a stream
-// modifies the given @line
 // returns a linked list of (opaque) action descriptors
-struct ConfAction *parse_actions_line(const char *stream, char *line,
+struct ConfAction *parse_actions_line(const char *stream, const char *line,
         const struct HeaderDescriptor *headers,
         const struct HashMap *ifaces,
         const struct HashMap *objects,

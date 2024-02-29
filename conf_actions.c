@@ -301,6 +301,17 @@ static struct ConfAction *confaction_concat(struct ConfAction *a, struct ConfAct
     return a;
 }
 
+// swap @ca with @ca->next, return the new beginning of the list
+// doesn't do anything if next is NULL
+static struct ConfAction *confaction_swap_with_next(struct ConfAction *ca)
+{
+    if (ca->next == NULL) return ca;
+    struct ConfAction *n = ca->next;
+    ca->next = n->next;
+    n->next = ca;
+    return n;
+}
+
 static const char *confaction_name_from_type(enum ConfActionType type)
 {
     switch (type) {
@@ -459,7 +470,7 @@ static bool process_assignment_rhs(struct StageState *stst, struct ConfAssignmen
             }
             const struct ProtocolField *f = protocol_get_field_by_name(h->id, val);
             if (f) {
-                log_debug("rhs is a header field!");
+                log_debug("rhs is a header field");
                 if (lhs->value_type != f->type) {
                     THROW("types of left-hand-side %s and right-hand-side %s don't match",
                             fieldtype_name_from_type(lhs->value_type), fieldtype_name_from_type(f->type));
@@ -487,7 +498,7 @@ static bool process_assignment_rhs(struct StageState *stst, struct ConfAssignmen
 
         struct Interface *iface = hashmap_find(stst->ifaces, key);
         if (iface) {
-            log_debug("rhs is an interface!");
+            log_debug("rhs is an interface");
             if (iface->get_property_reader) {
 
                 assign->read = iface->get_property_reader(iface, val, lhs->value_type, &lhs->value);
@@ -514,11 +525,11 @@ static bool process_assignment_rhs(struct StageState *stst, struct ConfAssignmen
         val[-1] = '.';
     }
 
-    log_debug("rhs may be a constant...");
+    //log_debug("rhs may be a constant...");
     // constant doesn't have a read function just a value
     init_confvariable_full(rhs, CVT_CONST, FT_UNKNOWN, lhs->value.bitoffset, lhs->value.bitcount);
     if (read_constant(&rhs->value, assign->lhs_protoid, lhs->value_type, string)) {
-        log_debug("rhs is a constant!");
+        log_debug("rhs is a constant");
         rhs->value_type = lhs->value_type;
         assign->read = NULL;
 
@@ -1083,6 +1094,7 @@ static bool process_action(struct StageState *stst)
             newheader->id = newaction->add.id;
 
             // add newheader to stst->headers at the designated position
+            // step 1: find the location in the linked list
             struct HeaderDescriptor *prevheader, *nextheader;
             if (newaction->add.beforeafter == ADD_BEFORE) {
                 nextheader = newaction->add.pos;
@@ -1098,7 +1110,7 @@ static bool process_action(struct StageState *stst)
                 nextheader = newaction->add.pos->next;
             }
 
-            // get the header index and fix it in the assignments
+            // step 2: get the header index and fix it in the assignments
             unsigned pos_idx = header_index(stst->headers, newaction->add.pos);
             if (newaction->add.beforeafter == ADD_AFTER) pos_idx++;
             newaction->add.pos_idx = pos_idx;
@@ -1106,6 +1118,7 @@ static bool process_action(struct StageState *stst)
                 a->lhs.v.header.field->header_idx = pos_idx;
             }
 
+            // step 3: actually add the header to the list
             newheader->next = nextheader;
             if (prevheader) {
                 prevheader->next = newheader;
@@ -1137,7 +1150,7 @@ static bool process_action(struct StageState *stst)
                     return false;
             }
 
-            // split off the header field assignments into a new edit action
+            // create a new EDIT action from the nexthdr setters and the header field assignments
             struct ConfAction *edit = new_confaction(stst, CA_EDIT,
                     strdup_printf("assignments for %s", newaction->text));
 
@@ -1222,9 +1235,7 @@ static bool process_action(struct StageState *stst)
                     return false;
 
                 // swap filter and delete so we are filtering before deleting
-                filter->next = newaction->next;
-                newaction->next = filter;
-                stst->actions = newaction;
+                stst->actions = confaction_swap_with_next(stst->actions);
             }
 
             // cancel TTL check if we've removed the header to be checked
@@ -1274,9 +1285,7 @@ static bool process_action(struct StageState *stst)
                     return false;
 
                 // swap dedit and delete so we are editing before deleting
-                dedit->next = newaction->next;
-                newaction->next = dedit;
-                stst->actions = newaction;
+                stst->actions = confaction_swap_with_next(stst->actions);
             }
             break;
         case CA_DELAY:
@@ -1361,16 +1370,15 @@ static bool process_action(struct StageState *stst)
             if (newaction->oam.level == -1) {
                 THROW("no level specified for '%s' OAM action", newaction->oam.name);
             }
-            //TODO allow OAM on TSN?
             enum ProtocolID expected[] = {PROTO_ID_MPLS, PROTO_ID_DCW};
             if (check_header_stack(stst->headers, expected, 2) == false) {
                 THROW("header stack is not suitable for OAM point");
             }
-            if (newaction->type == CA_MEPSTART) { //TODO also for CA_MIP?
+            if (newaction->type == CA_MEPSTART || newaction->type == CA_MIP) {
+                // this is a packet injection point, user must write label before sending
                 struct MustWriteField *mw = calloc_struct(MustWriteField);
                 mw->header = stst->headers;
                 mw->field = protocol_get_field_by_name(PROTO_ID_MPLS, "label");
-
                 mw->next = stst->must_write;
                 stst->must_write = mw;
             }
@@ -1416,13 +1424,12 @@ static bool process_action(struct StageState *stst)
             }
             if (stst->needs_ttlcheck) {
                 struct ConfAction *ttlcheck = new_confaction(stst, CA_TTLCHECK, strdup("auto-check before send"));
+                (void)ttlcheck;
                 if (!process_action(stst)) // now ttlcheck is the newest action
                     return false;
 
                 // swap them so we check before send
-                ttlcheck->next = newaction->next;
-                newaction->next = ttlcheck;
-                stst->actions = newaction;
+                stst->actions = confaction_swap_with_next(stst->actions);
                 stst->needs_ttlcheck = 0;
             }
             if (stst->must_write) {
@@ -1483,7 +1490,7 @@ static bool process_stage(char *stage, void *userdata)
     return true;
 }
 
-struct ConfAction *parse_actions_line(const char *stream, char *line,
+struct ConfAction *parse_actions_line(const char *stream, const char *line,
         const struct HeaderDescriptor *headers,
         const struct HashMap *ifaces,
         const struct HashMap *objects,
@@ -1811,7 +1818,7 @@ struct Action *assemble_actions(const char *stream_name, const struct ConfAction
                 create_action_writetstamp(ret+a, ca->meta.field, ca->text);
                 break;
         }
-        if (ca->type != CA_MEPSTART) //
+        if (ca->type != CA_MEPSTART) // this doesn't appear as an action
             a++;
     }
 
@@ -1916,7 +1923,8 @@ void confactions_print(const struct ConfAction *ca_list, unsigned indent)
             case CA_MEPSTART:
             case CA_MEPSTOP:
             case CA_MIP:
-                //TODO: implement
+                log_debug("%*cname %s level %d object %s", indent+2, ' ',
+                        ca->oam.name, ca->oam.level, ca->oam.obj?ca->oam.obj->name:"<none>");
                 break;
         }
     }
