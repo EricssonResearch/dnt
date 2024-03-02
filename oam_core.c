@@ -183,6 +183,13 @@ struct OamEndPoint *oam_create_endpoint(const char *name, const char *stream, in
     return ret;
 }
 
+struct OamEndPoint *oam_delete_endpoint(struct OamEndPoint *end)
+{
+    free(end->name);
+    free(end->stream);
+    free(end);
+    return NULL;
+}
 
 static int oam_start_background_ping_cb(const char *key, void *value, void *userdata)
 {

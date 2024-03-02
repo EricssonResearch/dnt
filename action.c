@@ -545,19 +545,29 @@ void create_action_writetstamp(struct Action *a, const struct HeaderField *tsfie
 
 /////////////////////////////////////////////////////////////////////
 
+struct MepData {
+    struct OamEndPoint *oam;
+};
+
 static enum ActionResult action_MEP_execute(struct Action *a, struct PipelineIterator *pi)
 {
     struct Packet *p = pi->packet;
-    struct OamEndPoint *oam  = a->action_private;
+    struct MepData *md = a->action_private;
     // note: we made sure in conf_actions.c that at this point of the pipeline the packet starts with mpls+dcw
     unsigned char *oam_hdr = p->buf + p->headers[1].start;
 
     if(oam_hdr[0] == 0x11) {
-        oam_recv_request(oam, pi);
+        oam_recv_request(md->oam, pi);
         return ACR_HOLD;
     } else {
         return ACR_CONTINUE;
     }
+}
+
+static void action_mep_del(void *action_private)
+{
+    struct MepData *md = action_private;
+    oam_delete_endpoint(md->oam);
 }
 
 #define action_MEPSTOP_execute action_MEP_execute
@@ -567,16 +577,22 @@ void create_action_mepstop(struct Action *a, const char *stream, int level, stru
         const char *name, const char *text)
 {
     INIT_ACTION(MEPSTOP);
+    a->del = action_mep_del;
 
-    a->action_private = oam_create_endpoint(name, stream, level, target, true);
+    struct MepData *md = calloc_struct(MepData);
+    md->oam = oam_create_endpoint(name, stream, level, target, true);
+    a->action_private = md;
 }
 
 void create_action_mip(struct Action *a, const char *stream, int level, struct PipelineObject *target,
         const char *name, const char *text)
 {
     INIT_ACTION(MIP);
+    a->del = action_mep_del;
 
-    a->action_private = oam_create_endpoint(name, stream, level, target, false);
+    struct MepData *md = calloc_struct(MepData);
+    md->oam = oam_create_endpoint(name, stream, level, target, false);
+    a->action_private = md;
 }
 
 /////////////////////////////////////////////////////////////////////

@@ -20,7 +20,7 @@ struct OamEndPoint {
     char *stream;
     int level;
     struct PipelineObject *target; // PRF, PEF, POF, etc.
-    bool stop;
+    bool stop; // false: MIP, true: MEP-Stop
 };
 
 bool init_oam(struct HashMap *config_oam);
@@ -43,7 +43,12 @@ void oam_cli_alert(const char *fmt, ...)
 bool oam_create_mep_start(const char *stream_name, const char *mep_name, int level, unsigned idx);
 void oam_set_pipeline_for_mep_start(const char *stream_name, struct Pipeline *pipe);
 
+// create a structure that represents an OAM request receiver point
+// used by MIP and MEP-STOP actions
 struct OamEndPoint *oam_create_endpoint(const char *name, const char *stream, int level, struct PipelineObject *target, bool stop);
+
+// always returns NULL
+struct OamEndPoint *oam_delete_endpoint(struct OamEndPoint *end);
 
 bool set_oam_cmd_if(struct Interface *iface);
 void add_oam_if(struct Interface *iface);
