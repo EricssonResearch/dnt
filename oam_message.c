@@ -332,8 +332,8 @@ static bool send_request(const struct oam_request *req){
     unsigned char *msg = packet->buf + packet->headers[2].start;
     memcpy(msg, js_string, js_length);
 
-    log_packet("%s %s:%d seq %d lvl %d S - %s",
-               req->mep_start->mep_name, req->mep_start->stream_name, req->session_id, req->seq, req->level,
+    log_packet("send request %s %s:%d seq %d lvl %d - %s",
+               req->mep_start->name, req->mep_start->stream_name, req->session_id, req->seq, req->level,
                js_string);
 
     free(js_string);
@@ -378,7 +378,8 @@ bool initiate_request(struct oam_request *req)
 
     struct Pipeline *pipe = req->mep_start->pipe;
     if (!pipe) {
-        if (cmd_w) fprintf(cmd_w, "mep start '%s' has no pipeline!?!\n", req->mep_start->name);
+        req->error = strdup_printf("mep start '%s' has no pipeline!?!\n", req->mep_start->name);
+        if (cmd_w) fprintf(cmd_w, req->error);
         command_connection_release_w(conn);
         return false;
     }
@@ -386,7 +387,8 @@ bool initiate_request(struct oam_request *req)
     struct StreamSessions *stream = get_stream_sessions(req->mep_start->stream_name);
     int session_id = alloc_session_id(stream, req);
     if (session_id < 0) {
-        if (cmd_w) fprintf(cmd_w, "stream %s has no free session id\n", req->mep_start->stream_name);
+        req->error = strdup_printf("stream %s has no free session id\n", req->mep_start->stream_name);
+        if (cmd_w) fprintf(cmd_w, req->error);
         command_connection_release_w(conn);
         return false;
     }
@@ -396,7 +398,7 @@ bool initiate_request(struct oam_request *req)
 
     log_info("request %s stream %s:%d seq %d lvl %d type %s mep %s -> %s"
             " count %d interval %d, rr: %s os: %s [reply to ip: %s, port: %u]",
-             req->mep_start->mep_name, req->mep_start->stream_name, req->session_id,
+             req->mep_start->name, req->mep_start->stream_name, req->session_id,
              req->seq, req->level, req->type, req->mep_start->name, req->mep_stop, req->count, req->interval_ms,
              req->record_route?"yes":"no", req->object_state?"yes":"no", req->return_ip, req->return_port);
 
@@ -404,7 +406,6 @@ bool initiate_request(struct oam_request *req)
             " rr: %s os: %s\t[reply to ip: %s, port: %u]\n",
             req->type, req->session_id, req->seq, req->mep_start->name, req->mep_stop, req->level, req->count, req->interval_ms,
             req->record_route?"yes":"no", req->object_state?"yes":"no", req->return_ip, req->return_port);
-    command_connection_release_w(conn);
 
     if(req->count == 1){
         stream->sessions[session_id].multireq_thread = NULL;
@@ -413,10 +414,14 @@ bool initiate_request(struct oam_request *req)
     } else {
         stream->sessions[session_id].multireq_thread = thread_launch(oam_request_thread, req, "oam req %d", session_id);
         if (stream->sessions[session_id].multireq_thread == NULL) {
-            log_error("could not create new ping thread");
+            req->error = strdup("could not create new ping thread");
+            log_error(req->error);
+            if (cmd_w) fprintf(cmd_w, req->error);
+            command_connection_release_w(conn);
             return false;
         }
     }
+    command_connection_release_w(conn);
 
     return true;
 }
@@ -465,7 +470,7 @@ static int process_reply(const char *msg)
         }
     }
 
-    log_packet("oam recv reply %s:%.0f seq %.0f lvl %.0f D - %s",
+    log_packet("recv reply %s:%.0f seq %.0f lvl %.0f - %s",
             stream->v.string, session->v.number, sequence->v.number, level->v.number, msg);
 
     struct command_connection *conn = NULL;
@@ -730,7 +735,7 @@ static bool process_ping_request(struct OamEndPoint *oam, struct Packet *p, stru
     unsigned msg_len=0;
     char *j_msg = json_serialize(j, &msg_len);
 
-    log_packet("%s %s:%d seq %d lvl %d T - (to %s %d) %s", oam->name, stream, session, seq, level,
+    log_packet("send ping reply %s %s:%d seq %d lvl %d (to %s %d) - %s", oam->name, stream, session, seq, level,
                reply_address, port, j_msg);
 
     oam_send_reply(reply_address, port, j_msg, msg_len);
@@ -776,7 +781,7 @@ static bool send_rping_error(struct OamEndPoint *oam, struct Packet *p, struct J
     unsigned msg_len=0;
     char *j_msg = json_serialize(j, &msg_len);
 
-    log_packet("%s %s:%d seq %d lvl %d E - (to %s %d) %s", oam->name, stream, session, seq, level,
+    log_packet("send rping error %s %s:%d seq %d lvl %d (to %s %d) - %s", oam->name, stream, session, seq, level,
                ping_req->return_ip, ping_req->return_port, j_msg);
     oam_send_reply(ping_req->return_ip, ping_req->return_port, j_msg, msg_len);
 
@@ -829,7 +834,7 @@ static bool process_rping_request(struct OamEndPoint *oam, struct Packet *p, str
         ping_req->originator_session_id = session;
 
         if (!initiate_request(ping_req)) {
-            ping_req->error = strdup("ping request could not be sent");
+            ping_req->error = strdup_printf("ping request could not be sent: %s", ping_req->error);
             return send_rping_error(oam, p, j, ping_req);
         }
     } else {
@@ -848,6 +853,7 @@ static int addstart_cb(const char *key, void *value, void *userdata)
     struct AddstartState *st = userdata;
     struct MepStart *mep = value;
 
+    //TODO re-think this filtering, what is considered "same stream"?
     if (strcmp(mep->stream_name, st->oam->stream) == 0) {
         //TODO supply more info: level, type
         json_array_unshift(st->jlist, json_string(key));
@@ -899,7 +905,7 @@ static bool process_rlist_request(struct OamEndPoint *oam, struct Packet *p, str
     unsigned msg_len=0;
     char *j_msg = json_serialize(j, &msg_len);
 
-    log_packet("%s:%d seq %d lvl %d T (to %s %d) - %s", stream, session, seq, level,
+    log_packet("send rlist reply %s:%d seq %d lvl %d (to %s %d) - %s", stream, session, seq, level,
                reply_address, port, j_msg);
 
     oam_send_reply(reply_address, port, j_msg, msg_len);
@@ -984,6 +990,8 @@ static bool process_request(struct OamEndPoint *oam, struct Packet *p)
         return false;
     }
 
+    log_packet("%s received request type %s target %s level %u", oam->name, jreqt->v.string, target->v.string, level);
+
     if (strcmp(jreqt->v.string, "ping") == 0) {
         struct JsonValue *jrr = json_object_get_array(j, "rr");
         if (jrr != NULL) {
@@ -1060,9 +1068,11 @@ static void *request_thread_fn(void *arg)
     while (1) {
         struct request_msg *msg = messagequeue_pop(request_q, -1);
         if (process_request(msg->oam, msg->pi->packet)) {
+            log_packet("%s forwarding request", msg->oam->name);
             msg->pi->pos += 1;
             pipe_iterator_run(msg->pi);
         } else {
+            log_packet("%s dropping request", msg->oam->name);
             pipe_iteraror_cancel(msg->pi);
         }
         free(msg);
