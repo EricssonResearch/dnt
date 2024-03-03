@@ -1376,7 +1376,8 @@ static bool process_action(struct StageState *stst)
             if (check_header_stack(stst->headers, expected, 2) == false) {
                 THROW("header stack is not suitable for OAM point");
             }
-            if (newaction->type == CA_MEPSTART || newaction->type == CA_MIP) {
+            //TODO remove CA_MIP for now, it should be there but causes trouble
+            if (newaction->type == CA_MEPSTART /*|| newaction->type == CA_MIP*/) {
                 // this is a packet injection point, user must write label before sending
                 struct MustWriteField *mw = calloc_struct(MustWriteField);
                 mw->header = stst->headers;
