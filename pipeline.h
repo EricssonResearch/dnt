@@ -24,9 +24,7 @@ struct PipelineIterator {
     unsigned pos; // index of current action
 };
 
-// creates a new pipeline
-// doesn't automatically reference it!
-struct Pipeline *new_pipeline(const char *name, struct Action *actions, unsigned action_count);
+// note: create pipeline with assemble_actions()
 
 // add a reference to the pipeline
 void pipeline_ref(struct Pipeline *pipe);

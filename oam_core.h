@@ -11,9 +11,9 @@
 
 #include <stdio.h>
 
+//TODO make this private
 struct MepStart {
     char *name;
-    char *mep_name;
     char *stream_name;
     struct Pipeline *pipe;
     int pipe_pos_idx;

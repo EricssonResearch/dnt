@@ -218,22 +218,11 @@ static int addstream_cb(const char *key, void *value, void *userdata)
             log_info("  reusing already compiled pipeline");
         } else {
             log_info("  compiling new pipeline");
-            unsigned action_count;
-            struct Action *actions = assemble_actions(s->stream_name, s->stream->actions, &action_count);
-            if (!actions) {
-                log_error("failed to assemble actions for stream %s", s->stream_name);
-                return 0;
-            }
-            pipe = new_pipeline(s->stream_name, actions, action_count);
-            if (!pipe) { //TODO this never happens
+            pipe = assemble_actions(s->stream_name, s->stream->actions);
+            if (!pipe) {
                 log_error("failed to create action pipeline for stream %s", s->stream_name);
-                for (unsigned i=0; i<action_count; i++) {
-                    delete_action(actions+i);
-                }
-                free(actions);
                 return 0;
             }
-            oam_set_pipeline_for_mep_start(s->stream_name, pipe);
         }
 
         if (iface->parsetree_ == NULL) {

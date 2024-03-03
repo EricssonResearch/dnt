@@ -145,6 +145,7 @@ struct ConfAction {
         } meta; // read/write seq/tstamp
         struct {
             char *name;
+            char *stream;
             int level;
             struct PipelineObject *obj; // NULL if no associated object
         } oam;
@@ -766,6 +767,7 @@ static bool process_token(char *token, void *userdata)
         case CA_MIP:
             if (newaction->oam.name == NULL) {
                 newaction->oam.name = strdup(token);
+                newaction->oam.stream = strdup(stst->stream);
             } else if (newaction->oam.level == -1) {
                 char err;
                 if (sscanf(token, "%d%c", &newaction->oam.level, &err) != 1) {
@@ -855,7 +857,7 @@ static bool process_token(char *token, void *userdata)
                 }
                 pstring = strdup(pstring);
                 struct StageState pstst = *stst;
-                char *replname = strdup_printf("%s.%s", stst->stream, token);
+                char *replname = strdup(token);
                 pstst.stream = replname;
                 pstst.headers = copy_header_list(stst->headers);
                 pstst.actions = NULL;
@@ -1329,7 +1331,7 @@ static bool process_action(struct StageState *stst)
 
                 pipestring = strdup(pipestring);
                 struct StageState jstst = *stst;
-                char *jumpname = strdup_printf("%s.%s", stst->stream, newaction->jump.pipename);
+                char *jumpname = strdup(newaction->jump.pipename);
                 jstst.stream = jumpname;
                 jstst.actions = NULL;
                 jstst.depth += 1;
@@ -1637,6 +1639,7 @@ struct ConfAction *delete_confaction_list(struct ConfAction *ca_list)
             case CA_MEPSTOP:
             case CA_MIP:
                 free(del->oam.name);
+                free(del->oam.stream);
                 break;
         }
         free(del);
@@ -1696,134 +1699,149 @@ static struct EditAssign *assemble_fieldassigns(struct ConfAssignment *list, uns
     return ret;
 }
 
-struct Action *assemble_actions(const char *stream_name, const struct ConfAction *ca_list, unsigned *action_count)
+// add reference to the outgoing interfaces so they know they are in use
+static void ref_send_interfaces(struct Pipeline *pipe)
 {
-    //TODO define THROW
+    for (unsigned i=0; i<pipe->action_count; i++) {
+        if (pipe->actions[i].type == ACT_SEND) {
+            iface_ref(action_send_get_iface(pipe->actions+i));
+        }
+    }
+}
+
+struct Pipeline *assemble_actions(const char *stream_name, const struct ConfAction *ca_list)
+{
+#define THROW(msg, ...)                                         \
+    do {                                                        \
+        log_error("assemble actions stream %s action %u: " msg, \
+                stream_name, i, ##__VA_ARGS__);                 \
+        free(actions);                                          \
+        free(ret);                                              \
+        return NULL;                                            \
+    } while (0)
+
     unsigned count = 0;
     for (const struct ConfAction *ca = ca_list; ca; ca=ca->next)
         if (ca->type != CA_MEPSTART) // do not include MEPStart into the action list
             count++;
 
+    log_info("assemble actions %s count %u", stream_name, count);
+
     if (count == 0) {
-        *action_count = 0;
         return NULL;
     }
 
-    struct Action *ret = calloc_struct_array(Action, count);
+    struct Pipeline *ret = calloc_struct(Pipeline);
 
-    unsigned a = 0;
+    struct Action *actions = calloc_struct_array(Action, count);
+
+    unsigned i = 0;
     for (const struct ConfAction *ca = ca_list; ca; ca=ca->next) {
         switch (ca->type) {
             case CA_UNDEF:
                 log_error("cannot assemble undefined action");
                 break;
             case CA_ADD:
-                create_action_add(ret+a, ca->add.pos_idx, ca->add.id, ca->add.len, ca->text);
+                create_action_add(actions+i, ca->add.pos_idx, ca->add.id, ca->add.len, ca->text);
                 break;
             case CA_DEL:
-                create_action_del(ret+a, ca->del.idx, ca->text);
+                create_action_del(actions+i, ca->del.idx, ca->text);
                 break;
             case CA_DELAY:
-                create_action_delay(ret+a, ca->delay.delay_value, ca->text);
+                create_action_delay(actions+i, ca->delay.delay_value, ca->text);
                 break;
             case CA_DROP:
-                create_action_drop(ret+a, ca->text);
+                create_action_drop(actions+i, ca->text);
                 break;
             case CA_EDIT: {
                 unsigned acount;
                 struct EditAssign *assigns = assemble_fieldassigns(ca->edit.assignments, &acount);
                 if (assigns == NULL) {
-                    //TODO cleanup on error
-                    log_error("could not assemble the field assignments for edit action");
-                    return NULL;
+                    THROW("could not assemble the field assignments for edit action");
                 }
-                create_action_edit(ret+a, assigns, acount, ca->text);
+                create_action_edit(actions+i, assigns, acount, ca->text);
                 break; }
             case CA_ELIM:
-                create_action_elim(ret+a, ca->elim.rec, ca->text);
+                create_action_elim(actions+i, ca->elim.rec, ca->text);
                 break;
             case CA_FILTEROAM:
-                create_action_filteroam(ret+a, ca->filteroam.field, ca->text);
+                create_action_filteroam(actions+i, ca->filteroam.field, ca->text);
                 break;
             case CA_JUMP:
-                log_error("assemble_actions() jump should have been inlined");
-                //TODO cleanup on error
-                return NULL;
+                THROW("jump should have been inlined");
             case CA_MEPSTART: {
-                if (!oam_create_mep_start(stream_name, ca->oam.name, ca->oam.level, a)) {
-                    //TODO cleanup on error
-                    return NULL;
+                if (!oam_create_mep_start(ca->oam.stream, ca->oam.name, ca->oam.level, ret, i)) {
+                    THROW("couldn't create MEP Start");
                 }
                 break; }
             case CA_MEPSTOP:
-                create_action_mepstop(ret+a, stream_name, ca->oam.level, ca->oam.obj, ca->oam.name, ca->text);
+                create_action_mepstop(actions+i, ca->oam.stream, ca->oam.level, ca->oam.obj, ca->oam.name, ca->text);
                 break;
             case CA_MIP:
-                create_action_mip(ret+a, stream_name, ca->oam.level, ca->oam.obj, ca->oam.name, ca->text);
-                if (!oam_create_mep_start(stream_name, ca->oam.name, ca->oam.level, a+1)) {
-                    //TODO: cleanup on error
-                    return NULL;
+                create_action_mip(actions+i, ca->oam.stream, ca->oam.level, ca->oam.obj, ca->oam.name, ca->text);
+                if (!oam_create_mep_start(ca->oam.stream, ca->oam.name, ca->oam.level, ret, i+1)) {
+                    THROW("couldn't create start point for MIP");
                 }
                 break;
             case CA_POF:
-                create_action_pof(ret+a, ca->pof.pof, ca->text);
+                create_action_pof(actions+i, ca->pof.pof, ca->text);
                 break;
             case CA_READSEQ:
-                create_action_readseq(ret+a, ca->meta.field, ca->text);
+                create_action_readseq(actions+i, ca->meta.field, ca->text);
                 break;
             case CA_READTSTAMP:
-                create_action_readtstamp(ret+a, ca->meta.field, ca->text);
+                create_action_readtstamp(actions+i, ca->meta.field, ca->text);
                 break;
             case CA_REPL: {
                 struct PipelineList *pipes = NULL;
                 for (struct ReplicateList *r=ca->repl.pipelines; r; r=r->next) {
-                    unsigned r_action_count;
-                    struct Action *r_actions = assemble_actions(r->name, r->actions, &r_action_count);
-                    if (!r_actions) {
-                        log_error("failed to assemble actions for stream %s", r->name);
+                    struct Pipeline *r_pipe = assemble_actions(r->name, r->actions);
+                    if (r_pipe == NULL) {
+                        log_error("failed to assemble actions for branch %s of replicate in stream %s",
+                                r->name, stream_name);
                         //TODO cleanup on error
                         return NULL;
                     }
-                    struct Pipeline *pipe = new_pipeline(r->name, r_actions, r_action_count);
-                    if (!pipe) { //TODO this never happens
-                    }
-                    pipeline_ref(pipe);
-                    oam_set_pipeline_for_mep_start(r->name, pipe);
+                    pipeline_ref(r_pipe);
 
                     struct PipelineList *p = calloc_struct(PipelineList);
-                    p->pipe = pipe;
+                    p->pipe = r_pipe;
                     p->text = r->name;
                     p->next = pipes;
                     pipes = p;
                 }
                 REVERSE_LIST(pipes);
-                create_action_repl(ret+a, pipes, ca->repl.replobj, ca->text);
+                create_action_repl(actions+i, pipes, ca->repl.replobj, ca->text);
                 break; }
             case CA_SEND:
-                create_action_send(ret+a, ca->send.iface, ca->text);
+                create_action_send(actions+i, ca->send.iface, ca->text);
                 break;
             case CA_SEQGEN:
-                create_action_seqgen(ret+a, ca->seq.gen, ca->text);
+                create_action_seqgen(actions+i, ca->seq.gen, ca->text);
                 break;
             case CA_TTLCHECK:
-                create_action_ttlcheck(ret+a, ca->text);
+                create_action_ttlcheck(actions+i, ca->text);
                 break;
             case CA_TTLREDUCE:
-                create_action_ttlreduce(ret+a, ca->ttl.field, ca->text);
+                create_action_ttlreduce(actions+i, ca->ttl.field, ca->text);
                 break;
             case CA_WRITESEQ:
-                create_action_writeseq(ret+a, ca->meta.field, ca->text);
+                create_action_writeseq(actions+i, ca->meta.field, ca->text);
                 break;
             case CA_WRITETSTAMP:
-                create_action_writetstamp(ret+a, ca->meta.field, ca->text);
+                create_action_writetstamp(actions+i, ca->meta.field, ca->text);
                 break;
         }
         if (ca->type != CA_MEPSTART) // this doesn't appear as an action
-            a++;
+            i++;
     }
 
-    *action_count = count;
+    ret->actions = actions;
+    ret->action_count = count;
+    ret->name = strdup(stream_name);
+    ref_send_interfaces(ret);
     return ret;
+#undef THROW
 }
 
 void confactions_print(const struct ConfAction *ca_list, unsigned indent)

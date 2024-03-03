@@ -15,16 +15,6 @@
 
 DEFAULT_LOGGING_MODULE(PIPELINE, WARNING);
 
-// add reference to the outgoing interfaces so they know they are in use
-static void ref_send_interfaces(struct Pipeline *pipe)
-{
-    for (unsigned i=0; i<pipe->action_count; i++) {
-        if (pipe->actions[i].type == ACT_SEND) {
-            iface_ref(action_send_get_iface(pipe->actions+i));
-        }
-    }
-}
-
 // release the outgoing interfaces
 static void unref_send_interfaces(struct Pipeline *pipe)
 {
@@ -33,16 +23,6 @@ static void unref_send_interfaces(struct Pipeline *pipe)
             iface_unref(action_send_get_iface(pipe->actions+i));
         }
     }
-}
-
-struct Pipeline *new_pipeline(const char *name, struct Action *actions, unsigned action_count)
-{
-    struct Pipeline *ret = calloc_struct(Pipeline);
-    ret->actions = actions;
-    ret->action_count = action_count;
-    ret->name = strdup(name);
-    ref_send_interfaces(ret);
-    return ret;
 }
 
 void pipeline_ref(struct Pipeline *pipe)

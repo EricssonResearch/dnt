@@ -40,12 +40,13 @@ void oam_cli_alert(const char *fmt, ...)
     __attribute__((format(printf, 1, 2)))
     __attribute__((nonnull(1)));
 
-bool oam_create_mep_start(const char *stream_name, const char *mep_name, int level, unsigned idx);
-void oam_set_pipeline_for_mep_start(const char *stream_name, struct Pipeline *pipe);
+bool oam_create_mep_start(const char *stream_name, const char *mep_name, int level,
+        struct Pipeline *pipe, unsigned idx);
 
 // create a structure that represents an OAM request receiver point
 // used by MIP and MEP-STOP actions
-struct OamEndPoint *oam_create_endpoint(const char *name, const char *stream, int level, struct PipelineObject *target, bool stop);
+struct OamEndPoint *oam_create_endpoint(const char *name, const char *stream, int level,
+        struct PipelineObject *target, bool stop);
 
 // always returns NULL
 struct OamEndPoint *oam_delete_endpoint(struct OamEndPoint *end);

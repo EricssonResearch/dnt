@@ -6,10 +6,10 @@
 #define R2_CONF_ACTIONS_H
 
 struct ConfAction;
-struct Action;
 struct HeaderDescriptor;
 struct HashMap;
 struct IniSection;
+struct Pipeline;
 
 // parse the "*:actions" line for a stream
 // returns a linked list of (opaque) action descriptors
@@ -22,8 +22,10 @@ struct ConfAction *parse_actions_line(const char *stream, const char *line,
 // always returns NULL
 struct ConfAction *delete_confaction_list(struct ConfAction *ca_list);
 
-// creates an Action array from the action descriptor list
-struct Action *assemble_actions(const char *stream_name, const struct ConfAction *ca_list, unsigned *action_count);
+// creates an action pipeline from the action descriptor list
+// returns NULL if @ca_list is empty
+// doesn't add reference to the returned pipeline
+struct Pipeline *assemble_actions(const char *stream_name, const struct ConfAction *ca_list);
 
 void confactions_print(const struct ConfAction *ca_list, unsigned indent);
 

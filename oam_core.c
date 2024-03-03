@@ -108,30 +108,32 @@ static int mep_start_delete_cb(const char *key, void *value, void *userdata)
     (void)userdata;
     struct MepStart *mepstart = value;
     free(mepstart->name);
-    free(mepstart->mep_name);
     free(mepstart->stream_name);
     free(mepstart);
     return 1;
 }
 
-//TODO sometimes @stream_name and @mep_name are not enough to distinguish between start points
-//      somehow we need to introduce the concept of "compound stream"
-bool oam_create_mep_start(const char *stream_name, const char *mep_name, int level, unsigned idx)
+bool oam_create_mep_start(const char *stream_name, const char *mep_name, int level,
+        struct Pipeline *pipe, unsigned idx)
 {
     if (mep_starts == NULL) {
         mep_starts = new_hashmap(13, mep_start_delete_cb, NULL);
     }
     struct MepStart *mepstart = hashmap_find(mep_starts, mep_name);
     if (mepstart) {
+        if (strcmp(stream_name, mepstart->stream_name) == 0) {
+            // multiple instances of the same compound stream
+            return true;
+        }
         log_error("MEP Start '%s' defined twice, in streams '%s' and '%s'",
                 mep_name, mepstart->stream_name, stream_name);
         return false;
     }
     mepstart = calloc_struct(MepStart);
-    mepstart->name = strdup_printf("%s:%s", stream_name, mep_name);
-    mepstart->mep_name = strdup(mep_name);
+    mepstart->name = strdup(mep_name);
     mepstart->stream_name = strdup(stream_name);
     mepstart->level = level;
+    mepstart->pipe = pipe;
     mepstart->pipe_pos_idx = idx;
     // for mepstart->pipe see oam_set_pipeline_for_mep_start()
     hashmap_insert(mep_starts, mepstart->name, mepstart);
@@ -148,32 +150,11 @@ int foreach_mep_start(hashmap_cb *cb, void *userdata)
     return hashmap_foreach_sorted(mep_starts, cb, userdata);
 }
 
-
-struct SetPipeParam {
-    const char *stream_name;
-    struct Pipeline *pipe;
-};
-
-static int set_pipe_cb(const char *key, void *value, void *userdata)
+struct OamEndPoint *oam_create_endpoint(const char *name, const char *stream, int level,
+        struct PipelineObject *target, bool stop)
 {
-    (void)key;
-    struct MepStart *mepstart = value;
-    struct SetPipeParam *params = userdata;
-
-    if (strcmp(mepstart->stream_name, params->stream_name) == 0)
-        mepstart->pipe = params->pipe;
-
-    return 1;
-}
-
-void oam_set_pipeline_for_mep_start(const char *stream_name, struct Pipeline *pipe)
-{
-    struct SetPipeParam params = {stream_name, pipe};
-    hashmap_foreach(mep_starts, set_pipe_cb, &params);
-}
-
-struct OamEndPoint *oam_create_endpoint(const char *name, const char *stream, int level, struct PipelineObject *target, bool stop)
-{
+    //TODO make sure that endpoints have unique names
+    //      put them into the same hash as the startpoints?
     struct OamEndPoint *ret = calloc_struct(OamEndPoint);
     ret->name = strdup(name);
     ret->stream = strdup(stream);
