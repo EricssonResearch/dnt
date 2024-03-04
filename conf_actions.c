@@ -133,6 +133,7 @@ struct ConfAction {
         } edit;
         struct {
             struct PipelineObject *rec;
+            char *pipename;
         } elim;
         struct {
             struct HeaderField *field;
@@ -552,7 +553,7 @@ static bool process_token(char *token, void *userdata)
 {
 #define THROW(msg, ...)                                             \
     do {                                                            \
-        log_error("stream %s action %s: " msg,                      \
+        log_error("stream '%s' action '%s': " msg,                      \
                 stst->stream, stst->actions->text, ##__VA_ARGS__);  \
         return false;                                               \
     } while (0)
@@ -748,8 +749,10 @@ static bool process_token(char *token, void *userdata)
                 } else {
                     THROW("first argument of eliminate must be a recovery object");
                 }
+            } else if (newaction->elim.pipename == NULL) {
+                newaction->elim.pipename = strdup(token);
             } else {
-                THROW("the only argument of eliminate is the recovery object");
+                THROW("the arguments of eliminate are the recovery object and a pipeline");
             }
             break;
         case CA_FILTEROAM:
@@ -1065,7 +1068,7 @@ static bool process_action(struct StageState *stst)
 {
 #define THROW(msg, ...)                                             \
     do {                                                            \
-        log_error("stream %s action %s: " msg,                      \
+        log_error("stream '%s' action '%s': " msg,                      \
                 stst->stream, newaction->text, ##__VA_ARGS__);      \
         return false;                                               \
     } while (0)
@@ -1311,9 +1314,19 @@ static bool process_action(struct StageState *stst)
             if (newaction->elim.rec == NULL) {
                 THROW("eliminate needs a sequence recovery object");
             }
+            if (newaction->elim.pipename == NULL) {
+                THROW("eliminate needs an action pipeline (since version 6.3)");
+            }
             if (!stst->seq_set) {
                 THROW("can't eliminate without a sequence number");
             }
+            struct ConfAction *elimjump = new_confaction(stst, CA_JUMP,
+                    strdup_printf("auto-generated jump for %s", newaction->text));
+            elimjump->jump.pipename = strdup(newaction->elim.pipename);
+            if (!process_action(stst))
+                return false;
+            // TODO: proper stst->had_final, now report error from the action
+            // of the end of the new pipeline
             break;
         case CA_FILTEROAM:
             // the user can't create this action, so nothing to verify here
@@ -1640,7 +1653,6 @@ struct ConfAction *delete_confaction_list(struct ConfAction *ca_list)
             case CA_MEPSTOP:
             case CA_MIP:
                 free(del->oam.name);
-                free(del->oam.stream);
                 break;
         }
         free(del);

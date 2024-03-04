@@ -22,23 +22,26 @@ def disable_logging(node, mgmtip):
     switch_netns(node)
     with socket(AF_INET, SOCK_STREAM, 0) as sock:
         sock.connect((mgmtip, 8000))
-        for modul in ["OAM", "PACKET", "DIAGNOSTIC", "MAIN", "RCVY"]:
-            sock.sendall(f"log {modul} NONE".encode())
-            _ = sock.recv(10000)
-            time.sleep(0.1)
+        sock.sendall(f"log ALL NONE".encode())
+        _ = sock.recv(10000)
+        time.sleep(0.1)
 
 
-def long_run(net):
+def long_run(net, debug : bool):
     t, l, a, b = [net.get(n) for n in ["t", "l", "a", "b"]]
     switch_netns("a")
     rtwo1 = exec_bg(f"screen -S r1 -d -m env -i gdb -ex=r --args ../r2dtwo stress/a.ini")
     switch_netns("b")
     rtwo2 = exec_bg(f"screen -S r2 -d -m env -i gdb -ex=r --args ../r2dtwo stress/b.ini")
     time.sleep(2)
-    # CLI(net)
+    if debug:
+        print("Debug mode. Press Ctrl+D or Ctrl+C to exit...")
+        CLI(net)
+        return 1
     disable_logging("a", "10.0.0.1")
     disable_logging("b", "10.0.0.2")
     switch_netns("t")
+    # For debug mode, we done
     ping = exec_bg("ping 192.168.1.2 -q -A", out=OUT_PIPE)
     switch_netns("a")
     with socket(AF_INET, SOCK_STREAM, 0) as sock:
@@ -93,12 +96,13 @@ def create_net():
     return net
 
 def main():
+    debug = False
     print("R2DTWO stress test")
     if len(sys.argv) == 2 and sys.argv[1] == "--debug":
-        exit(1)
+        debug = True
     try:
         net = create_net()
-        result = long_run(net)
+        result = long_run(net, debug)
         if result == 0:
             print("✘")
         else:
