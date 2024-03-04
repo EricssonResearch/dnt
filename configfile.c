@@ -225,14 +225,8 @@ static int addstream_cb(const char *key, void *value, void *userdata)
             }
         }
 
-        if (iface->parsetree_ == NULL) {
-            log_error("interface %s doesn't have parsetree, cannot receive stream %s",
-                    key, s->stream_name);
-            pipeline_unref(pipe); //TODO verify the refcounting scheme, including the error path
-            return 0;
-        }
-        if (!parsetree_add_stream(iface->parsetree_, s->stream->headers, pipe)) {
-            log_error("failed to add stream %s to the parsetree of interface %s",
+        if (!iface_add_stream(iface, s->stream->headers, pipe)) {
+            log_error("failed to add stream %s to interface %s",
                     s->stream_name, key);
             pipeline_unref(pipe); //TODO verify the refcounting scheme, including the error path
             return 0;

@@ -51,3 +51,16 @@ void iface_unref(struct Interface *iface)
         __atomic_fetch_sub(&iface->reference_count, 1, __ATOMIC_RELAXED);
     try_delete_interface(iface);
 }
+
+bool iface_add_stream(struct Interface *iface, struct HeaderDescriptor *headers, struct Pipeline *pipe)
+{
+    if (iface->parsetree_ == NULL) {
+        log_error("%s can't receive stream without a parsetree", iface->name);
+        return false;
+    }
+    if (!parsetree_add_stream(iface->parsetree_, headers, pipe)) {
+        log_error("failed to add stream to parsetree");
+        return false;
+    }
+    return true;
+}

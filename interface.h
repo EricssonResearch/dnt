@@ -11,8 +11,11 @@
 #include <stdbool.h>
 
 struct Interface;
+
+struct HeaderDescriptor;
 struct Packet;
 struct ParseTree;
+struct Pipeline;
 
 enum IfaceType {
     IF_ETH = 1,
@@ -72,7 +75,7 @@ struct Interface {
     iface_recv *recv;
     iface_send *send;
     iface_open *open;
-    iface_close *close_; // private TODO mark all private members
+    iface_close *close_;
 
     // this method is optional
     iface_get_property_reader *get_property_reader;
@@ -92,5 +95,9 @@ void iface_ref(struct Interface *iface);
 // the interface closes when its state is IFS_SHUTDOWN AND refcount=0
 void iface_unref(struct Interface *iface);
 
+// add a stream that this interface will receive
+// adds a reference to @pipe
+// @returns true on success
+bool iface_add_stream(struct Interface *iface, struct HeaderDescriptor *headers, struct Pipeline *pipe);
 
 #endif // R2_INTERFACE_H
