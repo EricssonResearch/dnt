@@ -399,13 +399,30 @@ static const char help_str[] =
 
 static int list_mep_cb(const char *key, void *value, void *userdata)
 {
+    (void)key;
     struct MepStart *start = value;
     FILE *cmd_w = userdata;
-    fprintf(cmd_w, "%s level %d in pipe %s at pos %d\n",
-            key, start->level, start->pipe->name, start->pipe_pos_idx);
+    print_mep_start(start, cmd_w);
     return 1;
 }
 
+static int list_oam_ifaces_cb(const char *ifname, void *value, void *userdata)
+{
+    struct Interface *iface = value;
+    FILE *cmd_w = userdata;
+
+    const char *return_ip = oamif_get_ip(iface);
+    unsigned return_port = oamif_get_port(iface);
+    fprintf(cmd_w, "%s ip %s port %u",
+            ifname, return_ip, return_port);
+    if (iface == get_default_oam_interface()) {
+        fprintf(cmd_w, " (default, node id %u)\n", oamif_get_uid(iface));
+    } else {
+        fprintf(cmd_w, "\n");
+    }
+
+    return 1;
+}
 
 static int list_log_modules_cb(const char *mod_name, LOGGING_LEVELS current_level, void *userdata)
 {
@@ -494,7 +511,7 @@ static void command_loop(struct command_connection *conn)
     char oam_command[255], last_command[255];
     char streamname[32];
 
-    char *last_stream=NULL; // the stream name of the last issued command
+    const char *last_stream=NULL; // the stream name of the last issued command
 
     if (have_default_iface()) {
         fprintf(cmd_w, "OAM ready.\n");
@@ -612,12 +629,13 @@ static void command_loop(struct command_connection *conn)
                     fprintf(cmd_w,"invalid parameters for stop.\n");
             }
             else if (strcmp(oam_command, "returns") == 0) {
-                list_oam_ifaces(conn->cmd_w);
+                fprintf(cmd_w, "Available OAM return interfaces:\n");
+                foreach_oam_ifaces(list_oam_ifaces_cb, conn->cmd_w);
             }
             else if (strncmp(oam_command, "ping", 4) == 0) {
                 struct oam_request *ping_req = parse_ping_command(oam_command+4, true, true, conn);
                 CHECK_REQUEST(ping_req);
-                char *req_stream = ping_req->mep_start->stream_name;
+                const char *req_stream = ping_req->mep_start->stream_name;
                 if (!initiate_request(ping_req)) {
                     ERROR("sending ping command failed");
                 }

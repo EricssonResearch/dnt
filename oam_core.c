@@ -68,28 +68,14 @@ struct Interface *get_oam_interface(const char *ifname)
     return ifname[0] ? hashmap_find(oam_ifaces, ifname) : oam_default_iface;
 }
 
-static int list_oam_ifaces_cb(const char *ifname, void *value, void *userdata)
+struct Interface *get_default_oam_interface(void)
 {
-    struct Interface *iface = value;
-    FILE *cmd_w = userdata;
-
-    const char *return_ip = oamif_get_ip(iface);
-    unsigned return_port = oamif_get_port(iface);
-    fprintf(cmd_w, "%s ip %s port %u",
-            ifname, return_ip, return_port);
-    if (iface == oam_default_iface) {
-        fprintf(cmd_w, " (default, node id %u)\n", oamif_get_uid(iface));
-    } else {
-        fprintf(cmd_w, "\n");
-    }
-
-    return 1;
+    return oam_default_iface;
 }
 
-void list_oam_ifaces(FILE *cmd_w)
+int foreach_oam_ifaces(hashmap_cb *cb, void *userdata)
 {
-    fprintf(cmd_w, "Available OAM return interfaces:\n");
-    hashmap_foreach_sorted(oam_ifaces, list_oam_ifaces_cb, cmd_w);
+    return hashmap_foreach_sorted(oam_ifaces, cb, userdata);
 }
 
 bool have_default_iface(void)
@@ -148,6 +134,18 @@ struct MepStart *find_mep_start(const char *name)
 int foreach_mep_start(hashmap_cb *cb, void *userdata)
 {
     return hashmap_foreach_sorted(mep_starts, cb, userdata);
+}
+
+int print_mep_start(const struct MepStart *start, FILE *cmd_w)
+{
+    return fprintf(cmd_w, "%s level %d in pipe %s at pos %d\n",
+            start->name, start->level, start->pipe->name, start->pipe_pos_idx);
+}
+
+bool mep_start_in_stream(const struct MepStart *start, const char *stream)
+{
+    //TODO what is considered "same stream"?
+    return strcmp(start->stream_name, stream) == 0;
 }
 
 struct OamEndPoint *oam_create_endpoint(const char *name, const char *stream, int level,

@@ -11,7 +11,7 @@
 
 #include <stdio.h>
 
-//TODO make this private
+//TODO can we make this private? oam_message.c uses it heavily
 struct MepStart {
     char *name;
     char *stream_name;
@@ -22,7 +22,9 @@ struct MepStart {
 
 struct Interface *get_oam_interface(const char *ifname);
 
-void list_oam_ifaces(FILE *cmd_w);
+struct Interface *get_default_oam_interface(void);
+
+int foreach_oam_ifaces(hashmap_cb *cb, void *userdata);
 
 bool have_default_iface(void);
 
@@ -31,5 +33,9 @@ unsigned short get_node_id(void);
 struct MepStart *find_mep_start(const char *name);
 
 int foreach_mep_start(hashmap_cb *cb, void *userdata);
+
+int print_mep_start(const struct MepStart *start, FILE *cmd_w);
+
+bool mep_start_in_stream(const struct MepStart *start, const char *stream);
 
 #endif // R2_OAM_CORE_H

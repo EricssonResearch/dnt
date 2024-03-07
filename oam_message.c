@@ -853,8 +853,7 @@ static int addstart_cb(const char *key, void *value, void *userdata)
     struct AddstartState *st = userdata;
     struct MepStart *mep = value;
 
-    //TODO re-think this filtering, what is considered "same stream"?
-    if (strcmp(mep->stream_name, st->oam->stream) == 0) {
+    if (mep_start_in_stream(mep, st->oam->stream)) {
         //TODO supply more info: level, type
         json_array_unshift(st->jlist, json_string(key));
     }
