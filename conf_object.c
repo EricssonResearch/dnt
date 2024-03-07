@@ -24,6 +24,7 @@ struct ForeachState {
 
 struct ObjectInfo {
     const char *name;
+    bool auto_mip;
     enum PipelineObjectType type;
     union {
         struct {
@@ -49,6 +50,7 @@ struct ObjectInfo {
 
 static void set_default_parameters(struct ObjectInfo *info)
 {
+    info->auto_mip = false;
     switch (info->type) {
         case PO_SEQGEN:
             info->p.gen.use_reset_flag = false;
@@ -89,6 +91,15 @@ static bool token_cb(char *str, void *userdata)
     if (info->type) {
         char *key, *val;
         if (parse_assignment(str, &key, &val)) {
+            if (strcmp(key, "AutoMIP") == 0) {
+                // At the moment for Seqgen and Seqrec only
+                int auto_mip = read_boolean(val);
+                if (auto_mip < 0) {
+                    THROW("invalid automatic MIP configuration option: '%s'", val);
+                }
+                info->auto_mip = auto_mip ? true : false;
+                return true;
+            }
             switch (info->type) {
                 case PO_SEQGEN:
                     if (strcmp(key, "ResetFlag") == 0) {
@@ -283,6 +294,7 @@ static int object_cb(const char *key, void *value, void *userdata)
         log_error("creating object '%s' failed", key);
         return 0;
     } else {
+        obj->auto_mip = info.auto_mip;
         hashmap_insert(state->objects, obj->name, obj);
         log_info("object %s type %s", obj->name, pipelineobject_name_from_type(obj->type));
         return 1;
