@@ -1987,8 +1987,10 @@ static bool oam_mip_autoconfig(struct StageState *stst)
             ca_pre->oam.level = 4;
             ca_pre->oam.obj = ca->elim.rec;
             ca_pre->oam.auto_generated = true;
+            ca_pre->oam.stream = strdup(stst->stream);
             if (!process_action(stst)) {
                 free(pre);
+                free(ca_pre->oam.stream);
                 free(ca_pre);
                 stst->actions = ca;
                 return false;
@@ -2000,9 +2002,12 @@ static bool oam_mip_autoconfig(struct StageState *stst)
             ca_post->oam.level = 4;
             ca_post->oam.obj = ca->elim.rec;
             ca_post->oam.auto_generated = true;
+            ca_post->oam.stream = strdup(stst->stream);
             if (!process_action(stst)) {
                 free(pre);
                 free(post);
+                free(ca_pre->oam.stream);
+                free(ca_post->oam.stream);
                 free(ca_pre);
                 free(ca_post);
                 stst->actions = ca;
@@ -2017,8 +2022,10 @@ static bool oam_mip_autoconfig(struct StageState *stst)
             ca_pre->oam.level = 4;
             ca_pre->oam.obj = ca->repl.replobj;
             ca_pre->oam.auto_generated = true;
+            ca_pre->oam.stream = strdup(stst->stream);
             if (!process_action(stst)) {
                 free(pre);
+                free(ca_pre->oam.stream);
                 free(ca_pre);
                 stst->actions = ca;
                 return false;
