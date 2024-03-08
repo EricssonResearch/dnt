@@ -1980,7 +1980,7 @@ static bool oam_mip_autoconfig(struct StageState *stst)
     switch (ca->type) {
         case CA_ELIM: {
             char *pre = strdup_printf("o_%s_L4_pre-%s", stst->stream, ca->elim.rec->name);
-            char *post = strdup_printf("o_L4_post-%s", ca->elim.rec->name);
+            char *post = strdup_printf("o_%s_L4_post-%s", ca->elim.pipename, ca->elim.rec->name);
             struct ConfAction *ca_pre = new_confaction(stst, CA_MIP,
                            strdup_printf("auto-generated MIP before '%s'", ca->text));
             ca_pre->oam.name = pre;
@@ -2002,7 +2002,7 @@ static bool oam_mip_autoconfig(struct StageState *stst)
             ca_post->oam.level = 4;
             ca_post->oam.obj = ca->elim.rec;
             ca_post->oam.auto_generated = true;
-            ca_post->oam.stream = strdup(stst->stream);
+            ca_post->oam.stream = strdup(ca->elim.pipename);
             if (!process_action(stst)) {
                 free(pre);
                 free(post);
