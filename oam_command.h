@@ -16,15 +16,7 @@ enum TerminalFormat {
     TF_JSON,
 };
 
-//TODO make the internals private
-struct command_connection {
-    char *name;
-    int socket_fd; // RW
-    FILE *cmd_w; // WRONLY
-    int w_users;
-    enum TerminalFormat mode;
-    struct Thread *thread;
-};
+struct command_connection;
 
 struct oam_request;
 
@@ -38,17 +30,22 @@ FILE *command_connection_get_w(struct command_connection *conn);
 
 void command_connection_release_w(struct command_connection *conn);
 
+enum TerminalFormat command_connection_get_format(const struct command_connection *conn);
+
 // always returns a request, sets ret->error to an error message
+// @conn_name will be owned by the request
 struct oam_request *parse_ping_command(const char *oam_command, bool allow_returniface, bool allow_num,
-        struct command_connection *conn);
+        char *conn_name);
 
 // always returns a request, sets ret->error to an error message
+// @conn_name will be owned by the request
 struct oam_request *parse_rping_command(const char *oam_command,
-        struct command_connection *conn);
+        char *conn_name);
 
 // always returns a request, sets ret->error to an error message
+// @conn_name will be owned by the request
 struct oam_request *parse_rlist_command(const char *oam_command,
-        struct command_connection *conn);
+        char *conn_name);
 
 void init_cmd_module(void);
 

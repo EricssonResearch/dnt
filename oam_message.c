@@ -220,11 +220,11 @@ int list_sessions_of_all_streams(FILE *cmd_w)
 
 
 
-struct oam_request *new_oam_request(const char *type, struct command_connection *conn)
+struct oam_request *new_oam_request(const char *type, char *conn_name)
 {
     struct oam_request *req = calloc_struct(oam_request);
 
-    req->conn_name = conn ? strdup(conn->name) : NULL;
+    req->conn_name = conn_name;
     req->type = type;
     req->ttl = OAM_PING_TTL;
     req->count = 1;
@@ -497,7 +497,9 @@ static int process_reply(const char *msg)
         }
         json_delete(j);
         if (conn) {
-            fprintf(conn->cmd_w, "%s\n", reply_str);
+            FILE *cmd_w = command_connection_get_w(conn);
+            if (cmd_w) fprintf(cmd_w, "%s\n", reply_str);
+            command_connection_release_w(conn);
         }
     }
     else if (strcmp(type->v.string, "rping") == 0) {
@@ -512,7 +514,9 @@ static int process_reply(const char *msg)
         snprintf(reply_str, sizeof(reply_str), "Rping error from %s : %s\n", receiver->v.string, error->v.string);
         json_delete(j);
         if (conn) {
-            fprintf(conn->cmd_w, "%s\n", reply_str);
+            FILE *cmd_w = command_connection_get_w(conn);
+            if (cmd_w) fprintf(cmd_w, "%s\n", reply_str);
+            command_connection_release_w(conn);
         }
     }
     else if (strcmp(type->v.string, "ping") == 0) {
@@ -574,8 +578,9 @@ static int process_reply(const char *msg)
         // check if we need to print to a telnet session
         if (conn == NULL) return 0; // this is a background ping
 
-        if(conn->mode == TF_JSON){
-            fprintf(conn->cmd_w, "%s\n", msg);
+        FILE *cmd_w = command_connection_get_w(conn);
+        if(command_connection_get_format(conn) == TF_JSON){
+            if (cmd_w) fprintf(cmd_w, "%s\n", msg);
         } else {                                               // DUMP mode
             if (rr_str[0]) {
                 strcat(reply_str, "\n\t");
@@ -586,8 +591,9 @@ static int process_reply(const char *msg)
                 strcat(reply_str, obj_str);
                 free(obj_str);
             }
-            fprintf(conn->cmd_w, "%s\n", reply_str);
+            if (cmd_w) fprintf(cmd_w, "%s\n", reply_str);
         }
+        command_connection_release_w(conn);
 
     }
     else {

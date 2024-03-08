@@ -54,7 +54,8 @@ int list_sessions_of_stream(struct StreamSessions *stream, FILE *cmd_w);
 int list_sessions_of_all_streams(FILE *cmd_w);
 
 
-struct oam_request *new_oam_request(const char *type, struct command_connection *conn);
+// @conn_name will be owned by the request
+struct oam_request *new_oam_request(const char *type, char *conn_name);
 
 struct oam_request *delete_oam_request(struct oam_request *req);
 

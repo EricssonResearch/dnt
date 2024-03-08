@@ -25,6 +25,16 @@
 
 DEFAULT_LOGGING_MODULE(OAM, INFO);
 
+struct command_connection {
+    char *name;
+    int socket_fd; // RW
+    FILE *cmd_w; // WRONLY
+    int w_users;
+    enum TerminalFormat mode;
+    struct Thread *thread;
+};
+
+
 static struct HashMap *command_connections = NULL; // name -> struct command_connection
 
 const char *terminal_format_name(enum TerminalFormat f)
@@ -67,6 +77,10 @@ void command_connection_release_w(struct command_connection *conn)
     __atomic_fetch_sub(&conn->w_users, 1, __ATOMIC_RELAXED);
 }
 
+enum TerminalFormat command_connection_get_format(const struct command_connection *conn)
+{
+    return conn->mode;
+}
 
 // parses @str, accepts 'ipv4' 'ipv4:port', 'ipv6', '[ipv6]', '[ipv6]:port'
 // TODO accept domain names?
@@ -248,13 +262,13 @@ static bool parse_ping_options(struct oam_request *ping_req, const char *options
 
 // always returns a request, sets ret->error to an error message
 struct oam_request *parse_ping_command(const char *oam_command, bool allow_returniface, bool allow_num,
-        struct command_connection *conn)
+        char *conn_name)
 {
     int l;
     char start_name[32];
     char iface_name[64];
 
-    struct oam_request *ping_req = new_oam_request("ping", conn);
+    struct oam_request *ping_req = new_oam_request("ping", conn_name);
 
     if (oam_command[0]=='@') {
         if (!allow_returniface) {
@@ -296,13 +310,13 @@ struct oam_request *parse_ping_command(const char *oam_command, bool allow_retur
 
 // always returns a request, sets ret->error to an error message
 struct oam_request *parse_rping_command(const char *oam_command,
-        struct command_connection *conn)
+        char *conn_name)
 {
     int l;
     char start_name[32];
     char iface_name[32];
 
-    struct oam_request *rping_req = new_oam_request("rping", conn);
+    struct oam_request *rping_req = new_oam_request("rping", conn_name);
 
     if (oam_command[0]=='@') {
         int k = sscanf(oam_command, "@%s %s %s %d%n",
@@ -339,13 +353,13 @@ struct oam_request *parse_rping_command(const char *oam_command,
 
 // always returns a request, sets ret->error to an error message
 struct oam_request *parse_rlist_command(const char *oam_command,
-        struct command_connection *conn)
+        char *conn_name)
 {
     int l;
     char start_name[32];
     char iface_name[32];
 
-    struct oam_request *rlist_req = new_oam_request("rlist", conn);
+    struct oam_request *rlist_req = new_oam_request("rlist", conn_name);
 
     if (oam_command[0]=='@') {
         int k = sscanf(oam_command, "@%s %s %s %d%n",
@@ -633,7 +647,7 @@ static void command_loop(struct command_connection *conn)
                 foreach_oam_ifaces(list_oam_ifaces_cb, conn->cmd_w);
             }
             else if (strncmp(oam_command, "ping", 4) == 0) {
-                struct oam_request *ping_req = parse_ping_command(oam_command+4, true, true, conn);
+                struct oam_request *ping_req = parse_ping_command(oam_command+4, true, true, strdup(conn->name));
                 CHECK_REQUEST(ping_req);
                 const char *req_stream = ping_req->mep_start->stream_name;
                 if (!initiate_request(ping_req)) {
@@ -642,14 +656,14 @@ static void command_loop(struct command_connection *conn)
                 last_stream = req_stream;
             }
             else if (strncmp(oam_command, "rping", 5) == 0) {
-                struct oam_request *rping_req = parse_rping_command(oam_command+5, conn);
+                struct oam_request *rping_req = parse_rping_command(oam_command+5, strdup(conn->name));
                 CHECK_REQUEST(rping_req);
                 if (!initiate_request(rping_req)) {
                     ERROR("sending rping command failed");
                 }
             }
             else if (strncmp(oam_command, "rlist", 5) == 0) {
-                struct oam_request *rlist_req = parse_rlist_command(oam_command+5, conn);
+                struct oam_request *rlist_req = parse_rlist_command(oam_command+5, strdup(conn->name));
                 CHECK_REQUEST(rlist_req);
                 if (!initiate_request(rlist_req)) {
                     ERROR("sending rlist command failed");
