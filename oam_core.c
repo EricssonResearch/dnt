@@ -8,6 +8,7 @@
 #include "oam_command.h"
 #include "oam_core.h"
 #include "oam_message.h"
+#include "oam_request.h"
 
 #include "if_oam.h"
 #include "hashmap.h"
@@ -182,17 +183,17 @@ static int oam_start_background_ping_cb(const char *key, void *value, void *user
     }
     struct oam_request *ping_req = parse_ping_command(request+4, true, false, NULL);
 
-    if (ping_req->error) {
-        log_error("background ping command '%s' invalid: %s", key, ping_req->error);
+    if (request_get_error(ping_req)) {
+        log_error("background ping command '%s' invalid: %s", key, request_get_error(ping_req));
         delete_oam_request(ping_req);
         return 0;
     }
 
-    ping_req->count = 0;    // force infinite count
+    request_override_count(ping_req, 0);    // force infinite count
 
-    struct StreamSessions *stream = get_stream_sessions(ping_req->mep_start->stream_name);
+    struct StreamSessions *stream = get_stream_sessions(request_get_stream_name(ping_req));
     if (stream_live_session_count(stream) >= 14) {
-        log_error("stream %s has too many sessions, can't start background ping", ping_req->mep_start->stream_name);
+        log_error("stream %s has too many sessions, can't start background ping", request_get_stream_name(ping_req));
         free(ping_req);
         return 0;
     }

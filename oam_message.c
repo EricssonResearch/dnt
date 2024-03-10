@@ -8,6 +8,7 @@
 #include "oam_message.h"
 #include "oam_command.h"
 #include "oam_core.h"
+#include "oam_request.h"
 
 #include "json.h"
 #include "log.h"
@@ -25,11 +26,6 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <netdb.h>
-
-
-#define OAM_RCVY_RESET_MS 5000
-#define OAM_PING_TTL 64
-#define OAM_CHANNEL 1 /* Management Communication Channel (MCC), similar format to ours */
 
 
 DEFAULT_LOGGING_MODULE(OAM, INFO);
@@ -79,7 +75,8 @@ bool known_stream(const char *stream_name)
     return contains ? true: false;
 }
 
-static int alloc_session_id(struct StreamSessions *stream, struct oam_request *req)
+int alloc_session_id(struct StreamSessions *stream, struct oam_request *req,
+        const char *conn_name, unsigned interval_ms)
 {
     pthread_mutex_lock(&session_lock);
 
@@ -111,7 +108,8 @@ static int alloc_session_id(struct StreamSessions *stream, struct oam_request *r
         stream->sessions[id].access_time = now.tv_sec + 1;
         stream->sessions[id].req = req;
         stream->sessions[id].multireq_thread = NULL;
-        stream->sessions[id].conn_name = req->conn_name ? strdup(req->conn_name) : NULL;
+        stream->sessions[id].interval_ms = interval_ms;
+        stream->sessions[id].conn_name = conn_name ? strdup(conn_name) : NULL;
         pthread_mutex_unlock(&session_lock);
         return id;
     }
@@ -198,7 +196,8 @@ int list_sessions_of_stream(struct StreamSessions *stream, FILE *cmd_w)
         if(stream->sessions[i].live){
             struct oam_request *req = stream->sessions[i].req;
             fprintf(cmd_w,"\t%d\t %s %s -> %s level %d\n",
-                    i, req->type, req->mep_start->name, req->mep_stop, req->level);
+                    i, request_get_type(req), request_get_start_name(req),
+                    request_get_stop_name(req), request_get_level(req));
         }
     }
     return 1;
@@ -218,212 +217,21 @@ int list_sessions_of_all_streams(FILE *cmd_w)
     return ret;
 }
 
-
-
-struct oam_request *new_oam_request(const char *type, char *conn_name)
+void session_set_thread(struct StreamSessions *stream, int session, struct Thread *th)
 {
-    struct oam_request *req = calloc_struct(oam_request);
-
-    req->conn_name = conn_name;
-    req->type = type;
-    req->ttl = OAM_PING_TTL;
-    req->count = 1;
-    req->interval_ms = 1000;
-
-    return req;
+    stream->sessions[session].multireq_thread = th;
 }
 
-struct oam_request *delete_oam_request(struct oam_request *req)
+struct Thread *session_get_thread(struct StreamSessions *stream, int session)
 {
-    if (req == NULL) return NULL;
-    free(req->error);
-    free(req->remote_command);
-    free(req->return_ip);
-    free(req->conn_name);
-    free(req);
-    return NULL;
+    return stream->sessions[session].multireq_thread;
 }
 
-static int add_fixed_headers(struct Packet *packet, unsigned char ttl,
-                             unsigned char seq, unsigned short channel, unsigned short nodeid,
-                             unsigned char level, unsigned char session)
+void session_touch(struct StreamSessions *stream, int session)
 {
-    unsigned int proto_id = PROTO_ID_MPLS;
-    packet_add_header(packet, 0, proto_id, protocol_list[proto_id].bytelength);
-    proto_id = PROTO_ID_OAM;
-    packet_add_header(packet, 1, proto_id, protocol_list[proto_id].bytelength);
-
-    unsigned char *mpls = packet->buf + packet->headers[0].start;
-    mpls[0] = 0;
-    mpls[1] = 0;
-    mpls[2] = 1; // BOS
-    mpls[3] = ttl;
-    unsigned char *oam  = packet->buf + packet->headers[1].start;
-    oam[0] = 0x11; // indicator and version
-    oam[1] = seq;
-    oam[2] = (channel>>8) & 0xff;
-    oam[3] = channel & 0xff;
-    oam[4] = (nodeid>>8) & 0xff;
-    oam[5] = nodeid & 0xff;
-    oam[6] = (level & 0x07) << 1;
-    oam[7] = session & 0x0f;
-
-    return 0;
-}
-
-// returns true on success
-static bool send_request(const struct oam_request *req){
-    struct Packet *packet = new_packet(NULL);
-
-    unsigned session_id = req->originator_stream ? req->originator_session_id : req->session_id;
-    add_fixed_headers(packet, req->ttl, req->seq, OAM_CHANNEL,
-                      req->node_id, req->level, session_id);
-    packet->ttl = req->ttl;
-
-    struct JsonValue *js = json_object();
-    json_object_insert(js, "type", json_string(req->type));
-    json_object_insert(js, "code", json_string("request"));
-    if (req->originator_stream) {
-        json_object_insert(js, "stream", json_string(req->originator_stream));
-    } else {
-        json_object_insert(js, "stream", json_string(req->mep_start->stream_name));
-    }
-    json_object_insert(js, "target", json_string(req->mep_stop));
-    struct JsonValue *jret = json_object();
-    json_object_insert(jret, "ip", json_string(req->return_ip));
-    json_object_insert(jret, "port", json_number(req->return_port));
-    json_object_insert(js, "return", jret);
-
-    if(strcmp(req->type, "ping")==0){
-        if(req->record_route){
-            struct JsonValue *jrr = json_array();
-            json_array_unshift(jrr, json_string(req->mep_start->name));
-            json_object_insert(js, "rr", jrr);
-        }
-        if(req->object_state){
-            json_object_insert(js, "object", json_true());
-        }
-        if(req->delay){
-            json_object_insert(js, "delay", json_true());
-        }
-    }
-    else if(strcmp(req->type, "rping")==0){
-        //TODO this hardcodes the commandline format into the protocol :(
-        json_object_insert(js, "command", json_string(req->remote_command));
-    }
-
-    struct timespec sendtime;
-    clock_gettime(CLOCK_REALTIME, &sendtime);
-    packet->recv_time = sendtime;
-
-    json_object_insert(js, "send_s", json_number(sendtime.tv_sec));
-    json_object_insert(js, "send_ns", json_number(sendtime.tv_nsec));
-
-    unsigned js_length;
-    char *js_string;
-    js_string = json_serialize(js, &js_length);
-    json_delete(js);
-    if (js_string == NULL) {
-        //TODO can this happen?
-        delete_packet(packet);
-        return false;
-    }
-    packet_add_header(packet, 2, PROTO_ID_PAYLOAD, js_length);
-    unsigned char *msg = packet->buf + packet->headers[2].start;
-    memcpy(msg, js_string, js_length);
-
-    log_packet("send request %s %s:%d seq %d lvl %d - %s",
-               req->mep_start->name, req->mep_start->stream_name, req->session_id, req->seq, req->level,
-               js_string);
-
-    free(js_string);
-
-    struct PipelineIterator *pi = new_pipe_iterator(req->mep_start->pipe, packet);
-    pi->pos = req->mep_start->pipe_pos_idx;
-
-    pipe_iterator_run(pi);
-    return true;
-}
-
-static void *oam_request_thread(void *arg)
-{
-    struct oam_request *req = (struct oam_request *)arg;
-    unsigned seq=0;
-    struct StreamSessions *stream = get_stream_sessions(req->mep_start->stream_name);
-    stream->sessions[req->session_id].interval_ms = req->interval_ms; //TODO why is this here?
-
-    while(1){
-        req->seq = seq & 0xFF;
-        send_request(req);
-        struct timespec now;
-        clock_gettime(CLOCK_REALTIME, &now);
-        stream->sessions[req->session_id].access_time = now.tv_sec + 1;
-        seq++;
-        if((req->count != 0) && (seq >= req->count)) break;
-        usleep(req->interval_ms * 1000);
-    }
-    struct Thread *th = stream->sessions[req->session_id].multireq_thread;
-    //TODO keep the session live until we receive the replies
-    // stream->sessions[req->session_id].live = false;
-    stream->sessions[req->session_id].multireq_thread = NULL;
-    delete_oam_request(req);
-    thread_exit(th);
-    return NULL;
-}
-
-bool initiate_request(struct oam_request *req)
-{
-    struct command_connection *conn = find_command_connection(req->conn_name);
-    FILE *cmd_w = command_connection_get_w(conn);
-
-    struct Pipeline *pipe = req->mep_start->pipe;
-    if (!pipe) {
-        req->error = strdup_printf("mep start '%s' has no pipeline!?!\n", req->mep_start->name);
-        if (cmd_w) fprintf(cmd_w, req->error);
-        command_connection_release_w(conn);
-        return false;
-    }
-
-    struct StreamSessions *stream = get_stream_sessions(req->mep_start->stream_name);
-    int session_id = alloc_session_id(stream, req);
-    if (session_id < 0) {
-        req->error = strdup_printf("stream %s has no free session id\n", req->mep_start->stream_name);
-        if (cmd_w) fprintf(cmd_w, req->error);
-        command_connection_release_w(conn);
-        return false;
-    }
-
-    req->session_id = session_id;
-    req->seq = 0;
-
-    log_info("request %s stream %s:%d seq %d lvl %d type %s mep %s -> %s"
-            " count %d interval %d, rr: %s os: %s [reply to ip: %s, port: %u]",
-             req->mep_start->name, req->mep_start->stream_name, req->session_id,
-             req->seq, req->level, req->type, req->mep_start->name, req->mep_stop, req->count, req->interval_ms,
-             req->record_route?"yes":"no", req->object_state?"yes":"no", req->return_ip, req->return_port);
-
-    if (cmd_w) fprintf(cmd_w, "OAM request %s session %u seq %u, %s -> %s level %d count %d interval %d,"
-            " rr: %s os: %s\t[reply to ip: %s, port: %u]\n",
-            req->type, req->session_id, req->seq, req->mep_start->name, req->mep_stop, req->level, req->count, req->interval_ms,
-            req->record_route?"yes":"no", req->object_state?"yes":"no", req->return_ip, req->return_port);
-
-    if(req->count == 1){
-        stream->sessions[session_id].multireq_thread = NULL;
-        send_request(req);
-        delete_oam_request(req);
-    } else {
-        stream->sessions[session_id].multireq_thread = thread_launch(oam_request_thread, req, "oam req %d", session_id);
-        if (stream->sessions[session_id].multireq_thread == NULL) {
-            req->error = strdup("could not create new ping thread");
-            log_error(req->error);
-            if (cmd_w) fprintf(cmd_w, req->error);
-            command_connection_release_w(conn);
-            return false;
-        }
-    }
-    command_connection_release_w(conn);
-
-    return true;
+    struct timespec now;
+    clock_gettime(CLOCK_REALTIME, &now);
+    stream->sessions[session].access_time = now.tv_sec + 1;
 }
 
 
@@ -782,14 +590,14 @@ static bool send_rping_error(struct OamEndPoint *oam, struct Packet *p, struct J
     json_object_insert(j, "recv_s", json_number(p->recv_time.tv_sec));
     json_object_insert(j, "recv_ns", json_number(p->recv_time.tv_nsec));
 
-    json_object_insert(j, "error", json_string(ping_req->error));
+    json_object_insert(j, "error", json_string(request_get_error(ping_req)));
 
     unsigned msg_len=0;
     char *j_msg = json_serialize(j, &msg_len);
 
     log_packet("send rping error %s %s:%d seq %d lvl %d (to %s %d) - %s", oam->name, stream, session, seq, level,
-               ping_req->return_ip, ping_req->return_port, j_msg);
-    oam_send_reply(ping_req->return_ip, ping_req->return_port, j_msg, msg_len);
+               request_get_return_ip(ping_req), request_get_return_port(ping_req), j_msg);
+    oam_send_reply(request_get_return_ip(ping_req), request_get_return_port(ping_req), j_msg, msg_len);
 
     free(j_msg);
     json_delete(j);
@@ -823,9 +631,9 @@ static bool process_rping_request(struct OamEndPoint *oam, struct Packet *p, str
     }
 
     struct oam_request *ping_req = parse_ping_command(cmd->v.string, false, true, NULL);
-    ping_req->return_ip = reply_address;
-    ping_req->return_port = port;
-    if (ping_req->error == NULL) {
+    request_set_return(ping_req, reply_address, port);
+    if (request_get_error(ping_req) == NULL) {
+        //TODO fix this to behave like rlist
         // if (strcmp(oam->stream, ping_req->mep_start->stream_name) != 0) {
             // ping_req->error = strdup("rping target point and ping start point are in different streams");
             // return send_rping_error(oam, p, j, ping_req);
@@ -833,14 +641,13 @@ static bool process_rping_request(struct OamEndPoint *oam, struct Packet *p, str
 
         struct JsonValue *jstream = json_object_get_string(j, "stream");
         if (jstream == NULL) {
-            ping_req->error = strdup("rping request contains no stream name");
+            request_set_error(ping_req, strdup("rping request contains no stream name"));
             return send_rping_error(oam, p, j, ping_req);
         }
-        ping_req->originator_stream = strdup(jstream->v.string);
-        ping_req->originator_session_id = session;
+        request_set_originator(ping_req, strdup(jstream->v.string), session);
 
         if (!initiate_request(ping_req)) {
-            ping_req->error = strdup_printf("ping request could not be sent: %s", ping_req->error);
+            request_set_error(ping_req, strdup_printf("ping request could not be sent: %s", request_get_error(ping_req)));
             return send_rping_error(oam, p, j, ping_req);
         }
     } else {
