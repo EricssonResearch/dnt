@@ -248,6 +248,37 @@ def prepare_cli(sock):
     sock.send("mode json\n".encode())
     _ = sock.recv(10000) # JSON mode ack
 
+def auto_mip_test():
+    print("Test OAM automatic MIP configuration", end=" ")
+    exec_bg("../r2dtwo oam/autconfig/auto.ini -v ALL:NONE")
+    time.sleep(2)
+    expected_reply = """Available MEP Start points:
+o_C1_L4_post-E1 level 4 in pipe M1 at pos 5
+o_C1_L4_pre-E2 level 4 in pipe M1 at pos 6
+o_C2_L4_pre-E2 level 4 in pipe C2 at pos 3
+o_C_L4_post-E2 level 4 in pipe M1 at pos 8
+o_C_L4_pre-R1 level 4 in pipe M1 at pos 10
+o_M1_L4_pre-E1 level 4 in pipe M1 at pos 3
+o_M2_L4_pre-E1 level 4 in pipe M2 at pos 3
+o_M5_L4_pre-R2 level 4 in pipe M5 at pos 2
+"""
+    with socket(AF_INET, SOCK_STREAM, 0) as s:
+        try:
+            s.connect(("127.0.0.1", 8000))
+            prepare_cli(s)
+            s.settimeout(2)
+            s.send("list".encode())
+            reply = s.recv(10000).decode()
+            reply += s.recv(10000).decode()
+            if reply == expected_reply:
+                print("✔")
+                return True
+            else:
+                print("✘ ")
+                return False
+        except Exception:
+            print("✘ ")
+            return False
 
 def run_tests(net, test):
     raddrs = {
@@ -292,7 +323,9 @@ def run_tests(net, test):
                 s.close()
         time.sleep(0.5)
     switch_netns()
-    print(f"Successful tests: {success}/{len(test)}")
+    if auto_mip_test():
+        success += 1
+    print(f"Successful tests: {success}/{len(test) + 1}") # +1 is the auto MIP test
 
 def main():
     try:
