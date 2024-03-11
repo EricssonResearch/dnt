@@ -7,6 +7,8 @@
 
 #include "json.h"
 
+#include <stdbool.h>
+
 enum PipelineObjectType {
     PO_SEQGEN = 1,
     PO_SEQREC,
@@ -22,6 +24,7 @@ struct PipelineObject {
     char *name;
     enum ActionResult (*process_packet)(struct PipelineObject *self, struct PipelineIterator *pi);
     struct JsonValue *(*get_state)(const struct PipelineObject *self);
+    bool auto_mip;
 };
 
 // uses the delete function for the appropriate type

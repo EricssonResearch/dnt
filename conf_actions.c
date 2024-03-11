@@ -133,6 +133,7 @@ struct ConfAction {
         } edit;
         struct {
             struct PipelineObject *rec;
+            char *pipename;
         } elim;
         struct {
             struct HeaderField *field;
@@ -148,6 +149,7 @@ struct ConfAction {
             char *stream;
             int level;
             struct PipelineObject *obj; // NULL if no associated object
+            bool auto_generated;
         } oam;
         struct {
             struct PipelineObject *pof;
@@ -552,7 +554,7 @@ static bool process_token(char *token, void *userdata)
 {
 #define THROW(msg, ...)                                             \
     do {                                                            \
-        log_error("stream %s action %s: " msg,                      \
+        log_error("stream '%s' action '%s': " msg,                      \
                 stst->stream, stst->actions->text, ##__VA_ARGS__);  \
         return false;                                               \
     } while (0)
@@ -682,7 +684,7 @@ static bool process_token(char *token, void *userdata)
                     // we don't yet have a header index here, we fix it in process_action()
                     a->lhs.v.header.field = new_headerfield(0, f);
 
-                    if (! process_assignment_rhs(stst, a, rhs)) {
+                    if (!process_assignment_rhs(stst, a, rhs)) {
                         THROW("right-hand-side '%s' invalid", rhs);
                     }
                 } else {
@@ -748,8 +750,10 @@ static bool process_token(char *token, void *userdata)
                 } else {
                     THROW("first argument of eliminate must be a recovery object");
                 }
+            } else if (newaction->elim.pipename == NULL) {
+                newaction->elim.pipename = strdup(token);
             } else {
-                THROW("the only argument of eliminate is the recovery object");
+                THROW("the arguments of eliminate are the recovery object and a pipeline");
             }
             break;
         case CA_FILTEROAM:
@@ -1041,17 +1045,17 @@ static struct ConfAction *new_confaction(struct StageState *stst, enum ConfActio
     return ret;
 }
 
-static bool check_header_stack(struct HeaderDescriptor *headers,
+static bool check_header_stack(const struct HeaderDescriptor *headers,
         enum ProtocolID *expected, unsigned count)
 {
     for (unsigned i=0; i<count; i++) {
         if (headers == NULL) {
-            log_error("header %u should be %s", i,
+            log_warning("header %u should be %s", i,
                     protocol_type_from_id(expected[i]));
             return false;
         }
         if (headers->id != expected[i]) {
-            log_error("header %u is %s, expected %s", i,
+            log_warning("header %u is %s, expected %s", i,
                     protocol_type_from_id(headers->id), protocol_type_from_id(expected[i]));
             return false;
         }
@@ -1060,12 +1064,15 @@ static bool check_header_stack(struct HeaderDescriptor *headers,
     return true;
 }
 
+
+static bool oam_mip_autoconfig(struct StageState *stst);
+
 // here we do processing that needs all the parameters of the action
 static bool process_action(struct StageState *stst)
 {
 #define THROW(msg, ...)                                             \
     do {                                                            \
-        log_error("stream %s action %s: " msg,                      \
+        log_error("stream '%s' action '%s': " msg,                  \
                 stst->stream, newaction->text, ##__VA_ARGS__);      \
         return false;                                               \
     } while (0)
@@ -1311,9 +1318,19 @@ static bool process_action(struct StageState *stst)
             if (newaction->elim.rec == NULL) {
                 THROW("eliminate needs a sequence recovery object");
             }
+            if (newaction->elim.pipename == NULL) {
+                THROW("eliminate needs an action pipeline (since version 6.3)");
+            }
             if (!stst->seq_set) {
                 THROW("can't eliminate without a sequence number");
             }
+            if (newaction->elim.rec->auto_mip && !oam_mip_autoconfig(stst))
+                log_warning("cannot generate MIP for '%s'", newaction->elim.rec->name);
+            struct ConfAction *elimjump = new_confaction(stst, CA_JUMP,
+                    strdup_printf("auto-generated jump for %s", newaction->text));
+            elimjump->jump.pipename = strdup(newaction->elim.pipename);
+            if (!process_action(stst))
+                THROW("can't jump to '%s' after elimination", elimjump->jump.pipename);
             break;
         case CA_FILTEROAM:
             // the user can't create this action, so nothing to verify here
@@ -1374,7 +1391,14 @@ static bool process_action(struct StageState *stst)
             }
             enum ProtocolID expected[] = {PROTO_ID_MPLS, PROTO_ID_DCW};
             if (check_header_stack(stst->headers, expected, 2) == false) {
-                THROW("header stack is not suitable for OAM point");
+                if (newaction->oam.auto_generated == false)
+                    THROW("header stack is not suitable for OAM point");
+                else {
+                    // for auto-generated MIPs it is just a warning
+                    log_warning("stream '%s' action '%s': header stack is not suitable for OAM point",
+                                stst->stream, newaction->text);
+                    return false;
+                }
             }
             //TODO remove CA_MIP for now, it should be there but causes trouble
             if (newaction->type == CA_MEPSTART /*|| newaction->type == CA_MIP*/) {
@@ -1418,6 +1442,8 @@ static bool process_action(struct StageState *stst)
             if (newaction->repl.pipelines == NULL) {
                 THROW("no pipelines specified");
             }
+            if (newaction->repl.replobj && newaction->repl.replobj->auto_mip && !oam_mip_autoconfig(stst))
+                log_warning("cannot generate MIP for '%s'", newaction->repl.replobj->name);
             REVERSE_LIST(newaction->repl.pipelines);
             stst->had_final = true;
             break;
@@ -1640,7 +1666,6 @@ struct ConfAction *delete_confaction_list(struct ConfAction *ca_list)
             case CA_MEPSTOP:
             case CA_MIP:
                 free(del->oam.name);
-                free(del->oam.stream);
                 break;
         }
         free(del);
@@ -1947,4 +1972,67 @@ void confactions_print(const struct ConfAction *ca_list, unsigned indent)
                 break;
         }
     }
+}
+
+static bool oam_mip_autoconfig(struct StageState *stst)
+{
+    struct ConfAction *ca = stst->actions;
+    switch (ca->type) {
+        case CA_ELIM: {
+            char *pre = strdup_printf("o_%s_L4_pre-%s", stst->stream, ca->elim.rec->name);
+            char *post = strdup_printf("o_%s_L4_post-%s", ca->elim.pipename, ca->elim.rec->name);
+            struct ConfAction *ca_pre = new_confaction(stst, CA_MIP,
+                           strdup_printf("auto-generated MIP before '%s'", ca->text));
+            ca_pre->oam.name = pre;
+            ca_pre->oam.level = 4;
+            ca_pre->oam.obj = ca->elim.rec;
+            ca_pre->oam.auto_generated = true;
+            ca_pre->oam.stream = strdup(stst->stream);
+            if (!process_action(stst)) {
+                free(pre);
+                free(ca_pre->oam.stream);
+                free(ca_pre);
+                stst->actions = ca;
+                return false;
+            }
+            stst->actions = confaction_swap_with_next(stst->actions);
+            struct ConfAction *ca_post = new_confaction(stst, CA_MIP,
+                            strdup_printf("auto-generated MIP after '%s'", ca->text));
+            ca_post->oam.name = post;
+            ca_post->oam.level = 4;
+            ca_post->oam.obj = ca->elim.rec;
+            ca_post->oam.auto_generated = true;
+            ca_post->oam.stream = strdup(ca->elim.pipename);
+            if (!process_action(stst)) {
+                free(pre);
+                free(post);
+                free(ca_pre->oam.stream);
+                free(ca_post->oam.stream);
+                free(ca_pre);
+                free(ca_post);
+                stst->actions = ca;
+                return false;
+            }
+            break; }
+        case CA_REPL: {
+            char *pre = strdup_printf("o_%s_L4_pre-%s", stst->stream, ca->repl.replobj->name);
+            struct ConfAction *ca_pre = new_confaction(stst, CA_MIP,
+                           strdup_printf("auto-generated MIP before '%s'", ca->text));
+            ca_pre->oam.name = pre;
+            ca_pre->oam.level = 4;
+            ca_pre->oam.obj = ca->repl.replobj;
+            ca_pre->oam.auto_generated = true;
+            ca_pre->oam.stream = strdup(stst->stream);
+            if (!process_action(stst)) {
+                free(pre);
+                free(ca_pre->oam.stream);
+                free(ca_pre);
+                stst->actions = ca;
+                return false;
+            }
+            break; }
+        default:
+            return false;
+    }
+    return true;
 }
