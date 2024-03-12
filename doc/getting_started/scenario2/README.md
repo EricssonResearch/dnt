@@ -93,7 +93,8 @@ nni2_out = edit mpls.label=200 mpls.bos=1, send nni2_out
 
 stream_nni:packet = mpls, dcw, eth, cvlan
 stream_nni:match = cvlan vid=99
-stream_nni:actions = readseq dcw, pef, del dcw, del mpls, del cvlan, send uni
+stream_nni:actions = readseq dcw, pef nni_pipe
+nni_pipe = del dcw, del mpls, del cvlan, send uni
 ```
 
 For the full list of the supported R2DTWO actions, their parameters and behavior please consult with the documentation.
@@ -120,8 +121,9 @@ The steps in `stream_nni`:
 
 1. After the matching of VLAN ID 99 we will read the DetNet CW sequence number: `readseq dcw`. That is required for the PEF
 2. Now we can do the elimination with the PEF, which is performed by the `pef` action. Notice that `pef` is defined in the `[objects]` section, but until their names are not ambiguous we can use an object name in the action pipeline and the action type implicitly guessed by the R2DTWO.
-3. Now we decapsulate the headers until the Layer2 payload, as received by the UNI, since the `talker` will expect the same encapsulation that it used when sent the packet. So right now we will delete the MPLS, DetNet CW and VLAN headers: `del dcw, del mpls, del cvlan`.
-4. Then in the last action of the pipeline, we send the decapsulated packet on the UNI for the `talker`: `send uni`.
+3. The PEF drop the replica packets and the one passing packet's processing continues on the `nni_pipe` action pipeline.
+4. Now we decapsulate the headers until the Layer2 payload, as received by the UNI, since the `talker` will expect the same encapsulation that it used when sent the packet. So right now we will delete the MPLS, DetNet CW and VLAN headers: `del dcw, del mpls, del cvlan`.
+5. Then in the last action of the pipeline, we send the decapsulated packet on the UNI for the `talker`: `send uni`.
 
 As mentioned before, the `nxp2.ini` is very similar however, the UNI is connected to the `listener` in that case.
 

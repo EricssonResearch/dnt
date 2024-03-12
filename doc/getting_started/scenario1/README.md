@@ -85,11 +85,13 @@ tx_nni2 = edit cvlan.vid=200, send nni2
 
 stream_nni1:packet = eth, cvlan, rtag
 stream_nni1:match = cvlan vid=100
-stream_nni1:actions = readseq rtag, seqrcvy, del rtag, del cvlan, send uni
+stream_nni1:actions = readseq rtag, seqrcvy nni_pipe
 
 stream_nni2:packet = eth, cvlan, rtag
 stream_nni2:match = cvlan vid=200
-stream_nni2:actions = readseq rtag, seqrcvy, del rtag, del cvlan, send uni
+stream_nni2:actions = readseq rtag, seqrcvy nni_pipe
+
+nni_pipe = del rtag, del cvlan, send uni
 ```
 
 Each stream can described with three lines in `streamname:suffix` format. The stream names are custom identifiers, while the suffixes are the following:
@@ -115,6 +117,24 @@ For example the `replicate tx_nni1 tx_nni2` action above branching the pipeline 
                                                    │                │
                                                    └────────────────┘
                                                     tx_nni2
+```
+
+Similarly the `seqrcvy nni_pipe` tells "continue the execution of the `nni_pipe` after the elimination. Its mandatory to have a common pipeline after the elimination action:
+
+```
+ stream_nni1:actions
+┌───────────────────────────────────────┐
+│                                       │
+│●───▶readseq rtag────▶seqrcvy nni_pipe─┼────┐  nni_pipe
+│                                       │    │ ┌─────────────────────────────────────┐
+└───────────────────────────────────────┘    │ │                                     │
+                                             ├─┼─▶ del rtag───▶del cvlan───▶send uni │
+┌───────────────────────────────────────┐    │ │                                     │
+│                                       │    │ └─────────────────────────────────────┘
+│●───▶readseq rtag────▶seqrcvy nni_pipe─┼────┘
+│                                       │
+└───────────────────────────────────────┘
+ stream_nni2:actions
 ```
 
 For the full list of the supported R2DTWO actions, their parameters, and behavior please consult with the documentation.
@@ -143,7 +163,7 @@ This object has its inner state, like the next sequence number, etc. which is ma
 
 Similarly, there is a __SeqRcvy__ instance called `seqrcvy` that implements recovery function of IEEE 802.1CB-2017, see section 7.4.2.
 This maintains a history window that tells if a received packet's sequence number has already been seen or not. If not, accept it, if already seen drop it.
-For the dropped packets, the rest of the action pipeline is not executed.
+For the dropped packets, the rest of the action pipeline (in this configuration, the `nni_pipe`) is not executed.
 
 
 ## Run the R2DTWO and generate traffic
@@ -223,6 +243,8 @@ Internet Protocol Version 4, Src: 10.0.0.1, Dst: 10.0.0.2
 Internet Protocol Version 4, Src: 10.0.0.1, Dst: 10.0.0.2
 ...
 ```
+
+__Note:__ for more recent tshark version (after 4.1) use `rtag` filter instead `ieee8021cb`.
 
 On the other path VLAN ID will be `200`, to investigate that start `tshark` as above but on the other NNI interface (`swp1`).
 

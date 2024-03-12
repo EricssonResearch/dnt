@@ -87,7 +87,8 @@ nni2_out = edit mpls.label=200 mpls.bos=1, send nni2_out
 
 stream_nni:packet = mpls, dcw, ipv4
 stream_nni:match = ipv4 dst=10.0.100.11
-stream_nni:actions = readseq dcw, pef, del dcw, del mpls, send uni_ip
+stream_nni:actions = readseq dcw, pef nni_pipe
+nni_pipe = del dcw, del mpls, send uni_ip
 ```
 
 For the full list of the supported R2DTWO actions, their parameters and behavior please consult with the documentation.
@@ -190,11 +191,46 @@ This can be visualized in the figure below:
                                    traffic
 ```
 
+
+To do that in this particular scenario there is a predefined shell function `configure_tc` for convenience.
+This function setup the veth interfaces and apply the Linux TC filters and redirections.
+We can check the commands with the `declare -f configure_tc` command:
+
+```
+(ip over detnet) root:scenario3# declare -f configure_tc
+configure_tc ()
+{
+    nxp1 ip link add r2eth0 type veth peer name r2eth1;
+    nxp1 ip link set dev r2eth0 up;
+    nxp1 ip link set dev r2eth1 up;
+    nxp1 tc qdisc add dev swp2 handle ffff: ingress;
+    nxp1 tc filter add dev swp2 parent ffff: protocol ip flower src_ip 10.0.100.11 dst_ip 10.0.200.22 action mirred egress redirect dev r2eth0;
+    nxp2 ip link add r2eth0 type veth peer name r2eth1;
+    nxp2 ip link set dev r2eth0 up;
+    nxp2 ip link set dev r2eth1 up;
+    nxp2 tc qdisc add dev swp2 handle ffff: ingress;
+    nxp2 tc filter add dev swp2 parent ffff: protocol ip flower src_ip 10.0.200.22 dst_ip 10.0.100.11 action mirred egress redirect dev r2eth0;
+}
+```
+
+As one can see, this setup the veths on both `nxp1` and `nxp2`, and redirect the IP traffic coming from the `talker` or `listener` to `r2eth1` interface.
+R2DTWO receive this IP traffic, encapsulate it to DetNet pseudowires, replicate it to the NNI interfaces.
+At the termination of the pseudowire, the IP packet decapsulated and sent with the IP header as a Layer3 packet on the UNI interface.
+In this case, the UNI interface set to `swp2` which is also the default gateway's interface for the `talker` and `listener`.
+
 So we have to edit the config files to use the interfaces dedicated to R2DTWO traffic only:
 
 ```
-
+[interfaces]
+...
+uni_eth = eth iface=r2eth1
+uni_ip = ip iface=swp2
+...
 ```
+
+For convenience these edited configs saved as `nxp1_good.ini` and `nxp2_good.ini`.
+We can use the configs __after__ executing `configure_tc` command in one of the bash.
+(If `configure_tc` not executed, R2DTWO will fail to start since no veth interfaces exists)
 
 ## Optional: Cleanup (if running locally, not on physical NXP boards)
 

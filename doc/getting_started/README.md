@@ -52,9 +52,17 @@ sudo make install
 cd $HOME
 r2dtwo
 
-R2DTWO - Reliable & Robust Deterministic Tool for netWOrking implementation
-Version 6.0
-usage: r2dtwo configfile
+Usage: r2dtwo [OPTION...] CONFIGFILE
+
+  -o, --output=logfile       Output: log[f]ile, sys[l]og, [s]tdout (default),
+                             std[e]rr
+  -v, --verbose=MODULE:LEVEL Available levels: NONE, ERROR, WARNING, INFO,
+                             PACKET, DEBUG, ALL
+  -?, --help                 Give this help list
+      --usage                Give a short usage message
+
+Mandatory or optional arguments to long options are also mandatory or optional
+for any corresponding short options.
 ```
 
 # Test R2DTWO in a simple network environments

@@ -1,6 +1,5 @@
 #!/bin/bash
 #
-~/setup_if.sh
 sysctl -w net.ipv4.ip_forward=1
 
 ip addr add 192.168.55.2/24 dev swp0
