@@ -1666,6 +1666,7 @@ struct ConfAction *delete_confaction_list(struct ConfAction *ca_list)
             case CA_MEPSTOP:
             case CA_MIP:
                 free(del->oam.name);
+                free(del->oam.stream);
                 break;
         }
         free(del);

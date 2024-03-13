@@ -377,6 +377,7 @@ static void *command_thread(void *arg)
     struct command_connection *conn = arg;
     command_loop(conn);
     struct Thread *thread = conn->thread;
+    // the hash delete callback will call thread_stop, but it does nothing to its own thread
     hashmap_remove(command_connections, conn->name);
     thread_exit(thread);
     return NULL;
@@ -432,8 +433,11 @@ static int command_connection_delete_cb(const char *key, void *value, void *user
     (void)key; // same as conn->name
     (void)userdata;
     struct command_connection *conn = value;
-    //TODO while (conn->w_users > 0) {wait}
+    while (conn->w_users > 0) {
+        usleep(1000);
+    }
     stop_all_sessions_of_connection(conn);
+    thread_stop(conn->thread);
     fclose(conn->cmd_w); // we only need to close the FILE*
     free(conn->name);
     free(conn);
