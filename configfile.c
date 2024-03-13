@@ -12,7 +12,6 @@
 #include "inifile.h"
 #include "interface.h"
 #include "log.h"
-#include "oam.h"
 #include "parsetree.h"
 #include "pipeline.h"
 #include "utils.h"

@@ -19,7 +19,6 @@
 #include <arpa/inet.h> /* ntohs() */
 #include <ifaddrs.h>
 
-#include <errno.h>
 #include <netinet/in.h>
 
 DEFAULT_LOGGING_MODULE(INTERFACE, INFO);

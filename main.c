@@ -7,8 +7,6 @@
 #include "interface.h"
 #include "packet.h"
 #include "parsetree.h"
-#include "pipeline.h"
-#include "protocol.h"
 #include "seq_gen.h"
 #include "time_utils.h"
 #include "oam.h"
@@ -21,7 +19,6 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <limits.h>
 
 #include <signal.h>
 #include <sys/epoll.h>
@@ -38,7 +35,7 @@ static void sigint_handler(int sig, siginfo_t *si, void *uc)
     (void)si;
     (void)uc;
 
-    log_info("%s signal caught\n", strsignal(sig));
+    log_info("%s signal caught", strsignal(sig));
     sigint_count++;
 }
 
@@ -50,7 +47,7 @@ static void sigusr1_handler(int sig, siginfo_t *si, void *uc)
     if (sig != SIGUSR1)
         return;
 
-    log_info("SIGUSR1 caught, resetting seq generators\n");
+    log_info("SIGUSR1 caught, resetting seq generators");
     hashmap_foreach(config->objects, reset_all_seq_generators, NULL);
 }
 
@@ -149,7 +146,7 @@ static bool set_loglevels(const char *levels)
 {
 #define THROW(msg, ...)                             \
     do {                                            \
-        log_error(msg "\n", ##__VA_ARGS__);         \
+        log_error(msg, ##__VA_ARGS__);              \
         free(s);                                    \
         return false;                               \
     } while (0)
@@ -262,7 +259,7 @@ int main(int argc, char **argv)
     const char *verbose_env = getenv("R2DTWO_VERBOSE");
     if (verbose_env) {
         if (!set_loglevels(verbose_env)) {
-            log_error("Verbosity environment '%s' is invalid\n", verbose_env);
+            log_error("Verbosity environment '%s' is invalid", verbose_env);
             return EXIT_FAILURE;
         }
     }
@@ -282,7 +279,7 @@ int main(int argc, char **argv)
 
     if (arguments.verbosity) {
         if (!set_loglevels(arguments.verbosity)) {
-            log_error("Verbosity argument '%s' is invalid\n", arguments.verbosity);
+            log_error("Verbosity argument '%s' is invalid", arguments.verbosity);
             return EXIT_FAILURE;
         }
     }
@@ -297,7 +294,7 @@ int main(int argc, char **argv)
     log_packet("packet");
     log_debug("debug");*/
 
-    log_info("Reading config '%s'\n", arguments.configfile);
+    log_info("Reading config '%s'", arguments.configfile);
     config = read_config(arguments.configfile);
     if (config == NULL) {
         log_error("the config is invalid");
@@ -325,7 +322,7 @@ int main(int argc, char **argv)
     }
 
     recv_loop(config->ifaces);
-    log_info("receive loop ended\n");
+    log_info("receive loop ended");
 
     fini_delay();
 

@@ -10,7 +10,6 @@
 #include "replicate.h"
 #include "seq_gen.h"
 #include "seq_recov.h"
-#include "utils.h"
 
 #include <string.h>
 #include <stdlib.h>

@@ -155,7 +155,7 @@ static bool parse_ping_returnif(struct oam_request *ping_req, const char *ifname
         ping_req->return_port = OAM_PORT;
         if (parse_ip_port(ifname, &ping_req->return_ip, &ping_req->return_port)) {
             ping_req->node_id = get_node_id();
-            log_debug("return ip '%s' port %u\n", ping_req->return_ip, ping_req->return_port);
+            log_debug("return ip '%s' port %u", ping_req->return_ip, ping_req->return_port);
             return true;
         }
         if (have_default_iface()) {

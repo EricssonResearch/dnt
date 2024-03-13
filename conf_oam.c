@@ -3,10 +3,8 @@
 
 
 #include "conf_oam.h"
-#include "conf_utils.h"
 #include "inifile.h"
 #include "log.h"
-#include "utils.h"
 
 #include <stdlib.h>
 #include <string.h>

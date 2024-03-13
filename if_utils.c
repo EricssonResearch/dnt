@@ -69,7 +69,7 @@ void enable_rx_tstamp(int sock, const char *sockname,
                 &so_timestamping_flags, sizeof(so_timestamping_flags)) < 0) {
         log_perror("setsockopt SO_TIMESTAMPING");
     } else {
-        if (0) log_info("setsockopt SO_TIMESTAMPING success for '%s' on '%s'\n",
+        if (0) log_info("setsockopt SO_TIMESTAMPING success for '%s' on '%s'",
                 sockname, ifname);
     }
 }
