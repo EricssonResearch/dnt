@@ -123,15 +123,15 @@ The available actions are the following:
     * another header field
     * an interface property
     * these expressions are validated against the size and type of the header field on the left-hand-side
-* `eliminate seq_rec` conditional drop, uses the given sequence recovery object and the packet's sequence number metadata
-* `jump pipeline` continues the processing on the named pipeline, which has to be defined in the *streams* section, it does not return to the current pipeline; useful for breaking up long pipelines or reuse operations for multiple streams; this action is the last one in a pipeline. For pipeline naming, see naming convention [inispec.md](./inisec.md#naming convention) 
+* `eliminate seq_rec ` conditional drop, uses the given sequence recovery object and the packet's sequence number metadata
+* `jump pipeline` continues the processing on the named pipeline, which has to be defined in the *streams* section, it does not return to the current pipeline; useful for breaking up long pipelines or reuse operations for multiple streams; this action is the last one in a pipeline. For pipeline naming, see naming convention `inisec.md#naming convention`
 * `mep-start name level` Monitoring EndPoint, can initiate OAM messages
 * `mep-stop name level [object]` Monitoring EndPoint, terminates an OAM monitoring route, can report status information about an object
 * `mip name level [object]` Monitoring Intermediate Point, answers OAM messages, implicitly a mep-start point, can report status information about an object
 * `pof pofobject` puts the packet in a reorder buffer based on its sequence number metadata, continues the actions on this pipeline when the ordering is okay
 * `readseq header` reads the sequence number from the given header into the packet metadata field (to be used by the `eliminate` and `pof` actions)
 * `readtstamp header` reads the timestamp from the given header into the packet metadata field (to be used by the `delay` action)
-* `replicate [object] pipeline1 [pipeline2]` makes copies of the packet and continues processing them on the given pipelines, which have to be defined in the *streams* section, this can create any number of branches; the first argument can optionally be the name of a Replicate object that stores statistics about the replication; this action is the last one in a pipeline; first argument is optionally a state object of type Replicate that counts the processed packets
+* `replicate [object] pipeline1 [pipeline2] [AutoMIP=true]` makes copies of the packet and continues processing them on the given pipelines, which have to be defined in the *streams* section, this can create any number of branches; the first argument can optionally be the name of a Replicate object that stores statistics about the replication; this action is the last one in a pipeline; first argument is optionally a state object of type Replicate that counts the processed packets.
 * `send iface` sends out the packet on the given interface from the *interfaces* list
 * `seqgen generator` uses the given sequence generator object to set the sequence number metadata of the packet
 * `ttlcheck` drops the packet if the metadata TTL is 0
@@ -179,6 +179,7 @@ The object instantiation is in this format: `name = type parameter=value [parame
     * InitSeqFlag use the Init flag for seamless mode (default: off)
     * InitSeqStart the starting sequence number (default: 0x8000)
     * ResetFlag use the Reset flag for seamless mode (default: off)
+    * AutoMIP=true enables automatic `mip` generation for the replication object (default:false)
 * `SeqRec` sequence number recovery (for `eliminate` action)
     * frerSeqRcvyAlgorithm can be Vector (default), SeamlessVector, Match
     * frerSeqRcvyHistoryLength size of the history window (default: 2)
@@ -190,6 +191,7 @@ The object instantiation is in this format: `name = type parameter=value [parame
     * frerSeqRcvyLatentResetPeriod reset latent error and root cause related counters (default: 0)
     * frerSeqRcvyLatentErrorDifference do not treat packet drops below this threshold as loss in one period (default: 0)
     * frerSeqRcvyOutageThreshold above that threshold consecutive packet drops reported as burst loss/path outage (default: 0)
+    * AutoMIP=true enables automatic `mip` generation for the elimination object (default:false)    
 * `Pof` packet ordering function (for `pof` action)
     * BufferSize max number of packets in the reorder buffer (default: 2)
     * MaxDelay timeout when waiting for missing packet (default: 20)
@@ -233,30 +235,32 @@ global_connectivity_check = ping s1:mepn1s1 any 4 -r -o
 
 ## naming convention
 
-For a self-explanatory configuration file and proper OAM operation, the following naming rules should be used. The naming is also important for automatically generated OAM `mip`s.
+For a self-explanatory configuration file and proper OAM operation, the following naming rules should be used. The naming is also important for automatically generated OAM `mip`s. Note that the `mip`s will be automatically generated only if `AutoMIP=true` is specified for the replication/elimination object.
 
 * session names should identify the session. For example, s1 or s2. For compound streams, the naming can include the compound stream name too, for example s1(c1), s2(c1) where c1 is the compound stream name.
 * for a replication pipeline, for each action stream after the replication the name should represent the generated stream name
 * for an elimination pipeline, the elimination should be placed in the action pipeline of each individual stream (but with the same object name).This ensures that a `mip` will be automatically generated for each stream.   
-* action pipeline names after replication or jump should also hint the stream name, as it will be used as the automatically generated `mip` name if there is a replication/elimination in this pipeline. 
+* action pipeline names after replication or jump should also hint the stream name, as it will be used as the automatically generated `mip` name if there is a replication/elimination in this pipeline.
 
 For example, a replication pipeline should look like:
 s1:actions = ..., replicate s1_1 s1_2
 s1_1 = ..., send if1
-s1_1 = ..., send if2
+s1_2 = ..., send if2
 
 An elimination pipeline should look like:
-s1:actions = ..., eliminate E1, send/jump ...
-s2:actions = ..., eliminate E1, send/jump ...
+s1(c1):actions = ..., E1 c1
+s2(c1):actions = ..., E1 c1
+c1 = ..., send if1
 
 A more complex scenario with replication/elimination of compound streams:
 
-     s1----E------
-          / s3
-     s2--R
-          \_______
+     s1(c1)----E------
+              / s3(c1)
+     s2(c2)--R
+              \_______
 
-s1:actions = ..., eliminate E, ..., send if1
+s1:actions = ..., eliminate E c1
 s2:actions = ..., replicate R s2_1 s3
 s2_1 = ..., send if2
-s3 = ..., eliminate E, ..., send if1
+s3 = ..., eliminate E c1
+c1 = send if3
