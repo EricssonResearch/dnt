@@ -23,7 +23,7 @@ struct ForeachState {
 
 struct ObjectInfo {
     const char *name;
-    bool auto_mip;
+    int auto_mip_level;
     enum PipelineObjectType type;
     union {
         struct {
@@ -49,7 +49,7 @@ struct ObjectInfo {
 
 static void set_default_parameters(struct ObjectInfo *info)
 {
-    info->auto_mip = false;
+    info->auto_mip_level = -1;
     switch (info->type) {
         case PO_SEQGEN:
             info->p.gen.use_reset_flag = false;
@@ -92,11 +92,15 @@ static bool token_cb(char *str, void *userdata)
         if (parse_assignment(str, &key, &val)) {
             if (strcmp(key, "AutoMIP") == 0) {
                 // At the moment for Seqgen and Seqrec only
-                int auto_mip = read_boolean(val);
-                if (auto_mip < 0) {
-                    THROW("invalid automatic MIP configuration option: '%s'", val);
+                int auto_mip_level;
+                char err;
+                if (sscanf(val, "%i%c", &auto_mip_level, &err) != 1) {
+                    THROW("invalid automatic MIP level: '%s'", val);
                 }
-                info->auto_mip = auto_mip ? true : false;
+                if (auto_mip_level > 7 || auto_mip_level < 0) {
+                    THROW("'%s' value '%s' invalid (valid range is 0-7)", key, val);
+                }
+                info->auto_mip_level = auto_mip_level;
                 return true;
             }
             switch (info->type) {
@@ -293,7 +297,7 @@ static int object_cb(const char *key, void *value, void *userdata)
         log_error("creating object '%s' failed", key);
         return 0;
     } else {
-        obj->auto_mip = info.auto_mip;
+        obj->auto_mip_level = info.auto_mip_level;
         hashmap_insert(state->objects, obj->name, obj);
         log_info("object %s type %s", obj->name, pipelineobject_name_from_type(obj->type));
         return 1;

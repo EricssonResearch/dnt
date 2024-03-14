@@ -253,14 +253,14 @@ def auto_mip_test():
     exec_bg("../r2dtwo oam/autconfig/auto.ini -v ALL:NONE")
     time.sleep(2)
     expected_reply = """Available MEP Start points:
-o_C1_L4_post-E1 level 4 in pipe M1 at pos 5
-o_C1_L4_pre-E2 level 4 in pipe M1 at pos 6
-o_C2_L4_pre-E2 level 4 in pipe C2 at pos 3
-o_C_L4_post-E2 level 4 in pipe M1 at pos 8
+o_C1_L2_post-E1 level 2 in pipe M1 at pos 5
+o_C1_L3_pre-E2 level 3 in pipe M1 at pos 6
+o_C2_L3_pre-E2 level 3 in pipe C2 at pos 3
+o_C_L3_post-E2 level 3 in pipe M1 at pos 8
 o_C_L4_pre-R1 level 4 in pipe M1 at pos 10
-o_M1_L4_pre-E1 level 4 in pipe M1 at pos 3
-o_M2_L4_pre-E1 level 4 in pipe M2 at pos 3
-o_M5_L4_pre-R2 level 4 in pipe M5 at pos 2
+o_M1_L2_pre-E1 level 2 in pipe M1 at pos 3
+o_M2_L2_pre-E1 level 2 in pipe M2 at pos 3
+o_M5_L5_pre-R2 level 5 in pipe M5 at pos 2
 """
     with socket(AF_INET, SOCK_STREAM, 0) as s:
         try:

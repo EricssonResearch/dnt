@@ -24,7 +24,7 @@ struct PipelineObject {
     char *name;
     enum ActionResult (*process_packet)(struct PipelineObject *self, struct PipelineIterator *pi);
     struct JsonValue *(*get_state)(const struct PipelineObject *self);
-    bool auto_mip;
+    int auto_mip_level;
 };
 
 // uses the delete function for the appropriate type

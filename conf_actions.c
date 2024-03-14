@@ -1324,7 +1324,7 @@ static bool process_action(struct StageState *stst)
             if (!stst->seq_set) {
                 THROW("can't eliminate without a sequence number");
             }
-            if (newaction->elim.rec->auto_mip && !oam_mip_autoconfig(stst))
+            if (newaction->elim.rec->auto_mip_level > 0 && !oam_mip_autoconfig(stst))
                 log_warning("cannot generate MIP for '%s'", newaction->elim.rec->name);
             struct ConfAction *elimjump = new_confaction(stst, CA_JUMP,
                     strdup_printf("auto-generated jump for %s", newaction->text));
@@ -1442,7 +1442,7 @@ static bool process_action(struct StageState *stst)
             if (newaction->repl.pipelines == NULL) {
                 THROW("no pipelines specified");
             }
-            if (newaction->repl.replobj && newaction->repl.replobj->auto_mip && !oam_mip_autoconfig(stst))
+            if (newaction->repl.replobj && newaction->repl.replobj->auto_mip_level > 0 && !oam_mip_autoconfig(stst))
                 log_warning("cannot generate MIP for '%s'", newaction->repl.replobj->name);
             REVERSE_LIST(newaction->repl.pipelines);
             stst->had_final = true;
@@ -1980,12 +1980,14 @@ static bool oam_mip_autoconfig(struct StageState *stst)
     struct ConfAction *ca = stst->actions;
     switch (ca->type) {
         case CA_ELIM: {
-            char *pre = strdup_printf("o_%s_L4_pre-%s", stst->stream, ca->elim.rec->name);
-            char *post = strdup_printf("o_%s_L4_post-%s", ca->elim.pipename, ca->elim.rec->name);
+            char *pre = strdup_printf("o_%s_L%u_pre-%s", stst->stream,
+                                      ca->elim.rec->auto_mip_level, ca->elim.rec->name);
+            char *post = strdup_printf("o_%s_L%u_post-%s", ca->elim.pipename,
+                                       ca->elim.rec->auto_mip_level, ca->elim.rec->name);
             struct ConfAction *ca_pre = new_confaction(stst, CA_MIP,
                            strdup_printf("auto-generated MIP before '%s'", ca->text));
             ca_pre->oam.name = pre;
-            ca_pre->oam.level = 4;
+            ca_pre->oam.level = ca->elim.rec->auto_mip_level;
             ca_pre->oam.obj = ca->elim.rec;
             ca_pre->oam.auto_generated = true;
             ca_pre->oam.stream = strdup(stst->stream);
@@ -2000,7 +2002,7 @@ static bool oam_mip_autoconfig(struct StageState *stst)
             struct ConfAction *ca_post = new_confaction(stst, CA_MIP,
                             strdup_printf("auto-generated MIP after '%s'", ca->text));
             ca_post->oam.name = post;
-            ca_post->oam.level = 4;
+            ca_post->oam.level = ca->elim.rec->auto_mip_level;
             ca_post->oam.obj = ca->elim.rec;
             ca_post->oam.auto_generated = true;
             ca_post->oam.stream = strdup(ca->elim.pipename);
@@ -2016,11 +2018,12 @@ static bool oam_mip_autoconfig(struct StageState *stst)
             }
             break; }
         case CA_REPL: {
-            char *pre = strdup_printf("o_%s_L4_pre-%s", stst->stream, ca->repl.replobj->name);
+            char *pre = strdup_printf("o_%s_L%u_pre-%s", stst->stream,
+                                      ca->repl.replobj->auto_mip_level, ca->repl.replobj->name);
             struct ConfAction *ca_pre = new_confaction(stst, CA_MIP,
                            strdup_printf("auto-generated MIP before '%s'", ca->text));
             ca_pre->oam.name = pre;
-            ca_pre->oam.level = 4;
+            ca_pre->oam.level = ca->repl.replobj->auto_mip_level;
             ca_pre->oam.obj = ca->repl.replobj;
             ca_pre->oam.auto_generated = true;
             ca_pre->oam.stream = strdup(stst->stream);
