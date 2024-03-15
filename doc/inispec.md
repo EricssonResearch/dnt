@@ -237,30 +237,32 @@ global_connectivity_check = ping s1:mepn1s1 any 4 -r -o
 
 For a self-explanatory configuration file and proper OAM operation, the following naming rules should be used. The naming is also important for automatically generated OAM `mip`s. Note that the `mip`s will be automatically generated only if `AutoMIP=true` is specified for the replication/elimination object.
 
-* session names should identify the session. For example, s1 or s2. For compound streams, the naming can include the compound stream name too, for example s1(c1), s2(c1) where c1 is the compound stream name.
-* for a replication pipeline, for each action stream after the replication the name should represent the generated stream name
+* session names should identify the session. For example, s1 or s2, or m1 and m2 for member streams. Compound streams can be c1, c2.
+* for a replication pipeline R1, for each action stream after the replication the name should be R1-<stream name>
+* for an elimination pipeline E1, for the action stream after the elimination the name should be E1-<stream name>
+
 * for an elimination pipeline, the elimination should be placed in the action pipeline of each individual stream (but with the same object name).This ensures that a `mip` will be automatically generated for each stream.   
 * action pipeline names after replication or jump should also hint the stream name, as it will be used as the automatically generated `mip` name if there is a replication/elimination in this pipeline.
 
 For example, a replication pipeline should look like:
-s1:actions = ..., replicate s1_1 s1_2
-s1_1 = ..., send if1
-s1_2 = ..., send if2
+s1:actions = ..., replicate r1-m1 r1-m2
+r1-m1 = ..., send if1
+r1-m2 = ..., send if2
 
 An elimination pipeline should look like:
-s1(c1):actions = ..., E1 c1
-s2(c1):actions = ..., E1 c1
-c1 = ..., send if1
+s1:actions = ..., E1 e1-c1
+s2:actions = ..., E1 e1-c1
+e1-c1 = ..., send if1
 
 A more complex scenario with replication/elimination of compound streams:
 
-     s1(c1)----E------
-              / s3(c1)
-     s2(c2)--R
-              \_______
+     s1----E1------ E1-M2
+           / R1-M1
+     s2--R1
+          \_______ R1-M3
 
-s1:actions = ..., eliminate E c1
-s2:actions = ..., replicate R s2_1 s3
-s2_1 = ..., send if2
-s3 = ..., eliminate E c1
-c1 = send if3
+s1:actions = ..., eliminate E1 e1-c1
+s2:actions = ..., replicate R1 r1-m1 r1-m3
+r1-m3 = ..., send if2
+r1-m1 = ..., eliminate E1 e1-c1
+e1-c1 = ..., send if3
