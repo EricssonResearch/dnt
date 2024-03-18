@@ -67,7 +67,7 @@ Since we can receive Ethernet packets and there is the `del` action to remove th
 ```
 [interfaces]
 uni_eth = eth iface=swp2
-uni_eth:streams = stream_uni_eth
+uni_eth:streams = compound
 uni_ip = ip iface=swp2
 ...
 ```
@@ -78,23 +78,23 @@ The `[streams]` section looks like the following:
 
 ```
 [streams]
-stream_uni_eth:packet = eth, cvlan, ipv4
-stream_uni_eth:match = ipv4 src=10.0.100.11
-stream_uni_eth:actions = prf, before eth add mpls, after mpls add dcw, writeseq dcw, del eth, del cvlan, replicate nni1_out nni2_out
+compound:packet = eth, cvlan, ipv4
+compound:match = ipv4 src=10.0.100.11
+compound:actions = gen, before eth add mpls, after mpls add dcw, writeseq dcw, del eth, del cvlan, replicate member1 member2
 
-nni1_out = edit mpls.label=100 mpls.bos=1, send nni1_out
-nni2_out = edit mpls.label=200 mpls.bos=1, send nni2_out
+member1 = edit mpls.label=100 mpls.bos=1, send nni1_out
+member2 = edit mpls.label=200 mpls.bos=1, send nni2_out
 
-stream_nni:packet = mpls, dcw, ipv4
-stream_nni:match = ipv4 dst=10.0.100.11
-stream_nni:actions = readseq dcw, pef nni_pipe
-nni_pipe = del dcw, del mpls, send uni_ip
+members:packet = mpls, dcw, ipv4
+members:match = ipv4 dst=10.0.100.11
+members:actions = readseq dcw, pef pef-compound
+pef-compound = del dcw, del mpls, send uni_ip
 ```
 
 For the full list of the supported R2DTWO actions, their parameters and behavior please consult with the documentation.
 
-We have the `stream_uni_eth` stream, which can match to the traffic received by the UNI interface.
-Right now we match for the IP address of the talker: `stream_uni_eth:match = ipv4 src=10.0.100.11`.
+We have the `compound` stream, which can match to the traffic received by the UNI interface.
+Right now we match for the IP address of the talker: `compound:match = ipv4 src=10.0.100.11`.
 If we found matching packets, we do the DetNet encapsulation __but we should remove all Layer2 headers like Ethernet and VLAN__.
 This is important since the other R2DTWO endpoint terminating the pseudowire expects IP over DetNet encapsulated packets.
 
@@ -151,8 +151,11 @@ rtt min/avg/max/mdev = 0.296/0.308/0.321/0.012 ms
 As one can see, we have __Destination Net Unreachable__ errors.
 This is expected: __nxp1__ dont have any routing entry for `10.0.200.0/24` network.
 That means it will generate an ICMP error message and send it back to the talker.
-
-However, since the Layer2 frame of the ping packet sent by the talker is handled by R2DTWO and properly transmitted to the listener, we will receive a reply for that.
+But why is this the case?
+R2DTWO working with the user-space copy of the packet.
+That means the packet continue its way in the Linux packet processing pipeline regardless if R2DTWO processed it or not.
+Essentially, since the Layer2 frame of the ping packet sent by the talker is handled by R2DTWO and properly transmitted to the listener, we will receive a reply for that.
+Beside that, the Linux also process the frame, which goes up to the IPv4 protocol handler which generate the net unreachable ICMP error.
 
 In fact, the root of the problem is the bad configuration.
 If one can read the document carefully, the recommended way to use R2DTWO in IP over DetNet scenario is to use it together with OvS or Linux TC.

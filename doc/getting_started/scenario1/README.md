@@ -40,6 +40,22 @@ The configuration file for R2DTWO is prepared in this folder: `r2dtwo.ini`.
 This is a symmetrical configuration, reflecting to the network topology above.
 In cases where the network setup is not symmetrical, separate configs might require on each switch.
 
+The FRER standard uses the term stream for packets with common header field values of interest.
+For example, a packet with a VLAN ID of 10 can be referred to as a stream.
+After the packet is identified as part of the stream, actions are performed sequentially on the packet.
+
+A replication action makes a copy of the packets that can be sent on multiple interfaces.
+Before sending them, we can modify the packet headers, for example, set different VLAN IDs for packets sent on one path or the other.
+The packets sent on the different paths are called _member streams_ by the standard.
+The original stream is called a _compound stream_.
+
+A compound stream can be split into any number of member streams.
+However, on the listener side, we need to identify each member stream to merge them into one compound stream.
+For this we also need an elimination action.
+
+For the rest of this guide, we will stick to the terminology of member streams and compound streams.
+Since the stream names are defined by the user in R2DTWO, meaningful names can make it clearer which stream is member and which is compound.
+
 ### Explanation of the configuration
 
 For full details, please take a look into the R2DTWO documentation.
@@ -53,11 +69,11 @@ It's completely normal, if an interface is only used for just sending or just re
 ```
 [interfaces]
 uni = eth iface=swp2
-uni:streams = stream_uni
+uni:streams = compound_uni
 nni1 = eth iface=swp0
-nni1::streams = stream_nni1
+nni1:streams = member1_uni
 nni2 = eth iface=swp1
-nni2:streams = stream_nni2
+nni2:streams = member2_uni
 ```
 
 The interfaces are usually described with two lines: the first one define the interface itself, and the next one with the `:streams` suffix is a list of streams, we are trying to identify.
@@ -71,27 +87,28 @@ __Important:__ R2DTWO receives a copy of each packet! This is not a problem in m
 For each interface, we can define a meaningful custom name, that will used in the rest of the config, type (in this case all of them `eth`), and their real names in Linux (`ip link`).
 In this example we use the names `uni`, `nni1`, and `nni2` since these properly refer to their roles: User-Network Interface (`uni`) and Network-Network Interface (`nni1` and `nni2`).
 
-In the `r2dtwo.ini`'s `[interfaces]` section above we only have one stream candidate for each interface: `stream_uni`, `stream_nni1` and `stream_nni2`.
-These streams defined in the `[streams] of the config see below:
+In the `r2dtwo.ini`'s `[interfaces]` section above we only have one stream candidate for each interface: `compound_uni`, `member1_uni` and `member2_uni`.
+As one can guess from these names, we identify the packets received from the `uni` interface as the compound stream.
+These streams defined in the `[streams]` of the config see below:
 
 ```
 [streams]
-stream_uni:packet = eth, cvlan
-stream_uni:match = cvlan vid=0
-stream_uni:actions = seqgen, after cvlan add rtag, writeseq rtag, replicate tx_nni1, tx_nni2
+compound_uni:packet = eth, cvlan
+compound_uni:match = cvlan vid=0
+compound_uni:actions = Gen, after cvlan add rtag, writeseq rtag, Repl Repl-member1 Repl-member2
 
-tx_nni1 = edit cvlan.vid=100, send nni1
-tx_nni2 = edit cvlan.vid=200, send nni2
+Repl-member1 = edit cvlan.vid=100, send nni1
+Repl-member2 = edit cvlan.vid=200, send nni2
 
-stream_nni1:packet = eth, cvlan, rtag
-stream_nni1:match = cvlan vid=100
-stream_nni1:actions = readseq rtag, seqrcvy nni_pipe
+member1_uni:packet = eth, cvlan, rtag
+member1_uni:match = cvlan vid=100
+member1_uni:actions = readseq rtag, Elim Elim-compound
 
-stream_nni2:packet = eth, cvlan, rtag
-stream_nni2:match = cvlan vid=200
-stream_nni2:actions = readseq rtag, seqrcvy nni_pipe
+member2_uni:packet = eth, cvlan, rtag
+member2_uni:match = cvlan vid=200
+member2_uni:actions = readseq rtag, Elim Elim-compound
 
-nni_pipe = del rtag, del cvlan, send uni
+Elim-compound = del rtag, del cvlan, send uni
 ```
 
 Each stream can described with three lines in `streamname:suffix` format. The stream names are custom identifiers, while the suffixes are the following:
@@ -100,70 +117,86 @@ Each stream can described with three lines in `streamname:suffix` format. The st
 * `:match` - the expected header field values in the frame. See the documentation for the supported fields and their format.
 Matching of multiple headers and fields supported, but make sure all of them are described in the `:packet` line!
 * `:actions` - the action pipeline. This described the actions executed on each matching packet. Some actions can drop the packets! The last action is usually the `send` which transmits the packet on the interface given as a parameter.
-It is supported to split a longer pipeline up to multiple pipelines. Also, like in the example above, we can continue the execution of the pipeline with multiple copies of the packet on different pipelines.
-For example the `replicate tx_nni1 tx_nni2` action above branching the pipeline and continue the execution with two copies of the same packet on the `tx_nni1` and `tx_nni2` pipelines:
+It is supported to split a longer pipeline up to multiple pipelines.
+Also, like in the example above, we can continue the execution of the pipeline with multiple copies of the packet on different pipelines.
+For example the `Repl Relp-member1 Repl-member2` action above branching the pipeline and continue the execution with two copies of the same packet on the `Repl-member1` and `Repl-member2` pipelines:
 
 ```
-                                                    tx_nni1
+                                                    Repl-member1
                                                    ┌────────────────┐
                                                    │                │
- stream_uni:actions                               ─┼─►edit──►send--*│
+ compound_uni:actions                             ─┼─►edit──►send--*│
 ┌─────────────────────────────────────────────┐  / │                │
 │                                             │ /  └────────────────┘
-│*──►seqgen──►add rtag──►writeseq──►replicate─┼─
+│*──►seqgen──►add rtag──►writeseq──►Repl     ─┼─
 │                                             │ \  ┌────────────────┐
 └─────────────────────────────────────────────┘  \ │                │
                                                   ─┼─►edit──►send--*│
                                                    │                │
                                                    └────────────────┘
-                                                    tx_nni2
+                                                    Repl-member2
 ```
 
-Similarly the `seqrcvy nni_pipe` tells "continue the execution of the `nni_pipe` after the elimination. Its mandatory to have a common pipeline after the elimination action:
+Similarly the `Elim Elim-compound` tells "continue the execution of the `Elim-compound` pipeline after the elimination".
+Its mandatory to have a common pipeline after the elimination action:
 
 ```
- stream_nni1:actions
-┌───────────────────────────────────────┐
-│                                       │
-│●───▶readseq rtag────▶seqrcvy nni_pipe─┼────┐  nni_pipe
-│                                       │    │ ┌─────────────────────────────────────┐
-└───────────────────────────────────────┘    │ │                                     │
+ member1_uni:actions
+┌─────────────────────────────────────────┐
+│                                         │
+│●───▶readseq rtag────▶Elim Elim-compound─┼──┐  Elim-compound
+│                                         │  │ ┌─────────────────────────────────────┐
+└─────────────────────────────────────────┘  │ │                                     │
                                              ├─┼─▶ del rtag───▶del cvlan───▶send uni │
-┌───────────────────────────────────────┐    │ │                                     │
-│                                       │    │ └─────────────────────────────────────┘
-│●───▶readseq rtag────▶seqrcvy nni_pipe─┼────┘
-│                                       │
-└───────────────────────────────────────┘
- stream_nni2:actions
+┌─────────────────────────────────────────┐  │ │                                     │
+│                                         │  │ └─────────────────────────────────────┘
+│●───▶readseq rtag────▶Elim Elim-compound─┼──┘
+│                                         │
+└─────────────────────────────────────────┘
+ member2_uni:actions
 ```
 
 For the full list of the supported R2DTWO actions, their parameters, and behavior please consult with the documentation.
 
-Right now, the packets matching in `stream_uni` stream will be processed as described below as described in the `:actions` line:
+Right now, the packets matching in `compound_uni` stream will be processed as described below as described in the `:actions` line:
 
 0. The switch receives a packet on `swp2` interface, and since its an ethernet interface, R2DTWO applies a VLAN 0 tag (named as `cvlan` in the config) on it by default
-1. The `seqgen` action gives a unique sequence number for each packet
+1. The `Gen` action gives a unique sequence number for each packet. Here `Gen` is a short form of `seqgen Gen`, where the action type is deduced by the type of the object argument.
 2. After the VLAN tag R2DTWO insert the FRER Redundancy-tag (R-tag) header
 3. The `writeseq` action inserts the packet's sequence number to the R-tag's sequence field. __This is optional, R2DTWO is smart enough to put the sequence number implicitly into the R-tag__
-4. The `replicate` action do the packet copy and branches the action pipeline into two different paths
-5. On both branches, there is an `edit` action set the VLAN ID-s to 100 an 200 then a `send` action that transmit the packets. Note that after the send action we can still process the packet further however, currently that is the last action in this particular config.
+4. The `Repl` action do the packet copy and branches the action pipeline into two different paths. There is a stateless version of that action, it would looks like this: `replicate Repl-member1 Repl-member2`. The name of the pipelines are arbitrary.
+5. On both branches, there is an `edit` action set the VLAN ID-s to 100 an 200 then a `send` action that transmit the packets.
+Note that after the send action we can still process the packet further however, currently that is the last action in this particular config.
+Some actions such as `jump`, `eliminate` or `drop` forbids further actions on that pipeline.
 
 Lastly, there is an `[objects]` section.
 
 ```
 [objects]
-seqgen = SeqGen InitSeqStart=0
-seqrcvy = SeqRcvy
+Repl = Replicate
+Gen = SeqGen InitSeqStart=0
+Elim = SeqRcvy
 ```
 
 In the action pipelines, there are stateful actions and that functionality goes beyond simple packet header manipulations.
-For example in the example above, we have two objects, `seqgen` and `seqrecv` (those are custom names).
+For example in the example above, we have three objects, `Repl`, `Elim` and `Gen` (those are custom names).
 One of them is a __SeqGen__ instance which is a _sequence generation function_ described in section 7.4.1 of IEEE 802.1CB-2017.
 This object has its inner state, like the next sequence number, etc. which is maintained across multiple packets.
 
-Similarly, there is a __SeqRcvy__ instance called `seqrcvy` that implements recovery function of IEEE 802.1CB-2017, see section 7.4.2.
-This maintains a history window that tells if a received packet's sequence number has already been seen or not. If not, accept it, if already seen drop it.
-For the dropped packets, the rest of the action pipeline (in this configuration, the `nni_pipe`) is not executed.
+Similarly, there is a __SeqRcvy__ instance called `Elim` that implements recovery function of IEEE 802.1CB-2017, see section 7.4.2.
+This maintains a history window that tells if a received packet's sequence number has already been seen or not.
+If not, accept it, if already seen drop it.
+For the dropped packets, the rest of the action pipeline (in this configuration, the `Elim-compound`) is not executed.
+
+The `Repl` object is a stateful __Replicate__ instance.
+The state of this object is the number of the replicated packets.
+While in this particular config that information not used for anything, its useful with the OAM function (not covered here).
+If that information not required, one can simply use the stateless `replicate` action, and for that no object definition required.
+
+The stream and pipeline names are arbitrary in the configuration, but the recommended naming convention for the pipelines is the __ObjectName-PipelineName__.
+Here the __ObjectName__ is the name of the object after the pipeline starts, like `Elim` or `Repl`.
+The __PipelineName__ is recommended to be meaningful about the stream.
+According to this conventions, our pipelines are named as `Repl-member1`, `Repl-member2` (after the replication) and `Elim-compound` (the common actions for the two member streams or simply the actions of the compound stream).
 
 
 ## Run the R2DTWO and generate traffic
