@@ -131,7 +131,7 @@ The available actions are the following:
 * `pof pofobject` puts the packet in a reorder buffer based on its sequence number metadata, continues the actions on this pipeline when the ordering is okay
 * `readseq header` reads the sequence number from the given header into the packet metadata field (to be used by the `eliminate` and `pof` actions)
 * `readtstamp header` reads the timestamp from the given header into the packet metadata field (to be used by the `delay` action)
-* `replicate [object] pipeline1 [pipeline2] [AutoMIP=true]` makes copies of the packet and continues processing them on the given pipelines, which have to be defined in the *streams* section, this can create any number of branches; the first argument can optionally be the name of a Replicate object that stores statistics about the replication; this action is the last one in a pipeline; first argument is optionally a state object of type Replicate that counts the processed packets.
+* `replicate [object] pipeline1 [pipeline2]` makes copies of the packet and continues processing them on the given pipelines, which have to be defined in the *streams* section, this can create any number of branches; the first argument can optionally be the name of a Replicate object that stores statistics about the replication; this action is the last one in a pipeline; first argument is optionally a state object of type Replicate that counts the processed packets.
 * `send iface` sends out the packet on the given interface from the *interfaces* list
 * `seqgen generator` uses the given sequence generator object to set the sequence number metadata of the packet
 * `ttlcheck` drops the packet if the metadata TTL is 0
@@ -179,7 +179,6 @@ The object instantiation is in this format: `name = type parameter=value [parame
     * InitSeqFlag use the Init flag for seamless mode (default: off)
     * InitSeqStart the starting sequence number (default: 0x8000)
     * ResetFlag use the Reset flag for seamless mode (default: off)
-    * AutoMIP=true enables automatic `mip` generation for the replication object (default:false)
 * `SeqRec` sequence number recovery (for `eliminate` action)
     * frerSeqRcvyAlgorithm can be Vector (default), SeamlessVector, Match
     * frerSeqRcvyHistoryLength size of the history window (default: 2)
@@ -191,12 +190,13 @@ The object instantiation is in this format: `name = type parameter=value [parame
     * frerSeqRcvyLatentResetPeriod reset latent error and root cause related counters (default: 0)
     * frerSeqRcvyLatentErrorDifference do not treat packet drops below this threshold as loss in one period (default: 0)
     * frerSeqRcvyOutageThreshold above that threshold consecutive packet drops reported as burst loss/path outage (default: 0)
-    * AutoMIP=true enables automatic `mip` generation for the elimination object (default:false)    
+    * AutoMIP=level enables automatic `mip` generation for the eliminate action with the level given
 * `Pof` packet ordering function (for `pof` action)
     * BufferSize max number of packets in the reorder buffer (default: 2)
     * MaxDelay timeout when waiting for missing packet (default: 20)
     * TakeAnyTime initial time for sequencing (default: 2000)
 * `Replicate` counters for `replicate` action, takes no parameters
+    * AutoMIP=level enables automatic `mip` generation for the replicate action with the level given
 
 All of these objects work on the metadata of the packet instead of the header fields.
 
@@ -235,7 +235,7 @@ global_connectivity_check = ping s1:mepn1s1 any 4 -r -o
 
 ## naming convention
 
-For a self-explanatory configuration file and proper OAM operation, the following naming rules should be used. The naming is also important for automatically generated OAM `mip`s. Note that the `mip`s will be automatically generated only if `AutoMIP=true` is specified for the replication/elimination object.
+For a self-explanatory configuration file and proper OAM operation, the following naming rules should be used. The naming is also important for automatically generated OAM `mip`s. Note that the `mip`s will be automatically generated only if `AutoMIP` is specified for the replication/elimination object.
 
 * session names should identify the session. For example, s1 or s2, or m1 and m2 for member streams. Compound streams can be c1, c2.
 * for a replication pipeline R1, for each action stream after the replication the name should be R1-<stream name>
@@ -245,17 +245,24 @@ For a self-explanatory configuration file and proper OAM operation, the followin
 * action pipeline names after replication or jump should also hint the stream name, as it will be used as the automatically generated `mip` name if there is a replication/elimination in this pipeline.
 
 For example, a replication pipeline should look like:
+
+```
 s1:actions = ..., replicate r1-m1 r1-m2
 r1-m1 = ..., send if1
 r1-m2 = ..., send if2
+```
 
 An elimination pipeline should look like:
+
+```
 s1:actions = ..., E1 e1-c1
 s2:actions = ..., E1 e1-c1
 e1-c1 = ..., send if1
+```
 
 A more complex scenario with replication/elimination of compound streams:
 
+```
      s1----E1------ E1-M2
            / R1-M1
      s2--R1
@@ -266,3 +273,4 @@ s2:actions = ..., replicate R1 r1-m1 r1-m3
 r1-m3 = ..., send if2
 r1-m1 = ..., eliminate E1 e1-c1
 e1-c1 = ..., send if3
+```
