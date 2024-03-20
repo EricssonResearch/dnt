@@ -587,7 +587,7 @@ bool initiate_request(struct oam_request *req)
     struct Pipeline *pipe = req->mep_start->pipe;
     if (!pipe) {
         req->error = strdup_printf("mep start '%s' has no pipeline!?!\n", req->mep_start->name);
-        if (cmd_w) fprintf(cmd_w, req->error);
+        if (cmd_w) fprintf(cmd_w, "%s", req->error);
         command_connection_release_w(conn);
         return false;
     }
@@ -596,7 +596,7 @@ bool initiate_request(struct oam_request *req)
     int session_id = alloc_session_id(stream, req, req->conn_name, req->interval_ms);
     if (session_id < 0) {
         req->error = strdup_printf("stream %s has no free session id\n", req->mep_start->stream_name);
-        if (cmd_w) fprintf(cmd_w, req->error);
+        if (cmd_w) fprintf(cmd_w, "%s", req->error);
         command_connection_release_w(conn);
         return false;
     }
@@ -623,8 +623,8 @@ bool initiate_request(struct oam_request *req)
         session_set_thread(stream, session_id, thread_launch(oam_request_thread, req, "oam req %d", session_id));
         if (session_get_thread(stream, session_id) == NULL) {
             req->error = strdup("could not create new ping thread");
-            log_error(req->error);
-            if (cmd_w) fprintf(cmd_w, req->error);
+            log_error("%s", req->error);
+            if (cmd_w) fprintf(cmd_w, "%s", req->error);
             command_connection_release_w(conn);
             return false;
         }
