@@ -186,7 +186,7 @@ void packet_logcat(struct Packet *p, const char *frmt, ...)
     if (__log_module_PACKETTRACE.level < PACKET)
         return;
 
-    char msg[PACKET_LOG_BUF_SIZE];
+    char msg[PACKET_LOG_BUF_SIZE - 1];
     va_list argp;
 
     if (p->logbuf[PACKET_LOG_BUF_SIZE - 2] != '\0')
