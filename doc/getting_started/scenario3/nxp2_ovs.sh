@@ -18,6 +18,7 @@ ovs-vsctl --if-exists del-br ovs0
 ovs-vsctl add-br ovs0
 ovs-vsctl add-port ovs0 swp2
 ovs-vsctl add-port ovs0 r2veth0
+
 ip link set ovs0 mtu 2000 up
 ip addr add 10.0.200.1/24 dev ovs0
 ovs-vsctl set bridge ovs0 protocols=OpenFlow10,OpenFlow11,OpenFlow12,OpenFlow13
