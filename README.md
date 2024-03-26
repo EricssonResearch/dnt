@@ -69,11 +69,17 @@ The default logging output is syslog (`-ol`, stdout is `-os` and logfile is `-of
 ```
 Usage: r2dtwo [OPTION...] CONFIGFILE
 
-  -o, --output=logfile       Output: log[f]ile, sys[l]og, [s]tdout
-  -v, --verbose=DEFAULT      Available loglevels: NONE, ERROR, WARNING, INFO,
+  -o, --output=logfile       Output: log[f]ile, sys[l]og, [s]tdout (default),
+                             std[e]rr
+  -v, --verbose=MODULE:LEVEL Available levels: NONE, ERROR, WARNING, INFO,
                              PACKET, DEBUG, ALL
   -?, --help                 Give this help list
       --usage                Give a short usage message
+
+Mandatory or optional arguments to long options are also mandatory or optional
+for any corresponding short options.
+r2dtwo: Config file required!
+Try `r2dtwo --help' or `r2dtwo --usage' for more information.
 ```
 
 ## Tests
