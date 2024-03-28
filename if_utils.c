@@ -110,9 +110,7 @@ struct Packet *iface_common_recv(struct Interface *iface, msghdr_process_cb *msg
         __attribute__ ((aligned(__alignof__(struct cmsghdr))));
     struct msghdr msg;
     struct iovec iov;
-    struct sockaddr_in from_addr;
     memset(&msg, 0, sizeof(msg));
-    msg.msg_name = &from_addr;
     iov.iov_base = p->buf + p->start;
     iov.iov_len = PACKET_BUF_LEN - p->start;
     msg.msg_iov = &iov;
