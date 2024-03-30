@@ -277,15 +277,19 @@ static void *socket_monitor_thread(void *param)
         for (struct cmsghdr *cmsg=CMSG_FIRSTHDR(&msg); cmsg; cmsg=CMSG_NXTHDR(&msg, cmsg)) {
             if (cmsg->cmsg_level == SOL_IP && cmsg->cmsg_type == IP_RECVERR) {
                 struct sock_extended_err *serr = (void *) CMSG_DATA(cmsg);
+                char errstr[256] = {0}; // strerror_r() can fail
+                strerror_r(serr->ee_errno, errstr, sizeof(errstr));
                 // serr->ee_origin = 2 (SO_EE_ORIGIN_ICMP)
                 log_error("error on %s '%s' ICMP type %u code %u",
-                        st->name, strerror(serr->ee_errno),
+                        st->name, errstr,
                         serr->ee_type, serr->ee_code);
             } else if (cmsg->cmsg_level == SOL_IPV6 && cmsg->cmsg_type == IPV6_RECVERR) {
                 struct sock_extended_err *serr = (void *) CMSG_DATA(cmsg);
+                char errstr[256] = {0}; // strerror_r() can fail
+                strerror_r(serr->ee_errno, errstr, sizeof(errstr));
                 // serr->ee_origin = 3 (SO_EE_ORIGIN_ICMP6)
                 log_error("error on %s '%s' ICMPv6 type %u code %u",
-                        st->name, strerror(serr->ee_errno),
+                        st->name, errstr,
                         serr->ee_type, serr->ee_code);
             } else {
                 log_error("unexpected error on %s level %u type %u",

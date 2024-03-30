@@ -222,6 +222,9 @@ int __log_perror_func(const char *logmodule, const char *frmt, ...)
     vsnprintf(msg, sizeof(msg), frmt, argp);
     va_end(argp);
 
+    char errstr[256] = {0}; // strerror_r() can fail
+    strerror_r(errno, errstr, sizeof(errstr));
+
     if (log_output != LOG_OUT_SYSLOG) {
         time_t now;
         time(&now);
@@ -233,15 +236,15 @@ int __log_perror_func(const char *logmodule, const char *frmt, ...)
         if (color) {
             return fprintf(logfile, "%s [\033[1m%s\033[0m] [%s%s%s] %s: %s\n",
                     date, logmodule, colors[ERROR], log_level_strings[ERROR], colors[RESET], msg,
-                    strerror(errno));
+                    errstr);
         } else {
             return fprintf(logfile, "%s [%s] [%s] %s: %s\n",
                     date, logmodule, log_level_strings[ERROR], msg,
-                    strerror(errno));
+                    errstr);
         }
     } else {
         int syslog_prio = log_level_to_syslog_level(ERROR);
-        syslog(syslog_prio, "[%s] %s: %s", logmodule, msg, strerror(errno));
+        syslog(syslog_prio, "[%s] %s: %s", logmodule, msg, errstr);
         return 0;
     }
 }
