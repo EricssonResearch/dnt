@@ -114,7 +114,9 @@ struct IniSection *read_inifile(const char *filename)
 
     if (!f) {
 #ifndef INIFILE_QUIET
-        fprintf(stderr, "read_inifile() can't open '%s': %s\n", filename, strerror(errno));
+        char errstr[256] = {0};
+        strerror_r(errno, errstr, sizeof(errstr));
+        fprintf(stderr, "read_inifile() can't open '%s': %s\n", filename, errstr);
 #endif
         return NULL;
     }
@@ -124,6 +126,10 @@ struct IniSection *read_inifile(const char *filename)
 
     unsigned bufsize = BUFFERSIZE;
     char *linebuf = malloc(BUFFERSIZE*sizeof(char));
+    if (!linebuf) {
+        return read_error(ret, filename, "memory allocation failure", 0);
+    }
+
     int line = 0;
     while (fgets(linebuf, BUFFERSIZE, f)) {
         unsigned len = strlen(linebuf);
@@ -135,7 +141,8 @@ struct IniSection *read_inifile(const char *filename)
             if (newlinebuf) {
                 linebuf = newlinebuf;
             } else {
-                //TODO failed to realloc
+                free(linebuf);
+                return read_error(ret, filename, "memory allocation failure", line);
             }
             char *fg = fgets(linebuf+len, BUFFERSIZE, f);
             len = strlen(linebuf);
@@ -257,7 +264,9 @@ int write_inifile(const char *filename, const struct IniSection *sec)
 
     if (!f) {
 #ifndef INIFILE_QUIET
-        fprintf(stderr, "write_inifile() can't open '%s': %s\n", filename, strerror(errno));
+        char errstr[256] = {0};
+        strerror_r(errno, errstr, sizeof(errstr));
+        fprintf(stderr, "write_inifile() can't open '%s': %s\n", filename, errstr);
 #endif
         return 1;
     }
