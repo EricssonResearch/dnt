@@ -35,7 +35,7 @@ struct UdpInIfData {
 
 static bool udpin_recv(struct Interface *iface)
 {
-    struct UdpInIfData *uid = iface->iface_private;
+    struct UdpInIfData *uid = (struct UdpInIfData *)iface->iface_private;
     (void)uid;
 
     struct Packet *p = iface_common_recv(iface, NULL, NULL);
@@ -53,7 +53,7 @@ static bool udpin_send(struct Interface *iface, struct Packet *p)
 
 static bool udpin_open(struct Interface *iface)
 {
-    struct UdpInIfData *uid = iface->iface_private;
+    struct UdpInIfData *uid = (struct UdpInIfData *)iface->iface_private;
     if (iface->state != IFS_INIT) {
         log_error("open udp-in interface %s: already opened", iface->name);
         return false;
@@ -165,7 +165,7 @@ static bool udpin_open(struct Interface *iface)
 
 static bool udpin_close(struct Interface *iface)
 {
-    struct UdpInIfData *uid = iface->iface_private;
+    struct UdpInIfData *uid = (struct UdpInIfData *)iface->iface_private;
     close(iface->recvfd);
     free(uid);
     log_info("Udp-in interface %s closed", iface->name);
@@ -174,24 +174,24 @@ static bool udpin_close(struct Interface *iface)
 
 static void udpin_port_producer(void *state, value_consumer *consumer, void *consumer_state, struct Packet *p)
 {
-    struct Interface *iface = state;
-    struct UdpInIfData *uid = iface->iface_private;
+    struct Interface *iface = (struct Interface *)state;
+    struct UdpInIfData *uid = (struct UdpInIfData *)iface->iface_private;
     struct Value val = {&uid->port, 0, 2*8};
     consumer(consumer_state, &val, p);
 }
 
 static void udpin_srcip_producer(void *state, value_consumer *consumer, void *consumer_state, struct Packet *p)
 {
-    struct Interface *iface = state;
-    struct UdpInIfData *uid = iface->iface_private;
-    struct Value val = {&uid->srcip, 0, uid->family == AF_INET6 ? 128 : 32};
+    struct Interface *iface = (struct Interface *)state;
+    struct UdpInIfData *uid = (struct UdpInIfData *)iface->iface_private;
+    struct Value val = {&uid->srcip, 0, uid->family == AF_INET6 ? 128u : 32u};
     consumer(consumer_state, &val, p);
 }
 
 static value_producer *udpin_get_property_reader(const struct Interface *iface, const char *property,
         enum ProtocolFieldType target_type, const struct Value *target)
 {
-    struct UdpInIfData *uid = iface->iface_private;
+    struct UdpInIfData *uid = (struct UdpInIfData *)iface->iface_private;
 
     if (strcmp(property, "port") == 0) {
         if (target_type != FT_NUMBER) {

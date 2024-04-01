@@ -13,7 +13,7 @@
 static int obj_delete_cb(const char *key, void *value, void *userdata)
 {
     free((char*)key);
-    struct JsonValue *val = value;
+    struct JsonValue *val = (struct JsonValue *)value;
     json_delete(val);
     (void)userdata;
     return 1;
@@ -256,8 +256,8 @@ static char *serialize_value(const struct JsonValue *json, char *buf, unsigned *
 
 static int obj_print_cb(const char *key, void *value, void *userdata)
 {
-    const struct JsonValue *val = value;
-    struct objparams *op = userdata;
+    const struct JsonValue *val = (const struct JsonValue *)value;
+    struct objparams *op = (struct objparams *)userdata;
     char *buf = op->buf;
     unsigned *buflen = op->buflen;
     unsigned *slen = op->slen;
@@ -443,7 +443,7 @@ void json_object_remove(struct JsonValue *object, const char *key)
 
 struct JsonValue *json_object_get_null(struct JsonValue *object, const char *key)
 {
-    struct JsonValue *ret = hashmap_find(object->v.object, key);
+    struct JsonValue *ret = (struct JsonValue *)hashmap_find(object->v.object, key);
     if (ret == NULL) return NULL;
     if (ret->type != JSON_NULL) return NULL;
     return ret;
@@ -451,7 +451,7 @@ struct JsonValue *json_object_get_null(struct JsonValue *object, const char *key
 
 struct JsonValue *json_object_get_true(struct JsonValue *object, const char *key)
 {
-    struct JsonValue *ret = hashmap_find(object->v.object, key);
+    struct JsonValue *ret = (struct JsonValue *)hashmap_find(object->v.object, key);
     if (ret == NULL) return NULL;
     if (ret->type != JSON_TRUE) return NULL;
     return ret;
@@ -459,7 +459,7 @@ struct JsonValue *json_object_get_true(struct JsonValue *object, const char *key
 
 struct JsonValue *json_object_get_false(struct JsonValue *object, const char *key)
 {
-    struct JsonValue *ret = hashmap_find(object->v.object, key);
+    struct JsonValue *ret = (struct JsonValue *)hashmap_find(object->v.object, key);
     if (ret == NULL) return NULL;
     if (ret->type != JSON_FALSE) return NULL;
     return ret;
@@ -467,7 +467,7 @@ struct JsonValue *json_object_get_false(struct JsonValue *object, const char *ke
 
 struct JsonValue *json_object_get_bool(struct JsonValue *object, const char *key)
 {
-    struct JsonValue *ret = hashmap_find(object->v.object, key);
+    struct JsonValue *ret = (struct JsonValue *)hashmap_find(object->v.object, key);
     if (ret == NULL) return NULL;
     if (ret->type == JSON_TRUE ) return ret;
     if (ret->type == JSON_FALSE) return ret;
@@ -476,7 +476,7 @@ struct JsonValue *json_object_get_bool(struct JsonValue *object, const char *key
 
 struct JsonValue *json_object_get_number(struct JsonValue *object, const char *key)
 {
-    struct JsonValue *ret = hashmap_find(object->v.object, key);
+    struct JsonValue *ret = (struct JsonValue *)hashmap_find(object->v.object, key);
     if (ret == NULL) return NULL;
     if (ret->type != JSON_NUMBER) return NULL;
     return ret;
@@ -484,7 +484,7 @@ struct JsonValue *json_object_get_number(struct JsonValue *object, const char *k
 
 struct JsonValue *json_object_get_string(struct JsonValue *object, const char *key)
 {
-    struct JsonValue *ret = hashmap_find(object->v.object, key);
+    struct JsonValue *ret = (struct JsonValue *)hashmap_find(object->v.object, key);
     if (ret == NULL) return NULL;
     if (ret->type != JSON_STRING) return NULL;
     return ret;
@@ -492,7 +492,7 @@ struct JsonValue *json_object_get_string(struct JsonValue *object, const char *k
 
 struct JsonValue *json_object_get_array(struct JsonValue *object, const char *key)
 {
-    struct JsonValue *ret = hashmap_find(object->v.object, key);
+    struct JsonValue *ret = (struct JsonValue *)hashmap_find(object->v.object, key);
     if (ret == NULL) return NULL;
     if (ret->type != JSON_ARRAY) return NULL;
     return ret;
@@ -500,7 +500,7 @@ struct JsonValue *json_object_get_array(struct JsonValue *object, const char *ke
 
 struct JsonValue *json_object_get_object(struct JsonValue *object, const char *key)
 {
-    struct JsonValue *ret = hashmap_find(object->v.object, key);
+    struct JsonValue *ret = (struct JsonValue *)hashmap_find(object->v.object, key);
     if (ret == NULL) return NULL;
     if (ret->type != JSON_OBJECT) return NULL;
     return ret;
@@ -508,5 +508,5 @@ struct JsonValue *json_object_get_object(struct JsonValue *object, const char *k
 
 struct JsonValue *json_object_get_any(struct JsonValue *object, const char *key)
 {
-    return hashmap_find(object->v.object, key);
+    return (struct JsonValue *)hashmap_find(object->v.object, key);
 }

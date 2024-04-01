@@ -501,7 +501,7 @@ static bool process_assignment_rhs(struct StageState *stst, struct ConfAssignmen
             }
         }
 
-        struct Interface *iface = hashmap_find(stst->ifaces, key);
+        struct Interface *iface = (struct Interface *)hashmap_find(stst->ifaces, key);
         if (iface) {
             log_debug("rhs is an interface");
             if (iface->get_property_reader) {
@@ -561,8 +561,8 @@ static bool process_token(char *token, void *userdata)
         return false;                                               \
     } while (0)
 
-    struct StageState *stst = userdata;
-    struct ConfAction *newaction = stst->actions;
+    struct StageState *stst = (struct StageState *)userdata;
+    struct ConfAction *newaction = (struct ConfAction *)stst->actions;
 
     switch (newaction->type) {
         case CA_UNDEF:
@@ -614,7 +614,7 @@ static bool process_token(char *token, void *userdata)
             } else if (strcmp(token, "writetstamp") == 0) {
                 newaction->type = CA_WRITETSTAMP;
             } else {
-                struct PipelineObject *obj = hashmap_find(stst->objects, token);
+                struct PipelineObject *obj = (struct PipelineObject *)hashmap_find(stst->objects, token);
                 if (obj) {
                     switch (obj->type) {
                         case PO_SEQGEN:
@@ -664,9 +664,10 @@ static bool process_token(char *token, void *userdata)
             } else if (newaction->add.newname == NULL) {
                 newaction->add.newname = strdup(token);
                 char *type = header_type_from_name(token);
+                bool valid = protocol_type_valid(type);
                 newaction->add.id = protocol_id_from_type(type);
                 free(type);
-                if (newaction->add.id < 0) {
+                if (!valid) {
                     THROW("type is invalid for new header'%s'", token);
                 }
                 newaction->add.len = protocol_list[newaction->add.id].bytelength;
@@ -748,7 +749,7 @@ static bool process_token(char *token, void *userdata)
             break; }
         case CA_ELIM:
             if (newaction->elim.rec == NULL) {
-                struct PipelineObject *obj = hashmap_find(stst->objects, token);
+                struct PipelineObject *obj = (struct PipelineObject *)hashmap_find(stst->objects, token);
                 if (obj) {
                     if (obj->type == PO_SEQREC) {
                         newaction->elim.rec = obj;
@@ -792,7 +793,7 @@ static bool process_token(char *token, void *userdata)
                 }
                 break;
             } else if (newaction->oam.obj == NULL) {
-                struct PipelineObject *obj = hashmap_find(stst->objects, token);
+                struct PipelineObject *obj = (struct PipelineObject *)hashmap_find(stst->objects, token);
                 if (!obj) {
                     THROW("unknown object '%s' for OAM action", token);
                 }
@@ -804,7 +805,7 @@ static bool process_token(char *token, void *userdata)
             break;
         case CA_POF:
             if (newaction->pof.pof == NULL) {
-                struct PipelineObject *obj = hashmap_find(stst->objects, token);
+                struct PipelineObject *obj = (struct PipelineObject *)hashmap_find(stst->objects, token);
                 if (obj) {
                     if (obj->type == PO_POF) {
                         newaction->pof.pof = obj;
@@ -850,7 +851,7 @@ static bool process_token(char *token, void *userdata)
                 // first argument can be the name of a state object
                 if (newaction->repl.replobj == NULL
                         && newaction->repl.pipelines == NULL) {
-                    struct PipelineObject *obj = hashmap_find(stst->objects, token);
+                    struct PipelineObject *obj = (struct PipelineObject *)hashmap_find(stst->objects, token);
                     if (obj) {
                         if (obj->type == PO_REPL) {
                             newaction->repl.replobj = obj;
@@ -906,7 +907,7 @@ static bool process_token(char *token, void *userdata)
             if (newaction->send.iface) {
                 THROW("we can only send on one interface at once");
             } else {
-                struct Interface *iface = hashmap_find(stst->ifaces, token);
+                struct Interface *iface = (struct Interface *)hashmap_find(stst->ifaces, token);
                 if (iface == NULL) {
                     THROW("unknown interface '%s'", token);
                 }
@@ -917,7 +918,7 @@ static bool process_token(char *token, void *userdata)
             break;
         case CA_SEQGEN:
             if (newaction->seq.gen == NULL) {
-                struct PipelineObject *obj = hashmap_find(stst->objects, token);
+                struct PipelineObject *obj = (struct PipelineObject *)hashmap_find(stst->objects, token);
                 if (obj) {
                     if (obj->type == PO_SEQGEN) {
                         newaction->seq.gen = obj;
@@ -1090,7 +1091,7 @@ static bool process_action(struct StageState *stst)
     switch (newaction->type) {
         case CA_UNDEF:
             THROW("no action");
-        case CA_ADD:
+        case CA_ADD: {
             log_debug("CA_ADD: %s %s %s %s",
                     newaction->add.beforeafter==ADD_BEFORE?"before":"after",
                     newaction->add.pos->name,
@@ -1224,8 +1225,8 @@ static bool process_action(struct StageState *stst)
                 if (!process_action(stst)) // now edit is the newest action
                     return false;
             }
-            break;
-        case CA_DEL:
+            break; }
+        case CA_DEL: {
             if (newaction->del.hdr == NULL) {
                 THROW("no header to delete");
             }
@@ -1304,7 +1305,7 @@ static bool process_action(struct StageState *stst)
                 // swap dedit and delete so we are editing before deleting
                 stst->actions = confaction_swap_with_next(stst->actions);
             }
-            break;
+            break; }
         case CA_DELAY:
             if (stst->actions->delay.delay_value <= 0)
                 THROW("delay parameter should be positive");
@@ -1327,7 +1328,7 @@ static bool process_action(struct StageState *stst)
                 THROW("no assignments in edit");
             }
             break;
-        case CA_ELIM:
+        case CA_ELIM: {
             if (newaction->elim.rec == NULL) {
                 THROW("eliminate needs a sequence recovery object");
             }
@@ -1344,11 +1345,11 @@ static bool process_action(struct StageState *stst)
             elimjump->jump.pipename = strdup(newaction->elim.pipename);
             if (!process_action(stst))
                 THROW("can't jump to '%s' after elimination", elimjump->jump.pipename);
-            break;
+            break; }
         case CA_FILTEROAM:
             // the user can't create this action, so nothing to verify here
             break;
-        case CA_JUMP:
+        case CA_JUMP: {
             log_debug("CA_JUMP: %s", newaction->text);
             if (newaction->jump.pipename == NULL) {
                 THROW("no action pipeline to jump to");
@@ -1392,10 +1393,10 @@ static bool process_action(struct StageState *stst)
             } else {
                 THROW("action pipeline '%s' not found", newaction->jump.pipename);
             }
-            break;
+            break; }
         case CA_MEPSTART:
         case CA_MEPSTOP:
-        case CA_MIP:
+        case CA_MIP: {
             if (newaction->oam.name == NULL) {
                 THROW("unnamed OAM action (name is mandatory)");
             }
@@ -1422,7 +1423,7 @@ static bool process_action(struct StageState *stst)
                 mw->next = stst->must_write;
                 stst->must_write = mw;
             }
-            break;
+            break; }
         case CA_POF:
             if (newaction->pof.pof == NULL) {
                 THROW("no POF object specified");
@@ -1460,7 +1461,7 @@ static bool process_action(struct StageState *stst)
             REVERSE_LIST(newaction->repl.pipelines);
             stst->had_final = true;
             break;
-        case CA_SEND:
+        case CA_SEND: {
             if (newaction->send.iface == NULL) {
                 THROW("no send interface specified");
             }
@@ -1488,7 +1489,7 @@ static bool process_action(struct StageState *stst)
                 }
                 return false;
             }
-            break;
+            break; }
         case CA_SEQGEN:
             if (newaction->seq.gen == NULL) {
                 THROW("seqgen needs a sequence generator object");
@@ -1510,7 +1511,7 @@ static bool process_action(struct StageState *stst)
 
 static bool process_stage(char *stage, void *userdata)
 {
-    struct StageState *stst = userdata;
+    struct StageState *stst = (struct StageState *)userdata;
 
     if (stst->had_final) {
         log_error("can't have more actions after %s",
@@ -1732,11 +1733,11 @@ static struct EditAssign *assemble_fieldassigns(struct ConfAssignment *list, uns
                 a->read_state = memdup(l->rhs.v.header.field, sizeof(struct HeaderField));
                 a->owns_read_state = true;
                 break;
-            case CVT_CONST:
+            case CVT_CONST: {
                 a->constant = l->rhs.value;
                 unsigned len = DIVCEIL(a->constant.bitoffset + a->constant.bitcount, 8);
                 a->constant.value = memdup(l->rhs.value.value, len);
-                break;
+                break; }
             case CVT_IFACE:
                 a->read_state = l->rhs.v.iface.iface;
                 a->owns_read_state = false;
@@ -1938,7 +1939,7 @@ void confactions_print(const struct ConfAction *ca_list, unsigned indent)
                         log_debug("%*cindex %u", indent+4, ' ', a->rhs.v.header.field->header_idx);
                     } else if (a->rhs.type == CVT_CONST) {
                         unsigned bytes = DIVCEIL(a->rhs.value.bitoffset + a->rhs.value.bitcount, 8);
-                        unsigned char *cst = a->rhs.value.value;
+                        unsigned char *cst = (unsigned char *)a->rhs.value.value;
                         char b_str[32];
                         unsigned b_off = 0;
                         if (log_enabled(INFO)) {

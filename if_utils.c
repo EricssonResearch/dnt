@@ -324,7 +324,7 @@ struct MonitorState {
 
 static void *socket_monitor_thread(void *param)
 {
-    struct MonitorState *st = param;
+    struct MonitorState *st = (struct MonitorState *)param;
 
     nfds_t nfds = 1;
     struct pollfd fds[1];
@@ -366,7 +366,7 @@ static void *socket_monitor_thread(void *param)
 
         for (struct cmsghdr *cmsg=CMSG_FIRSTHDR(&msg); cmsg; cmsg=CMSG_NXTHDR(&msg, cmsg)) {
             if (cmsg->cmsg_level == SOL_IP && cmsg->cmsg_type == IP_RECVERR) {
-                struct sock_extended_err *serr = (void *) CMSG_DATA(cmsg);
+                struct sock_extended_err *serr = (struct sock_extended_err *) CMSG_DATA(cmsg);
                 char errstr[256] = {0}; // strerror_r() can fail
                 strerror_r(serr->ee_errno, errstr, sizeof(errstr));
                 // serr->ee_origin = 2 (SO_EE_ORIGIN_ICMP)
@@ -374,7 +374,7 @@ static void *socket_monitor_thread(void *param)
                         st->name, errstr,
                         serr->ee_type, serr->ee_code);
             } else if (cmsg->cmsg_level == SOL_IPV6 && cmsg->cmsg_type == IPV6_RECVERR) {
-                struct sock_extended_err *serr = (void *) CMSG_DATA(cmsg);
+                struct sock_extended_err *serr = (struct sock_extended_err *) CMSG_DATA(cmsg);
                 char errstr[256] = {0}; // strerror_r() can fail
                 strerror_r(serr->ee_errno, errstr, sizeof(errstr));
                 // serr->ee_origin = 3 (SO_EE_ORIGIN_ICMP6)
@@ -397,17 +397,17 @@ void *monitor_error_queue(int socket, int family, const char *name)
         int enable = 1;
         if (setsockopt(socket, IPPROTO_IPV6, IPV6_RECVERR, &enable, sizeof(enable)) < 0) {
             log_perror("setsockopt IPV6_RECVERR");
-            return false;
+            return NULL;
         }
     } else if (family == AF_INET) {
         int enable = 1;
         if (setsockopt(socket, IPPROTO_IP, IP_RECVERR, &enable, sizeof(enable)) < 0) {
             log_perror("setsockopt IP_RECVERR");
-            return false;
+            return NULL;
         }
     } else {
         log_error("cannot monitor error queue on socket family %d", family);
-        return false;
+        return NULL;
     }
 
     struct MonitorState *st = calloc_struct(MonitorState);
@@ -428,7 +428,7 @@ void *monitor_error_queue(int socket, int family, const char *name)
 
 void stop_monitoring_error_queue(void *monitor)
 {
-    struct MonitorState *st = monitor;
+    struct MonitorState *st = (struct MonitorState *)monitor;
     if (st) {
         thread_stop(st->thread);
 

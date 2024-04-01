@@ -52,8 +52,8 @@ static void sigusr1_handler(int sig, siginfo_t *si, void *uc)
 }
 
 static int add_iface_to_epollfd(const char *key, void *value, void *userdata) {
-    struct Interface *iface = value;
-    int *epollfd = userdata;
+    struct Interface *iface = (struct Interface *)value;
+    int *epollfd = (int *)userdata;
     if (iface->recvfd == 0) return 1;
 
     log_debug("adding interface %s to epoll", key);
@@ -115,7 +115,7 @@ static void recv_loop(struct HashMap *ifaces)
         }
 
         for (int n=0; n<nfds; n++) {
-            struct Interface *recvif = events[n].data.ptr;
+            struct Interface *recvif = (struct Interface *)events[n].data.ptr;
             if (!recvif->recv(recvif)) {
                 //TODO log_error?
             }
@@ -137,7 +137,7 @@ static int open_interface(const char *key, void *value, void *userdata)
 {
     (void)userdata;
     log_debug("opening interface %s", key);
-    struct Interface *iface = value;
+    struct Interface *iface = (struct Interface *)value;
     return iface->open(iface);
 }
 
@@ -164,20 +164,20 @@ static bool set_loglevels(const char *levels)
             if (comma) {
                 *comma = 0;
                 //printf("module '%s' level '%s'\n", m, l);
-                int nlvl = log_level_from_string(l);
-                if (nlvl < 0) {
-                    THROW("Log level '%s' invalid", l);
+                if (!log_level_valid(l)) {
+                    THROW("Invalid log level '%s'", l);
                 }
+                LOGGING_LEVELS nlvl = log_level_from_string(l);
                 if (!log_set_level(m, nlvl)) {
                     THROW("Module '%s' does not exist", m);
                 }
                 p = comma + 1;
             } else {
                 //printf("last module '%s' level '%s'\n", m, l);
-                int nlvl = log_level_from_string(l);
-                if (nlvl < 0) {
-                    THROW("Log level '%s' invalid", l);
+                if (!log_level_valid(l)) {
+                    THROW("Invalid log level '%s'", l);
                 }
+                LOGGING_LEVELS nlvl = log_level_from_string(l);
                 if (!log_set_level(m, nlvl)) {
                     THROW("Module '%s' does not exist", m);
                 }
@@ -199,7 +199,7 @@ static char args_doc[] = "CONFIGFILE";
 static struct argp_option options[] = {
     {"verbose", 'v', "MODULE:LEVEL", 0, "Available levels: NONE, ERROR, WARNING, INFO, PACKET, DEBUG, ALL", 0},
     {"output", 'o', "logfile", 0, "Output: log[f]ile, sys[l]og, [s]tdout (default), std[e]rr", 0},
-    { 0 }
+    { 0, 0, 0, 0, 0, 0 }
 };
 
 static struct arguments {
@@ -210,7 +210,7 @@ static struct arguments {
 
 static error_t parse_opt(int key, char *arg, struct argp_state *state)
 {
-    struct arguments *args = state->input;
+    struct arguments *args = (struct arguments *)state->input;
     if (state->arg_num > 1)
         argp_error(state, "Too many arguments");
     switch (key) {

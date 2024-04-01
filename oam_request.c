@@ -110,9 +110,9 @@ static bool parse_ip_port(const char *str, char **ip, unsigned *port)
             *ip = strdup(str);
             return true;
         } else {
-            char *colon = strchr(str, ':');
+            const char *colon = strchr(str, ':');
             if (colon) {
-                char *colon2 = strchr(colon+1, ':');
+                const char *colon2 = strchr(colon+1, ':');
                 if (colon2) {
                     return false;
                 }
@@ -460,7 +460,7 @@ static int add_fixed_headers(struct Packet *packet, unsigned char ttl,
                              unsigned char seq, unsigned short channel, unsigned short nodeid,
                              unsigned char level, unsigned char session)
 {
-    unsigned int proto_id = PROTO_ID_MPLS;
+    enum ProtocolID proto_id = PROTO_ID_MPLS;
     packet_add_header(packet, 0, proto_id, protocol_list[proto_id].bytelength);
     proto_id = PROTO_ID_OAM;
     packet_add_header(packet, 1, proto_id, protocol_list[proto_id].bytelength);

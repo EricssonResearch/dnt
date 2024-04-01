@@ -26,7 +26,7 @@ char *strdup_printf(const char *format, ...)
         return NULL;
     }
     int length = err+1;
-    char *ret = malloc(length*sizeof(char));
+    char *ret = (char *)malloc(length*sizeof(char));
     va_start(args, format);
     err = vsnprintf(ret, length, format, args);
     va_end(args);

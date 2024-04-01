@@ -17,8 +17,8 @@ struct ConfOamState {
 
 static int oam_cb(const char *key, void *value, void *userdata)
 {
-    char *cmdline = value;
-    struct ConfOamState *state = userdata;
+    char *cmdline = (char *)value;
+    struct ConfOamState *state = (struct ConfOamState *)userdata;
 
     log_info("  OAM background session %s: %s", key, cmdline);
 

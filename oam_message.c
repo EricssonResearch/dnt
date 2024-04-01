@@ -58,7 +58,7 @@ static struct MessageQueue *reply_q = NULL;
 struct StreamSessions *get_stream_sessions(const char *stream_name)
 {
     pthread_mutex_lock(&session_lock);
-    struct StreamSessions *stream = hashmap_find(session_ids, stream_name);
+    struct StreamSessions *stream = (struct StreamSessions *)hashmap_find(session_ids, stream_name);
     if (stream == NULL) {
         stream = calloc_struct(StreamSessions);
         hashmap_insert(session_ids, strdup(stream_name), stream);
@@ -159,8 +159,8 @@ void stop_session(const char *stream_name, int session, struct command_connectio
 
 static int stop_sessions_cb(const char *key, void *value, void *userdata)
 {
-    struct StreamSessions *stream = value;
-    struct command_connection *conn = userdata;
+    struct StreamSessions *stream = (struct StreamSessions *)value;
+    struct command_connection *conn = (struct command_connection *)userdata;
     FILE *cmd_w = command_connection_get_w(conn);
 
     for (int i=0; i<16; i++) {
@@ -205,8 +205,8 @@ int list_sessions_of_stream(struct StreamSessions *stream, FILE *cmd_w)
 
 static int list_all_sessions_cb(const char *key, void *value, void *userdata)
 {
-    struct StreamSessions *stream = value;
-    FILE *cmd_w = userdata;
+    struct StreamSessions *stream = (struct StreamSessions *)value;
+    FILE *cmd_w = (FILE *)userdata;
     fprintf(cmd_w, "Stream %s sessions:\n", key);
     return list_sessions_of_stream(stream, cmd_w);
 }
@@ -418,7 +418,7 @@ static void *reply_thread_fn(void *arg)
     (void)arg;
 
     while (1) {
-        char *msg = messagequeue_pop(reply_q, -1);
+        char *msg = (char *)messagequeue_pop(reply_q, -1);
         process_reply(msg);
         free(msg);
     }
@@ -664,8 +664,8 @@ struct AddstartState {
 };
 static int addstart_cb(const char *key, void *value, void *userdata)
 {
-    struct AddstartState *st = userdata;
-    struct MepStart *mep = value;
+    struct AddstartState *st = (struct AddstartState *)userdata;
+    struct MepStart *mep = (struct MepStart *)value;
 
     if (mep_start_in_stream(mep, st->oam->stream)) {
         //TODO supply more info: level, type
@@ -879,7 +879,7 @@ static void *request_thread_fn(void *arg)
     (void)arg;
 
     while (1) {
-        struct request_msg *msg = messagequeue_pop(request_q, -1);
+        struct request_msg *msg = (struct request_msg *)messagequeue_pop(request_q, -1);
         if (process_request(msg->oam, msg->pi->packet)) {
             log_packet("%s forwarding request", msg->oam->name);
             msg->pi->pos += 1;

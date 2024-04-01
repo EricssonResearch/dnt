@@ -92,7 +92,7 @@ bool parse_fieldname(char *field, char **headername, char **fieldname)
 
 char *header_type_from_name(const char *name)
 {
-    char *under = strchr(name, '_');
+    const char *under = strchr(name, '_');
     if (under) {
         return strndup(name, under-name);
     } else {
@@ -126,7 +126,7 @@ bool prepare_constant_number(struct Value *val, uint64_t num)
     val->bitoffset %= 8;
     unsigned bits_total = val->bitoffset + val->bitcount;
     unsigned bytes_total = DIVCEIL(bits_total, 8);
-    unsigned char *buf = calloc(bytes_total, sizeof(unsigned char));
+    unsigned char *buf = (unsigned char *)calloc(bytes_total, sizeof(unsigned char));
     val->value = buf;
     //printf("val offset %u count %u allocated %u\n", val->bitoffset, val->bitcount, bytes_total);
 
@@ -164,7 +164,7 @@ bool read_constant(struct Value *val, enum ProtocolID proto, enum ProtocolFieldT
     switch (type) {
         case FT_UNKNOWN:
             THROW("constant cannot be unknown type");
-        case FT_NUMBER: do {
+        case FT_NUMBER: {
             uint64_t num;
             if (val->bitcount == 1) {
                 int b = read_boolean(string);
@@ -181,8 +181,8 @@ bool read_constant(struct Value *val, enum ProtocolID proto, enum ProtocolFieldT
             if (!prepare_constant_number(val, num)) {
                 THROW("number doesn't fit into %u bits", val->bitcount);
             }
-            return true; } while (0);
-        case FT_MACADDRESS:
+            return true; }
+        case FT_MACADDRESS: {
             if (val->bitoffset != 0 || val->bitcount != 6*8) {
                 THROW("bitoffset %u bitcount %u invalid for Ethernet address",
                         val->bitoffset, val->bitcount);
@@ -193,7 +193,7 @@ bool read_constant(struct Value *val, enum ProtocolID proto, enum ProtocolFieldT
             }
             val->value = malloc(6*sizeof(char));
             memcpy(val->value, a, 6);
-            return true;
+            return true; }
         case FT_IPV4ADDRESS:
             if (val->bitoffset != 0 || val->bitcount != 4*8) {
                 THROW("bitoffset %u bitcount %u invalid for IPv4 address",

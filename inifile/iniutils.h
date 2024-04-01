@@ -31,7 +31,7 @@ static inline char *u_strdup(const char *s)
 {
     if (s == NULL) return NULL;
     unsigned len = strlen(s) + 1;
-    char *ret = malloc(len*sizeof(char));
+    char *ret = (char *)malloc(len*sizeof(char));
     memcpy(ret, s, len);
     return ret;
 }
@@ -46,7 +46,7 @@ static inline char *u_strcat(const char *s1, const char *s2)
     if (s2 == NULL) return u_strdup(s1);
     unsigned l1 = strlen(s1);
     unsigned l2 = strlen(s2);
-    char *ret = malloc((l1+l2+1)*sizeof(char));
+    char *ret = (char *)malloc((l1+l2+1)*sizeof(char));
     memcpy(ret, s1, l1);
     memcpy(ret+l1, s2, l2+1);
     return ret;

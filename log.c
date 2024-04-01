@@ -1,7 +1,9 @@
 // Copyright (c) 2023, Ericsson AB and Ericsson Telecommunication Hungary
 // All rights reserved.
 
+#ifndef _GNU_SOURCE /* stupid g++ implicitly defines this */
 #define _GNU_SOURCE /* for str[n]dupa */
+#endif
 
 #include "log.h"
 #include "hashmap.h"
@@ -105,12 +107,22 @@ void close_log(void)
     }
 }
 
+bool log_level_valid(const char *level)
+{
+    if (level == NULL) return false;
+    for (unsigned i=0; i<ARRAY_SIZE(log_level_strings); i++) {
+        if (strcmp(level, log_level_strings[i]) == 0) return true;
+    }
+    return false;
+}
+
 LOGGING_LEVELS log_level_from_string(const char *level)
 {
+    if (level == NULL) return NONE;
     for (unsigned i=0; i<ARRAY_SIZE(log_level_strings); i++) {
-        if (strcmp(level, log_level_strings[i]) == 0) return i;
+        if (strcmp(level, log_level_strings[i]) == 0) return (LOGGING_LEVELS)i;
     }
-    return -1;
+    return NONE;
 }
 
 const char *log_string_from_level(LOGGING_LEVELS level)
@@ -147,7 +159,7 @@ static int log_module_delete_cb(const char *key, void *value, void *userdata)
 {
     (void)key;
     (void)userdata;
-    struct ModuleInstance *v = value;
+    struct ModuleInstance *v = (struct ModuleInstance *)value;
     while (v) {
         struct ModuleInstance *d = v;
         v = v->next;
@@ -166,7 +178,7 @@ void __register_log_module(const char *file, struct __log_module *mod)
     n->mod = mod;
     n->file = file;
 
-    struct ModuleInstance *inst = hashmap_find(mod_instances, mod->name);
+    struct ModuleInstance *inst = (struct ModuleInstance *)hashmap_find(mod_instances, mod->name);
     if (inst) {
         if (mod->level != inst->mod->level) {
             fprintf(stderr, "Inconsistent log level for module %s: %s %s vs. %s %s\n", mod->name,
@@ -257,8 +269,8 @@ struct ModuleForeachState {
 
 static int mod_foreach_cb(const char *key, void *value, void *userdata)
 {
-    struct ModuleForeachState *ms = userdata;
-    struct ModuleInstance *inst = value;
+    struct ModuleForeachState *ms = (struct ModuleForeachState *)userdata;
+    struct ModuleInstance *inst = (struct ModuleInstance *)value;
     if (ms->cb(key, inst->mod->level, ms->userdata) == 0) {
         return 0;
     } else {
@@ -276,8 +288,8 @@ int log_get_levels(log_getlevel_cb *cb, void *userdata)
 static int mod_setlevel_all_cb(const char *key, void *value, void *userdata)
 {
     (void)key;
-    LOGGING_LEVELS *new_level = userdata;
-    struct ModuleInstance *inst = value;
+    LOGGING_LEVELS *new_level = (LOGGING_LEVELS *)userdata;
+    struct ModuleInstance *inst = (struct ModuleInstance *)value;
     while (inst) {
         inst->mod->level = *new_level;
         inst = inst->next;
@@ -294,7 +306,7 @@ bool log_set_level(const char *mod_name, LOGGING_LEVELS new_level)
         return true;
     }
 
-    struct ModuleInstance *inst = hashmap_find(mod_instances, mod_name);
+    struct ModuleInstance *inst = (struct ModuleInstance *)hashmap_find(mod_instances, mod_name);
     if (inst == NULL) return false;
     while (inst) {
         inst->mod->level = new_level;

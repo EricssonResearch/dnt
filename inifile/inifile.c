@@ -45,7 +45,7 @@ static void trim_trailing_spaces(char *start, char *end)
 
 struct IniSection *new_inisection(const char *name)
 {
-    struct IniSection *ret = malloc(sizeof(struct IniSection));
+    struct IniSection *ret = (struct IniSection *)malloc(sizeof(struct IniSection));
     ret->name = u_strdup(name);
     //TODO what's a good bucket count?
     ret->contents = new_hashmap(51, NULL, NULL);
@@ -79,7 +79,7 @@ void inisection_remove(struct IniSection *sec, const char *key)
 char *inisection_get(const struct IniSection *sec, const char *key)
 {
     if (!sec) return NULL;
-    return hashmap_find(sec->contents, key);
+    return (char *)hashmap_find(sec->contents, key);
 }
 
 struct IniSection *inisection_find_section(struct IniSection *sec, const char *name)
@@ -125,7 +125,7 @@ struct IniSection *read_inifile(const char *filename)
     struct IniSection *sec = ret; // points to current section
 
     unsigned bufsize = BUFFERSIZE;
-    char *linebuf = malloc(BUFFERSIZE*sizeof(char));
+    char *linebuf = (char *)malloc(BUFFERSIZE*sizeof(char));
     if (!linebuf) {
         return read_error(ret, filename, "memory allocation failure", 0);
     }
@@ -137,7 +137,7 @@ struct IniSection *read_inifile(const char *filename)
         while (linebuf[len-1] != '\n') {
             // line is longer than our buffer: realloc, read more
             bufsize += BUFFERSIZE;
-            char *newlinebuf = realloc(linebuf, bufsize*sizeof(char));
+            char *newlinebuf = (char *)realloc(linebuf, bufsize*sizeof(char));
             if (newlinebuf) {
                 linebuf = newlinebuf;
             } else {

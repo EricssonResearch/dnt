@@ -46,14 +46,14 @@ static bool udpout_recv(struct Interface *iface)
 
 static bool udpout_send(struct Interface *iface, struct Packet *p)
 {
-    struct UdpOutIfData *uid = iface->iface_private;
+    struct UdpOutIfData *uid = (struct UdpOutIfData *)iface->iface_private;
     // our socket is connected, so no dst
     return iface_common_send(iface, p, uid->sock, NULL, 0);
 }
 
 static bool udpout_open(struct Interface *iface)
 {
-    struct UdpOutIfData *uid = iface->iface_private;
+    struct UdpOutIfData *uid = (struct UdpOutIfData *)iface->iface_private;
     if (iface->state != IFS_INIT) {
         log_error("open udp-out interface %s: already opened", iface->name);
         return false;
@@ -137,7 +137,7 @@ static bool udpout_open(struct Interface *iface)
 
 static bool udpout_close(struct Interface *iface)
 {
-    struct UdpOutIfData *uid = iface->iface_private;
+    struct UdpOutIfData *uid = (struct UdpOutIfData *)iface->iface_private;
     stop_monitoring_error_queue(uid->errq_monitor);
     close(uid->sock);
     free(uid);
@@ -147,32 +147,32 @@ static bool udpout_close(struct Interface *iface)
 
 static void udpout_srcport_producer(void *state, value_consumer *consumer, void *consumer_state, struct Packet *p)
 {
-    struct Interface *iface = state;
-    struct UdpOutIfData *uid = iface->iface_private;
+    struct Interface *iface = (struct Interface *)state;
+    struct UdpOutIfData *uid = (struct UdpOutIfData *)iface->iface_private;
     struct Value val = {&uid->sport, 0, 2*8};
     consumer(consumer_state, &val, p);
 }
 
 static void udpout_dstport_producer(void *state, value_consumer *consumer, void *consumer_state, struct Packet *p)
 {
-    struct Interface *iface = state;
-    struct UdpOutIfData *uid = iface->iface_private;
+    struct Interface *iface = (struct Interface *)state;
+    struct UdpOutIfData *uid = (struct UdpOutIfData *)iface->iface_private;
     struct Value val = {&uid->dport, 0, 2*8};
     consumer(consumer_state, &val, p);
 }
 
 static void udpout_dstip_producer(void *state, value_consumer *consumer, void *consumer_state, struct Packet *p)
 {
-    struct Interface *iface = state;
-    struct UdpOutIfData *uid = iface->iface_private;
-    struct Value val = {&uid->dstip, 0, uid->family == AF_INET6 ? 128 : 32};
+    struct Interface *iface = (struct Interface *)state;
+    struct UdpOutIfData *uid = (struct UdpOutIfData *)iface->iface_private;
+    struct Value val = {&uid->dstip, 0, uid->family == AF_INET6 ? 128u : 32u};
     consumer(consumer_state, &val, p);
 }
 
 static value_producer *udpout_get_property_reader(const struct Interface *iface, const char *property,
         enum ProtocolFieldType target_type, const struct Value *target)
 {
-    struct UdpOutIfData *uid = iface->iface_private;
+    struct UdpOutIfData *uid = (struct UdpOutIfData *)iface->iface_private;
 
     if (strcmp(property, "srcport") == 0) {
         if (target_type != FT_NUMBER) {
@@ -246,7 +246,7 @@ struct Interface *new_udp_out_interface(const char *name, const char *ifname,
 
     if (err) {
         log_error("udp-out invalid dstip '%s'", dst_ip);
-        return false;
+        return NULL;
     }
 
     int sock = -1;
@@ -278,7 +278,7 @@ struct Interface *new_udp_out_interface(const char *name, const char *ifname,
                 int val = IPV6_PMTUDISC_PROBE;
                 if (setsockopt(sock, IPPROTO_IPV6, IPV6_MTU_DISCOVER, &val, sizeof(val)) < 0) {
                     log_perror("udp-out setsockopt IP_MTU_DISCOVER");
-                    return false;
+                    return NULL;
                 }
             } else {
                 struct sockaddr_in addr;
@@ -296,7 +296,7 @@ struct Interface *new_udp_out_interface(const char *name, const char *ifname,
                 int val = IP_PMTUDISC_PROBE;
                 if (setsockopt(sock, IPPROTO_IP, IP_MTU_DISCOVER, &val, sizeof(val)) < 0) {
                     log_perror("udp-out setsockopt IP_MTU_DISCOVER");
-                    return false;
+                    return NULL;
                 }
             }
         }
@@ -310,7 +310,7 @@ struct Interface *new_udp_out_interface(const char *name, const char *ifname,
     if (sock < 0) {
         log_error("udp-out can't make socket with dstip '%s'", dst_ip);
         freeaddrinfo(result);
-        return false;
+        return NULL;
     }
 
     iface->state = IFS_INIT;

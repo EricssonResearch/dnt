@@ -1,8 +1,9 @@
 // Copyright (c) 2023, Ericsson AB and Ericsson Telecommunication Hungary
 // All rights reserved.
 
-
+#ifndef _GNU_SOURCE /* stupid g++ implicitly defines this */
 #define _GNU_SOURCE /* for pthread_setname_np */
+#endif
 
 #include "action.h"
 #include "delay.h"

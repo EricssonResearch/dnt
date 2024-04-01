@@ -65,7 +65,7 @@ static void restore_vlan(struct msghdr *msg, struct Packet *p, void *userdata)
 
 static bool eth_recv(struct Interface *iface)
 {
-    struct EthIfData *eid = iface->iface_private;
+    struct EthIfData *eid = (struct EthIfData *)iface->iface_private;
     (void)eid;
 
     struct Packet *p = iface_common_recv(iface, restore_vlan, NULL);
@@ -89,7 +89,7 @@ static bool eth_recv(struct Interface *iface)
 
 static bool eth_send(struct Interface *iface, struct Packet *p)
 {
-    struct EthIfData *eid = iface->iface_private;
+    struct EthIfData *eid = (struct EthIfData *)iface->iface_private;
 
     if (p->header_count < 1) {
         log_error("eth %s send: packet doesn't have headers", iface->name);
@@ -122,7 +122,7 @@ static bool eth_send(struct Interface *iface, struct Packet *p)
 
 static bool eth_open(struct Interface *iface)
 {
-    struct EthIfData *eid = iface->iface_private;
+    struct EthIfData *eid = (struct EthIfData *)iface->iface_private;
 
     if (iface->state != IFS_INIT) {
         log_error("open eth interface %s: already opened", iface->name);
@@ -182,7 +182,8 @@ static bool eth_open(struct Interface *iface)
             enable_rx_tstamp(sock, "eth", iface->ifname/*, HWTSTAMP_FILTER_ALL*/);
 
             // bind to device
-            struct sockaddr_ll socket_address = {0};
+            struct sockaddr_ll socket_address;
+            memset(&socket_address, 0, sizeof(socket_address));
             socket_address.sll_family = AF_PACKET;
             socket_address.sll_protocol = htons(ETH_P_ALL);
             socket_address.sll_ifindex = if_idx.ifr_ifindex;
@@ -245,7 +246,7 @@ static bool eth_open(struct Interface *iface)
 
 static bool eth_close(struct Interface *iface)
 {
-    struct EthIfData *eid = iface->iface_private;
+    struct EthIfData *eid = (struct EthIfData *)iface->iface_private;
     for (unsigned i=0; i<8; i++) {
         if (eid->pcp_used[i]) {
             close(eid->sockfd[i]);
@@ -258,8 +259,8 @@ static bool eth_close(struct Interface *iface)
 
 static void eth_mac_producer(void *state, value_consumer *consumer, void *consumer_state, struct Packet *p)
 {
-    struct Interface *iface = state;
-    struct EthIfData *eid = iface->iface_private;
+    struct Interface *iface = (struct Interface *)state;
+    struct EthIfData *eid = (struct EthIfData *)iface->iface_private;
     struct Value val = {&eid->mac, 0, 6*8};
     consumer(consumer_state, &val, p);
 }

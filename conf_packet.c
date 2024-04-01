@@ -32,7 +32,7 @@ static bool process_packet_token(char *token, void *userdata)
         return false;                           \
     } while (0)
 
-    struct StageState *stst = userdata;
+    struct StageState *stst = (struct StageState *)userdata;
 
     if (stst->headers->name) {
         // here we don't want parameters for the headers
@@ -60,7 +60,7 @@ static bool process_packet_stage(char *stage, void *userdata)
         return false;                                               \
     } while (0)
 
-    struct StageState *stst = userdata;
+    struct StageState *stst = (struct StageState *)userdata;
 
     struct HeaderDescriptor *newheader = calloc_struct(HeaderDescriptor);
     newheader->next = stst->headers;
@@ -88,7 +88,7 @@ static bool process_match_token(char *token, void *userdata)
         return false;                                                       \
     } while (0)
 
-    struct StageState *stst = userdata;
+    struct StageState *stst = (struct StageState *)userdata;
 
     if (stst->current_header) {
         // parse the match
@@ -144,7 +144,7 @@ static bool process_match_stage(char *stage, void *userdata)
         return false;                                                       \
     } while (0)
 
-    struct StageState *stst = userdata;
+    struct StageState *stst = (struct StageState *)userdata;
 
     stst->current_header = NULL;
     if (!foreach_tokens(stage, process_match_token, stst)) {
@@ -167,6 +167,7 @@ struct HeaderDescriptor *parse_packet_line(const char *stream, char *line)
         .stream = stream,
         .headers = NULL,
         .current_header = NULL,
+        .current_idx = 0,
     };
     if (!foreach_stages(line, process_packet_stage, &stst)) {
         log_error("failed to parse header list for stream %s", stream);
@@ -190,6 +191,7 @@ bool parse_match_line(const char *stream, struct HeaderDescriptor *headers, char
         .stream = stream,
         .headers = headers,
         .current_header = NULL,
+        .current_idx = 0,
     };
     if (!foreach_stages(line, process_match_stage, &stst)) {
         log_error("failed to parse match list for stream %s", stream);
@@ -208,7 +210,7 @@ void confheaders_print(const struct HeaderDescriptor *headers)
             log_info("  matches:");
             for (const struct HeaderMatch *m=h->matches; m; m=m->next) {
                 unsigned bytes = DIVCEIL(m->value.bitoffset + m->value.bitcount, 8);
-                unsigned char *cst = m->value.value;
+                unsigned char *cst = (unsigned char *)m->value.value;
                 char b_str[32];
                 unsigned b_off = 0;
                 if (log_enabled(INFO)) {

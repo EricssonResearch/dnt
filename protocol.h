@@ -80,8 +80,11 @@ extern const unsigned protocol_count;
 // @returns the name of the field type or NULL on unknown type
 const char *fieldtype_name_from_type(enum ProtocolFieldType type);
 
-// @returns -1 if unknown protocol type
-//TODO const struct Protocol *protocol_from_type()
+// @returns true if @type is a valid protocol name
+bool protocol_type_valid(const char *type);
+
+// @returns PROTO_ID_PAYLOAD for unknown protocol type
+// use @protocol_type_valid to make sure that @type is valid
 enum ProtocolID protocol_id_from_type(const char *type);
 
 // @returns the type name of the given protocol

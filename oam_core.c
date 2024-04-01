@@ -66,7 +66,7 @@ void add_oam_if(struct Interface *iface)
 
 struct Interface *get_oam_interface(const char *ifname)
 {
-    return ifname[0] ? hashmap_find(oam_ifaces, ifname) : oam_default_iface;
+    return ifname[0] ? (struct Interface *)hashmap_find(oam_ifaces, ifname) : oam_default_iface;
 }
 
 struct Interface *get_default_oam_interface(void)
@@ -93,7 +93,7 @@ static int mep_start_delete_cb(const char *key, void *value, void *userdata)
 {
     (void)key;
     (void)userdata;
-    struct MepStart *mepstart = value;
+    struct MepStart *mepstart = (struct MepStart *)value;
     free(mepstart->name);
     free(mepstart->stream_name);
     free(mepstart);
@@ -106,7 +106,7 @@ bool oam_create_mep_start(const char *stream_name, const char *mep_name, int lev
     if (mep_starts == NULL) {
         mep_starts = new_hashmap(13, mep_start_delete_cb, NULL);
     }
-    struct MepStart *mepstart = hashmap_find(mep_starts, mep_name);
+    struct MepStart *mepstart = (struct MepStart *)hashmap_find(mep_starts, mep_name);
     if (mepstart) {
         if (strcmp(stream_name, mepstart->stream_name) == 0) {
             // multiple instances of the same compound stream
@@ -129,7 +129,7 @@ bool oam_create_mep_start(const char *stream_name, const char *mep_name, int lev
 
 struct MepStart *find_mep_start(const char *name)
 {
-    return hashmap_find(mep_starts, name);
+    return (struct MepStart *)hashmap_find(mep_starts, name);
 }
 
 int foreach_mep_start(hashmap_cb *cb, void *userdata)
@@ -174,7 +174,7 @@ struct OamEndPoint *oam_delete_endpoint(struct OamEndPoint *end)
 static int oam_start_background_ping_cb(const char *key, void *value, void *userdata)
 {
     (void) userdata;
-    const char *request = value;
+    const char *request = (const char *)value;
     log_info("starting background ping command '%s'", key);
 
     if (strncmp(request, "ping", 4) != 0) {
