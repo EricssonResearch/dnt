@@ -15,6 +15,7 @@
 #include "log.h"
 #include "packet.h"
 #include "thread_utils.h"
+#include "time_utils.h"
 #include "utils.h"
 
 #include <stdio.h>
@@ -526,6 +527,7 @@ static bool send_request(const struct oam_request *req){
     struct timespec sendtime;
     clock_gettime(CLOCK_REALTIME, &sendtime);
     packet->recv_time = sendtime;
+    timespec_to_tsntstamp(packet->timestamp, &packet->recv_time);
 
     json_object_insert(js, "send_s", json_number(sendtime.tv_sec));
     json_object_insert(js, "send_ns", json_number(sendtime.tv_nsec));

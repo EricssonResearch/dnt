@@ -45,12 +45,12 @@ struct Packet {
     unsigned header_count;
 
     struct Interface *from;
-    struct timespec recv_time; // Delay action uses this
+    struct timespec recv_time; // time when the packet was received
     unsigned id; // uniquely identifies a packet
     unsigned original_id; // copy operations assign new id, this is the original one
 
     // packet properties that can be accessed via dedicated read/write actions
-    unsigned timestamp; // holds a ttag
+    unsigned timestamp; // holds a ttag (initially the receive time)
     unsigned sequence;  // holds a rtag
 
     // filled by the ttlreduce action, verified by the ttlcheck action
