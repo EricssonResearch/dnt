@@ -57,22 +57,22 @@
 // TSN timestamp format:
 //      20 bit microsec (enough to count to 999999)
 //      21th bit is sec (in total we can count up to 2 seconds)
-//      0x01000000 is the TTAG indicator bit
+//      0x08000000 is the TTAG indicator bit
 #define timespec_to_tsntstamp(tsnts, tsp)                   \
     do {                                                    \
-        (tsnts) = 0x08000000 + (((tsp)->tv_sec % 2) << 20)  \
-                + (((tsp)->tv_nsec / 1000) & 0xfffff);      \
+        (tsnts) = 0x08000000u + (((tsp)->tv_sec % 2) << 20) \
+                + (((tsp)->tv_nsec / 1000) & 0xfffffu);     \
         (tsnts) = htonl(tsnts);                             \
     } while (0)
 
 // this assumes that @tsnts was less than 2 seconds before @now
 #define timespec_from_tsntstamp(tsp, tsnts, now)            \
     do {                                                    \
-        unsigned ts = ntohl(tsnts);                         \
-        (tsp)->tv_sec = (ts >> 20) & 1;                     \
-        (tsp)->tv_nsec = (ts & 0xfffff) * 1000;             \
+        unsigned _ts = ntohl(tsnts);                        \
+        (tsp)->tv_sec = (_ts >> 20) & 1;                    \
+        (tsp)->tv_nsec = (_ts & 0xfffffu) * 1000;           \
         if (((now)->tv_sec & 1) == (tsp)->tv_sec) {         \
-            if ((now)->tv_nsec > (tsp)->tv_nsec) {          \
+            if ((now)->tv_nsec >= (tsp)->tv_nsec) {         \
                 (tsp)->tv_sec = (now)->tv_sec;              \
             } else {                                        \
                 (tsp)->tv_sec = (now)->tv_sec - 2;          \

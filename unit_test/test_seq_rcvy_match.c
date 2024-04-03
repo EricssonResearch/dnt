@@ -8,6 +8,7 @@
 #include "utils.h"
 
 #include <stdlib.h>
+#include <string.h>
 
 #include <unistd.h>
 #include <arpa/inet.h>
@@ -29,6 +30,15 @@ const char *action_name_from_type(enum ActionType type) { (void)type; return NUL
 static const unsigned history_length = 64; // must be 2^n
 static const unsigned reset_ms = 30;
 
+// we don't want to use assemble_actions() in this test
+// and we don't care about the contents
+static struct Pipeline *new_pipeline(const char *name)
+{
+    struct Pipeline *ret = calloc_struct(Pipeline);
+    ret->name = strdup(name);
+    return ret;
+}
+
 static void test_duplicates(void)
 {
     // note: only @reset_ms has effect
@@ -38,12 +48,11 @@ static void test_duplicates(void)
     unsigned start = 200;
     struct Packet *p = new_packet(NULL);
     OK(p, "have packet");
-    struct Pipeline *pl = new_pipeline("test", NULL, 0);
+    struct Pipeline *pl = new_pipeline("test");
     OK(pl, "have pipeline");
     struct PipelineIterator *pi = new_pipe_iterator(pl, p);
     OK(pi, "have iterator");
 
-    //TODO htonl mindenhol
     p->sequence = htonl(start);
     OK(seq_recovery(rec, pi) == ACR_CONTINUE, "in TakeAny");
     OK(seq_recovery(rec, pi) == ACR_DONE, "duplicate");
@@ -94,7 +103,7 @@ static void test_single(void)
     unsigned last = start-1;
     struct Packet *p = new_packet(NULL);
     OK(p, "have packet");
-    struct Pipeline *pl = new_pipeline("test", NULL, 0);
+    struct Pipeline *pl = new_pipeline("test");
     OK(pl, "have pipeline");
     struct PipelineIterator *pi = new_pipe_iterator(pl, p);
     OK(pi, "have iterator");

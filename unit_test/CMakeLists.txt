@@ -26,6 +26,13 @@ endfunction()
 add_test_json(test_json_read)
 add_test_json(test_json_write)
 
+function(add_test_time name)
+    add_executable(${name} ${name}.c)
+    target_compile_definitions(${name} PUBLIC TESTING)
+endfunction()
+
+add_test_time(test_time)
+
 function(add_test_thread name)
     add_executable(${name} ../log.c ../thread_utils.c ../utils.c ../inifile/hashmap.c ${name}.c)
     target_include_directories(${name} PUBLIC ../inifile)
