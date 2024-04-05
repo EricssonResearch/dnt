@@ -17,9 +17,9 @@ DEFAULT_LOGGING_MODULE(PARSER, WARNING);
 
 struct ParseTree {
     struct Interface *iface;
-    struct HeaderDescriptor *headers;
+    struct HeaderDescriptor *headers; //TODO refcount this? one stream can be in multiple parsetrees
     struct Pipeline *pipe;
-    unsigned reference_count;
+    int reference_count;
     struct ParseTree *next; // its a list for now
 };
 
@@ -33,15 +33,14 @@ struct ParseTree *new_parsetree(struct Interface *iface)
 
 void parsetree_ref(struct ParseTree *pt)
 {
-    __atomic_fetch_add(&pt->reference_count, 1, __ATOMIC_RELAXED);
+    __atomic_add_fetch(&pt->reference_count, 1, __ATOMIC_RELAXED);
 }
 
 void parsetree_unref(struct ParseTree *pt)
 {
-    if (pt->reference_count > 0)
-        __atomic_fetch_sub(&pt->reference_count, 1, __ATOMIC_RELAXED);
+    int refcount = __atomic_sub_fetch(&pt->reference_count, 1, __ATOMIC_RELAXED);
 
-    if (pt->reference_count == 0) {
+    if (refcount == 0) {
         if (pt->pipe) {
             pipeline_unref(pt->pipe);
         }

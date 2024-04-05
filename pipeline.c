@@ -25,15 +25,14 @@ static void unref_send_interfaces(struct Pipeline *pipe)
 
 void pipeline_ref(struct Pipeline *pipe)
 {
-    __atomic_fetch_add(&pipe->reference_count, 1, __ATOMIC_RELAXED);
+    __atomic_add_fetch(&pipe->reference_count, 1, __ATOMIC_RELAXED);
 }
 
 void pipeline_unref(struct Pipeline *pipe)
 {
-    if (pipe->reference_count > 0)
-        __atomic_fetch_sub(&pipe->reference_count, 1, __ATOMIC_RELAXED);
+    int refcount = __atomic_sub_fetch(&pipe->reference_count, 1, __ATOMIC_RELAXED);
 
-    if (pipe->reference_count == 0) {
+    if (refcount == 0) {
         unref_send_interfaces(pipe);
         for (unsigned i=0; i<pipe->action_count; i++) {
             delete_action(pipe->actions+i);

@@ -61,7 +61,7 @@ typedef value_producer *iface_get_property_reader(const struct Interface *iface,
 
 struct Interface {
     enum IfaceType type;
-    unsigned reference_count;
+    int reference_count;
     enum IfaceState state;
     int recvfd; // receives packets on this file descriptor
     char *name;

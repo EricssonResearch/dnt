@@ -1635,6 +1635,7 @@ struct ConfAction *delete_confaction_list(struct ConfAction *ca_list)
                 delete_confassignments(del->edit.assignments);
                 break;
             case CA_ELIM:
+                free(del->elim.pipename);
                 break;
             case CA_FILTEROAM:
                 free(del->filteroam.field);

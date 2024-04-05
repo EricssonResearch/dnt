@@ -42,13 +42,12 @@ void close_iface(struct Interface *iface)
 
 void iface_ref(struct Interface *iface)
 {
-    __atomic_fetch_add(&iface->reference_count, 1, __ATOMIC_RELAXED);
+    __atomic_add_fetch(&iface->reference_count, 1, __ATOMIC_RELAXED);
 }
 
 void iface_unref(struct Interface *iface)
 {
-    if (iface->reference_count > 0)
-        __atomic_fetch_sub(&iface->reference_count, 1, __ATOMIC_RELAXED);
+    __atomic_sub_fetch(&iface->reference_count, 1, __ATOMIC_RELAXED);
     try_delete_interface(iface);
 }
 

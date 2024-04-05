@@ -13,7 +13,7 @@ struct Packet;
 struct Pipeline {
     struct Action *actions; // array of actions
     unsigned action_count;
-    unsigned reference_count;
+    int reference_count;
     char *name;
 };
 
