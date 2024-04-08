@@ -16,7 +16,7 @@ build-r2dtwo-debug:
     - make debug -j
   artifacts:
     paths:
-      r2dtwo/r2dtwo
+      - r2dtwo/r2dtwo
 
 build-r2dtwo-release:
   stage: build
@@ -95,9 +95,9 @@ unit_test.thread:
   script:
     - r2dtwo/unit_test/build/test_thread
 
-unit_test.thread:
+unit_test.time:
   extends: .unit_test.common
   script:
-    - r2dtwo/unit_test/build/test_thread
+    - r2dtwo/unit_test/build/test_time
 
 
