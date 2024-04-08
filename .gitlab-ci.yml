@@ -1,0 +1,103 @@
+# this is based on the C++.gitlab-ci.yml template
+
+# TODO is there an official Docker image that also contains cmake?
+image: gcc
+
+stages:
+    - build
+    - test
+
+build-r2dtwo-debug:
+  stage: build
+  tags:
+    - rosetta-docker
+  script:
+    - cd r2dtwo
+    - make debug -j
+  artifacts:
+    paths:
+      r2dtwo/r2dtwo
+
+build-r2dtwo-release:
+  stage: build
+  tags:
+    - rosetta-docker
+  script:
+    - cd r2dtwo
+    - make release -j
+
+#TODO C++ build: CC=g++ make debug
+#   we also need to override the std and the warnings
+
+#TODO clang build: we need a Docker image
+
+
+build-unit_test:
+  stage: build
+  tags:
+    - rosetta-docker
+  before_script:
+    - apt update && apt -y install cmake
+  script:
+    - cd r2dtwo/unit_test
+    - mkdir build
+    - cd build
+    - cmake ..
+    - make -j
+  artifacts:
+    paths:
+      - r2dtwo/unit_test/build/test_*
+
+
+#TODO run all the python tests
+#TODO do we have a mininet Docker image?
+pytest_oam:
+  stage: test
+  tags:
+    - rosetta-docker
+  dependencies:
+    - build-r2dtwo-debug
+  before_script:
+    - apt update && apt -y install mininet
+  script:
+    - r2dtwo/test/oam.py
+
+
+.unit_test.common:
+  stage: test
+  tags:
+    - rosetta-docker
+  dependencies:
+    - build-unit_test
+
+unit_test.json_read:
+  extends: .unit_test.common
+  script:
+    - r2dtwo/unit_test/build/test_json_read
+
+unit_test.json_write:
+  extends: .unit_test.common
+  script:
+    - r2dtwo/unit_test/build/test_json_write
+
+unit_test.seq_rcvy_match:
+  extends: .unit_test.common
+  script:
+    - r2dtwo/unit_test/build/test_seq_rcvy_match
+
+unit_test.seq_rcvy_vector:
+  extends: .unit_test.common
+  script:
+    - r2dtwo/unit_test/build/test_seq_rcvy_vector
+
+unit_test.thread:
+  extends: .unit_test.common
+  script:
+    - r2dtwo/unit_test/build/test_thread
+
+unit_test.thread:
+  extends: .unit_test.common
+  script:
+    - r2dtwo/unit_test/build/test_thread
+
+
