@@ -12,7 +12,6 @@ build-r2dtwo-debug:
   tags:
     - rosetta-docker
   script:
-    - cd r2dtwo
     - make debug -j
   artifacts:
     paths:
@@ -23,7 +22,6 @@ build-r2dtwo-release:
   tags:
     - rosetta-docker
   script:
-    - cd r2dtwo
     - make release -j
 
 #TODO C++ build: CC=g++ make debug
@@ -39,7 +37,7 @@ build-unit_test:
   before_script:
     - apt update && apt -y install cmake
   script:
-    - cd r2dtwo/unit_test
+    - cd unit_test
     - mkdir build
     - cd build
     - cmake ..
