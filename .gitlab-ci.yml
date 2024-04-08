@@ -15,7 +15,7 @@ build-r2dtwo-debug:
     - make debug -j
   artifacts:
     paths:
-      - r2dtwo/r2dtwo
+      - r2dtwo
 
 build-r2dtwo-release:
   stage: build
@@ -44,7 +44,7 @@ build-unit_test:
     - make -j
   artifacts:
     paths:
-      - r2dtwo/unit_test/build/test_*
+      - unit_test/build/test_*
 
 
 #TODO run all the python tests
@@ -58,7 +58,8 @@ pytest_oam:
   before_script:
     - apt update && apt -y install mininet
   script:
-    - r2dtwo/test/oam.py
+    - cd test
+    - ./oam.py
 
 
 .unit_test.common:
@@ -71,31 +72,31 @@ pytest_oam:
 unit_test.json_read:
   extends: .unit_test.common
   script:
-    - r2dtwo/unit_test/build/test_json_read
+    - unit_test/build/test_json_read
 
 unit_test.json_write:
   extends: .unit_test.common
   script:
-    - r2dtwo/unit_test/build/test_json_write
+    - unit_test/build/test_json_write
 
 unit_test.seq_rcvy_match:
   extends: .unit_test.common
   script:
-    - r2dtwo/unit_test/build/test_seq_rcvy_match
+    - unit_test/build/test_seq_rcvy_match
 
 unit_test.seq_rcvy_vector:
   extends: .unit_test.common
   script:
-    - r2dtwo/unit_test/build/test_seq_rcvy_vector
+    - unit_test/build/test_seq_rcvy_vector
 
 unit_test.thread:
   extends: .unit_test.common
   script:
-    - r2dtwo/unit_test/build/test_thread
+    - unit_test/build/test_thread
 
 unit_test.time:
   extends: .unit_test.common
   script:
-    - r2dtwo/unit_test/build/test_time
+    - unit_test/build/test_time
 
 
