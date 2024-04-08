@@ -56,7 +56,7 @@ pytest_oam:
   dependencies:
     - build-r2dtwo-debug
   before_script:
-    - apt update && apt -y install mininet
+    - apt update && apt -y install mininet python3-pyroute2 python3-regex
   script:
     - cd test
     - ./oam.py
