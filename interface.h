@@ -67,6 +67,7 @@ struct Interface {
     char *name;
     char *ifname;
     void *iface_private;
+    bool delay_offload;
     int dropstat_cntr;
     int dropstat_last_warn;
     struct ParseTree *parsetree_; // private

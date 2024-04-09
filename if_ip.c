@@ -116,6 +116,11 @@ static bool ip_open(struct Interface *iface)
         return false;
     }
 
+    // enable so_txtime sockopt on the socket because delay offload appeared in actions
+    if (iface->delay_offload)
+        if (!enable_so_txtime(sock4, "ip", iface->ifname, false))
+            return false;
+
     // note: IP_HDRINCL has no equivalent for IPv6, we must use L2 socket
     // proto=0 means no reception
     int sock6 = socket(AF_PACKET, SOCK_DGRAM, 0);

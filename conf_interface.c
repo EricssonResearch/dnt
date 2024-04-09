@@ -179,9 +179,9 @@ static int iface_cb(const char *key, void *value, void *userdata)
         }
         char *priority_str = hashmap_find(tstate.params, "prio");
         if (priority_str) {
-            if (sscanf(priority_str, "%i%c", &u, &err) != 1)
+            if (sscanf(priority_str, "%i%c", &priority, &err) != 1)
                 THROW("prio '%s' is invalid", priority_str);
-            if (u > 7)
+            if (priority > 7)
                 THROW("prio '%s' is invalid", priority_str);
         }
         if (tstate.iface == NULL) {

@@ -143,6 +143,11 @@ static bool eth_open(struct Interface *iface)
             return false; //TODO cleanup on error
         }
 
+        // enable so_txtime sockopt on the socket because delay offload appeared in actions
+        if (iface->delay_offload)
+            if (!enable_so_txtime(sock, "eth", iface->ifname, false))
+                return false;
+
         if (i == 0) {
             struct ifreq if_mtu, if_mac, if_idx;
             memset(&if_mtu, 0, sizeof(struct ifreq));

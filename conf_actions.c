@@ -126,7 +126,8 @@ struct ConfAction {
             unsigned idx;
         } del;
         struct {
-            unsigned delay_value;
+            float delay_value;
+            bool offload;
         } delay;
         struct {
             struct ConfAssignment *assignments;
@@ -183,6 +184,7 @@ struct StageState {
     const struct HashMap *ifaces;
     const struct HashMap *objects;
     const struct IniSection *streams_sec;
+    bool had_delay_offload;
     bool had_final;
     bool seq_set; // true if we had an action that sets packet->sequence
     bool ttl_set; // true if we had an action that sets packet->ttl
@@ -710,11 +712,17 @@ static bool process_token(char *token, void *userdata)
         case CA_DELAY:
             if (newaction->delay.delay_value == 0) {
                 char err;
-                if (sscanf(token, "%i%c", &newaction->delay.delay_value, &err) != 1) {
+                if (sscanf(token, "%f%c", &newaction->delay.delay_value, &err) != 1) {
                     THROW("invalid delay '%s'", token);
                 }
             } else {
-                THROW("delay action requires a delay parameter");
+                if (newaction->delay.offload == false) {
+                    if (strcmp(token, "offload") == 0) {
+                        newaction->delay.offload = true;
+                    } else {
+                        THROW("delay action requires a delay parameter and an optional offload parameter");
+                    }
+                }
             }
             break;
         case CA_DROP:
@@ -1298,10 +1306,15 @@ static bool process_action(struct StageState *stst)
             }
             break;
         case CA_DELAY:
-            if (stst->actions->delay.delay_value == 0)
-                THROW("delay parameter should not be 0");
-            if (stst->actions->delay.delay_value >= 2000)
+            if (stst->actions->delay.delay_value <= 0)
+                THROW("delay parameter should be positive");
+            if (stst->actions->d.delay.delay_value >= 2000)
                 THROW("delay parameter should not more than 2 seconds.");
+
+            if (stst->actions->delay.offload)
+                stst->had_delay_offload = true;
+            else if (!stst->actions->delay.offload && stst->had_delay_offload)
+                THROW("after delay offload set, any delay without offload is unacceptable");
             break;
         case CA_DROP:
             stst->had_final = true;
@@ -1778,7 +1791,9 @@ struct Pipeline *assemble_actions(const char *stream_name, const struct ConfActi
                 create_action_del(actions+i, ca->del.idx, ca->text);
                 break;
             case CA_DELAY:
-                create_action_delay(actions+i, ca->delay.delay_value, ca->text);
+                struct timespec delay;
+                timespec_from_usec(&delay, (unsigned)(ca->delay.delay_value * 1000)); // convert float type millisec to timespec
+                create_action_delay(ret+a, delay, ca->delay.offload, ca->text);
                 break;
             case CA_DROP:
                 create_action_drop(actions+i, ca->text);
@@ -1892,7 +1907,7 @@ void confactions_print(const struct ConfAction *ca_list, unsigned indent)
                 log_debug("%*cindex %u", indent+2, ' ', ca->del.idx);
                 break;
             case CA_DELAY:
-                log_debug("%*cdelaying %u ms", indent+2, ' ', ca->delay.delay_value);
+                log_debug("%*cdelaying %f ms", indent+2, ' ', ca->delay.delay_value);
                 break;
             case CA_DROP:
                 break;

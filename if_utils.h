@@ -15,6 +15,8 @@ struct msghdr;
 void enable_rx_tstamp(int sock, const char *sockname,
         const char *ifname/*, enum hwtstamp_rx_filters filter*/);
 
+bool enable_so_txtime(int sock, const char *sockname, const char *ifname, bool deadline);
+
 typedef void msghdr_process_cb(struct msghdr *msg, struct Packet *p, void *userdata);
 
 // the msghdr is passed to the @msg_cb callback if it's not NULL

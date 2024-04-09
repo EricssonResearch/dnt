@@ -54,6 +54,18 @@
                + (tsp)->tv_sec * 1000;                      \
     } while (0)
 
+#define timespec_from_usec(tsp, usec)                       \
+    do {                                                    \
+        (tsp)->tv_sec = (usec) / 1000000;	                \
+	    (tsp)->tv_nsec = ((usec) % 1000000) * 1000;         \
+    } while (0)
+
+#define timespec_to_usec(usec, tsp)                         \
+    do {                                                    \
+        (usec) = (tsp)->tv_nsec / 1000                      \
+               + (tsp)->tv_sec * 1000000;                   \
+    } while (0)
+
 // TSN timestamp format:
 //      20 bit microsec (enough to count to 999999)
 //      21th bit is sec (in total we can count up to 2 seconds)

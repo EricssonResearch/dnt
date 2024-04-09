@@ -59,6 +59,10 @@ struct Packet {
     // log buffer for packet logging
     // TODO: dynamic allocation in packet_logcat
     char logbuf[PACKET_LOG_BUF_SIZE];
+
+    // filled by the delay action
+    bool offload;
+    struct timespec delay;
 };
 
 // returns a newly allocated packet that has a buffer
