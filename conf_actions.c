@@ -1308,7 +1308,7 @@ static bool process_action(struct StageState *stst)
         case CA_DELAY:
             if (stst->actions->delay.delay_value <= 0)
                 THROW("delay parameter should be positive");
-            if (stst->actions->d.delay.delay_value >= 2000)
+            if (stst->actions->delay.delay_value >= 2000)
                 THROW("delay parameter should not more than 2 seconds.");
 
             if (stst->actions->delay.offload)
@@ -1790,11 +1790,11 @@ struct Pipeline *assemble_actions(const char *stream_name, const struct ConfActi
             case CA_DEL:
                 create_action_del(actions+i, ca->del.idx, ca->text);
                 break;
-            case CA_DELAY:
+            case CA_DELAY: {
                 struct timespec delay;
                 timespec_from_usec(&delay, (unsigned)(ca->delay.delay_value * 1000)); // convert float type millisec to timespec
-                create_action_delay(ret+a, delay, ca->delay.offload, ca->text);
-                break;
+                create_action_delay(actions+i, delay, ca->delay.offload, ca->text);
+                break; }
             case CA_DROP:
                 create_action_drop(actions+i, ca->text);
                 break;
