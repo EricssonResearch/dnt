@@ -1464,6 +1464,13 @@ static bool process_action(struct StageState *stst)
             if (newaction->send.iface == NULL) {
                 THROW("no send interface specified");
             }
+            
+            // set offload on the interface if the offload appeared in actions
+            if (stst->had_delay_offload && !newaction->send.iface->delay_offload)
+                newaction->send.iface->delay_offload = true;
+            else if (!stst->had_delay_offload && newaction->send.iface->delay_offload)
+                log_warning("Inconsistent delay offload on '%s'", newaction->send.iface->ifname);
+
             if (stst->needs_ttlcheck) {
                 struct ConfAction *ttlcheck = new_confaction(stst, CA_TTLCHECK, strdup("auto-check before send"));
                 (void)ttlcheck;
@@ -1545,6 +1552,7 @@ struct ConfAction *parse_actions_line(const char *stream, const char *line,
         .ifaces = ifaces,
         .objects = objects,
         .streams_sec = streams_sec,
+        .had_delay_offload = false,
         .had_final = false,
         .seq_set = false,
         .ttl_set = false,
