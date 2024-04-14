@@ -537,7 +537,6 @@ static bool send_request(const struct oam_request *req){
     js_string = json_serialize(js, &js_length);
     json_delete(js);
     if (js_string == NULL) {
-        //TODO can this happen?
         delete_packet(packet);
         return false;
     }

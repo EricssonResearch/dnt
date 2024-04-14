@@ -100,6 +100,10 @@ static struct SequenceRecovery *get_oam_rcvy(char *session_id)
     struct SequenceRecovery *rec = hashmap_find(oam_seq_recoveries, session_id);
     if (rec == NULL) {
         struct PipelineObject *r = new_seq_rec(session_id, RCVY_Match, false, false, 0, OAM_RCVY_RESET_MS, NULL);
+        if (r == NULL) {
+            // most likely we couldn't launch the reset thread
+            return NULL;
+        }
         rec = (struct SequenceRecovery *)r;
         rec->session_id = strdup(session_id);
         hashmap_insert(oam_seq_recoveries, rec->session_id, rec);
@@ -452,8 +456,10 @@ enum ActionResult seq_recovery(struct PipelineObject *r, struct PipelineIterator
     } else {
         char *session_id = oam_session_id(p);
         struct SequenceRecovery *oam_rec = get_oam_rcvy(session_id);
-        uint8_t oam_seq = (seq >> 16) & 0xff;
-        accept =  match_seq_recovery(oam_rec, oam_seq);
+        if (oam_rec) {
+            uint8_t oam_seq = (seq >> 16) & 0xff;
+            accept =  match_seq_recovery(oam_rec, oam_seq);
+        }
     }
     return accept ? ACR_CONTINUE : ACR_DONE;
 }

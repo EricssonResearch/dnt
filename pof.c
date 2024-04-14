@@ -147,6 +147,7 @@ struct PipelineObject *new_pof(const char *name, unsigned pof_max_delay, unsigne
 err_thread:
     close(ret->evfd);
 err_evfd:
+    free(ret->base.name);
     free(ret);
     return NULL;
 }

@@ -9,6 +9,7 @@ CFLAGS += -g -std=gnu99
 CFLAGS += -Wall -Wextra -Wshadow -Wstrict-prototypes -Wmissing-declarations -Wwrite-strings
 CFLAGS += -Werror
 CFLAGS += -Iinifile
+#CFLAGS += -fanalyzer
 
 # ASan is incompatible with Valgrind
 #CFLAGS += -fsanitize=address

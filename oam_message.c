@@ -548,16 +548,16 @@ static bool process_ping_request(struct OamEndPoint *oam, struct Packet *p, stru
 
     unsigned msg_len=0;
     char *j_msg = json_serialize(j, &msg_len);
+    if (j_msg) {
+        log_packet("send ping reply %s %s:%d seq %d lvl %d (to %s %d) - %s", oam->name, stream, session, seq, level,
+                reply_address, port, j_msg);
 
-    log_packet("send ping reply %s %s:%d seq %d lvl %d (to %s %d) - %s", oam->name, stream, session, seq, level,
-               reply_address, port, j_msg);
-
-    oam_send_reply(reply_address, port, j_msg, msg_len);
+        oam_send_reply(reply_address, port, j_msg, msg_len);
+        free(j_msg);
+    }
     free(reply_address);
-    free(j_msg);
-
     json_delete(j);
-    return true;
+    return j_msg != NULL;
 }
 
 static bool send_rping_error(struct OamEndPoint *oam, struct Packet *p, struct JsonValue *j,
@@ -594,12 +594,12 @@ static bool send_rping_error(struct OamEndPoint *oam, struct Packet *p, struct J
 
     unsigned msg_len=0;
     char *j_msg = json_serialize(j, &msg_len);
-
-    log_packet("send rping error %s %s:%d seq %d lvl %d (to %s %d) - %s", oam->name, stream, session, seq, level,
-               request_get_return_ip(ping_req), request_get_return_port(ping_req), j_msg);
-    oam_send_reply(request_get_return_ip(ping_req), request_get_return_port(ping_req), j_msg, msg_len);
-
-    free(j_msg);
+    if (j_msg) {
+        log_packet("send rping error %s %s:%d seq %d lvl %d (to %s %d) - %s", oam->name, stream, session, seq, level,
+                request_get_return_ip(ping_req), request_get_return_port(ping_req), j_msg);
+        oam_send_reply(request_get_return_ip(ping_req), request_get_return_port(ping_req), j_msg, msg_len);
+        free(j_msg);
+    }
     json_delete(j);
     delete_oam_request(ping_req);
     return false;
@@ -627,6 +627,7 @@ static bool process_rping_request(struct OamEndPoint *oam, struct Packet *p, str
     if (cmd == NULL) {
         //TODO reply error?
         json_delete(j);
+        free(reply_address);
         return false;
     }
 
@@ -716,16 +717,16 @@ static bool process_rlist_request(struct OamEndPoint *oam, struct Packet *p, str
 
     unsigned msg_len=0;
     char *j_msg = json_serialize(j, &msg_len);
+    if (j_msg) {
+        log_packet("send rlist reply %s:%d seq %d lvl %d (to %s %d) - %s", stream, session, seq, level,
+                reply_address, port, j_msg);
 
-    log_packet("send rlist reply %s:%d seq %d lvl %d (to %s %d) - %s", stream, session, seq, level,
-               reply_address, port, j_msg);
-
-    oam_send_reply(reply_address, port, j_msg, msg_len);
+        oam_send_reply(reply_address, port, j_msg, msg_len);
+        free(j_msg);
+    }
     free(reply_address);
-    free(j_msg);
-
     json_delete(j);
-    return true;
+    return j_msg != NULL;
 }
 
 static bool process_request(struct OamEndPoint *oam, struct Packet *p)

@@ -18,7 +18,7 @@
 
 DEFAULT_LOGGING_MODULE(INTERFACE, INFO);
 
-// fifo queue
+// fifo queue implemented as a circular linked list
 struct PacketFifo {
     struct Packet *p;
     struct PacketFifo *prev;

@@ -1694,6 +1694,7 @@ static struct EditAssign *assemble_fieldassigns(struct ConfAssignment *list, uns
         a->read = l->read;
         if (l->lhs.type == CVT_UNDEF) {
             log_error("assign '%s' destination is undefined", l->text);
+            for (unsigned j=0; j<=i; j++) free(ret[j].text);
             free(ret);
             return NULL;
         }
@@ -1703,6 +1704,7 @@ static struct EditAssign *assemble_fieldassigns(struct ConfAssignment *list, uns
         switch (l->rhs.type) {
             case CVT_UNDEF:
                 log_error("assign '%s' source is undefined", l->text);
+                for (unsigned j=0; j<=i; j++) free(ret[j].text);
                 free(ret);
                 return NULL;
             case CVT_FIELD:

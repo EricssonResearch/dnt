@@ -221,11 +221,29 @@ struct JsonValue *json_delete(struct JsonValue *json)
     return NULL;
 }
 
+#define CHECK_BUF(n)                            \
+    while (*buflen - *slen < (n)) {             \
+        *buflen += BUFFER_INCREMENT;            \
+        char *_newbuf = realloc(buf, *buflen);  \
+        if (_newbuf == NULL) {                  \
+            free(buf);                          \
+            return NULL;                        \
+        } else {                                \
+            buf = _newbuf;                      \
+        }                                       \
+    }
 
-#define CHECK_BUF(n)                    \
-    while (*buflen - *slen < (n)) {     \
-        *buflen += BUFFER_INCREMENT;    \
-        buf = realloc(buf, *buflen);    \
+#define CHECK_BUF_OBJ(n)                        \
+    while (*buflen - *slen < (n)) {             \
+        *buflen += BUFFER_INCREMENT;            \
+        char *_newbuf = realloc(buf, *buflen);  \
+        if (_newbuf == NULL) {                  \
+            free(buf);                          \
+            op->buf = NULL;                     \
+            return 0;                           \
+        } else {                                \
+            buf = _newbuf;                      \
+        }                                       \
     }
 
 struct objparams {
@@ -245,13 +263,13 @@ static int obj_print_cb(const char *key, void *value, void *userdata)
     unsigned *slen = op->slen;
 
     unsigned c = strlen(key);
-    CHECK_BUF(c+4);
+    CHECK_BUF_OBJ(c+4);
     sprintf(buf+*slen, "\"%s\":", key);
     *slen += c + 3;
 
     buf = serialize_value(val, buf, buflen, slen);
 
-    CHECK_BUF(2);
+    CHECK_BUF_OBJ(2);
     strcat(buf+*slen, ",");
     *slen += 1;
     op->buf = buf;
@@ -299,7 +317,9 @@ static char *serialize_value(const struct JsonValue *json, char *buf, unsigned *
             *slen += 1;
 
             struct objparams op = {buf, buflen, slen};
-            hashmap_foreach_sorted(json->v.object, obj_print_cb, &op);
+            if (hashmap_foreach_sorted(json->v.object, obj_print_cb, &op) == 0) {
+                return NULL;
+            }
             buf = op.buf;
             buflen = op.buflen;
             slen = op.slen;

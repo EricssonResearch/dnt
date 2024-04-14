@@ -25,26 +25,26 @@ struct StageState {
 
 static bool process_packet_token(char *token, void *userdata)
 {
-#define THROW(msg, ...)                                             \
-    do {                                                            \
-        log_error("stream %s header %s: " msg,                      \
-                stst->stream, stst->headers->name, ##__VA_ARGS__);  \
-        return false;                                               \
+#define THROW(msg, ...)                         \
+    do {                                        \
+        log_error("stream %s: " msg,            \
+                stst->stream, ##__VA_ARGS__);   \
+        return false;                           \
     } while (0)
 
     struct StageState *stst = userdata;
 
     if (stst->headers->name) {
         // here we don't want parameters for the headers
-        THROW("invalid extra parameter '%s'", token);
+        THROW("header %s invalid extra parameter '%s'", stst->headers->name, token);
     } else {
-        stst->headers->name = strdup(token);
         char *type = header_type_from_name(token);
         stst->headers->id = protocol_id_from_type(type);
         free(type);
         if (stst->headers->id < 0) {
-            THROW("unknown protocol '%s'", stst->headers->name);
+            THROW("unknown protocol '%s'", token);
         }
+        stst->headers->name = strdup(token);
     }
 
     return true;

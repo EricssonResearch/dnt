@@ -57,6 +57,7 @@ static bool oam_cmd_recv(struct Interface *iface)
     int new_fd = accept(iface->recvfd, (struct sockaddr *)&their_addr, &sin_size);
     if (new_fd == -1) {
         log_perror("oam cmd accept");
+        return false;
     }
 
     inet_ntop(their_addr.ss_family, get_in_addr((struct sockaddr *)&their_addr), s, sizeof s);
