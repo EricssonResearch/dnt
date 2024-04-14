@@ -221,29 +221,29 @@ struct JsonValue *json_delete(struct JsonValue *json)
     return NULL;
 }
 
-#define CHECK_BUF(n)                            \
-    while (*buflen - *slen < (n)) {             \
-        *buflen += BUFFER_INCREMENT;            \
-        char *_newbuf = realloc(buf, *buflen);  \
-        if (_newbuf == NULL) {                  \
-            free(buf);                          \
-            return NULL;                        \
-        } else {                                \
-            buf = _newbuf;                      \
-        }                                       \
+#define CHECK_BUF(n)                                    \
+    while (*buflen - *slen < (n)) {                     \
+        *buflen += BUFFER_INCREMENT;                    \
+        char *_newbuf = (char *)realloc(buf, *buflen);  \
+        if (_newbuf == NULL) {                          \
+            free(buf);                                  \
+            return NULL;                                \
+        } else {                                        \
+            buf = _newbuf;                              \
+        }                                               \
     }
 
-#define CHECK_BUF_OBJ(n)                        \
-    while (*buflen - *slen < (n)) {             \
-        *buflen += BUFFER_INCREMENT;            \
-        char *_newbuf = realloc(buf, *buflen);  \
-        if (_newbuf == NULL) {                  \
-            free(buf);                          \
-            op->buf = NULL;                     \
-            return 0;                           \
-        } else {                                \
-            buf = _newbuf;                      \
-        }                                       \
+#define CHECK_BUF_OBJ(n)                                \
+    while (*buflen - *slen < (n)) {                     \
+        *buflen += BUFFER_INCREMENT;                    \
+        char *_newbuf = (char *)realloc(buf, *buflen);  \
+        if (_newbuf == NULL) {                          \
+            free(buf);                                  \
+            op->buf = NULL;                             \
+            return 0;                                   \
+        } else {                                        \
+            buf = _newbuf;                              \
+        }                                               \
     }
 
 struct objparams {
