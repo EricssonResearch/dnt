@@ -245,12 +245,9 @@ def setup_etf(veth, delta) -> bool:
 
 
 def run_ptp4l():
-    exec_bg(f"ip netns exec nsx ptp4l -i {nsx_physical_ifaces[0]} -p /dev/ptp4 -i {nsx_physical_ifaces[1]} -p /dev/ptp4 -i {nsx_physical_ifaces[2]} -p /dev/ptp4 -i {nsx_physical_ifaces[3]} -p /dev/ptp4 -m -s")
-    exec_bg(f"ip netns exec nsx phc2sys -rr -m -R 10 -c {nsx_physical_ifaces[0]} -s CLOCK_REALTIME -O 0 -z /var/run/ptp4l")
-    exec_bg(f"ip netns exec nsx phc2sys -rr -m -R 10 -c {nsx_physical_ifaces[1]} -s CLOCK_REALTIME -O 0 -z /var/run/ptp4l")
-    exec_bg(f"ip netns exec nsx phc2sys -rr -m -R 10 -c {nsx_physical_ifaces[2]} -s CLOCK_REALTIME -O 0 -z /var/run/ptp4l")
-    exec_bg(f"ip netns exec nsx phc2sys -rr -m -R 10 -c {nsx_physical_ifaces[3]} -s CLOCK_REALTIME -O 0 -z /var/run/ptp4l")
-
+    exec_bg(f"ip netns exec nsx ptp4l -i {nsx_physical_ifaces[0]} -p /dev/ptp4 -i {nsx_physical_ifaces[1]} -p /dev/ptp4 -i {nsx_physical_ifaces[2]} -p /dev/ptp4 -i {nsx_physical_ifaces[3]} -p /dev/ptp4 -m")
+    for iface in nsx_physical_ifaces:
+        exec_bg(f"ip netns exec nsx phc2sys -rr -m -R 10 -c {iface} -s CLOCK_REALTIME -O 0 -z /var/run/ptp4l -w")
 
 def stop_ptp4l():
     exec_fg(f"killall ptp4l")

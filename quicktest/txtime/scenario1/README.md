@@ -35,15 +35,23 @@ Physical interfaces will generate RX hardware timestamps. This hardware timestam
 ### We need to sync clocks with `PTP` for the accurate delay:
 
 ```
-nsx ptp4l -i enp3s0 -p /dev/ptp4 -i enp4s0 -p /dev/ptp5 -m -s
+nsx ptp4l -i enp3s0 -p /dev/ptp4 -i enp4s0 -p /dev/ptp4 -i enp6s0 -p /dev/ptp4 -i enp7s0 -p /dev/ptp4 -m -H
 ```
 
 ```
-nsx phc2sys -rr -m -R 10 -c enp3s0 -s CLOCK_REALTIME -O 0 -z /var/run/ptp4l
+nsx phc2sys -rr -m -R 10 -c enp3s0 -s CLOCK_REALTIME -O 0 -z /var/run/ptp4l -w
 ```
 
 ```
-nsx phc2sys -rr -m -R 10 -c enp4s0 -s CLOCK_REALTIME -O 0 -z /var/run/ptp4l
+nsx phc2sys -rr -m -R 10 -c enp4s0 -s CLOCK_REALTIME -O 0 -z /var/run/ptp4l -w
+```
+
+```
+nsx phc2sys -rr -m -R 10 -c enp6s0 -s CLOCK_REALTIME -O 0 -z /var/run/ptp4l -w
+```
+
+```
+nsx phc2sys -rr -m -R 10 -c enp7s0 -s CLOCK_REALTIME -O 0 -z /var/run/ptp4l -w
 ```
 
 ### To run this scenario:

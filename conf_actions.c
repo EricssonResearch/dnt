@@ -1800,7 +1800,7 @@ struct Pipeline *assemble_actions(const char *stream_name, const struct ConfActi
                 break;
             case CA_DELAY: {
                 struct timespec delay;
-                timespec_from_usec(&delay, (unsigned)(ca->delay.delay_value * 1000)); // convert float type millisec to timespec
+                timespec_from_msec(&delay, (unsigned)(ca->delay.delay_value));
                 create_action_delay(actions+i, delay, ca->delay.offload, ca->text);
                 break; }
             case CA_DROP:

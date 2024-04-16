@@ -145,8 +145,7 @@ void delay_insert(struct PipelineIterator *pi, unsigned timestamp, const struct 
     // Add delay configured in microsec to the received timestamp
     struct timespec result;
     timespecadd(&pDelayQueueEntry->due_time, &delay, &result);
-    pDelayQueueEntry->due_time.tv_sec = result.tv_sec;
-    pDelayQueueEntry->due_time.tv_nsec = result.tv_nsec;
+    pDelayQueueEntry->due_time = result;
 
     // handling the delay queue should not be interrupted
     pthread_mutex_lock(&mutex);

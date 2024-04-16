@@ -18,14 +18,10 @@ fi
 
 configure_networkenv() {
   echo "Initialize r2dtwo test environment"
-  
-  # Create the test namespace
-  ip netns add talker
-  ip netns add listener
-  ip netns add r2dtwoenv
 
   NETNSES="talker listener r2dtwoenv"
   for item in $NETNSES; do
+     ip netns add $item
      ip netns exec $item sysctl -w net.ipv6.conf.all.disable_ipv6=1
      ip netns exec $item ip link set dev lo up
   done
