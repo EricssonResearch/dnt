@@ -7,6 +7,7 @@
 
 #include "protocol.h"
 #include "value.h"
+#include "time_utils.h"
 
 enum ActionType {
     ACT_ADD = 1,
@@ -95,7 +96,7 @@ void create_action_add(struct Action *a, unsigned idx, enum ProtocolID type, uns
 
 void create_action_del(struct Action *a, unsigned idx, const char *text);
 
-void create_action_delay(struct Action *a, unsigned delay_ms, const char *text);
+void create_action_delay(struct Action *a, const struct timespec delay, bool offload, const char *text);
 
 void create_action_drop(struct Action *a, const char *text);
 

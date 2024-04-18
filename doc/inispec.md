@@ -116,7 +116,7 @@ The available actions are the following:
     * if the header has a sequence number field, a `writeseq` action is automatically inserted after the `add` action
     * if the header has a timestamp field, a `writetstamp` action is automatically inserted after the `add` action
 * `del header` removes the given header from the packet
-* `delay delay` puts the packet in a delay buffer, where it will be kept until the specified *delay* milliseconds have passed since the timestamp value of the packet
+* `delay delay [offload]` puts the packet in a delay buffer, where it will be kept until the specified *delay* milliseconds have passed since the timestamp value of the packet; the *delay* should be between 0 and 2000 ms and it can float as well; there is an optional `offload` parameter; when `offload` is set, it will use an external delay mechanism provided by the OS, for example ETF qdisc; however if `offload` is set and ETF is not configured, no packets will be delayed; we assume that ETF qdisc is configured on the interface; the delay is influenced by the ETF's delta; the ETF qdisc will schedule its next wake-up time for the next packet's txtime minus the delta value; precision of the actual delay depends on the software configuration and the ETF hardware `offload` support; in hardware `offload` case the system clock and the network interface's clock must be synchronized
 * `drop` unconditionally drops the packet; this action is the last one in a pipeline
 * `edit header.fieldname=newvalue` changes the given field of the given header; multiple fields can be edited at once, separated by space, can edit multiple headers, can edit headers created by `add`; the right-hand-side of the edit expression can be
     * constant

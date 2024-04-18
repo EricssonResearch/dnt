@@ -110,6 +110,12 @@ static bool udpout_open(struct Interface *iface)
         log_perror("udp-out setsockopt SO_BINDTODEVICE");
         return false;
     }
+
+    // enable so_txtime sockopt on the socket because delay offload appeared in actions
+    if (iface->delay_offload)
+        if (!enable_so_txtime(sock, "udp-out", iface->ifname, false))
+            return false;
+    
 /*
      // SO_DONTROUTE option also solves MTU problem. However, it will only work on directly
      // connected interfaces. So we are not using this option, instead we use IP MTU discovery

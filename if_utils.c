@@ -17,10 +17,13 @@
 #include <poll.h>
 #include <errno.h>
 
+#include <sys/timex.h> /* ntptimeval */
+#include <sys/ioctl.h> /* ioctl */
+#include <net/if.h> /* ifreq */
 #include <sys/socket.h>
 #include <arpa/inet.h> /* ntohs() */
 #include <linux/net_tstamp.h> /* SOF_TIMESTAMPING_* */
-//#include <linux/sockios.h> /* SIOCSHWTSTAMP */
+#include <linux/sockios.h> /* SIOCSHWTSTAMP */
 #include <ifaddrs.h>
 #include <netdb.h> /* getnameinfo() */
 #include <linux/errqueue.h>
@@ -31,38 +34,76 @@ DEFAULT_LOGGING_MODULE(INTERFACE, INFO);
 #define PKT_DROP_WARNING_THRESHOLD 10
 #define PKT_DROP_WARNING_INTERVAL_SEC 5
 
-// copied from the code of the other TSN project
+const int filters[] =
+{
+    HWTSTAMP_FILTER_ALL,
+    HWTSTAMP_FILTER_SOME,
+    HWTSTAMP_FILTER_PTP_V2_EVENT, // ptp4l uses this
+    HWTSTAMP_FILTER_PTP_V2_L2_EVENT, // ptp4l fall back on this
+    HWTSTAMP_FILTER_NONE
+};
+
+const char* const filter_str[] =
+{
+	[HWTSTAMP_FILTER_NONE]                = "HWTSTAMP_FILTER_NONE",
+	[HWTSTAMP_FILTER_ALL]                 = "HWTSTAMP_FILTER_ALL",
+	[HWTSTAMP_FILTER_SOME]                = "HWTSTAMP_FILTER_SOME",
+	[HWTSTAMP_FILTER_PTP_V1_L4_EVENT]     = "HWTSTAMP_FILTER_PTP_V1_L4_EVENT",
+	[HWTSTAMP_FILTER_PTP_V1_L4_SYNC]      = "HWTSTAMP_FILTER_PTP_V1_L4_SYNC",
+	[HWTSTAMP_FILTER_PTP_V1_L4_DELAY_REQ] = "HWTSTAMP_FILTER_PTP_V1_L4_DELAY_REQ",
+	[HWTSTAMP_FILTER_PTP_V2_L4_EVENT]     = "HWTSTAMP_FILTER_PTP_V2_L4_EVENT",
+	[HWTSTAMP_FILTER_PTP_V2_L4_SYNC]      = "HWTSTAMP_FILTER_PTP_V2_L4_SYNC",
+	[HWTSTAMP_FILTER_PTP_V2_L4_DELAY_REQ] = "HWTSTAMP_FILTER_PTP_V2_L4_DELAY_REQ",
+	[HWTSTAMP_FILTER_PTP_V2_L2_EVENT]     = "HWTSTAMP_FILTER_PTP_V2_L2_EVENT",
+	[HWTSTAMP_FILTER_PTP_V2_L2_SYNC]      = "HWTSTAMP_FILTER_PTP_V2_L2_SYNC",
+	[HWTSTAMP_FILTER_PTP_V2_L2_DELAY_REQ] = "HWTSTAMP_FILTER_PTP_V2_L2_DELAY_REQ",
+	[HWTSTAMP_FILTER_PTP_V2_EVENT]        = "HWTSTAMP_FILTER_PTP_V2_EVENT",
+	[HWTSTAMP_FILTER_PTP_V2_SYNC]         = "HWTSTAMP_FILTER_PTP_V2_SYNC",
+	[HWTSTAMP_FILTER_PTP_V2_DELAY_REQ]    = "HWTSTAMP_FILTER_PTP_V2_DELAY_REQ",
+	[HWTSTAMP_FILTER_NTP_ALL]             = "HWTSTAMP_FILTER_NTP_ALL"
+};
+
 void enable_rx_tstamp(int sock, const char *sockname,
         const char *ifname/*, enum hwtstamp_rx_filters filter*/)
 {
-/*    struct ifreq hwtstamp;
+    struct ifreq hwtstamp;
     struct hwtstamp_config hwconfig, hwconfig_req;
     memset(&hwtstamp, 0, sizeof(hwtstamp));
     strncpy(hwtstamp.ifr_name, ifname, sizeof(hwtstamp.ifr_name)-1);
     hwtstamp.ifr_data = (void *)&hwconfig;
     memset(&hwconfig, 0, sizeof(hwconfig));
     hwconfig.tx_type = HWTSTAMP_TX_OFF;
-    hwconfig.rx_filter = filter;
-    hwconfig_req = hwconfig;
-    if (ioctl(sock, SIOCSHWTSTAMP, &hwtstamp) < 0) {
-        if (errno == EINVAL || errno == ENOTSUP) {
-            printf("SIOCSHWTSTAMP: HW timestamping for '%s' on '%s' is not available\n",
-                    sockname, ifname);
+
+    // try RX filters that suitable for the hardware
+    for (unsigned int i = 0; i < (sizeof(filters) / sizeof(filters[0])); i++) {
+        hwconfig.rx_filter = filters[i];
+        hwconfig_req = hwconfig;
+
+        if (ioctl(sock, SIOCSHWTSTAMP, &hwtstamp) < 0) {
+            if (errno == EINVAL || errno == ENOTSUP) {
+                log_debug("SIOCSHWTSTAMP: HW timestamping for '%s' on '%s' is not available",
+                        sockname, ifname);
+                break;
+            } else if (errno == ERANGE) {
+                log_debug("SIOCSHWTSTAMP: The requested HW timestamping mode %s is not supported by the hardware.",
+                        filter_str[hwconfig_req.rx_filter]);
+            } else {
+                log_perror("SIOCSHWTSTAMP:");
+                break;
+            }
         } else {
-            perror("SIOCSHWTSTAMP");
+            log_debug("SIOCSHWTSTAMP: rx_filter requested %s got %s",
+                    filter_str[hwconfig_req.rx_filter], filter_str[hwconfig.rx_filter]);
+            break;
         }
-    } else {
-        printf("SIOCSHWTSTAMP: tx_type requested %d got %d, rx_filter requested %d got %d\n",
-                hwconfig_req.tx_type, hwconfig.tx_type,
-                hwconfig_req.rx_filter, hwconfig.rx_filter);
-    }*/
+    }
 
     int so_timestamping_flags =
         // generate these timestamps
-    //    SOF_TIMESTAMPING_RX_HARDWARE |
+        SOF_TIMESTAMPING_RX_HARDWARE |
         SOF_TIMESTAMPING_RX_SOFTWARE |
         // report these timestamps in cmsg
-    //    SOF_TIMESTAMPING_RAW_HARDWARE |
+        SOF_TIMESTAMPING_RAW_HARDWARE |
         SOF_TIMESTAMPING_SOFTWARE |
         0;
     if (setsockopt(sock, SOL_SOCKET, SO_TIMESTAMPING,
@@ -84,22 +125,41 @@ static void get_rx_tstamp(struct msghdr *msg, struct Packet *p, void *userdata)
             case SOL_SOCKET:
                 if (cmsg->cmsg_type == SCM_TIMESTAMPING) {
                     struct timespec *tstamp;
-                    if (cmsg->cmsg_len < sizeof(struct cmsghdr)+3*sizeof(struct timespec)) {
+                    if (cmsg->cmsg_len < CMSG_LEN(sizeof(struct scm_timestamping))) {
                         log_error("alignment problem cmsg_len %zu tstamp %zu cmsghdr %zu",
                                 cmsg->cmsg_len, sizeof(struct timespec), sizeof(struct cmsghdr));
                     } else {
                         // we aligned msg.msg_control so the alignment should be okay here
                         tstamp = (struct timespec *)CMSG_DATA(cmsg);
-                        //printf("RX SW %ld.%09ld HW %ld.%09ld\n",
-                        //        tstamp[0].tv_sec, tstamp[0].tv_nsec,
-                        //        tstamp[2].tv_sec, tstamp[2].tv_nsec);
-                        p->recv_time = tstamp[0];
+                        log_debug("RX SW %ld.%09ld HW %ld.%09ld",
+                                tstamp[0].tv_sec, tstamp[0].tv_nsec,
+                                tstamp[2].tv_sec, tstamp[2].tv_nsec);
+                        if (tstamp[2].tv_sec == 0)
+                            p->recv_time = tstamp[0]; // use SW timestamp
+                        else
+                            p->recv_time = tstamp[2]; // use HW timestamp
                         //TODO also set p->timestamp
                     }
                 }
                 break;
         }
     }
+}
+
+bool enable_so_txtime(int sock, const char *sockname, const char *ifname, bool deadline)
+{
+    static struct sock_txtime txtime = { .clockid = CLOCK_TAI, .flags = SOF_TXTIME_REPORT_ERRORS };
+
+    if (deadline)
+        txtime.flags |= SOF_TXTIME_DEADLINE_MODE;
+
+    if (setsockopt(sock, SOL_SOCKET, SO_TXTIME, &txtime, sizeof(txtime))) {
+        log_perror("setsockopt SO_TXTIME failed on %s, %s", sockname, ifname);
+        return false;
+    }
+
+    log_debug("SO_TXTIME enabled on '%s'", ifname);
+    return true;
 }
 
 struct Packet *iface_common_recv(struct Interface *iface, msghdr_process_cb *msg_cb, void *userdata)
@@ -138,6 +198,7 @@ struct Packet *iface_common_recv(struct Interface *iface, msghdr_process_cb *msg
     }
 
     get_rx_tstamp(&msg, p, userdata);
+    log_debug("Used timestamp: %ld.%09ld", p->recv_time.tv_sec, p->recv_time.tv_nsec);
 
     timespec_to_tsntstamp(p->timestamp, &p->recv_time);
 
@@ -194,6 +255,35 @@ bool iface_common_send(struct Interface *iface, struct Packet *p, int socket, vo
     }
     msg.msg_iov = iov;
     msg.msg_iovlen = p->header_count;
+    
+    char control[CMSG_SPACE(sizeof(uint64_t))];
+    memset(control, 0, sizeof(control));
+    struct cmsghdr *cm = NULL;
+    struct timespec now_ts, txtime_ts, tstamp_ts;
+    uint64_t txtime;
+
+    if (p->offload && iface->delay_offload) {
+        msg.msg_control = control;
+        msg.msg_controllen = sizeof(control);
+
+        // get the difference between CLOCK_TAI and CLOCK_REALTIME
+        struct ntptimeval offset = { 0 };
+        ntp_gettimex(&offset);
+
+        // calculate the txtime with CLOCK_REALTIME and convert it to CLOCK_TAI
+        clock_gettime(CLOCK_REALTIME, &now_ts);
+        timespec_from_tsntstamp(&tstamp_ts, p->timestamp, &now_ts);
+        timespecadd(&tstamp_ts, &p->delay, &txtime_ts);
+        txtime = (txtime_ts.tv_sec + offset.tai) * NSEC_PER_SEC + txtime_ts.tv_nsec;
+        log_debug("txtime: %lu", txtime);
+
+        // set the txtime in a control message
+        cm = CMSG_FIRSTHDR(&msg);
+        cm->cmsg_level = SOL_SOCKET;
+        cm->cmsg_type = SCM_TXTIME;
+        cm->cmsg_len = CMSG_LEN(sizeof(txtime));
+        memcpy(CMSG_DATA(cm), &txtime, sizeof(txtime));
+    }
 
     if (sendmsg(socket, &msg, 0) < 0) {
         log_perror("sendmsg on %s", iface->name);

@@ -127,7 +127,8 @@ void create_action_del(struct Action *a, unsigned idx, const char *text)
 /////////////////////////////////////////////////////////////////////
 
 struct DelayData {
-    unsigned delay_ms;
+    struct timespec delay;
+    bool offload;
     //struct HeaderField timestamp;
 };
 
@@ -135,20 +136,26 @@ static enum ActionResult action_DELAY_execute(struct Action *a, struct PipelineI
 {
     struct DelayData *dd = a->action_private;
     struct Packet *p = pi->packet;
-    unsigned tstamp;
-    // get timestamp from metadata
-    tstamp = ntohl(p->timestamp) & 0x07FFFFFF;
+
+    // put offload and delay information into the packet
+    if (dd->offload) {
+        p->offload = true;
+        p->delay = dd->delay;
+        return ACR_CONTINUE;
+    }
+
     //TODO we might not need to delay the packet
-    delay_insert(pi, tstamp, dd->delay_ms);
+    delay_insert(pi, p->timestamp, dd->delay);
     return ACR_HOLD;
 }
 
-void create_action_delay(struct Action *a, unsigned delay_ms, const char *text)
+void create_action_delay(struct Action *a, const struct timespec delay, bool offload, const char *text)
 {
     INIT_ACTION(DELAY);
 
     struct DelayData *dd = calloc_struct(DelayData);
-    dd->delay_ms = delay_ms;
+    dd->delay = delay;
+    dd->offload = offload;
     a->action_private = dd;
 }
 
