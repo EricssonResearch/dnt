@@ -70,7 +70,7 @@ void enable_rx_tstamp(int sock, const char *sockname,
     struct hwtstamp_config hwconfig, hwconfig_req;
     memset(&hwtstamp, 0, sizeof(hwtstamp));
     strncpy(hwtstamp.ifr_name, ifname, sizeof(hwtstamp.ifr_name)-1);
-    hwtstamp.ifr_data = (void *)&hwconfig;
+    hwtstamp.ifr_data = (char *)&hwconfig;
     memset(&hwconfig, 0, sizeof(hwconfig));
     hwconfig.tx_type = HWTSTAMP_TX_OFF;
 
@@ -255,7 +255,7 @@ bool iface_common_send(struct Interface *iface, struct Packet *p, int socket, vo
     }
     msg.msg_iov = iov;
     msg.msg_iovlen = p->header_count;
-    
+
     char control[CMSG_SPACE(sizeof(uint64_t))];
     memset(control, 0, sizeof(control));
     struct cmsghdr *cm = NULL;
@@ -267,7 +267,8 @@ bool iface_common_send(struct Interface *iface, struct Packet *p, int socket, vo
         msg.msg_controllen = sizeof(control);
 
         // get the difference between CLOCK_TAI and CLOCK_REALTIME
-        struct ntptimeval offset = { 0 };
+        struct ntptimeval offset;
+        memset(&offset, 0, sizeof(offset));
         ntp_gettimex(&offset);
 
         // calculate the txtime with CLOCK_REALTIME and convert it to CLOCK_TAI
