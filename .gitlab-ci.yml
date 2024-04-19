@@ -24,8 +24,21 @@ build-r2dtwo-release:
   script:
     - make release -j
 
-#TODO C++ build: CC=g++ make debug
-#   we also need to override the std and the warnings
+build-r2dtwo-debug-cpp:
+  stage: build
+  tags:
+    - rosetta-docker
+  script:
+    - gitlab-ci/cppize.pl
+    - make debug -j
+
+build-r2dtwo-release-cpp:
+  stage: build
+  tags:
+    - rosetta-docker
+  script:
+    - gitlab-ci/cppize.pl
+    - make release -j
 
 #TODO clang build: we need a Docker image
 
@@ -60,6 +73,7 @@ pytest_oam:
   script:
     - cd test
     - ./oam.py
+  timeout: 10 minutes
 
 
 .unit_test.common:
