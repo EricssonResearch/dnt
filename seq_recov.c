@@ -86,7 +86,7 @@ static int oam_rcvy_del_cb(const char *key, void *value, void *userdata)
 {
     (void)key;
     (void)userdata;
-    struct PipelineObject *rec = value;
+    struct PipelineObject *rec = (struct PipelineObject *)value;
     //free((char*)key); this is rec->session_id
     delete_seq_rec(rec);
     return 1;
@@ -97,7 +97,7 @@ static struct SequenceRecovery *get_oam_rcvy(char *session_id)
     if (oam_seq_recoveries == NULL)
         oam_seq_recoveries = new_hashmap(5, oam_rcvy_del_cb, NULL);
 
-    struct SequenceRecovery *rec = hashmap_find(oam_seq_recoveries, session_id);
+    struct SequenceRecovery *rec = (struct SequenceRecovery *)hashmap_find(oam_seq_recoveries, session_id);
     if (rec == NULL) {
         struct PipelineObject *r = new_seq_rec(session_id, RCVY_Match, false, false, 0, OAM_RCVY_RESET_MS, NULL);
         if (r == NULL) {
@@ -148,7 +148,7 @@ static struct JsonValue *get_state_json(const struct PipelineObject *obj)
         json_object_insert(js, "latent_error_resets", json_number((double) rec->latent_error_resets));
         json_object_insert(js, "latent_errors", json_number((double) rec->latent_errors));
 
-        char *hist_content = calloc(1, rec->history_length + 1);
+        char *hist_content = (char *)calloc(1, rec->history_length + 1);
         for (int i = 0; i < rec->history_length; ++i) {
             if (rec->history[i] == 1)
                 hist_content[i] = '1';
@@ -234,8 +234,8 @@ struct PipelineObject *new_seq_rec(const char *name, enum SequenceRecoveryAlgori
     if (diag) {
         ret->diag = *diag;
     }
-    ret->history = calloc(history_length, sizeof(char)); //TODO not if algo==Match
-    ret->init_history = calloc(history_length, sizeof(char)); //TODO we only need this when algo==Seamless
+    ret->history = (char *)calloc(history_length, sizeof(char)); //TODO not if algo==Match
+    ret->init_history = (char *)calloc(history_length, sizeof(char)); //TODO we only need this when algo==Seamless
     ret->take_any = true;
     ret->init_take_any = true;
     ret->session_id = NULL;
@@ -495,6 +495,8 @@ static void recovery_diagnostic(struct SequenceRecovery *rec)
     discarded_diff = rec->discarded_packets - rec->discarded_packets_last;
     passed_diff = rec->passed_packets - rec->passed_packets_last;
     diff = discarded_diff - ((diag->latent_error_paths - 1) * passed_diff);
+    unsigned int working_ceil = (discarded_diff + diag->latent_error_difference - 1) / passed_diff;
+    unsigned int working_floor = (discarded_diff - diag->latent_error_difference) / passed_diff;
     if (diff > -diag->latent_error_difference && diff < diag->latent_error_difference) {
         goto update;
     } else if (diff >= diag->latent_error_difference) {
@@ -502,8 +504,6 @@ static void recovery_diagnostic(struct SequenceRecovery *rec)
         ALERT("%s: MORE_PACKETS_THAN_EXPECTED with %d percent", rec->base.name, more_percent);
         goto update;
     }
-    unsigned int working_ceil = (discarded_diff + diag->latent_error_difference - 1) / passed_diff;
-    unsigned int working_floor = (discarded_diff - diag->latent_error_difference) / passed_diff;
     if (discarded_diff < diag->latent_error_difference) {
         disfunctioning_paths = diag->latent_error_paths - 1;
         ALERT("%s: DISFUNCTIONING_PATHS: %d path(s)", rec->base.name, disfunctioning_paths);
@@ -580,7 +580,7 @@ static void decrement_ticks(struct SequenceRecovery *rec)
 // and check do a Sequence Recovery reset if it reach zero.
 static void *reset_thread(void *arg)
 {
-    struct SequenceRecovery *rec = arg;
+    struct SequenceRecovery *rec = (struct SequenceRecovery *)arg;
     struct timespec sleep_until, delta, now;
 
     //TODO grab mutex

@@ -86,7 +86,7 @@ struct AddData {
 
 static enum ActionResult action_ADD_execute(struct Action *a, struct PipelineIterator *pi)
 {
-    struct AddData *ad = a->action_private;
+    struct AddData *ad = (struct AddData *)a->action_private;
     packet_add_header(pi->packet, ad->idx, ad->type, ad->len);
     return ACR_CONTINUE;
 }
@@ -110,7 +110,7 @@ struct DelData {
 
 static enum ActionResult action_DEL_execute(struct Action *a, struct PipelineIterator *pi)
 {
-    struct DelData *dd = a->action_private;
+    struct DelData *dd = (struct DelData *)a->action_private;
     packet_del_header(pi->packet, dd->idx);
     return ACR_CONTINUE;
 }
@@ -134,7 +134,7 @@ struct DelayData {
 
 static enum ActionResult action_DELAY_execute(struct Action *a, struct PipelineIterator *pi)
 {
-    struct DelayData *dd = a->action_private;
+    struct DelayData *dd = (struct DelayData *)a->action_private;
     struct Packet *p = pi->packet;
 
     // put offload and delay information into the packet
@@ -182,7 +182,7 @@ struct EditData {
 
 static enum ActionResult action_EDIT_execute(struct Action *a, struct PipelineIterator *pi)
 {
-    struct EditData *ed = a->action_private;
+    struct EditData *ed = (struct EditData *)a->action_private;
     for (unsigned i=0; i<ed->assign_count; i++) {
         if (ed->assigns[i].read) {
             ed->assigns[i].read(ed->assigns[i].read_state,
@@ -198,7 +198,7 @@ static enum ActionResult action_EDIT_execute(struct Action *a, struct PipelineIt
 
 static void action_edit_del(void *action_private)
 {
-    struct EditData *ed = action_private;
+    struct EditData *ed = (struct EditData *)action_private;
     for (unsigned i=0; i<ed->assign_count; i++) {
         free(ed->assigns[i].text);
         free(ed->assigns[i].constant.value);
@@ -228,7 +228,7 @@ struct ElimData {
 
 static enum ActionResult action_ELIM_execute(struct Action *a, struct PipelineIterator *pi)
 {
-    struct ElimData *ed = a->action_private;
+    struct ElimData *ed = (struct ElimData *)a->action_private;
     return seq_recovery(ed->rcvy, pi);
 }
 
@@ -249,7 +249,7 @@ struct FilterOamData {
 
 static enum ActionResult action_FILTEROAM_execute(struct Action *a, struct PipelineIterator *pi)
 {
-    struct FilterOamData *fd = a->action_private;
+    struct FilterOamData *fd = (struct FilterOamData *)a->action_private;
 
     struct Packet *p = pi->packet;
     uint8_t *src = p->buf + p->headers[fd->field.header_idx].start + fd->field.bitoffset/8;
@@ -281,7 +281,7 @@ struct PofData {
 
 static enum ActionResult action_POF_execute(struct Action *a, struct PipelineIterator *pi)
 {
-    struct PofData *pd = a->action_private;
+    struct PofData *pd = (struct PofData *)a->action_private;
     return pof_insert(pd->pof, pi);
 }
 
@@ -302,7 +302,7 @@ struct MetaData {
 
 static enum ActionResult action_READSEQ_execute(struct Action *a, struct PipelineIterator *pi)
 {
-    struct MetaData *md = a->action_private;
+    struct MetaData *md = (struct MetaData *)a->action_private;
     struct Packet *p = pi->packet;
     uint8_t *src = p->buf + p->headers[md->field.header_idx].start + md->field.bitoffset/8;
     unsigned len = md->field.bitcount/8; //TODO this is always 4
@@ -321,7 +321,7 @@ void create_action_readseq(struct Action *a, const struct HeaderField *seqfield,
 
 static enum ActionResult action_READTSTAMP_execute(struct Action *a, struct PipelineIterator *pi)
 {
-    struct MetaData *md = a->action_private;
+    struct MetaData *md = (struct MetaData *)a->action_private;
     struct Packet *p = pi->packet;
     uint8_t *src = p->buf + p->headers[md->field.header_idx].start + md->field.bitoffset/8;
     unsigned len = md->field.bitcount/8; //TODO this is always 4
@@ -347,7 +347,7 @@ struct ReplData {
 
 static enum ActionResult action_REPL_execute(struct Action *a, struct PipelineIterator *pi)
 {
-    struct ReplData *rd = a->action_private;
+    struct ReplData *rd = (struct ReplData *)a->action_private;
 
     if (rd->replobj)
         replicate_packet_passed(rd->replobj, pi);
@@ -374,7 +374,7 @@ static enum ActionResult action_REPL_execute(struct Action *a, struct PipelineIt
 
 static void action_repl_del(void *action_private)
 {
-    struct ReplData *rd = action_private;
+    struct ReplData *rd = (struct ReplData *)action_private;
     struct PipelineList *list = rd->pipes;
     while (list) {
         struct PipelineList *del = list;
@@ -398,7 +398,7 @@ void create_action_repl(struct Action *a, struct PipelineList *list, struct Pipe
 struct PipelineList *action_repl_get_piplinelist(struct Action *a)
 {
     if (a->type == ACT_REPL) {
-        struct ReplData *rd = a->action_private;
+        struct ReplData *rd = (struct ReplData *)a->action_private;
         return rd->pipes;
     }
     return NULL;
@@ -412,7 +412,7 @@ struct SendData {
 
 static enum ActionResult action_SEND_execute(struct Action *a, struct PipelineIterator *pi)
 {
-    struct SendData *sd = a->action_private;
+    struct SendData *sd = (struct SendData *)a->action_private;
     sd->iface->send(sd->iface, pi->packet);
     return ACR_CONTINUE;
 }
@@ -429,7 +429,7 @@ void create_action_send(struct Action *a, struct Interface *iface, const char *t
 struct Interface *action_send_get_iface(struct Action *a)
 {
     if (a->type == ACT_SEND) {
-        struct SendData *sd = a->action_private;
+        struct SendData *sd = (struct SendData *)a->action_private;
         return sd->iface;
     } else {
         return NULL;
@@ -444,7 +444,7 @@ struct SeqgenData {
 
 static enum ActionResult action_SEQGEN_execute(struct Action *a, struct PipelineIterator *pi)
 {
-    struct SeqgenData *sd = a->action_private;
+    struct SeqgenData *sd = (struct SeqgenData *)a->action_private;
     return seq_generator(sd->gen, pi);
 }
 
@@ -480,7 +480,7 @@ struct TtlData {
 
 static enum ActionResult action_TTLREDUCE_execute(struct Action *a, struct PipelineIterator *pi)
 {
-    struct TtlData *td = a->action_private;
+    struct TtlData *td = (struct TtlData *)a->action_private;
     struct Packet *p = pi->packet;
     // we know that in all protocols TTL is 8 bits, byte-aligned
     uint8_t *ttl = p->buf + p->headers[td->field.header_idx].start + td->field.bitoffset/8;
@@ -504,7 +504,7 @@ void create_action_ttlreduce(struct Action *a, const struct HeaderField *ttlfiel
 
 static enum ActionResult action_WRITESEQ_execute(struct Action *a, struct PipelineIterator *pi)
 {
-    struct MetaData *md = a->action_private;
+    struct MetaData *md = (struct MetaData *)a->action_private;
     struct Packet *p = pi->packet;
 
     uint8_t *src = p->buf + p->headers[md->field.header_idx].start + md->field.bitoffset/8;
@@ -532,7 +532,7 @@ void create_action_writeseq(struct Action *a, const struct HeaderField *seqfield
 
 static enum ActionResult action_WRITETSTAMP_execute(struct Action *a, struct PipelineIterator *pi)
 {
-    struct MetaData *md = a->action_private;
+    struct MetaData *md = (struct MetaData *)a->action_private;
     struct Packet *p = pi->packet;
     uint8_t *dst = p->buf + p->headers[md->field.header_idx].start + md->field.bitoffset/8;
     unsigned len = md->field.bitcount/8; //TODO this is always 4
@@ -558,7 +558,7 @@ struct MepData {
 static enum ActionResult action_MEP_execute(struct Action *a, struct PipelineIterator *pi)
 {
     struct Packet *p = pi->packet;
-    struct MepData *md = a->action_private;
+    struct MepData *md = (struct MepData *)a->action_private;
     // note: we made sure in conf_actions.c that at this point of the pipeline the packet starts with mpls+dcw
     unsigned char *oam_hdr = p->buf + p->headers[1].start;
 
@@ -572,7 +572,7 @@ static enum ActionResult action_MEP_execute(struct Action *a, struct PipelineIte
 
 static void action_mep_del(void *action_private)
 {
-    struct MepData *md = action_private;
+    struct MepData *md = (struct MepData *)action_private;
     oam_delete_endpoint(md->oam);
 }
 

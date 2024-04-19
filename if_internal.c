@@ -71,7 +71,7 @@ static struct Packet *packetfifo_get(struct PacketFifo *pf)
 
 static bool int_recv(struct Interface *iface)
 {
-    struct PacketFifo *pf = iface->iface_private;
+    struct PacketFifo *pf = (struct PacketFifo *)iface->iface_private;
     uint64_t one;
     int ret = read(iface->recvfd, &one, 8);
     if (ret < 0)
@@ -82,7 +82,7 @@ static bool int_recv(struct Interface *iface)
 
 static bool int_send(struct Interface *iface, struct Packet *p)
 {
-    struct PacketFifo *pf = iface->iface_private;
+    struct PacketFifo *pf = (struct PacketFifo *)iface->iface_private;
     if (iface->state == IFS_OPEN) {
         struct Packet *newp = serialize_packet(p);
         packetfifo_insert(pf, newp);
@@ -108,7 +108,7 @@ static bool int_open(struct Interface *iface)
 
 static bool int_close(struct Interface *iface)
 {
-    struct PacketFifo *pf = iface->iface_private;
+    struct PacketFifo *pf = (struct PacketFifo *)iface->iface_private;
     struct Packet *p;
     while ((p = packetfifo_get(pf)) != NULL) {
         delete_packet(p);

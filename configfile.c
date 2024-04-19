@@ -25,7 +25,7 @@ static int remove_comment(const char *key, void *value, void *userdata)
 {
     (void)key;
     (void)userdata;
-    char *v = value;
+    char *v = (char *)value;
     char *cstart;
     cstart = strchr(v, ';');
     if (cstart) *cstart = 0;
@@ -200,10 +200,10 @@ struct AddstreamState {
 
 static int addstream_cb(const char *key, void *value, void *userdata)
 {
-    struct AddstreamState *state = userdata;
-    struct ConfStreamList *streamlist = value;
+    struct AddstreamState *state = (struct AddstreamState *)userdata;
+    struct ConfStreamList *streamlist = (struct ConfStreamList *)value;
 
-    struct Interface *iface = hashmap_find(state->ifaces, key);
+    struct Interface *iface = (struct Interface *)hashmap_find(state->ifaces, key);
     if (iface == NULL) {
         log_error("adding streams to interfaces: unknown interface '%s'", key);
         return 0;
@@ -212,7 +212,7 @@ static int addstream_cb(const char *key, void *value, void *userdata)
     for (struct ConfStreamList *s=streamlist; s; s=s->next) {
         log_info("adding stream %s to interface %s", s->stream_name, key);
 
-        struct Pipeline *pipe = hashmap_find(state->pipe_cache, s->stream_name);
+        struct Pipeline *pipe = (struct Pipeline *)hashmap_find(state->pipe_cache, s->stream_name);
         if (pipe) {
             log_info("  reusing already compiled pipeline");
         } else {
@@ -249,7 +249,7 @@ static int del_confactions(const char *key, void *value, void *userdata)
     (void)key;
     (void)value;
     (void)userdata;
-    struct ConfStream *stream = value;
+    struct ConfStream *stream = (struct ConfStream *)value;
     stream->actions = delete_confaction_list(stream->actions);
     return 1;
 }

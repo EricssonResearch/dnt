@@ -30,19 +30,19 @@ struct OamIfData {
 
 const char *oamif_get_ip(const struct Interface *iface)
 {
-    struct OamIfData *oid = iface->iface_private;
+    struct OamIfData *oid = (struct OamIfData *)iface->iface_private;
     return oid->oam_ip_str;
 }
 
 unsigned oamif_get_port(const struct Interface *iface)
 {
-    struct OamIfData *oid = iface->iface_private;
+    struct OamIfData *oid = (struct OamIfData *)iface->iface_private;
     return oid->port;
 }
 
 unsigned short oamif_get_uid(const struct Interface *iface)
 {
-    struct OamIfData *oid = iface->iface_private;
+    struct OamIfData *oid = (struct OamIfData *)iface->iface_private;
     return oid->uid;
 }
 
@@ -69,7 +69,7 @@ static bool oam_send(struct Interface *iface, struct Packet *p)
 
 static bool oam_open(struct Interface *iface)
 {
-    struct OamIfData *oid = iface->iface_private;
+    struct OamIfData *oid = (struct OamIfData *)iface->iface_private;
     if (iface->state != IFS_INIT) {
         log_error("open OAM interface %s: already opened", iface->name);
         return false;
@@ -132,7 +132,7 @@ static bool oam_open(struct Interface *iface)
 
 static bool oam_close(struct Interface *iface)
 {
-    struct OamIfData *oid = iface->iface_private;
+    struct OamIfData *oid = (struct OamIfData *)iface->iface_private;
     close(iface->recvfd);
     free(oid->oam_ip_str);
     free(oid);

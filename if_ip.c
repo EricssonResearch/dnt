@@ -41,7 +41,7 @@ static bool ip_recv(struct Interface *iface)
 
 static bool ip_send(struct Interface *iface, struct Packet *p)
 {
-    struct IpIfData *iid = iface->iface_private;
+    struct IpIfData *iid = (struct IpIfData *)iface->iface_private;
 
     if (p->header_count < 1) {
         log_error("ip %s send: packet doesn't have headers", iface->name);
@@ -72,7 +72,7 @@ static bool ip_send(struct Interface *iface, struct Packet *p)
 
 static bool ip_open(struct Interface *iface)
 {
-    struct IpIfData *iid = iface->iface_private;
+    struct IpIfData *iid = (struct IpIfData *)iface->iface_private;
     if (iface->state != IFS_INIT) {
         log_error("open ip interface %s: already opened", iface->name);
         return false;
@@ -189,7 +189,7 @@ static bool ip_open(struct Interface *iface)
 
 static bool ip_close(struct Interface *iface)
 {
-    struct IpIfData *iid = iface->iface_private;
+    struct IpIfData *iid = (struct IpIfData *)iface->iface_private;
     close(iid->sock4);
     close(iid->sock6);
     free(iid);
@@ -199,16 +199,16 @@ static bool ip_close(struct Interface *iface)
 
 static void ip_ipv4_producer(void *state, value_consumer *consumer, void *consumer_state, struct Packet *p)
 {
-    struct Interface *iface = state;
-    struct IpIfData *iid = iface->iface_private;
+    struct Interface *iface = (struct Interface *)state;
+    struct IpIfData *iid = (struct IpIfData *)iface->iface_private;
     struct Value val = {&iid->ipv4, 0, 32};
     consumer(consumer_state, &val, p);
 }
 
 static void ip_ipv6_producer(void *state, value_consumer *consumer, void *consumer_state, struct Packet *p)
 {
-    struct Interface *iface = state;
-    struct IpIfData *iid = iface->iface_private;
+    struct Interface *iface = (struct Interface *)state;
+    struct IpIfData *iid = (struct IpIfData *)iface->iface_private;
     struct Value val = {&iid->ipv6, 0, 128};
     consumer(consumer_state, &val, p);
 }
@@ -216,7 +216,7 @@ static void ip_ipv6_producer(void *state, value_consumer *consumer, void *consum
 static value_producer *ip_get_property_reader(const struct Interface *iface, const char *property,
         enum ProtocolFieldType target_type, const struct Value *target)
 {
-    struct IpIfData *iid = iface->iface_private;
+    struct IpIfData *iid = (struct IpIfData *)iface->iface_private;
     (void)iid;
 
     //TODO check if the interface has such an address

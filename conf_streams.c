@@ -39,8 +39,8 @@ static int packetline_cb(const char *key, void *value, void *userdata)
         return 0;                                                   \
     } while (0)
 
-    struct ConfStreamState *state = userdata;
-    char *packetline = value;
+    struct ConfStreamState *state = (struct ConfStreamState *)userdata;
+    char *packetline = (char *)value;
 
     const char *colon = strchr(key, ':');
     if (colon) {
@@ -60,7 +60,7 @@ static int packetline_cb(const char *key, void *value, void *userdata)
 
             // find the corresponding :match line
             int chars = snprintf(NULL, 0, "%s:match", streamname);
-            matchname = malloc((chars+1)*sizeof(char));
+            matchname = (char *)malloc((chars+1)*sizeof(char));
             snprintf(matchname, chars+1, "%s:match", streamname);
             char *matchline = inisection_get(state->streams_section, matchname);
             if (matchline == NULL) {
@@ -75,7 +75,7 @@ static int packetline_cb(const char *key, void *value, void *userdata)
 
             // find the corresponding :actions line
             chars = snprintf(NULL, 0, "%s:actions", streamname);
-            actionname = malloc((chars+1)*sizeof(char));
+            actionname = (char *)malloc((chars+1)*sizeof(char));
             snprintf(actionname, chars+1, "%s:actions", streamname);
             char *actionline = inisection_get(state->streams_section, actionname);
             if (actionline == NULL) {
@@ -106,7 +106,7 @@ static int packetline_cb(const char *key, void *value, void *userdata)
 
 static int checkline_cb(const char *key, void *value, void *userdata)
 {
-    struct ConfStreamState *state = userdata;
+    struct ConfStreamState *state = (struct ConfStreamState *)userdata;
     (void)value;
 
     const char *colon = strchr(key, ':');
@@ -133,7 +133,7 @@ static int checkline_cb(const char *key, void *value, void *userdata)
 static int delstream_cb(const char *key, void *value, void *userdata)
 {
     (void)userdata;
-    struct ConfStream *stream = value;
+    struct ConfStream *stream = (struct ConfStream *)value;
     delete_confstream(stream);
     free((char*)key);
     return 1;
@@ -143,10 +143,10 @@ struct HashMap *parse_streams(const struct IniSection *streams_section,
         const struct HashMap *ifaces, const struct HashMap *objects)
 {
     struct ConfStreamState state = {
+        .streams = new_hashmap(29, delstream_cb, NULL),
         .streams_section = streams_section,
         .ifaces = ifaces,
         .objects = objects,
-        .streams = new_hashmap(29, delstream_cb, NULL),
     };
 
     if (!hashmap_foreach(streams_section->contents, packetline_cb, &state)) {

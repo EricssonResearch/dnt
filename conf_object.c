@@ -85,7 +85,7 @@ static bool token_cb(char *str, void *userdata)
         return false;                                               \
     } while (0)
 
-    struct ObjectInfo *info = userdata;
+    struct ObjectInfo *info = (struct ObjectInfo *)userdata;
 
     if (info->type) {
         char *key, *val;
@@ -258,9 +258,10 @@ static bool token_cb(char *str, void *userdata)
 
 static int object_cb(const char *key, void *value, void *userdata)
 {
-    char *desc = value;
-    struct ForeachState *state = userdata;
-    struct ObjectInfo info = {0};
+    char *desc = (char *)value;
+    struct ForeachState *state = (struct ForeachState *)userdata;
+    struct ObjectInfo info;
+    memset(&info, 0, sizeof(info));
     info.name = key;
 
     if (!foreach_tokens(desc, token_cb, &info)) {
@@ -307,7 +308,7 @@ static int object_cb(const char *key, void *value, void *userdata)
 static int delete_cb(const char *key, void *value, void *userdata)
 {
     (void)key; // this is obj->name, freed by delete_pipeline_object()
-    struct PipelineObject *obj = value;
+    struct PipelineObject *obj = (struct PipelineObject *)value;
     (void)userdata;
     delete_pipeline_object(obj);
     return 1;

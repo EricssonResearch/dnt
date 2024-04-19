@@ -7,7 +7,13 @@
 
 #include <stdbool.h>
 
+#ifdef __cplusplus
+    extern "C" {
+#endif
 void perror(const char *s) __attribute__((deprecated));
+#ifdef __cplusplus
+    }
+#endif
 
 typedef enum {
     //TODO these need prefix (syslog squats on LOG_xxx)
@@ -42,6 +48,10 @@ bool open_log(LOG_OUTPUT out, char *log_filename);
  * */
 void close_log(void);
 
+// @returns true of the string is a valid log level
+bool log_level_valid(const char *level);
+
+// unknown level is translated to NONE
 LOGGING_LEVELS log_level_from_string(const char *level);
 
 const char *log_string_from_level(LOGGING_LEVELS level);

@@ -65,11 +65,11 @@ struct HashMap *new_hashmap(unsigned bucketcount, hashmap_cb *item_delete_cb, vo
 {
     if (bucketcount == 0) return NULL;
 
-    struct HashMap *ret = malloc(sizeof(struct HashMap));
+    struct HashMap *ret = (struct HashMap *)malloc(sizeof(struct HashMap));
 
     ret->bucketcount = bucketcount;
     ret->elemcount = 0;
-    ret->buckets = calloc(bucketcount, sizeof(struct HashBucket));
+    ret->buckets = (struct HashBucket *)calloc(bucketcount, sizeof(struct HashBucket));
     if (item_delete_cb) {
         ret->item_delete_cb = item_delete_cb;
         ret->userdata = userdata;
@@ -127,7 +127,7 @@ void hashmap_insert(struct HashMap *hash, char *key, void *value)
         } while (!stop);
 
         // append to the list
-        b->next = malloc(sizeof(struct HashBucket));
+        b->next = (struct HashBucket *)malloc(sizeof(struct HashBucket));
         struct HashBucket *bn = b->next;
         bn->key = key;
         bn->value = value;
@@ -264,8 +264,8 @@ int hashmap_foreach(const struct HashMap *hash, hashmap_cb *cb, void *userdata)
 
 static int hash_key_cmp(const void *p1, const void *p2)
 {
-    const struct HashBucket *const*b1 = p1;
-    const struct HashBucket *const*b2 = p2;
+    const struct HashBucket *const*b1 = (const struct HashBucket *const*)p1;
+    const struct HashBucket *const*b2 = (const struct HashBucket *const*)p2;
     return strcmp((*b1)->key, (*b2)->key);
 }
 
@@ -274,7 +274,7 @@ int hashmap_foreach_sorted(const struct HashMap *hash, hashmap_cb *cb, void *use
     if (!hash) return 0;
     if (!cb) return 0;
 
-    struct HashBucket **buckets = malloc(hash->elemcount*sizeof(struct HashBucket *));
+    struct HashBucket **buckets = (struct HashBucket **)malloc(hash->elemcount*sizeof(struct HashBucket *));
     unsigned j = 0;
     for (unsigned i=0; i<hash->bucketcount; i++) {
         if (hash->buckets[i].key) {

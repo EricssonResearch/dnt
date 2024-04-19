@@ -76,7 +76,7 @@ static bool oam_cmd_send(struct Interface *iface, struct Packet *p)
 
 static bool oam_cmd_open(struct Interface *iface)
 {
-    struct OamCmdIfData *oid = iface->iface_private;
+    struct OamCmdIfData *oid = (struct OamCmdIfData *)iface->iface_private;
     if (iface->state != IFS_INIT) {
         log_error("open OAM cmd interface %s: already opened", iface->name);
         return false;
@@ -146,7 +146,7 @@ static bool oam_cmd_open(struct Interface *iface)
 
 static bool oam_cmd_close(struct Interface *iface)
 {
-    struct OamCmdIfData *oid = iface->iface_private;
+    struct OamCmdIfData *oid = (struct OamCmdIfData *)iface->iface_private;
     close(iface->recvfd);
     free(oid);
     log_info("OAM Command interface closed");
@@ -184,7 +184,7 @@ struct Interface *new_oam_cmd_interface(const char *name, const char *ifname,
             oid->family = AF_INET6;
         } else {
             log_error("oam-cmd: invalid ip address '%s'", oam_cmd_ip);
-            return false;
+            return NULL;
         }
     } else {
         // this will also accept v4 connections

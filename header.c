@@ -26,8 +26,8 @@ struct HeaderField *new_headerfield(unsigned header_idx, const struct ProtocolFi
 // only full bytes, no loose bits at the beginning or the end
 static void write_bytes(void *state, struct Value *value, struct Packet *p)
 {
-    struct HeaderField *field = state;
-    uint8_t *src = value->value + value->bitoffset/8;
+    struct HeaderField *field = (struct HeaderField *)state;
+    uint8_t *src = (uint8_t *)value->value + value->bitoffset/8;
     uint8_t *dst = p->buf + p->headers[field->header_idx].start + field->bitoffset/8;
     unsigned len = value->bitcount / 8;
     memcpy(dst, src, len);
@@ -36,8 +36,8 @@ static void write_bytes(void *state, struct Value *value, struct Packet *p)
 // set bits in a single byte
 static void write_bits(void *state, struct Value *value, struct Packet *p)
 {
-    struct HeaderField *field = state;
-    uint8_t *src = value->value + value->bitoffset/8;
+    struct HeaderField *field = (struct HeaderField *)state;
+    uint8_t *src = (uint8_t *)value->value + value->bitoffset/8;
     uint8_t *dst = p->buf + p->headers[field->header_idx].start + field->bitoffset/8;
 
     unsigned bitoffset = field->bitoffset % 8;
@@ -54,8 +54,8 @@ static void write_bits(void *state, struct Value *value, struct Packet *p)
 // generic writer of any number of bits over any number of bytes with any starting offset
 static void write_generic(void *state, struct Value *value, struct Packet *p)
 {
-    struct HeaderField *field = state;
-    uint8_t *src = value->value + value->bitoffset/8;
+    struct HeaderField *field = (struct HeaderField *)state;
+    uint8_t *src = (uint8_t *)value->value + value->bitoffset/8;
     uint8_t *dst = p->buf + p->headers[field->header_idx].start + field->bitoffset/8;
 
     unsigned bitoffset = field->bitoffset % 8;
@@ -117,7 +117,7 @@ value_consumer *header_get_field_writer(const struct HeaderField *target, const 
 // points to the first byte of the field
 static void read_bytes(void *state, value_consumer *consumer, void *consumer_state, struct Packet *p)
 {
-    struct HeaderField *source = state;
+    struct HeaderField *source = (struct HeaderField *)state;
     uint8_t *src = p->buf + p->headers[source->header_idx].start + source->bitoffset/8;
     struct Value val = {src, source->bitoffset%8, source->bitcount};
     consumer(consumer_state, &val, p);
@@ -144,8 +144,8 @@ value_producer *header_get_field_reader(const struct Value *target, const struct
 // return true if the header field in the packet equals @value
 static bool compare_bytes(const void *state, const struct Value *value, const struct Packet *p)
 {
-    const struct HeaderField *field = state;
-    uint8_t *match_data = value->value + value->bitoffset/8;
+    const struct HeaderField *field = (struct HeaderField *)state;
+    uint8_t *match_data = (uint8_t *)value->value + value->bitoffset/8;
     uint8_t *hdr_data = p->buf + p->headers[field->header_idx].start + field->bitoffset/8;
     unsigned len = value->bitcount / 8;
     return !memcmp(hdr_data, match_data, len);
@@ -154,8 +154,8 @@ static bool compare_bytes(const void *state, const struct Value *value, const st
 // return true if bits in a single byte at the header equal with the given @value
 static bool compare_bits(const void *state, const struct Value *value, const struct Packet *p)
 {
-    const struct HeaderField *field = state;
-    uint8_t *match_data = value->value + value->bitoffset/8;
+    const struct HeaderField *field = (struct HeaderField *)state;
+    uint8_t *match_data = (uint8_t *)value->value + value->bitoffset/8;
     uint8_t *hdr_data = p->buf + p->headers[field->header_idx].start + field->bitoffset/8;
 
     unsigned bitoffset = field->bitoffset % 8;
@@ -170,8 +170,8 @@ static bool compare_bits(const void *state, const struct Value *value, const str
 // return true if the bit sequences (spanning multiple bytes) equal with the given @value
 static bool compare_generic(const void *state, const struct Value *value, const struct Packet *p)
 {
-    const struct HeaderField *field = state;
-    uint8_t *match_data = value->value + value->bitoffset/8;
+    const struct HeaderField *field = (struct HeaderField *)state;
+    uint8_t *match_data = (uint8_t *)value->value + value->bitoffset/8;
     uint8_t *hdr_data = p->buf + p->headers[field->header_idx].start + field->bitoffset/8;
 
     unsigned bitoffset = field->bitoffset % 8;

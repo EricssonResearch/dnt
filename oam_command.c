@@ -52,7 +52,7 @@ const char *terminal_format_name(enum TerminalFormat f)
 struct command_connection *find_command_connection(const char *name)
 {
     if (name == NULL) return NULL;
-    return hashmap_find(command_connections, name);
+    return (struct command_connection *)hashmap_find(command_connections, name);
 }
 
 bool command_connection_is_same(const struct command_connection *conn, const char *name)
@@ -100,16 +100,16 @@ static const char help_str[] =
 static int list_mep_cb(const char *key, void *value, void *userdata)
 {
     (void)key;
-    struct MepStart *start = value;
-    FILE *cmd_w = userdata;
+    struct MepStart *start = (struct MepStart *)value;
+    FILE *cmd_w = (FILE *)userdata;
     print_mep_start(start, cmd_w);
     return 1;
 }
 
 static int list_oam_ifaces_cb(const char *ifname, void *value, void *userdata)
 {
-    struct Interface *iface = value;
-    FILE *cmd_w = userdata;
+    struct Interface *iface = (struct Interface *)value;
+    FILE *cmd_w = (FILE *)userdata;
 
     const char *return_ip = oamif_get_ip(iface);
     unsigned return_port = oamif_get_port(iface);
@@ -126,17 +126,17 @@ static int list_oam_ifaces_cb(const char *ifname, void *value, void *userdata)
 
 static int list_log_modules_cb(const char *mod_name, LOGGING_LEVELS current_level, void *userdata)
 {
-    FILE *cmd_w = userdata;
+    FILE *cmd_w = (FILE *)userdata;
     fprintf(cmd_w, "  %s level %s\n", mod_name, log_string_from_level(current_level));
     return 1;
 }
 
-#define TELNET_IAC         0xff /* Interpret As Command */
-#define TELNET_INTERRUPT   0xf4 /* interrupt process */
-#define TELNET_WILL        0xfb
-#define TELNET_WONT        0xfc
-#define TELNET_DO          0xfd
-#define TELNET_DONT        0xfe
+#define TELNET_IAC         0xffu /* Interpret As Command */
+#define TELNET_INTERRUPT   0xf4u /* interrupt process */
+#define TELNET_WILL        0xfbu
+#define TELNET_WONT        0xfcu
+#define TELNET_DO          0xfdu
+#define TELNET_DONT        0xfeu
 #define TELNET_TIMING_MARK    6 /* see RFC 860 */
 static void handle_telnet_command(unsigned char *oam_command, int *n, FILE *cmd_w)
 {
@@ -152,7 +152,7 @@ static void handle_telnet_command(unsigned char *oam_command, int *n, FILE *cmd_
                 if (*n > k+2) {
                     if (oam_command[k+2] == TELNET_TIMING_MARK) {
                         // we must reply with this or the telnet client gets stuck (see RFC 860)
-                        char reply[] = {TELNET_IAC, TELNET_WILL, TELNET_TIMING_MARK, 0};
+                        unsigned char reply[] = {TELNET_IAC, TELNET_WILL, TELNET_TIMING_MARK, 0};
                         fprintf(cmd_w, "%s", reply);
                         k += 3;
                     } else {
@@ -283,10 +283,10 @@ static void command_loop(struct command_connection *conn)
                     fprintf(cmd_w, "Logging modules:\n");
                     log_get_levels(list_log_modules_cb, cmd_w);
                 } else if (k == 2) {
-                    int nlvl = log_level_from_string(newlevel);
-                    if (nlvl < 0) {
-                        fprintf(cmd_w, "Log level '%s' invalid.\n", newlevel);
+                    if (!log_level_valid(newlevel)) {
+                        fprintf(cmd_w, "Invalid log level '%s'", newlevel);
                     } else {
+                        LOGGING_LEVELS nlvl = log_level_from_string(newlevel);
                         if (!log_set_level(modulename, nlvl)) {
                             fprintf(cmd_w, "Module '%s' does not exist.\n", modulename);
                         } else {
@@ -374,7 +374,7 @@ static void command_loop(struct command_connection *conn)
 
 static void *command_thread(void *arg)
 {
-    struct command_connection *conn = arg;
+    struct command_connection *conn = (struct command_connection *)arg;
     command_loop(conn);
     struct Thread *thread = conn->thread;
     // the hash delete callback will call thread_stop, but it does nothing to its own thread
@@ -409,8 +409,8 @@ void oam_start_command_connection(int fd)
 static int alert_cb(const char *key, void *value, void *userdata)
 {
     (void)key;
-    struct command_connection *conn = value;
-    char *msg = userdata;
+    struct command_connection *conn = (struct command_connection *)value;
+    char *msg = (char *)userdata;
     FILE *cmd_w = command_connection_get_w(conn);
     if (cmd_w) fprintf(cmd_w, "\n\n%s\n\n", msg);
     command_connection_release_w(conn);
@@ -432,7 +432,7 @@ static int command_connection_delete_cb(const char *key, void *value, void *user
 {
     (void)key; // same as conn->name
     (void)userdata;
-    struct command_connection *conn = value;
+    struct command_connection *conn = (struct command_connection *)value;
     while (conn->w_users > 0) {
         usleep(1000);
     }

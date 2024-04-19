@@ -27,13 +27,13 @@ static void __attribute__((destructor)) free_dummybuf(void)
 
 struct Packet *new_packet(struct Interface *from)
 {
-    if (!dummybuf) dummybuf = calloc(1, PACKET_BUF_LEN);
+    if (!dummybuf) dummybuf = (unsigned char *)calloc(1, PACKET_BUF_LEN);
 
     struct Packet *ret = calloc_struct(Packet);
     if (packet_count >= PACKET_COUNT_LIMIT) {
         ret->buf = dummybuf;
     } else {
-        ret->buf = calloc(1, PACKET_BUF_LEN);
+        ret->buf = (unsigned char *)calloc(1, PACKET_BUF_LEN);
         __atomic_fetch_add(&packet_count, 1, __ATOMIC_RELAXED);
     }
     // note: malloc returns pointers aligned to be suitable for long double
@@ -65,7 +65,7 @@ struct Packet *copy_packet(const struct Packet *p)
     newp->buf = memdup(p->buf, PACKET_BUF_LEN);
 #else
     // optimization: only copy the packet and the scratch
-    newp->buf = malloc(PACKET_BUF_LEN);
+    newp->buf = (unsigned char *)malloc(PACKET_BUF_LEN);
     // we need to keep the unallocated scratch space zeroed
     memcpy(newp->buf, p->buf, p->start+p->len);
 #endif
@@ -78,7 +78,7 @@ struct Packet *serialize_packet(const struct Packet *p)
     struct Packet *ret = calloc_struct(Packet);
     *ret = *p;
 
-    ret->buf = calloc(1, PACKET_BUF_LEN);
+    ret->buf = (unsigned char *)calloc(1, PACKET_BUF_LEN);
     ret->start = PACKET_START_OFFSET;
     unsigned dstlen = 0;
     for (unsigned i=0; i<p->header_count; i++) {

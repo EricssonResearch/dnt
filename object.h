@@ -5,6 +5,7 @@
 #ifndef R2_OBJECT_H
 #define R2_OBJECT_H
 
+#include "action.h"
 #include "json.h"
 
 #include <stdbool.h>

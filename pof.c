@@ -1,7 +1,9 @@
 // Copyright (c) 2023, Ericsson AB and Ericsson Telecommunication Hungary
 // All rights reserved.
 
+#ifndef _GNU_SOURCE /* stupid g++ implicitly defines this */
 #define _GNU_SOURCE /* for ppoll, pthread_setname_np */
+#endif
 
 #include "pof.h"
 #include "action.h"
@@ -313,8 +315,8 @@ static void pof_try_forward(struct Pof *pof, int event)
 
 static void *pof_thread(void *arg)
 {
-    struct Pof *pof = arg;
-    struct pollfd fd = { .fd = pof->evfd, .events = POLLIN };
+    struct Pof *pof = (struct Pof *)arg;
+    struct pollfd fd = { .fd = pof->evfd, .events = POLLIN, .revents = 0 };
     pthread_setname_np(pthread_self(), "pof thread");
     pof_reset(pof);
 

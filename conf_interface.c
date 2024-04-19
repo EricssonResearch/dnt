@@ -43,7 +43,7 @@ static bool iface_token_cb(char *token, void *userdata)
         return false;                                               \
     } while (0)
 
-    struct TokenState *tstate = userdata;
+    struct TokenState *tstate = (struct TokenState *)userdata;
     if (tstate->type) {
         char *key, *val;
         if (parse_assignment(token, &key, &val)) {
@@ -82,14 +82,15 @@ static int iface_cb(const char *key, void *value, void *userdata)
         return 0;                                                   \
     } while (0)
 
-    struct ConfIfacesState *state = userdata;
-    char *desc = value;
+    struct ConfIfacesState *state = (struct ConfIfacesState *)userdata;
+    char *desc = (char *)value;
 
     // skip the stream list
     if (strstr(key, ":streams"))
         return 1;
 
-    struct TokenState tstate = {0};
+    struct TokenState tstate;
+    memset(&tstate, 0, sizeof(tstate));
     tstate.ifname = key;
     tstate.params = new_hashmap(7, NULL, NULL);
     if (!foreach_tokens(desc, iface_token_cb, &tstate)) {
@@ -127,7 +128,7 @@ static int iface_cb(const char *key, void *value, void *userdata)
         unsigned ipver = 4;
         unsigned u;
         char err;
-        char *port_str = hashmap_find(tstate.params, "port");
+        char *port_str = (char *)hashmap_find(tstate.params, "port");
         if (port_str) {
             if (sscanf(port_str, "%i%c", &u, &err) != 1)
                 THROW("port '%s' is invalid", port_str);
@@ -135,7 +136,7 @@ static int iface_cb(const char *key, void *value, void *userdata)
                 THROW("port '%s' is invalid", port_str);
             port = u;
         }
-        char *ipver_str = hashmap_find(tstate.params, "ipv");
+        char *ipver_str = (char *)hashmap_find(tstate.params, "ipv");
         if (ipver_str) {
             if (sscanf(ipver_str, "%u%c", &u, &err) != 1)
                 THROW("ip version '%s' is invalid", ipver_str);
@@ -157,7 +158,7 @@ static int iface_cb(const char *key, void *value, void *userdata)
         unsigned priority = 0;
         unsigned u;
         char err;
-        char *port_str = hashmap_find(tstate.params, "srcport");
+        char *port_str = (char *)hashmap_find(tstate.params, "srcport");
         if (port_str) {
             if (sscanf(port_str, "%i%c", &u, &err) != 1)
                 THROW("srcport '%s' is invalid", port_str);
@@ -165,7 +166,7 @@ static int iface_cb(const char *key, void *value, void *userdata)
                 THROW("srcport '%s' is invalid", port_str);
             srcport = u;
         }
-        port_str = hashmap_find(tstate.params, "dstport");
+        port_str = (char *)hashmap_find(tstate.params, "dstport");
         if (port_str) {
             if (sscanf(port_str, "%i%c", &u, &err) != 1)
                 THROW("dstport '%s' is invalid", port_str);
@@ -173,11 +174,11 @@ static int iface_cb(const char *key, void *value, void *userdata)
                 THROW("dstport '%s' is invalid", port_str);
             dstport = u;
         }
-        char *dst_ip = hashmap_find(tstate.params, "dstip");
+        char *dst_ip = (char *)hashmap_find(tstate.params, "dstip");
         if (dst_ip == NULL) {
             THROW("dstip is unspecified");
         }
-        char *priority_str = hashmap_find(tstate.params, "prio");
+        char *priority_str = (char *)hashmap_find(tstate.params, "prio");
         if (priority_str) {
             if (sscanf(priority_str, "%i%c", &priority, &err) != 1)
                 THROW("prio '%s' is invalid", priority_str);
@@ -196,8 +197,8 @@ static int iface_cb(const char *key, void *value, void *userdata)
         unsigned port = OAM_CMD_PORT;
         unsigned u;
         char err;
-        char *oam_cmd_ip = hashmap_find(tstate.params, "ip");
-        char *port_str = hashmap_find(tstate.params, "port");
+        char *oam_cmd_ip = (char *)hashmap_find(tstate.params, "ip");
+        char *port_str = (char *)hashmap_find(tstate.params, "port");
         if (port_str) {
             if (sscanf(port_str, "%i%c", &u, &err) != 1)
                 THROW("oam_cmd_port '%s' is invalid", port_str);
@@ -214,11 +215,11 @@ static int iface_cb(const char *key, void *value, void *userdata)
         unsigned oam_port = OAM_PORT;
         unsigned u;
         char err;
-        char *oam_ip = hashmap_find(tstate.params, "ip");
+        char *oam_ip = (char *)hashmap_find(tstate.params, "ip");
         if (oam_ip == NULL) {
             THROW("oam_ip is unspecified.");
         }
-        char *port_str = hashmap_find(tstate.params, "port");
+        char *port_str = (char *)hashmap_find(tstate.params, "port");
         if (port_str) {
             if (sscanf(port_str, "%i%c", &u, &err) != 1)
                 THROW("oam_port '%s' is invalid", port_str);
@@ -246,7 +247,7 @@ static int iface_delete_cb(const char *key, void *value, void *userdata)
 {
     (void)key; // owned by the interface
     (void)userdata;
-    struct Interface *iface = value;
+    struct Interface *iface = (struct Interface *)value;
     close_iface(iface);
     return 1;
 }
@@ -279,9 +280,9 @@ struct ConfIfaceTokenState {
 
 static bool iface_stream_token_cb(char *token, void *userdata)
 {
-    struct ConfIfaceTokenState *tstate = userdata;
+    struct ConfIfaceTokenState *tstate = (struct ConfIfaceTokenState *)userdata;
 
-    struct ConfStream *s = hashmap_find(tstate->streams, token);
+    struct ConfStream *s = (struct ConfStream *)hashmap_find(tstate->streams, token);
     if (s != NULL) {
         struct ConfStreamList *sl = calloc_struct(ConfStreamList);
         sl->stream = s;
@@ -297,10 +298,10 @@ static bool iface_stream_token_cb(char *token, void *userdata)
 
 static int iface_stream_cb(const char *key, void *value, void *userdata)
 {
-    struct ConfIfaceStreamsState *state = userdata;
-    char *str = value;
+    struct ConfIfaceStreamsState *state = (struct ConfIfaceStreamsState *)userdata;
+    char *str = (char *)value;
 
-    char *is = strstr(key, ":streams");
+    const char *is = strstr(key, ":streams");
     // skip the lines that are not stream list
     if (is == NULL)
         return 1;
@@ -313,7 +314,7 @@ static int iface_stream_cb(const char *key, void *value, void *userdata)
 
     // find the interface
     char *ifname = strndup(key, is-key);
-    struct Interface *iface = hashmap_find(state->ifaces, ifname);
+    struct Interface *iface = (struct Interface *)hashmap_find(state->ifaces, ifname);
     if (iface == NULL) {
         log_error("parsing streams for interfaces: unknown interface '%s'", ifname);
         free(ifname);
@@ -343,7 +344,7 @@ static int iface_stream_delete_cb(const char *key, void *value, void *userdata)
 {
     (void)userdata;
     free((char*)key);
-    struct ConfStreamList *list = value;
+    struct ConfStreamList *list = (struct ConfStreamList *)value;
     while (list) {
         struct ConfStreamList *del = list;
         list = list->next;
