@@ -29,7 +29,7 @@ build-r2dtwo-debug-cpp:
   tags:
     - rosetta-docker
   script:
-    - gitlab-ci/cppize.pl
+    - gitlab-ci/cppize.pl Makefile
     - make debug -j
 
 build-r2dtwo-release-cpp:
@@ -37,7 +37,7 @@ build-r2dtwo-release-cpp:
   tags:
     - rosetta-docker
   script:
-    - gitlab-ci/cppize.pl
+    - gitlab-ci/cppize.pl Makefile
     - make release -j
 
 #TODO clang build: we need a Docker image
