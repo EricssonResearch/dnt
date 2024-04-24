@@ -65,7 +65,6 @@ build-unit_test:
 pytest_oam:
   stage: test
   tags:
-    - rosetta-docker
     - tsn
   dependencies:
     - build-r2dtwo-debug
