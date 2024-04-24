@@ -66,14 +66,15 @@ pytest_oam:
   stage: test
   tags:
     - rosetta-docker
+    - tsn
   dependencies:
     - build-r2dtwo-debug
   before_script:
-    - apt update && apt -y install mininet python3-pyroute2 python3-regex
+    - apt update && apt -y install mininet python3-pyroute2 python3-regex iproute2 strace psmisc iputils-ping
   script:
     - cd test
     - ./oam.py
-  timeout: 10 minutes
+  timeout: 3 minutes
 
 
 .unit_test.common:
