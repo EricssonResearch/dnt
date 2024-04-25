@@ -33,7 +33,6 @@ fi
 configure_networkenv() {
   echo "Initialize r2dtwo test environment"
   
-  # Create the test namespace
   for item in $NETNSES; do
     ip netns add $item 2>/dev/null
     ip netns exec $item ip link set dev lo up
@@ -69,31 +68,14 @@ configure_networkenv() {
     ip netns exec $ns ip address add $ip/24 dev $iface
   done
 
-  REDIRECT="A;eth0,a1,a2 B;b1,b2,b3 C;c1,c2,c3 D;d1,d2,d3 E;e1,e2,e3 F;eth0,f1,f2"
-  for item in $REDIRECT; do
-    ns=${item%;*}
-    ifaces_to_split=${item#*;}
-    IFS=',' read -r -a ifaces <<< "$ifaces_to_split"
-
-    ip netns exec $ns ethtool -K ${ifaces[0]} tx off rx off
-    ip netns exec $ns ethtool -K ${ifaces[1]} tx off rx off
-    ip netns exec $ns ethtool -K ${ifaces[2]} tx off rx off
-  done
-
-  ip netns exec A ip link add r2eth0 type veth peer name r2eth1
-  ip netns exec A ip link set dev r2eth0 up
-  ip netns exec A ip link set dev r2eth1 up
-  ip netns exec A tc qdisc add dev eth0 handle ffff: ingress
-  ip netns exec A tc filter add dev eth0 parent ffff: protocol ip flower src_ip 192.168.1.1 dst_ip 192.168.2.2 action mirred egress redirect dev r2eth0
-
   ip netns exec talker ip route add default via 192.168.1.2
+  ip netns exec listener ip route add default via 192.168.2.1
   ip netns exec F ip route add default via 192.168.2.2
 
   ip netns exec talker ip link set eth0 address 00:00:00:01:01:01
   ip netns exec listener ip link set eth0 address 00:00:00:02:02:02
 
   ip netns exec talker ethtool -K eth0 tx off rx off
-  ip netns exec listener ethtool -K eth0 tx off rx off
 }
 
 # This is totally unsafe
