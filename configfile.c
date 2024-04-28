@@ -8,7 +8,6 @@
 #include "conf_object.h"
 #include "conf_streams.h"
 #include "conf_oam.h"
-#include "action.h"
 #include "inifile.h"
 #include "interface.h"
 #include "log.h"

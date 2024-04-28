@@ -6,9 +6,10 @@
 CFLAGS += -g -std=gnu99
 
 #TODO clang ignores -Wmissing-declarations
-CFLAGS += -Wall -Wextra -Wshadow -Wstrict-prototypes -Wmissing-declarations -Wwrite-strings
+CFLAGS += -Wall -Wextra -Wshadow -Wstrict-prototypes -Wmissing-declarations -Wwrite-strings -Wvla
 CFLAGS += -Werror
 CFLAGS += -Iinifile
+CFLAGS += -D_FORTIFY_SOURCE=3
 #CFLAGS += -fanalyzer
 
 # ASan is incompatible with Valgrind

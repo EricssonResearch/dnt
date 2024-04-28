@@ -3,7 +3,6 @@
 
 
 #include "seq_gen.h"
-#include "action.h"
 #include "json.h"
 #include "packet.h"
 #include "pipeline.h"

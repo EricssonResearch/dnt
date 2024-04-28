@@ -1,9 +1,6 @@
 // Copyright (c) 2023, Ericsson AB and Ericsson Telecommunication Hungary
 // All rights reserved.
 
-#ifndef _GNU_SOURCE /* stupid g++ implicitly defines this */
-#define _GNU_SOURCE /* for str[n]dupa */
-#endif
 
 #include "log.h"
 #include "hashmap.h"
@@ -62,8 +59,10 @@ char *logname_from_config(const char *config_name)
     for (const char *c=start; *c; c++) {
         if (*c == '.') end = c;
     }
-    const char *confname = end ? strndupa(start, end-start) : start;
-    return strdup_printf("r2dtwo-%s-%u.log", confname, pid);
+    char *confname = end ? strndup(start, end-start) : (char*)start;
+    char *ret = strdup_printf("r2dtwo-%s-%u.log", confname, pid);
+    if (confname != start) free(confname);
+    return ret;
 }
 
 bool open_log(LOG_OUTPUT out, char *logname)
@@ -235,7 +234,14 @@ int __log_perror_func(const char *logmodule, const char *frmt, ...)
     vsnprintf(msg, sizeof(msg), frmt, argp);
     va_end(argp);
 
-    char errstr[256] = {0}; // strerror_r() can fail
+    char errstr[1024] = {0}; // initialize because strerror_r() can fail
+    // note: in glibc there are two versions of strerror_r
+    //       the XSI version always writes into the given buffer
+    //       the GNU version can return a statically allocated string
+    //        instead of writing into the given buffer
+    //      -> we want to have the XSI version for portability
+    // how to detect which version we got: if _FORTIFY_SOURCE is set the
+    //       GNU version warns about the unused return value
     strerror_r(errno, errstr, sizeof(errstr));
 
     if (log_output != LOG_OUT_SYSLOG) {

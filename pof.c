@@ -6,7 +6,6 @@
 #endif
 
 #include "pof.h"
-#include "action.h"
 #include "log.h"
 #include "oam.h"
 #include "object.h"

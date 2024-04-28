@@ -3,7 +3,6 @@
 
 
 #include "seq_recov.h"
-#include "action.h"
 #include "log.h"
 #include "oam.h"
 #include "packet.h"

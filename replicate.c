@@ -3,7 +3,6 @@
 
 
 #include "replicate.h"
-#include "action.h"
 #include "json.h"
 #include "pipeline.h"
 #include "utils.h"
