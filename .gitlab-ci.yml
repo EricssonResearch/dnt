@@ -1,11 +1,19 @@
 # this is based on the C++.gitlab-ci.yml template
 
-# TODO is there an official Docker image that also contains cmake?
-image: gcc
+# this Docker image should contain everything we need
+image: mtmkls/ci-runner
 
 stages:
-    - build
-    - test
+  - verify
+  - build
+  - test
+
+verify-ci-config:
+  stage: verify
+  tags:
+    - rosetta-docker
+  script:
+    - gitlab-ci/verify_yaml.pl
 
 build-r2dtwo-debug:
   stage: build
@@ -40,15 +48,25 @@ build-r2dtwo-release-cpp:
     - gitlab-ci/cppize.pl Makefile
     - make release -j
 
-#TODO clang build: we need a Docker image
+build-r2dtwo-debug-clang:
+  stage: build
+  tags:
+    - rosetta-docker
+  script:
+    - CC=clang make debug -j
+
+build-r2dtwo-release-clang:
+  stage: build
+  tags:
+    - rosetta-docker
+  script:
+    - CC=clang make release -j
 
 
 build-unit_test:
   stage: build
   tags:
     - rosetta-docker
-  before_script:
-    - apt update && apt -y install cmake
   script:
     - cd unit_test
     - mkdir build
@@ -61,15 +79,12 @@ build-unit_test:
 
 
 #TODO run all the python tests
-#TODO do we have a mininet Docker image?
 pytest_oam:
   stage: test
   tags:
     - tsn
   dependencies:
     - build-r2dtwo-debug
-  before_script:
-    - apt update && apt -y install mininet python3-pyroute2 python3-regex iproute2 strace psmisc iputils-ping
   script:
     - cd test
     - ./oam.py
