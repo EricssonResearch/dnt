@@ -1,7 +1,7 @@
 # this is based on the C++.gitlab-ci.yml template
 
 # this Docker image should contain everything we need
-image: mtmkls/ci-runner
+image: mtmkls/ci-runner:v1
 
 stages:
   - verify
