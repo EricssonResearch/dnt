@@ -17,7 +17,7 @@ struct Pipeline;
 
 struct HeaderMatch {
     struct HeaderField field;
-    struct Value value;
+    struct Value value; // currently always a constant
     value_comparator *comparator;
 
     struct HeaderMatch *next;
@@ -30,6 +30,15 @@ struct HeaderDescriptor {
 
     struct HeaderDescriptor *next;
 };
+
+// always returns NULL
+struct HeaderDescriptor *delete_header_list(struct HeaderDescriptor *headers);
+
+struct HeaderDescriptor *copy_header_list(const struct HeaderDescriptor *headers, bool copy_matchlist);
+
+struct HeaderDescriptor *header_list_find_by_name(struct HeaderDescriptor *headers, const char *name);
+
+struct HeaderDescriptor *header_list_find_by_typeid(struct HeaderDescriptor *headers, enum ProtocolID id);
 
 
 struct ParseTree;
@@ -55,13 +64,5 @@ bool parsetree_del_stream(struct ParseTree *pt, const char *stream_name);
 //      - match header field values against known streams
 // @returns an action pipeline to process the packet or NULL if unknown stream
 struct Pipeline *parsetree_process(struct ParseTree *pt, struct Packet *p);
-
-
-// always returns NULL
-struct HeaderDescriptor *delete_header_list(struct HeaderDescriptor *headers);
-
-struct HeaderDescriptor *header_list_find_by_name(struct HeaderDescriptor *headers, const char *name);
-
-struct HeaderDescriptor *header_list_find_by_typeid(struct HeaderDescriptor *headers, enum ProtocolID id);
 
 #endif // R2_PARSETREE_H

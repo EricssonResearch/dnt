@@ -97,7 +97,7 @@ void iface_ref(struct Interface *iface);
 void iface_unref(struct Interface *iface);
 
 // add a stream that this interface will receive
-// adds a reference to @pipe
+// adds a reference to @pipe, makes a copy of @headers
 // @returns true on success
 bool iface_add_stream(struct Interface *iface, struct HeaderDescriptor *headers, struct Pipeline *pipe);
 

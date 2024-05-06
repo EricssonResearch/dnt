@@ -203,30 +203,6 @@ static void replicatelist_push(struct ReplicateList **list, char *name, struct C
     *list = l;
 }
 
-// shallow copy, we are not interested in the match lists
-static struct HeaderDescriptor *copy_header_list(const struct HeaderDescriptor *headers)
-{
-    struct HeaderDescriptor *ret = NULL;
-    struct HeaderDescriptor *r = NULL;
-    const struct HeaderDescriptor *h = headers;
-
-    while (h) {
-        struct HeaderDescriptor *w = calloc_struct(HeaderDescriptor);
-        if (r) {
-            r->next = w;
-            r = w;
-        } else {
-            ret = r = w;
-        }
-        w->name = strdup(h->name);
-        w->id = h->id;
-
-        h = h->next;
-    }
-
-    return ret;
-}
-
 // make a copy of @stst->must_write list, adjusting the header references to @newheaders
 // we assume that @newheaders = copy_header_list(@stst->headers)
 static struct MustWriteField *copy_mustwrite_list(const struct StageState *stst, const struct HeaderDescriptor *newheaders)
@@ -873,7 +849,7 @@ static bool process_token(char *token, void *userdata)
                 struct StageState pstst = *stst;
                 char *replname = strdup(token);
                 pstst.stream = replname;
-                pstst.headers = copy_header_list(stst->headers);
+                pstst.headers = copy_header_list(stst->headers, false);
                 pstst.actions = NULL;
                 pstst.must_write = copy_mustwrite_list(stst, pstst.headers);
                 pstst.depth += 1;
@@ -1550,7 +1526,7 @@ struct ConfAction *parse_actions_line(const char *stream, const char *line,
     struct StageState stst = {
         .stream = stream,
         .actions = NULL,
-        .headers = copy_header_list(headers),
+        .headers = copy_header_list(headers, false),
         .ifaces = ifaces,
         .objects = objects,
         .streams_sec = streams_sec,
