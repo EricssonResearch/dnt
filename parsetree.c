@@ -192,7 +192,11 @@ struct Pipeline *parsetree_process(struct ParseTree *pt, struct Packet *p)
         while (h) {
             const struct Protocol *proto = &protocol_list[h->id];
             // if a header fails to match, we dont check the next one
-            packet_identify_header(p, h->id, offset, proto->bytelength);
+            if (!packet_identify_header(p, h->id, offset, proto->bytelength)) {
+                full_stream_match = false;
+                packet_clear_headers(p);
+                break;
+            }
             if (!parsetree_match_header(h->matches, p)) {
                 full_stream_match = false;
                 packet_clear_headers(p);

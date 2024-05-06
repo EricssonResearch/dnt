@@ -100,23 +100,28 @@ bool packet_dummy(const struct Packet *p)
     return p->buf == dummybuf;
 }
 
-void packet_identify_header(struct Packet *p, enum ProtocolID type, unsigned offset, unsigned len)
+bool packet_identify_header(struct Packet *p, enum ProtocolID type, unsigned offset, unsigned len)
 {
     if (p->header_count == PACKET_MAX_HEADER_NUM) {
         log_error("packet_identify_header: already at maximum header count");
-        return;
+        return false;
     }
     if (p->header_count > 0 && p->headers[p->header_count-1].start > p->start + offset) {
-        log_error("packet_identify_header: new offset % is smaller than the previous %u",
+        log_error("packet_identify_header: new offset %u is smaller than the previous %u",
                 offset, p->headers[p->header_count-1].start);
-        return;
+        return false;
+    }
+    if (offset + len > p->len) {
+        log_error("packet_identify_header: offset %u + len %u is larger than the packet %u",
+                offset, len, p->len);
+        return false;
     }
     struct PacketHeader *h = p->headers+p->header_count;
     h->type = type;
-    //TODO check that h->start + h->len < p->start + p->len
     h->start = p->start + offset;
     h->len = len;
     p->header_count++;
+    return true;
 }
 
 static int scratch_alloc(struct Packet *p, unsigned len)
