@@ -31,20 +31,24 @@ struct HeaderDescriptor {
     struct HeaderDescriptor *next;
 };
 
+
 struct ParseTree;
 
-struct ParseTree *new_parsetree(struct Interface *iface);
+struct ParseTree *new_parsetree(const struct Interface *iface);
 
-void parsetree_ref(struct ParseTree *pt);
-
-void parsetree_unref(struct ParseTree *pt);
+// always returns NULL
+struct ParseTree *delete_parsetree(struct ParseTree *pt);
 
 // adds a new stream to the decision tree
-// this will add a reference to @pipe
-// this should not alter @headers, dynconf will need it later
+// the name of the stream is @pipe->name
+// the add order matters: if a packet matches multiple streams, the first one added will match
+// this will make a deep copy of @headers (easy to copy, difficult to refcount)
+// this will add a reference to @pipe (difficult to copy)
 bool parsetree_add_stream(struct ParseTree *pt, struct HeaderDescriptor *headers, struct Pipeline *pipe);
 
-//TODO parsetree_del_stream()
+// removes a stream from the decision tree
+// @returns true on success, false if the stream is unknown
+bool parsetree_del_stream(struct ParseTree *pt, const char *stream_name);
 
 // parses the packet:
 //      - identify headers, fill p->headers
@@ -52,8 +56,6 @@ bool parsetree_add_stream(struct ParseTree *pt, struct HeaderDescriptor *headers
 // @returns an action pipeline to process the packet or NULL if unknown stream
 struct Pipeline *parsetree_process(struct ParseTree *pt, struct Packet *p);
 
-// always returns NULL
-struct HeaderMatch *delete_match_list(struct HeaderMatch *matches);
 
 // always returns NULL
 struct HeaderDescriptor *delete_header_list(struct HeaderDescriptor *headers);

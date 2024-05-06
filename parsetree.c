@@ -16,36 +16,31 @@
 DEFAULT_LOGGING_MODULE(PARSER, WARNING);
 
 struct ParseTree {
-    struct Interface *iface;
-    struct HeaderDescriptor *headers; //TODO refcount this? one stream can be in multiple parsetrees
+    const struct Interface *iface;
+    struct HeaderDescriptor *headers;
     struct Pipeline *pipe;
-    int reference_count;
     struct ParseTree *next; // its a list for now
 };
 
 
-struct ParseTree *new_parsetree(struct Interface *iface)
+struct ParseTree *new_parsetree(const struct Interface *iface)
 {
     struct ParseTree *ret = calloc_struct(ParseTree);
     ret->iface = iface;
     return ret;
 }
 
-void parsetree_ref(struct ParseTree *pt)
+struct ParseTree *delete_parsetree(struct ParseTree *pt)
 {
-    __atomic_add_fetch(&pt->reference_count, 1, __ATOMIC_RELAXED);
-}
+    if (pt == NULL) return NULL;
 
-void parsetree_unref(struct ParseTree *pt)
-{
-    int refcount = __atomic_sub_fetch(&pt->reference_count, 1, __ATOMIC_RELAXED);
-
-    if (refcount == 0) {
-        if (pt->pipe) {
-            pipeline_unref(pt->pipe);
-        }
-        free(pt);
+    if (pt->pipe) {
+        pipeline_unref(pt->pipe);
     }
+    //TODO pt->next
+    free(pt);
+
+    return NULL;
 }
 
 bool parsetree_add_stream(struct ParseTree *pt_head, struct HeaderDescriptor *headers, struct Pipeline *pipe)
@@ -117,7 +112,7 @@ struct Pipeline *parsetree_process(struct ParseTree *pt_head, struct Packet *p)
     return NULL;
 }
 
-struct HeaderMatch *delete_match_list(struct HeaderMatch *matches)
+static struct HeaderMatch *delete_match_list(struct HeaderMatch *matches)
 {
     struct HeaderMatch *m = matches;
     while (m) {

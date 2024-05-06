@@ -304,7 +304,6 @@ struct Interface *new_eth_interface(const char *name, const char *ifname)
     iface->iface_private = eid;
 
     iface->parsetree_ = new_parsetree(iface);
-    parsetree_ref(iface->parsetree_);
 
     return iface;
 }
