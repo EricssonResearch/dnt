@@ -114,12 +114,15 @@ struct HeaderDescriptor *header_list_find_by_typeid(struct HeaderDescriptor *hea
     return NULL;
 }
 
+struct Stream {
+    struct HeaderDescriptor *headers;
+    struct Pipeline *pipe;
+    struct Stream *next;
+};
 
 struct ParseTree {
     const struct Interface *iface;
-    struct HeaderDescriptor *headers;
-    struct Pipeline *pipe;
-    struct ParseTree *next; // its a list for now
+    struct Stream *streams;
 };
 
 
@@ -134,58 +137,63 @@ struct ParseTree *delete_parsetree(struct ParseTree *pt)
 {
     if (pt == NULL) return NULL;
 
-    if (pt->pipe) {
-        pipeline_unref(pt->pipe);
+    struct Stream *s = pt->streams;
+    while (s) {
+        struct Stream *d = s;
+        s = s->next;
+        pipeline_unref(d->pipe);
+        delete_header_list(d->headers);
+        free(d);
     }
-    delete_header_list(pt->headers);
-    //TODO pt->next
     free(pt);
 
     return NULL;
 }
 
-bool parsetree_add_stream(struct ParseTree *pt_head, struct HeaderDescriptor *headers, struct Pipeline *pipe)
+bool parsetree_add_stream(struct ParseTree *pt, struct HeaderDescriptor *headers, struct Pipeline *pipe)
 {
-    struct ParseTree *pt_last = pt_head;
-    while (pt_last->next) {
-        pt_last = pt_last->next;
+    for (struct Stream *s=pt->streams; s; s=s->next) {
+        if (strcmp(s->pipe->name, pipe->name) == 0) return false;
     }
-    // TODO: handle refereneces
-    pt_last->next = new_parsetree(pt_head->iface);
-    pt_last->headers = copy_header_list(headers, true);
-    pt_last->pipe = pipe;
+
+    struct Stream *news = calloc_struct(Stream);
+    news->headers = copy_header_list(headers, true);
+    news->pipe = pipe;
     pipeline_ref(pipe);
+
+    if (pt->streams) {
+        struct Stream *s = pt->streams;
+        while (s->next) s = s->next;
+        s->next = news;
+    } else {
+        pt->streams = news;
+    }
+
     return true;
 }
 
 static bool parsetree_match_header(const struct HeaderMatch *fields, const struct Packet *p)
 {
     const struct HeaderMatch *f = fields;
-    bool matched = true;
     while (f) {
-        matched &= f->comparator(&f->field, &f->value, p);
+        if (!f->comparator(&f->field, &f->value, p)) return false;
         f = f->next;
     }
-    return matched;
+    return true;
 }
 
-struct Pipeline *parsetree_process(struct ParseTree *pt_head, struct Packet *p)
+struct Pipeline *parsetree_process(struct ParseTree *pt, struct Packet *p)
 {
-    for (struct ParseTree *pt = pt_head; pt != NULL; pt = pt->next) {
-        if (pt->headers == NULL) {
-            log_error("parsetree %s: packet matched none of the streams", pt->iface->name);
-            packet_logcat(p, "unknown stream");
-            return NULL;
-        }
-
-        struct HeaderDescriptor *h = pt->headers;
+    for (struct Stream *s=pt->streams; s; s=s->next) {
+        struct HeaderDescriptor *h = s->headers;
         unsigned offset = 0;
         bool full_stream_match = true;
+
         while (h) {
             const struct Protocol *proto = &protocol_list[h->id];
             // if a header fails to match, we dont check the next one
             packet_identify_header(p, h->id, offset, proto->bytelength);
-            if(!parsetree_match_header(h->matches, p)) {
+            if (!parsetree_match_header(h->matches, p)) {
                 full_stream_match = false;
                 packet_clear_headers(p);
                 break;
@@ -193,11 +201,12 @@ struct Pipeline *parsetree_process(struct ParseTree *pt_head, struct Packet *p)
             offset += proto->bytelength;
             h = h->next;
         }
+
         if (full_stream_match) {
             packet_identify_header(p, PROTO_ID_PAYLOAD, offset, p->len-offset);
 
-            log_packet("identified %u headers, pipe %s", p->header_count, pt->pipe->name);
-            packet_logcat(p, "%s ", pt->pipe->name);
+            log_packet("identified %u headers, pipe %s", p->header_count, s->pipe->name);
+            packet_logcat(p, "%s ", s->pipe->name);
             for (unsigned i=0; i<p->header_count; i++) {
                 log_packet("  header %u is %s at %u len %u", i,
                         protocol_list[p->headers[i].type].name, p->headers[i].start, p->headers[i].len);
@@ -205,9 +214,10 @@ struct Pipeline *parsetree_process(struct ParseTree *pt_head, struct Packet *p)
             }
             packet_logcat(p, "| ");
 
-            return pt->pipe;
+            return s->pipe;
         }
     }
+
     log_packet("no pipeline found, unknown stream");
     packet_logcat(p, "unknown stream");
     return NULL;

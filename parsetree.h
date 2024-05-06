@@ -50,6 +50,7 @@ struct ParseTree *delete_parsetree(struct ParseTree *pt);
 
 // adds a new stream to the decision tree
 // the name of the stream is @pipe->name
+// @returns false if a stream with this name is already in the decision tree
 // the add order matters: if a packet matches multiple streams, the first one added will match
 // this will make a deep copy of @headers (easy to copy, difficult to refcount)
 // this will add a reference to @pipe (difficult to copy)
