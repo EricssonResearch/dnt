@@ -221,15 +221,14 @@ static int addstream_cb(const char *key, void *value, void *userdata)
                 log_error("failed to create action pipeline for stream %s", s->stream_name);
                 return 0;
             }
+            hashmap_insert(state->pipe_cache, s->stream_name, pipe);
         }
 
         if (!iface_add_stream(iface, s->stream->headers, pipe)) {
             log_error("failed to add stream %s to interface %s",
                     s->stream_name, key);
-            pipeline_unref(pipe); //TODO verify the refcounting scheme, including the error path
             return 0;
         }
-        hashmap_insert(state->pipe_cache, strdup(s->stream_name), pipe);
     }
 
     return 1;
@@ -237,9 +236,10 @@ static int addstream_cb(const char *key, void *value, void *userdata)
 
 static int pipe_cache_delete_cb(const char *key, void *value, void *userdata)
 {
-    (void)value;
     (void)userdata;
-    free((char*)key);
+    (void)key; // owned by the pipe
+    struct Pipeline *pipe = (struct Pipeline *)value;
+    pipeline_unref(pipe);
     return 1;
 }
 

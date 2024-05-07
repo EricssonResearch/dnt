@@ -1833,7 +1833,6 @@ struct Pipeline *assemble_actions(const char *stream_name, const struct ConfActi
                         //TODO cleanup on error
                         return NULL;
                     }
-                    pipeline_ref(r_pipe);
 
                     struct PipelineList *p = calloc_struct(PipelineList);
                     p->pipe = r_pipe;
@@ -1870,6 +1869,7 @@ struct Pipeline *assemble_actions(const char *stream_name, const struct ConfActi
     ret->actions = actions;
     ret->action_count = count;
     ret->name = strdup(stream_name);
+    ret->reference_count = 1; // the initial owner is the caller of assemble_actions()
     ref_send_interfaces(ret);
     return ret;
 #undef THROW
