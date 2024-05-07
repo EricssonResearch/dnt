@@ -50,6 +50,7 @@ struct PipelineObject *new_replicate(const char *name)
     ret->base.name = strdup(name);
     ret->base.process_packet = replicate_packet_passed;
     ret->base.get_state = get_state_json;
+    ret->base.reference_count = 1;
     return (struct PipelineObject *)ret;
 }
 

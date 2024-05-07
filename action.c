@@ -196,7 +196,7 @@ static enum ActionResult action_EDIT_execute(struct Action *a, struct PipelineIt
     return ACR_CONTINUE;
 }
 
-static void action_edit_del(void *action_private)
+static void action_EDIT_del(void *action_private)
 {
     struct EditData *ed = (struct EditData *)action_private;
     for (unsigned i=0; i<ed->assign_count; i++) {
@@ -212,7 +212,7 @@ static void action_edit_del(void *action_private)
 void create_action_edit(struct Action *a, struct EditAssign *assigns, unsigned assign_count, const char *text)
 {
     INIT_ACTION(EDIT);
-    a->del = action_edit_del;
+    a->del = action_EDIT_del;
 
     struct EditData *ed = calloc_struct(EditData);
     ed->assigns = assigns;
@@ -232,12 +232,20 @@ static enum ActionResult action_ELIM_execute(struct Action *a, struct PipelineIt
     return seq_recovery(ed->rcvy, pi);
 }
 
+static void action_ELIM_del(void *action_private)
+{
+    struct ElimData *ed = (struct ElimData *)action_private;
+    pipeline_object_unref(ed->rcvy);
+}
+
 void create_action_elim(struct Action *a, struct PipelineObject *rcvy, const char *text)
 {
     INIT_ACTION(ELIM);
+    a->del = action_ELIM_del;
 
     struct ElimData *ed = calloc_struct(ElimData);
     ed->rcvy = rcvy;
+    pipeline_object_ref(rcvy);
     a->action_private = ed;
 }
 
@@ -285,12 +293,20 @@ static enum ActionResult action_POF_execute(struct Action *a, struct PipelineIte
     return pof_insert(pd->pof, pi);
 }
 
+static void action_POF_del(void *action_private)
+{
+    struct PofData *pd = (struct PofData *)action_private;
+    pipeline_object_unref(pd->pof);
+}
+
 void create_action_pof(struct Action *a, struct PipelineObject *pof, const char *text)
 {
     INIT_ACTION(POF);
+    a->del = action_POF_del;
 
     struct PofData *pd = calloc_struct(PofData);
     pd->pof = pof;
+    pipeline_object_ref(pof);
     a->action_private = pd;
 }
 
@@ -372,7 +388,7 @@ static enum ActionResult action_REPL_execute(struct Action *a, struct PipelineIt
     return ACR_DONE;
 }
 
-static void action_repl_del(void *action_private)
+static void action_REPL_del(void *action_private)
 {
     struct ReplData *rd = (struct ReplData *)action_private;
     struct PipelineList *list = rd->pipes;
@@ -382,16 +398,20 @@ static void action_repl_del(void *action_private)
         pipeline_unref(del->pipe);
         free(del);
     }
+    if (rd->replobj)
+        pipeline_object_unref(rd->replobj);
 }
 
 void create_action_repl(struct Action *a, struct PipelineList *list, struct PipelineObject *replobj, const char *text)
 {
     INIT_ACTION(REPL);
-    a->del = action_repl_del;
+    a->del = action_REPL_del;
 
     struct ReplData *rd = calloc_struct(ReplData);
     rd->pipes = list;
     rd->replobj = replobj;
+    if (replobj)
+        pipeline_object_ref(replobj);
     a->action_private = rd;
 }
 
@@ -448,12 +468,20 @@ static enum ActionResult action_SEQGEN_execute(struct Action *a, struct Pipeline
     return seq_generator(sd->gen, pi);
 }
 
+static void action_SEQGEN_del(void *action_private)
+{
+    struct SeqgenData *sd = (struct SeqgenData *)action_private;
+    pipeline_object_unref(sd->gen);
+}
+
 void create_action_seqgen(struct Action *a, struct PipelineObject *gen, const char *text)
 {
     INIT_ACTION(SEQGEN);
+    a->del = action_SEQGEN_del;
 
     struct SeqgenData *sd = calloc_struct(SeqgenData);
     sd->gen = gen;
+    pipeline_object_ref(gen);
     a->action_private = sd;
 }
 
@@ -570,7 +598,7 @@ static enum ActionResult action_MEP_execute(struct Action *a, struct PipelineIte
     }
 }
 
-static void action_mep_del(void *action_private)
+static void action_MEP_del(void *action_private)
 {
     struct MepData *md = (struct MepData *)action_private;
     oam_delete_endpoint(md->oam);
@@ -583,7 +611,7 @@ void create_action_mepstop(struct Action *a, const char *stream, int level, stru
         const char *name, const char *text)
 {
     INIT_ACTION(MEPSTOP);
-    a->del = action_mep_del;
+    a->del = action_MEP_del;
 
     struct MepData *md = calloc_struct(MepData);
     md->oam = oam_create_endpoint(name, stream, level, target, true);
@@ -594,7 +622,7 @@ void create_action_mip(struct Action *a, const char *stream, int level, struct P
         const char *name, const char *text)
 {
     INIT_ACTION(MIP);
-    a->del = action_mep_del;
+    a->del = action_MEP_del;
 
     struct MepData *md = calloc_struct(MepData);
     md->oam = oam_create_endpoint(name, stream, level, target, false);

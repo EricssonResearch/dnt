@@ -124,6 +124,7 @@ struct PipelineObject *new_pof(const char *name, unsigned pof_max_delay, unsigne
     ret->base.name = strdup(name);
     ret->base.get_state = get_state_json;
     ret->base.process_packet = pof_insert;
+    ret->base.reference_count = 1;
 
     timespec_from_msec(&ret->pof_max_delay, pof_max_delay);
     timespec_from_msec(&ret->pof_take_any_time, pof_take_any_time);

@@ -310,7 +310,7 @@ static int delete_cb(const char *key, void *value, void *userdata)
     (void)key; // this is obj->name, freed by delete_pipeline_object()
     struct PipelineObject *obj = (struct PipelineObject *)value;
     (void)userdata;
-    delete_pipeline_object(obj);
+    pipeline_object_unref(obj);
     return 1;
 }
 
