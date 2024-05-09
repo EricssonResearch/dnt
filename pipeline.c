@@ -19,6 +19,12 @@ void pipeline_ref_send_interfaces(struct Pipeline *pipe, struct Interface *recv_
     for (unsigned i=0; i<pipe->action_count; i++) {
         if (pipe->actions[i].type == ACT_SEND) {
             iface_ref(action_send_get_iface(pipe->actions+i));
+        } else if (pipe->actions[i].type == ACT_REPL) {
+            struct PipelineList *pl = action_repl_get_piplinelist(pipe->actions+i);
+            while (pl) {
+                pipeline_ref_send_interfaces(pl->pipe, recv_iface);
+                pl = pl->next;
+            }
         }
     }
 }
