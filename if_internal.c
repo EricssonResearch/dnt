@@ -121,11 +121,8 @@ static bool int_close(struct Interface *iface)
 
 struct Interface *new_internal_interface(const char *name)
 {
-    struct Interface *iface = calloc_struct(Interface);
-    iface->name = strdup(name);
+    _NEW_IFACE(IF_INTERNAL);
     iface->ifname = NULL;
-    iface->type = IF_INTERNAL;
-    iface->state = IFS_INIT;
     iface->recv = int_recv;
     iface->send = int_send;
     iface->open = int_open;

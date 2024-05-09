@@ -5,6 +5,7 @@
 #include "interface.h"
 #include "log.h"
 #include "parsetree.h"
+#include "pipeline.h"
 
 #include <stdlib.h>
 
@@ -54,12 +55,13 @@ void iface_unref(struct Interface *iface)
 bool iface_add_stream(struct Interface *iface, struct HeaderDescriptor *headers, struct Pipeline *pipe)
 {
     if (iface->parsetree_ == NULL) {
-        log_error("%s can't receive stream without a parsetree", iface->name);
+        log_error("%s can't receive stream %s without a parsetree", iface->name, pipe->name);
         return false;
     }
     if (!parsetree_add_stream(iface->parsetree_, headers, pipe)) {
-        log_error("failed to add stream to parsetree");
+        log_error("failed to add stream %s to parsetree", pipe->name);
         return false;
     }
+    pipeline_ref_send_interfaces(pipe, iface);
     return true;
 }

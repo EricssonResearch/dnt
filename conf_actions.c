@@ -1728,15 +1728,6 @@ static struct EditAssign *assemble_fieldassigns(struct ConfAssignment *list, uns
     return ret;
 }
 
-// add reference to the outgoing interfaces so they know they are in use
-static void ref_send_interfaces(struct Pipeline *pipe)
-{
-    for (unsigned i=0; i<pipe->action_count; i++) {
-        if (pipe->actions[i].type == ACT_SEND) {
-            iface_ref(action_send_get_iface(pipe->actions+i));
-        }
-    }
-}
 
 struct Pipeline *assemble_actions(const char *stream_name, const struct ConfAction *ca_list)
 {
@@ -1870,7 +1861,6 @@ struct Pipeline *assemble_actions(const char *stream_name, const struct ConfActi
     ret->action_count = count;
     ret->name = strdup(stream_name);
     ret->reference_count = 1; // the initial owner is the caller of assemble_actions()
-    ref_send_interfaces(ret);
     return ret;
 #undef THROW
 }

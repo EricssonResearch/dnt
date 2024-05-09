@@ -3,6 +3,7 @@
 
 
 #include "if_oam.h"
+#include "if_utils.h"
 #include "interface.h"
 #include "log.h"
 #include "oam.h"
@@ -193,10 +194,7 @@ static value_producer *oam_get_property_reader(const struct Interface *iface, co
 struct Interface *new_oam_interface(const char *name,
                         const char *oam_ip, unsigned port)
 {
-    struct Interface *iface = calloc_struct(Interface);
-    iface->name = strdup(name);
-    iface->type = IF_OAM;
-    iface->state = IFS_INIT;
+    _NEW_IFACE(IF_OAM);
     iface->recv = oam_recv;
     iface->send = oam_send;
     iface->open = oam_open;

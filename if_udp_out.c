@@ -115,7 +115,7 @@ static bool udpout_open(struct Interface *iface)
     if (iface->delay_offload)
         if (!enable_so_txtime(sock, "udp-out", iface->ifname, false))
             return false;
-    
+
 /*
      // SO_DONTROUTE option also solves MTU problem. However, it will only work on directly
      // connected interfaces. So we are not using this option, instead we use IP MTU discovery
@@ -218,10 +218,8 @@ static value_producer *udpout_get_property_reader(const struct Interface *iface,
 struct Interface *new_udp_out_interface(const char *name, const char *ifname,
         unsigned src_port, const char *dst_ip, unsigned dst_port, unsigned priority)
 {
-    struct Interface *iface = calloc_struct(Interface);
-    iface->name = strdup(name);
+    _NEW_IFACE(IF_UDP_OUT);
     iface->ifname = strdup(ifname);
-    iface->type = IF_UDP_OUT;
     iface->recv = udpout_recv;
     iface->send = udpout_send;
     iface->open = udpout_open;
