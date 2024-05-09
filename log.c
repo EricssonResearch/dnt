@@ -2,6 +2,10 @@
 // All rights reserved.
 
 
+#ifdef _GNU_SOURCE /* stupid g++ implicitly defines this */
+#undef _GNU_SOURCE /* we want the standard version of strerror_r */
+#endif
+
 #include "log.h"
 #include "hashmap.h"
 #include "utils.h"

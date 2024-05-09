@@ -1,6 +1,9 @@
 // Copyright (c) 2023, Ericsson AB and Ericsson Telecommunication Hungary
 // All rights reserved.
 
+#ifdef _GNU_SOURCE /* stupid g++ implicitly defines this */
+#undef _GNU_SOURCE /* we want the standard version of strerror_r */
+#endif
 
 #include "if_utils.h"
 #include "interface.h"
@@ -368,7 +371,7 @@ static void *socket_monitor_thread(void *param)
         for (struct cmsghdr *cmsg=CMSG_FIRSTHDR(&msg); cmsg; cmsg=CMSG_NXTHDR(&msg, cmsg)) {
             if (cmsg->cmsg_level == SOL_IP && cmsg->cmsg_type == IP_RECVERR) {
                 struct sock_extended_err *serr = (struct sock_extended_err *) CMSG_DATA(cmsg);
-                char errstr[256] = {0}; // strerror_r() can fail
+                char errstr[1024] = {0}; // initialize because strerror_r() can fail
                 strerror_r(serr->ee_errno, errstr, sizeof(errstr));
                 // serr->ee_origin = 2 (SO_EE_ORIGIN_ICMP)
                 log_error("error on %s '%s' ICMP type %u code %u",
@@ -376,7 +379,7 @@ static void *socket_monitor_thread(void *param)
                         serr->ee_type, serr->ee_code);
             } else if (cmsg->cmsg_level == SOL_IPV6 && cmsg->cmsg_type == IPV6_RECVERR) {
                 struct sock_extended_err *serr = (struct sock_extended_err *) CMSG_DATA(cmsg);
-                char errstr[256] = {0}; // strerror_r() can fail
+                char errstr[1024] = {0}; // initialize because strerror_r() can fail
                 strerror_r(serr->ee_errno, errstr, sizeof(errstr));
                 // serr->ee_origin = 3 (SO_EE_ORIGIN_ICMP6)
                 log_error("error on %s '%s' ICMPv6 type %u code %u",
