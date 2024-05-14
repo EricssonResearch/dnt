@@ -248,7 +248,7 @@ static int iface_delete_cb(const char *key, void *value, void *userdata)
     (void)key; // owned by the interface
     (void)userdata;
     struct Interface *iface = (struct Interface *)value;
-    close_iface(iface);
+    iface_unref(iface);
     return 1;
 }
 

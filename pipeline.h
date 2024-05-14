@@ -36,7 +36,7 @@ void pipeline_ref(struct Pipeline *pipe);
 void pipeline_unref(struct Pipeline *pipe);
 
 // add reference to the interfaces this @pipe is sending on
-void pipeline_ref_send_interfaces(struct Pipeline *pipe, struct Interface *recv_iface);
+void pipeline_ref_send_interfaces(struct Pipeline *pipe);
 
 
 // the iterator will own the packet

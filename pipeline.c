@@ -13,16 +13,15 @@
 
 DEFAULT_LOGGING_MODULE(PIPELINE, WARNING);
 
-void pipeline_ref_send_interfaces(struct Pipeline *pipe, struct Interface *recv_iface)
+void pipeline_ref_send_interfaces(struct Pipeline *pipe)
 {
-    (void)recv_iface; //TODO we'll need to register "{recv_iface->name}:{pipe->name}" in a dictionary
     for (unsigned i=0; i<pipe->action_count; i++) {
         if (pipe->actions[i].type == ACT_SEND) {
-            iface_ref(action_send_get_iface(pipe->actions+i));
+            iface_add_sender(action_send_get_iface(pipe->actions+i));
         } else if (pipe->actions[i].type == ACT_REPL) {
             struct PipelineList *pl = action_repl_get_piplinelist(pipe->actions+i);
             while (pl) {
-                pipeline_ref_send_interfaces(pl->pipe, recv_iface);
+                pipeline_ref_send_interfaces(pl->pipe);
                 pl = pl->next;
             }
         }
@@ -34,7 +33,7 @@ static void unref_send_interfaces(struct Pipeline *pipe)
 {
     for (unsigned i=0; i<pipe->action_count; i++) {
         if (pipe->actions[i].type == ACT_SEND) {
-            iface_unref(action_send_get_iface(pipe->actions+i));
+            iface_del_sender(action_send_get_iface(pipe->actions+i));
         }
     }
 }
