@@ -304,15 +304,14 @@ bool iface_common_send(struct Interface *iface, struct Packet *p, int socket, vo
 
 bool iface_common_process(struct Interface *iface, struct Packet *p)
 {
-    struct Pipeline *pipe = parsetree_process(iface->parsetree_, p);
-    if (pipe == NULL) {
+    struct PipelineIterator *pi = parsetree_identify(iface->parsetree_, p);
+    if (pi == NULL) {
         packet_print(p);
         delete_packet(p);
         return false;
     } else {
         // the iterator owns the packet
-        struct PipelineIterator *pi = new_pipe_iterator(pipe, p);
-        // the iterator deletes itself when it's done
+        // the iterator deletes itself when it's done with the processing
         pipe_iterator_run(pi);
         return true;
     }

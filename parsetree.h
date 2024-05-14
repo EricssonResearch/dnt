@@ -13,7 +13,6 @@
 
 struct Interface;
 struct Packet;
-struct Pipeline;
 
 struct HeaderMatch {
     struct HeaderField field;
@@ -63,7 +62,7 @@ bool parsetree_del_stream(struct ParseTree *pt, const char *stream_name);
 // parses the packet:
 //      - identify headers, fill p->headers
 //      - match header field values against known streams
-// @returns an action pipeline to process the packet or NULL if unknown stream
-struct Pipeline *parsetree_process(struct ParseTree *pt, struct Packet *p);
+// @returns an action pipeline iterator to process the packet or NULL if unknown stream
+struct PipelineIterator *parsetree_identify(struct ParseTree *pt, struct Packet *p);
 
 #endif // R2_PARSETREE_H

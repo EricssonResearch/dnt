@@ -182,7 +182,7 @@ static bool parsetree_match_header(const struct HeaderMatch *fields, const struc
     return true;
 }
 
-struct Pipeline *parsetree_process(struct ParseTree *pt, struct Packet *p)
+struct PipelineIterator *parsetree_identify(struct ParseTree *pt, struct Packet *p)
 {
     for (struct Stream *s=pt->streams; s; s=s->next) {
         struct HeaderDescriptor *h = s->headers;
@@ -218,7 +218,7 @@ struct Pipeline *parsetree_process(struct ParseTree *pt, struct Packet *p)
             }
             packet_logcat(p, "| ");
 
-            return s->pipe;
+            return new_pipe_iterator(s->pipe, p);
         }
     }
 
