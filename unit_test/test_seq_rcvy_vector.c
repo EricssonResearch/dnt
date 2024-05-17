@@ -22,9 +22,14 @@ void iface_ref(void);
 void iface_ref(void) {}
 void iface_unref(void);
 void iface_unref(void) {}
+void iface_add_sender(void);
+void iface_add_sender(void) {}
+void iface_del_sender(void);
+void iface_del_sender(void) {}
 struct Action *delete_action(struct Action *a) { (void)a; return NULL; }
 struct Interface *action_send_get_iface(struct Action *a) { (void)a; return NULL; }
 const char *action_name_from_type(enum ActionType type) { (void)type; return NULL; }
+struct PipelineList *action_repl_get_piplinelist(struct Action *a) { (void)a; return NULL; }
 // XXX end stubs
 
 static const unsigned history_length = 64; // must be 2^n
