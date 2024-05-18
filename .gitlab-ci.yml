@@ -20,7 +20,7 @@ build-r2dtwo-debug:
   tags:
     - rosetta-docker
   script:
-    - make debug -j
+    - CC=gcc make debug -j
   artifacts:
     paths:
       - r2dtwo
@@ -30,7 +30,7 @@ build-r2dtwo-release:
   tags:
     - rosetta-docker
   script:
-    - make release -j
+    - CC=gcc make release -j
 
 build-r2dtwo-debug-cpp:
   stage: build
@@ -101,31 +101,31 @@ pytest_oam:
 unit_test.json_read:
   extends: .unit_test.common
   script:
-    - unit_test/build/test_json_read
+    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_json_read
 
 unit_test.json_write:
   extends: .unit_test.common
   script:
-    - unit_test/build/test_json_write
+    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_json_write
 
 unit_test.seq_rcvy_match:
   extends: .unit_test.common
   script:
-    - unit_test/build/test_seq_rcvy_match
+    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_seq_rcvy_match
 
 unit_test.seq_rcvy_vector:
   extends: .unit_test.common
   script:
-    - unit_test/build/test_seq_rcvy_vector
+    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_seq_rcvy_vector
 
 unit_test.thread:
   extends: .unit_test.common
   script:
-    - unit_test/build/test_thread
+    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_thread
 
 unit_test.time:
   extends: .unit_test.common
   script:
-    - unit_test/build/test_time
+    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_time
 
 
