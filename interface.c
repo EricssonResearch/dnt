@@ -73,3 +73,24 @@ bool iface_add_stream(struct Interface *iface, struct HeaderDescriptor *headers,
     pipeline_ref_send_interfaces(pipe);
     return true;
 }
+
+const char *iface_type_str(enum IfaceType type)
+{
+    switch (type) {
+        case IF_ETH:
+            return "Ethernet";
+        case IF_INTERNAL:
+            return "Internal";
+        case IF_IP:
+            return "IP";
+        case IF_OAM:
+            return "OAM Return";
+        case IF_OAM_CMD:
+            return "OAM Command";
+        case IF_UDP_IN:
+            return "UDP In";
+        case IF_UDP_OUT:
+            return "UDP Out";
+    }
+    return NULL;
+}

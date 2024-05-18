@@ -19,12 +19,12 @@ struct Pipeline;
 
 enum IfaceType {
     IF_ETH = 1,
-    IF_IP,
-    IF_UDP_IN,
-    IF_UDP_OUT,
     IF_INTERNAL,
+    IF_IP,
     IF_OAM,
     IF_OAM_CMD,
+    IF_UDP_IN,
+    IF_UDP_OUT,
 };
 
 enum IfaceState {
@@ -104,5 +104,8 @@ void iface_del_sender(struct Interface *iface);
 // adds a reference to @pipe, makes a copy of @headers
 // @returns true on success
 bool iface_add_stream(struct Interface *iface, struct HeaderDescriptor *headers, struct Pipeline *pipe);
+
+// @returns the name of this interface @type
+const char *iface_type_str(enum IfaceType type);
 
 #endif // R2_INTERFACE_H

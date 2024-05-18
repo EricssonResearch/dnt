@@ -220,7 +220,7 @@ void *messagequeue_pop(struct MessageQueue *q, int usec)
         }
     }
 
-if (usec > 0) {
+    if (usec > 0) {
         // wait until usec has elapsed
         struct timespec now;
         clock_gettime(CLOCK_REALTIME, &now);
