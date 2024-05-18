@@ -62,7 +62,7 @@ struct Packet *copy_packet(const struct Packet *p)
     *newp = *p;
     newp->id = __atomic_fetch_add(&next_packet_id, 1, __ATOMIC_RELAXED);
 #if 0
-    newp->buf = memdup(p->buf, PACKET_BUF_LEN);
+    newp->buf = (unsigned char *)memdup(p->buf, PACKET_BUF_LEN);
 #else
     // optimization: only copy the packet and the scratch
     newp->buf = (unsigned char *)malloc(PACKET_BUF_LEN);
@@ -89,6 +89,7 @@ struct Packet *serialize_packet(const struct Packet *p)
         dstlen += len;
     }
     ret->len = dstlen;
+    ret->header_count = 0;
 
     ret->id = __atomic_fetch_add(&next_packet_id, 1, __ATOMIC_RELAXED);
     __atomic_fetch_add(&packet_count, 1, __ATOMIC_RELAXED);
@@ -108,7 +109,7 @@ bool packet_identify_header(struct Packet *p, enum ProtocolID type, unsigned off
     }
     if (p->header_count > 0 && p->headers[p->header_count-1].start > p->start + offset) {
         log_error("packet_identify_header: new offset %u is smaller than the previous %u",
-                offset, p->headers[p->header_count-1].start);
+                p->start + offset, p->headers[p->header_count-1].start);
         return false;
     }
     if (offset + len > p->len) {
