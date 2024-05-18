@@ -42,6 +42,26 @@ static char *get_string(const char *text, unsigned length, unsigned *i)
     return ret;
 }
 
+static int is_numberchar(char c)
+{
+    if (isdigit(c)) return 1;
+    if (c == '-' || c == '+' || c == 'e' || c == 'E' || c == '.') return 1;
+    return 0;
+}
+
+static char *get_number_str(const char *text, unsigned length, unsigned *i)
+{
+    int nlen = 0;
+    while (*i + nlen < length) {
+        if (is_numberchar(text[*i + nlen])) {
+            nlen++;
+        } else {
+            break;
+        }
+    }
+    return strndup(text + *i, nlen);
+}
+
 static struct JsonValue *parse_value(const char *text, unsigned length, unsigned *i)
 {
 #define THROW(msg, ...)                                 \
@@ -157,11 +177,12 @@ static struct JsonValue *parse_value(const char *text, unsigned length, unsigned
     } else {
         double num;
         int chars = 0;
-        //TODO sscanf() expects null-terminated input buffer
-        //  must copy a substring that matches [0-9..eE] into a separate buffer, sscanf on that
-        if (sscanf(text+*i, "%lf%n", &num, &chars) != 1) {
-            THROW("invalid character '%c'", text[*i]);
+        char *num_str = get_number_str(text, length, i);
+        if (sscanf(num_str, "%lf%n", &num, &chars) != 1) {
+            free(num_str);
+            THROW("invalid character '%c' at position %d", text[*i], *i);
         }
+        free(num_str);
         ret->type = JSON_NUMBER;
         ret->v.number = num;
         *i += chars;

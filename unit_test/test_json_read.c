@@ -266,6 +266,7 @@ static void test_read_good(void)
         OK(hashmap_count(val2->v.object) == 0, "empty");
         OK(json_delete(j) == NULL, "delete must return NULL");
     }
+#undef TEST_TYPE
 
     // test null-terminated string
     do {
@@ -285,7 +286,7 @@ static void test_read_bad(void)
         "null,", "null4", "[],", "{},",
         "\"unterminated string",
         "True", "False", "NULL",
-        "3+4",
+        "3+4", "-", "-.",
         "[,]", "[55,]", "[\"unterminated ]",
         "[ [ ]", "[ { ]", "[ { }",
         "{,}", "{:}", "{\"}",
@@ -296,12 +297,16 @@ static void test_read_bad(void)
         "{  key   : \"value\" }",
         "{\"key\" : [}",
         "{\"key\" : {}",
+        "{\"key\" : {",
         "{32 : 4}", "{true : false}", "{false : true}",
         NULL
     };
 
     for (unsigned i=0; strings[i]; i++) {
-        struct JsonValue *j = json_parse(strings[i], strlen(strings[i]));
+        unsigned len = strlen(strings[i]);
+        char *js = memdup(strings[i], len);
+        struct JsonValue *j = json_parse(js, len);
+        free(js);
         OK(j == NULL, "string %u should be invalid", i);
     }
 }
