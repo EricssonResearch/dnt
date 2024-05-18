@@ -13,6 +13,7 @@
 
 struct Interface;
 struct Packet;
+struct Pipeline;
 
 struct HeaderMatch {
     struct HeaderField field;

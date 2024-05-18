@@ -27,6 +27,8 @@ struct UdpOutIfData {
     int sock;
     int ifindex;
     int mtu;
+    char *ifname;
+    char *dst_ip;
     unsigned sport;
     unsigned dport;
     int family;
@@ -47,6 +49,7 @@ static bool udpout_recv(struct Interface *iface)
 static bool udpout_send(struct Interface *iface, struct Packet *p)
 {
     struct UdpOutIfData *uid = (struct UdpOutIfData *)iface->iface_private;
+    //TODO do not attempt to send unless we have a set destination
     // our socket is connected, so no dst
     return iface_common_send(iface, p, uid->sock, NULL, 0);
 }
@@ -58,7 +61,90 @@ static bool udpout_open(struct Interface *iface)
         log_error("open udp-out interface %s: already opened", iface->name);
         return false;
     }
-    int sock = uid->sock;
+
+    //TODO defer opening if uid->dst_ip is "ipv4" or "ipv6"
+
+    char port_str[15];
+    sprintf(port_str, "%u", uid->dport);
+    struct addrinfo hints;
+    struct addrinfo *result, *rp;
+    bzero(&hints, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_DGRAM;
+    hints.ai_flags = 0; //TODO AI_NUMERICHOST?
+    int err = getaddrinfo(uid->dst_ip, port_str, &hints, &result);
+
+    if (err) {
+        log_error("udp-out invalid dstip '%s'", uid->dst_ip);
+        return false;
+    }
+
+    int sock = -1;
+    for (rp=result; rp!=NULL; rp=rp->ai_next) {
+        sock = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+        if (sock < 0) continue;
+
+        if (setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, uid->ifname, strlen(uid->ifname)) < 0) {
+            log_perror("udp-out setsockopt SO_BINDTODEVICE");
+            close(sock);
+            sock = -1;
+            continue;
+        }
+
+        if (uid->sport) {
+            if (rp->ai_family == AF_INET6) {
+                struct sockaddr_in6 addr6;
+                memset(&addr6, 0, sizeof(addr6));
+                addr6.sin6_family = AF_INET6;
+                addr6.sin6_addr = in6addr_any;
+                addr6.sin6_port = htons(uid->sport);
+                if (bind(sock, (struct sockaddr*)&addr6, sizeof(addr6)) < 0) {
+                    log_perror("udp-out bind sock udp6 src port %u", uid->sport);
+                    close(sock);
+                    sock = -1;
+                    continue;
+                }
+                /* set IPv6 MTU discovery mode before connecting */
+                int val = IPV6_PMTUDISC_PROBE;
+                if (setsockopt(sock, IPPROTO_IPV6, IPV6_MTU_DISCOVER, &val, sizeof(val)) < 0) {
+                    log_perror("udp-out setsockopt IP_MTU_DISCOVER");
+                    return false;
+                }
+            } else {
+                struct sockaddr_in addr;
+                memset(&addr, 0, sizeof(addr));
+                addr.sin_family = AF_INET;
+                addr.sin_addr.s_addr = htonl(INADDR_ANY);
+                addr.sin_port = htons(uid->sport);
+                if (bind(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+                    log_perror("udp-out bind sock udp4 src port %u", uid->sport);
+                    close(sock);
+                    sock = -1;
+                    continue;
+                }
+                /* set IPv4 MTU discovery mode before connecting */
+                int val = IP_PMTUDISC_PROBE;
+                if (setsockopt(sock, IPPROTO_IP, IP_MTU_DISCOVER, &val, sizeof(val)) < 0) {
+                    log_perror("udp-out setsockopt IP_MTU_DISCOVER");
+                    return false;
+                }
+            }
+        }
+
+        if (connect(sock, rp->ai_addr, rp->ai_addrlen) == 0) break;
+        log_perror("udp-out connect to '%s' port %u", uid->dst_ip, uid->dport);
+        close(sock);
+        sock = -1;
+    }
+
+    freeaddrinfo(result);
+
+    if (sock < 0) {
+        log_error("udp-out can't make socket with dstip '%s'", uid->dst_ip);
+        return false;
+    }
+
+    uid->sock = sock;
 
     struct ifreq if_mtu, if_idx;
     memset(&if_mtu, 0, sizeof(struct ifreq));
@@ -140,6 +226,8 @@ static bool udpout_close(struct Interface *iface)
     struct UdpOutIfData *uid = (struct UdpOutIfData *)iface->iface_private;
     stop_monitoring_error_queue(uid->errq_monitor);
     close(uid->sock);
+    free(uid->dst_ip);
+    free(uid->ifname);
     free(uid);
     log_info("Udp-out interface %s closed", iface->name);
     return true;
@@ -226,88 +314,16 @@ struct Interface *new_udp_out_interface(const char *name, const char *ifname,
     iface->close_ = udpout_close;
     iface->get_property_reader = udpout_get_property_reader;
 
-    //TODO can we defer creating the socket to udpout_open?
-    //TODO if remote is mobile we don't have a dstip yet!
-    //      who sets it later? OAM?
-    //TODO if an action wants to read our dstip property we need to know at least the version!
-    //      this is checked between init and open!
+    struct in6_addr dst;
+    int family;
 
-    char port_str[15];
-    sprintf(port_str, "%u", dst_port);
-    struct addrinfo hints;
-    struct addrinfo *result, *rp;
-    bzero(&hints, sizeof(hints));
-    hints.ai_family = AF_UNSPEC;
-    hints.ai_socktype = SOCK_DGRAM;
-    hints.ai_flags = 0; //TODO AI_NUMERICHOST?
-    int err = getaddrinfo(dst_ip, port_str, &hints, &result);
-
-    if (err) {
+    if (inet_pton(AF_INET, dst_ip, &dst) == 1) {
+        family = AF_INET;
+    } else if (inet_pton(AF_INET6, dst_ip, &dst) == 1) {
+        family = AF_INET6;
+    } else {
+        //TODO accept "ipv4" and "ipv6" that means we'll set it later
         log_error("udp-out invalid dstip '%s'", dst_ip);
-        return NULL;
-    }
-
-    int sock = -1;
-    for (rp=result; rp!=NULL; rp=rp->ai_next) {
-        sock = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
-        if (sock < 0) continue;
-
-        if (setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, ifname, strlen(ifname)) < 0) {
-            log_perror("udp-out setsockopt SO_BINDTODEVICE");
-            close(sock);
-            sock = -1;
-            continue;
-        }
-
-        if (src_port) {
-            if (rp->ai_family == AF_INET6) {
-                struct sockaddr_in6 addr6;
-                memset(&addr6, 0, sizeof(addr6));
-                addr6.sin6_family = AF_INET6;
-                addr6.sin6_addr = in6addr_any;
-                addr6.sin6_port = htons(src_port);
-                if (bind(sock, (struct sockaddr*)&addr6, sizeof(addr6)) < 0) {
-                    log_perror("udp-out bind sock udp6");
-                    close(sock);
-                    sock = -1;
-                    continue;
-                }
-                /* set IPv6 MTU discovery mode before connecting */
-                int val = IPV6_PMTUDISC_PROBE;
-                if (setsockopt(sock, IPPROTO_IPV6, IPV6_MTU_DISCOVER, &val, sizeof(val)) < 0) {
-                    log_perror("udp-out setsockopt IP_MTU_DISCOVER");
-                    return NULL;
-                }
-            } else {
-                struct sockaddr_in addr;
-                memset(&addr, 0, sizeof(addr));
-                addr.sin_family = AF_INET;
-                addr.sin_addr.s_addr = htonl(INADDR_ANY);
-                addr.sin_port = htons(src_port);
-                if (bind(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
-                    log_perror("udp-out bind sock udp4");
-                    close(sock);
-                    sock = -1;
-                    continue;
-                }
-                /* set IPv4 MTU discovery mode before connecting */
-                int val = IP_PMTUDISC_PROBE;
-                if (setsockopt(sock, IPPROTO_IP, IP_MTU_DISCOVER, &val, sizeof(val)) < 0) {
-                    log_perror("udp-out setsockopt IP_MTU_DISCOVER");
-                    return NULL;
-                }
-            }
-        }
-
-    if (connect(sock, rp->ai_addr, rp->ai_addrlen) == 0) break;
-        log_perror("udp-out connect");
-        close(sock);
-        sock = -1;
-    }
-
-    if (sock < 0) {
-        log_error("udp-out can't make socket with dstip '%s'", dst_ip);
-        freeaddrinfo(result);
         return NULL;
     }
 
@@ -315,17 +331,12 @@ struct Interface *new_udp_out_interface(const char *name, const char *ifname,
 
     struct UdpOutIfData *uid = calloc_struct(UdpOutIfData);
     iface->iface_private = uid;
-    uid->sock = sock;
+    uid->ifname = strdup(ifname);
+    uid->dst_ip = strdup(dst_ip);
     uid->sport = src_port;
     uid->dport = dst_port;
-    uid->family = rp->ai_family;
-    if (uid->family == AF_INET6) {
-        uid->dstip.v6 = ((struct sockaddr_in6*)(rp->ai_addr))->sin6_addr;
-    } else {
-        uid->dstip.v4 = ((struct sockaddr_in*)(rp->ai_addr))->sin_addr;
-    }
+    uid->family = family;
     uid->priority = priority;
-    freeaddrinfo(result);
 
     return iface;
 }
