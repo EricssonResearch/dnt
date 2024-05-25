@@ -27,6 +27,7 @@ static struct Interface *oam_cmd_iface = NULL;
 
 static struct HashMap *mep_starts = NULL; // name -> struct MEPStart
 
+static bool oam_initialized = false;
 
 bool set_oam_cmd_if(struct Interface *iface)
 {
@@ -171,22 +172,24 @@ struct OamEndPoint *oam_delete_endpoint(struct OamEndPoint *end)
     return NULL;
 }
 
-static int oam_start_background_ping_cb(const char *key, void *value, void *userdata)
+bool oam_start_background_ping(const char *name, const char *command)
 {
-    (void) userdata;
-    const char *request = (const char *)value;
-    log_info("starting background ping command '%s'", key);
-
-    if (strncmp(request, "ping", 4) != 0) {
-        log_error("background command '%s' is not ping", key);
-        return 0;
+    if (oam_initialized == false) {
+        init_oam();
     }
-    struct oam_request *ping_req = parse_ping_command(request+4, true, false, NULL);
+
+    log_info("starting background ping command '%s'", name);
+
+    if (strncmp(command, "ping", 4) != 0) {
+        log_error("background command '%s' is not ping", name);
+        return false;
+    }
+    struct oam_request *ping_req = parse_ping_command(command+4, true, false, NULL);
 
     if (request_get_error(ping_req)) {
-        log_error("background ping command '%s' invalid: %s", key, request_get_error(ping_req));
+        log_error("background ping command '%s' invalid: %s", name, request_get_error(ping_req));
         delete_oam_request(ping_req);
-        return 0;
+        return false;
     }
 
     request_override_count(ping_req, 0);    // force infinite count
@@ -195,14 +198,16 @@ static int oam_start_background_ping_cb(const char *key, void *value, void *user
     if (stream_live_session_count(stream) >= 14) {
         log_error("stream %s has too many sessions, can't start background ping", request_get_stream_name(ping_req));
         free(ping_req);
-        return 0;
+        return false;
     }
     return initiate_request(ping_req);
 }
 
 
-bool init_oam(struct HashMap *config_oam)
+bool init_oam(void)
 {
+    if (oam_initialized) return true;
+
     bool have_command_iface = oam_cmd_iface != NULL;
     bool have_reply_iface = oam_default_iface != NULL;
 
@@ -213,16 +218,13 @@ bool init_oam(struct HashMap *config_oam)
                 oam_cmd_iface?" telnet interface":"",
                 oam_default_iface?" reply interface":"");
     } else {
+        oam_initialized = true;
         return true;
     }
 
     init_cmd_module();
 
-    // Start OAM background streams
-    if (!hashmap_foreach(config_oam, oam_start_background_ping_cb, NULL)) {
-        log_error("failed to start oam background command");
-        return false;
-    }
+    oam_initialized = true;
     return true;
 }
 
