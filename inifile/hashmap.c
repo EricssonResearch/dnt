@@ -102,10 +102,10 @@ struct HashMap *delete_hashmap(struct HashMap *hash)
     return NULL;
 }
 
-void hashmap_insert(struct HashMap *hash, char *key, void *value)
+int hashmap_insert(struct HashMap *hash, char *key, void *value)
 {
-    if (!hash) return;
-    if (!key) return;
+    if (!hash) return 0;
+    if (!key) return 0;
 
     unsigned h = djb2_hash(key) % hash->bucketcount;
 
@@ -118,7 +118,7 @@ void hashmap_insert(struct HashMap *hash, char *key, void *value)
                 hash->item_delete_cb(b->key, b->value, hash->userdata);
                 b->key = key;
                 b->value = value;
-                return;
+                return 0;
             }
             if (b->next)
                 b = b->next;
@@ -140,12 +140,13 @@ void hashmap_insert(struct HashMap *hash, char *key, void *value)
         hash->buckets[h].next = NULL;
         hash->elemcount++;
     }
+    return 1;
 }
 
-void hashmap_remove(struct HashMap *hash, const char *key)
+int hashmap_remove(struct HashMap *hash, const char *key)
 {
-    if (!hash) return;
-    if (!key) return;
+    if (!hash) return 0;
+    if (!key) return 0;
 
     unsigned h = djb2_hash(key) % hash->bucketcount;
 
@@ -166,6 +167,7 @@ void hashmap_remove(struct HashMap *hash, const char *key)
                 hash->buckets[h].value = NULL;
             }
             hash->elemcount--;
+            return 1;
         } else {
             // the item is not the first, walk the chain
             struct HashBucket *b = hash->buckets + h;
@@ -177,7 +179,7 @@ void hashmap_remove(struct HashMap *hash, const char *key)
                     b->next = bn->next;
                     free(bn);
                     hash->elemcount--;
-                    return;
+                    return 1;
                 }
                 b = b->next;
             }
@@ -185,6 +187,7 @@ void hashmap_remove(struct HashMap *hash, const char *key)
     } else {
         // key not in the hash
     }
+    return 0;
 }
 
 void *hashmap_find(const struct HashMap *hash, const char *key)
@@ -254,8 +257,23 @@ int hashmap_foreach(const struct HashMap *hash, hashmap_cb *cb, void *userdata)
 
     for (unsigned i=0; i<hash->bucketcount; i++) {
         if (hash->buckets[i].key) {
-            for (struct HashBucket *b=hash->buckets+i; b; b=b->next) {
+            struct HashBucket *b = hash->buckets+i;
+            const char *bkey;
+            // if @cb removes the item, we must re-run with the new item in the bucket
+            do {
+                bkey = b->key;
                 if (!cb(b->key, b->value, userdata)) return 0;
+            } while (b->key && (b->key != bkey));
+
+            if (b->key) {
+                // bucket is not empty, process the chain if there is any
+                struct HashBucket *bb = b->next;
+                while (bb) {
+                    // @cb can remove bb from the chain
+                    struct HashBucket *bn = bb->next;
+                    if (!cb(bb->key, bb->value, userdata)) return 0;
+                    bb = bn;
+                }
             }
         }
     }

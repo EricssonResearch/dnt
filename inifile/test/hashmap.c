@@ -86,7 +86,7 @@ static int abcverify_order_interrupt_cb(const char *key, void *value, void *user
 
 static void test_insert(void)
 {
-    const unsigned lettercount = 26;
+    enum { lettercount = 26 }; // the true constant expression in C
     const unsigned bucketcount = 5;
     // no free because we'll insert pointers into a character array
     struct HashMap *hash = new_hashmap(bucketcount, nofree_cb, NULL);
@@ -106,7 +106,7 @@ static void test_insert(void)
     }
     abc[lettercount] = 0;
     for (unsigned i=0; i<lettercount; i++) {
-        hashmap_insert(hash, abc+i, abc+i);
+        OK(hashmap_insert(hash, abc+i, abc+i) == 1, "new item");
         //printf("insert '%s'\n", abc+i);
     }
     OK(hashmap_bucketcount(hash) == bucketcount, "bucketcount");
@@ -143,10 +143,30 @@ static void test_insert(void)
     OK(hashmap_find(hash, "fghijklmnopqrstuvwxyz") == abc+5, "find");
     OK(hashmap_find(hash, "fghijklmnopqrstuvwxyza") == NULL, "not find");
 
+    OK(hashmap_insert(hash, abc+3, abc+4) == 0, "overwrite existing");
+    OK(hashmap_find(hash, abc+3) == abc+4, "overwrite successful");
+    OK(hashmap_insert(hash, NULL, abc+5) == 0, "null key not allowed");
+    OK(hashmap_insert(NULL, abc+6, abc+7) == 0, "null hash");
+
     OK(delete_hashmap(hash) == NULL, "delete");
     OK(delete_hashmap(NULL) == NULL, "delete null");
 
     OK(new_hashmap(0, NULL, NULL) == NULL, "no buckets");
+}
+
+struct Remove {
+    struct HashMap *hash;
+    int divisor;
+};
+static int remove_divisible(const char *key, void *value, void *userdata)
+{
+    (void)value;
+    struct Remove *rem = (struct Remove *)userdata;
+    int num;
+    if (sscanf(key, "hash %d", &num) != 1) return 0;
+    if (num % rem->divisor == 0)
+        hashmap_remove(rem->hash, key);
+    return 1;
 }
 
 static void test_change(void)
@@ -156,35 +176,37 @@ static void test_change(void)
     struct HashMap *hash = new_hashmap(bucketcount, NULL, NULL);
     OK_FATAL(hash != NULL, "create hash");
 
-    hashmap_insert(hash, u_strdup("key"), u_strdup("value"));
+    OK(hashmap_insert(hash, u_strdup("key"), u_strdup("value")) == 1, "new item");
     OK(hashmap_usedbuckets(hash) == 1, "one bucket");
-    hashmap_insert(hash, u_strdup("another key"), u_strdup("value"));
+    OK(hashmap_insert(hash, u_strdup("another key"), u_strdup("value")) == 1, "new item");
     OK(hashmap_usedbuckets(hash) == 2, "two buckets"); // or the hash function is garbage
     OK(strcmp(hashmap_find(hash, "key"), "value") == 0, "find");
-    hashmap_insert(hash, u_strdup("key"), u_strdup("some other value"));
+    OK(hashmap_insert(hash, u_strdup("key"), u_strdup("some other value")) == 0, "overwrite");
     OK(hashmap_usedbuckets(hash) == 2, "two buckets");
-    OK(strcmp(hashmap_find(hash, "key"), "some other value") == 0, "find");
-    OK(strcmp(hashmap_find(hash, "another key"), "value") == 0, "find");
+    OK(strcmp(hashmap_find(hash, "key"), "some other value") == 0, "find overwritten value");
+    OK(strcmp(hashmap_find(hash, "another key"), "value") == 0, "find unchanged value");
 
     // overwrite value in the hash without inserting with the same key
     float *f = malloc(sizeof(float));
     *f = 3.14;
-    hashmap_insert(hash, u_strdup("float"), f);
+    OK(hashmap_insert(hash, u_strdup("float"), f) == 1, "new item");
     float *hf = hashmap_find(hash, "float");
     OK(hf, "found float");
     *hf = 0.5; // float can represent this value exactly
     OK(*f == 0.5, "value overwrite %f", *f);
 
-    hashmap_remove(hash, "float");
-    hashmap_remove(hash, "key");
+    OK(hashmap_remove(hash, NULL) == 0, "no key");
+    OK(hashmap_remove(NULL, "null") == 0, "no hash");
+    OK(hashmap_remove(hash, "float") == 1, "removed");
+    OK(hashmap_remove(hash, "key") == 1, "removed");
     OK(hashmap_usedbuckets(hash) == 1, "one bucket"); // we know hash contains 1 item now
-    hashmap_remove(hash, "another key");
+    OK(hashmap_remove(hash, "another key") == 1, "removed");
     OK(hashmap_count(hash) == 0, "empty");
     OK(delete_hashmap(hash) == NULL, "delete");
 
     // massive add-remove test
-    unsigned m = 20;
-    unsigned n = 200;
+    const unsigned m = 20;
+    const unsigned n = 300;
     hash = new_hashmap(bucketcount, NULL, NULL);
     OK_FATAL(hash != NULL, "create hash");
     char buf[16];
@@ -208,6 +230,22 @@ static void test_change(void)
         }
         OK(hashmap_count(hash) == i+1, "almost empty %u", hashmap_count(hash));
     }
+    OK(delete_hashmap(hash) == NULL, "delete");
+
+    // remove in foreach
+    hash = new_hashmap(bucketcount, NULL, NULL);
+    OK_FATAL(hash != NULL, "create hash");
+    for (unsigned j=0; j<n; j++) {
+        sprintf(buf, "hash %u", j);
+        hashmap_insert(hash, u_strdup(buf), u_strdup(buf));
+    }
+    OK(hashmap_count(hash) == n, "full %u", hashmap_count(hash));
+    struct Remove rem = {hash, 2};
+    OK(hashmap_foreach(hash, remove_divisible, &rem) == 1, "successful remove");
+    OK(hashmap_count(hash) == n/2, "half %u", hashmap_count(hash));
+    rem.divisor = 1;
+    OK(hashmap_foreach(hash, remove_divisible, &rem) == 1, "successful remove");
+    OK(hashmap_count(hash) == 0, "empty %u", hashmap_count(hash));
     OK(delete_hashmap(hash) == NULL, "delete");
 }
 
