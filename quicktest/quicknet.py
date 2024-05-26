@@ -45,6 +45,9 @@ def start_network():
     nd.cmd("ip a a fd04::4/64 dev ethDA")
     na.cmd("ip a a fd04::1/64 dev ethAD")
 
+    nb.cmd("ip l set dev ethBC mtu 1600 up")
+    nc.cmd("ip l set dev ethCB mtu 1600 up")
+
     na.cmd("ip l a link ethAB name ethAB.r2tunnel type vlan id 1001")
     na.cmd("ip a a 192.168.1.1/24 dev ethAB.r2tunnel")
     na.cmd("ip a a fd92::1/64 dev ethAB.r2tunnel")
