@@ -136,42 +136,29 @@ struct StateTransaction *read_config_file(const char *filename)
         THROW("unknown section '%s'", sec_err);
     }
 
-    //TODO create the hashmaps in new_transaction()
-
-    ret->ifaces = parse_interfaces(interfaces_sec);
-    if (ret->ifaces == NULL) {
+    if (!parse_interfaces(ret->ifaces, interfaces_sec)) {
         THROW("interfaces are invalid");
     }
 
     if (objects_sec) {
-        ret->objects = parse_objects(objects_sec);
-        if (ret->objects == NULL) {
+        if (!parse_objects(ret->objects, objects_sec)) {
             THROW("objects are invalid");
         }
-    } else {
-        // the other stuff expects an existing hash here
-        ret->objects = new_hashmap(1, NULL, NULL);
     }
 
     //TODO only parse streams that are received by an interface
-    ret->streams = parse_streams(streams_sec, ret->ifaces, ret->objects);
-    if (ret->streams == NULL) {
+    if (!parse_streams(ret->streams, streams_sec, ret->ifaces, ret->objects)) {
         THROW("streams are invalid");
     }
 
-    ret->iface_streams = parse_interface_streams(interfaces_sec, ret->ifaces, ret->streams);
-    if (ret->iface_streams == NULL) {
+    if (!parse_interface_streams(ret->iface_streams, interfaces_sec, ret->ifaces, ret->streams)) {
         THROW("interface stream lists are invalid");
     }
 
     if (oam_sec) {
-        ret->oam = parse_oam(oam_sec);
-        if (ret->oam == NULL) {
+        if (!parse_oam(ret->oam, oam_sec)) {
             THROW("oam section is invalid");
         }
-    } else {
-        // the other stuff expects an existing hash here
-        ret->oam = new_hashmap(1, NULL, NULL);
     }
 
     delete_inisection(ini);

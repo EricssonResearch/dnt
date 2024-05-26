@@ -33,10 +33,33 @@ static int iface_delete_cb(const char *key, void *value, void *userdata)
 
 static int obj_delete_cb(const char *key, void *value, void *userdata)
 {
-    (void)key; // this is obj->name, freed by delete_pipeline_object()
+    (void)key; // this is obj->name
     struct PipelineObject *obj = (struct PipelineObject *)value;
     (void)userdata;
     pipeline_object_unref(obj);
+    return 1;
+}
+
+static int stream_delete_cb(const char *key, void *value, void *userdata)
+{
+    (void)userdata;
+    struct ConfStream *stream = (struct ConfStream *)value;
+    delete_confstream(stream);
+    free((char*)key);
+    return 1;
+}
+
+static int iface_stream_delete_cb(const char *key, void *value, void *userdata)
+{
+    (void)userdata;
+    free((char*)key);
+    struct ConfStreamList *list = (struct ConfStreamList *)value;
+    while (list) {
+        struct ConfStreamList *del = list;
+        list = list->next;
+        free(del->stream_name);
+        free(del);
+    }
     return 1;
 }
 
@@ -53,7 +76,11 @@ struct StateTransaction *new_transaction(const char *name)
 {
     struct StateTransaction *ret = calloc_struct(StateTransaction);
     ret->name = strdup(name);
-    //TODO create the hashmaps here
+    ret->ifaces = new_hashmap(11, iface_delete_cb, NULL);
+    ret->iface_streams = new_hashmap(11, iface_stream_delete_cb, NULL);
+    ret->objects = new_hashmap(11, obj_delete_cb, NULL);
+    ret->streams = new_hashmap(22, stream_delete_cb, NULL);
+    ret->oam = new_hashmap(7, NULL, NULL);
     return ret;
 }
 
@@ -62,6 +89,7 @@ struct StateTransaction *delete_transaction(struct StateTransaction *tr)
     if (!tr) return NULL;
 
     free(tr->name);
+    //TODO is the order important here?
     delete_hashmap(tr->streams);
     delete_hashmap(tr->objects);
     delete_hashmap(tr->iface_streams);
@@ -167,6 +195,17 @@ static bool add_streams_to_interfaces(struct StateTransaction *tr)
     return true;
 }
 
+static int purge_unused_cb(const char *key, void *value, void *userdata)
+{
+    struct HashMap *objects = (struct HashMap *)userdata;
+    struct PipelineObject *obj = (struct PipelineObject *)value;
+    if (obj->reference_count == 1) {
+        // this means only the hashmap holds reference
+        hashmap_remove(objects, key);
+    }
+    return 1;
+}
+
 static int start_oam_ping_cb(const char *key, void *value, void *userdata)
 {
     (void)userdata;
@@ -222,8 +261,10 @@ bool state_commit_transaction(struct StateTransaction *tr)
         return false;
     }
 
-    //TODO purge unused pipeline objects
-    //   TODO fix hashmap so we can remove items in foreach
+    if (!hashmap_foreach(state_objects, purge_unused_cb, state_objects)) {
+        //TODO rollback
+        return false;
+    }
 
     if (!hashmap_foreach(tr->oam, start_oam_ping_cb, NULL)) {
         //TODO rollback

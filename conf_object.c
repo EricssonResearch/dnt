@@ -305,26 +305,16 @@ static int object_cb(const char *key, void *value, void *userdata)
     }
 }
 
-static int delete_cb(const char *key, void *value, void *userdata)
-{
-    (void)key; // this is obj->name, freed by delete_pipeline_object()
-    struct PipelineObject *obj = (struct PipelineObject *)value;
-    (void)userdata;
-    pipeline_object_unref(obj);
-    return 1;
-}
-
-struct HashMap *parse_objects(const struct IniSection *objects_section)
+bool parse_objects(struct HashMap *objects, const struct IniSection *objects_section)
 {
     struct ForeachState state = {0};
-    state.objects = new_hashmap(13, delete_cb, NULL);
+    state.objects = objects;
 
     if (!hashmap_foreach(objects_section->contents, object_cb, &state)) {
         log_error("error in the objects section");
-        delete_hashmap(state.objects);
-        return NULL;
+        return false;
     } else {
-        return state.objects;
+        return true;
     }
 }
 

@@ -130,20 +130,11 @@ static int checkline_cb(const char *key, void *value, void *userdata)
     return 1;
 }
 
-static int delstream_cb(const char *key, void *value, void *userdata)
-{
-    (void)userdata;
-    struct ConfStream *stream = (struct ConfStream *)value;
-    delete_confstream(stream);
-    free((char*)key);
-    return 1;
-}
-
-struct HashMap *parse_streams(const struct IniSection *streams_section,
+bool parse_streams(struct HashMap *streams, const struct IniSection *streams_section,
         const struct HashMap *ifaces, const struct HashMap *objects)
 {
     struct ConfStreamState state = {
-        .streams = new_hashmap(29, delstream_cb, NULL),
+        .streams = streams,
         .streams_section = streams_section,
         .ifaces = ifaces,
         .objects = objects,
@@ -151,18 +142,16 @@ struct HashMap *parse_streams(const struct IniSection *streams_section,
 
     if (!hashmap_foreach(streams_section->contents, packetline_cb, &state)) {
         log_error("failed to parse the streams");
-        delete_hashmap(state.streams);
-        return NULL;
+        return false;
     }
 
     // search for :actions and :match lines that have no corresponding :packet line
     if (!hashmap_foreach(streams_section->contents, checkline_cb, &state)) {
         log_error("failed to parse the streams");
-        delete_hashmap(state.streams);
-        return NULL;
+        return false;
     }
 
-    return state.streams;
+    return true;
 }
 
 struct ConfStream *delete_confstream(struct ConfStream *stream)

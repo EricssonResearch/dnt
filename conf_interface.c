@@ -243,27 +243,17 @@ static int iface_cb(const char *key, void *value, void *userdata)
 #undef THROW
 }
 
-static int iface_delete_cb(const char *key, void *value, void *userdata)
-{
-    (void)key; // owned by the interface
-    (void)userdata;
-    struct Interface *iface = (struct Interface *)value;
-    iface_unref(iface);
-    return 1;
-}
-
-struct HashMap *parse_interfaces(const struct IniSection *interfaces_section)
+bool parse_interfaces(struct HashMap *ifaces, const struct IniSection *interfaces_section)
 {
     struct ConfIfacesState state = {0};
-    state.ifaces = new_hashmap(11, iface_delete_cb, NULL);
+    state.ifaces = ifaces;
 
     if (!hashmap_foreach(interfaces_section->contents, iface_cb, &state)) {
         log_error("an interface is invalid");
-        delete_hashmap(state.ifaces);
-        return NULL;
+        return false;
     }
 
-    return state.ifaces;
+    return true;
 }
 
 
@@ -340,34 +330,19 @@ static int iface_stream_cb(const char *key, void *value, void *userdata)
     return 1;
 }
 
-static int iface_stream_delete_cb(const char *key, void *value, void *userdata)
-{
-    (void)userdata;
-    free((char*)key);
-    struct ConfStreamList *list = (struct ConfStreamList *)value;
-    while (list) {
-        struct ConfStreamList *del = list;
-        list = list->next;
-        free(del->stream_name);
-        free(del);
-    }
-    return 1;
-}
-
-struct HashMap *parse_interface_streams(const struct IniSection *interfaces_section,
+bool parse_interface_streams(struct HashMap *iface_streams, const struct IniSection *interfaces_section,
         const struct HashMap *ifaces, const struct HashMap *streams)
 {
     struct ConfIfaceStreamsState state = {
         .ifaces = ifaces,
         .streams = streams,
-        .iface_streams = new_hashmap(13, iface_stream_delete_cb, NULL),
+        .iface_streams = iface_streams,
     };
 
     if (!hashmap_foreach(interfaces_section->contents, iface_stream_cb, &state)) {
         log_error("an interface streams line is invalid");
-        delete_hashmap(state.iface_streams);
-        return NULL;
+        return false;
     }
 
-    return state.iface_streams;
+    return true;
 }

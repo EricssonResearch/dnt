@@ -189,6 +189,8 @@ struct PipelineIterator *parsetree_identify(struct ParseTree *pt, struct Packet 
         unsigned offset = 0;
         bool full_stream_match = true;
 
+        log_debug("trying %s", s->pipe->name);
+
         while (h) {
             const struct Protocol *proto = &protocol_list[h->id];
             // if a header fails to match, we dont check the next one
