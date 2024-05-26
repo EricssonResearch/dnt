@@ -43,7 +43,4 @@ int state_foreach_objects(hashmap_cb *cb, void *userdata);
 // @returns true if the commit was successful
 bool state_commit_transaction(struct StateTransaction *tr);
 
-//TODO better name?
-void finish_state(void);
-
 #endif // R2_STATE_H

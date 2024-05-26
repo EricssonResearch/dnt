@@ -328,6 +328,13 @@ static int iface_stream_cb(const char *key, void *value, void *userdata)
                 if (strcmp(i->stream_name, j->stream_name) == 0) {
                     log_error("interface '%s' receives stream '%s' twice", ifname, i->stream_name);
                     free(ifname);
+                    struct ConfStreamList *l = tokstate.iface_stream_list;
+                    while (l) {
+                        struct ConfStreamList *d = l;
+                        l = l->next;
+                        free(d->stream_name);
+                        free(d);
+                    }
                     return 0;
                 }
             }

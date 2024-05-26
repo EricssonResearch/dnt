@@ -63,12 +63,17 @@ static int iface_stream_delete_cb(const char *key, void *value, void *userdata)
     return 1;
 }
 
-//TODO public init function instead of this constructor?
-//      or: implicit destructor instead of finish_state()?
 static void __attribute__((constructor)) init_state(void)
 {
     state_interfaces = new_hashmap(11, iface_delete_cb, NULL);
     state_objects = new_hashmap(11, obj_delete_cb, NULL);
+}
+
+static void __attribute__((destructor)) finish_state(void)
+{
+    delete_hashmap(state_interfaces);
+    delete_hashmap(state_objects);
+    //TODO we may need to wait for things to finish what they are doing
 }
 
 
@@ -272,10 +277,4 @@ bool state_commit_transaction(struct StateTransaction *tr)
     }
 
     return true;
-}
-
-void finish_state(void)
-{
-    delete_hashmap(state_interfaces);
-    delete_hashmap(state_objects);
 }

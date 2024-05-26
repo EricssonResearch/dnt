@@ -313,8 +313,6 @@ int main(int argc, char **argv)
 
     finish_oam();
 
-    finish_state();
-
     close_log();
 
     return EXIT_SUCCESS;
