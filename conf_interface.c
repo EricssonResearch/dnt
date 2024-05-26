@@ -321,6 +321,19 @@ static int iface_stream_cb(const char *key, void *value, void *userdata)
         return 0;
     }
 
+    // check for duplicates in the list
+    if (tokstate.iface_stream_list) {
+        for (struct ConfStreamList *i=tokstate.iface_stream_list; i->next; i=i->next) {
+            for (struct ConfStreamList *j=i->next; j; j=j->next) {
+                if (strcmp(i->stream_name, j->stream_name) == 0) {
+                    log_error("interface '%s' receives stream '%s' twice", ifname, i->stream_name);
+                    free(ifname);
+                    return 0;
+                }
+            }
+        }
+    }
+
     REVERSE_LIST(tokstate.iface_stream_list);
     hashmap_insert(state->iface_streams, ifname, tokstate.iface_stream_list);
     log_info("interface %s receives streams:", ifname);
