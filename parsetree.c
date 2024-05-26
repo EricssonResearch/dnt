@@ -114,6 +114,7 @@ struct HeaderDescriptor *header_list_find_by_typeid(struct HeaderDescriptor *hea
     return NULL;
 }
 
+
 struct Stream {
     struct HeaderDescriptor *headers;
     struct Pipeline *pipe;
@@ -125,6 +126,22 @@ struct ParseTree {
     struct Stream *streams;
 };
 
+static struct Stream *new_stream(struct HeaderDescriptor *headers, struct Pipeline *pipe)
+{
+    struct Stream *news = calloc_struct(Stream);
+    news->headers = copy_header_list(headers, true);
+    news->pipe = pipe;
+    pipeline_ref(pipe);
+    return news;
+}
+
+static struct Stream *delete_stream(struct Stream *del)
+{
+    pipeline_unref(del->pipe);
+    delete_header_list(del->headers);
+    free(del);
+    return NULL;
+}
 
 struct ParseTree *new_parsetree(const struct Interface *iface)
 {
@@ -141,9 +158,7 @@ struct ParseTree *delete_parsetree(struct ParseTree *pt)
     while (s) {
         struct Stream *d = s;
         s = s->next;
-        pipeline_unref(d->pipe);
-        delete_header_list(d->headers);
-        free(d);
+        delete_stream(d);
     }
     free(pt);
 
@@ -156,10 +171,7 @@ bool parsetree_add_stream(struct ParseTree *pt, struct HeaderDescriptor *headers
         if (strcmp(s->pipe->name, pipe->name) == 0) return false;
     }
 
-    struct Stream *news = calloc_struct(Stream);
-    news->headers = copy_header_list(headers, true);
-    news->pipe = pipe;
-    pipeline_ref(pipe);
+    struct Stream *news = new_stream(headers, pipe);
 
     if (pt->streams) {
         struct Stream *s = pt->streams;
@@ -170,6 +182,45 @@ bool parsetree_add_stream(struct ParseTree *pt, struct HeaderDescriptor *headers
     }
 
     return true;
+}
+
+bool parsetree_del_stream(struct ParseTree *pt, const char *stream_name)
+{
+    if (pt->streams == NULL) return false;
+
+    if (strcmp(pt->streams->pipe->name, stream_name) == 0) {
+        // remove the first item
+        struct Stream *d = pt->streams;
+        pt->streams = d->next;
+        delete_stream(d);
+        return true;
+    }
+
+    for (struct Stream *s=pt->streams; s->next; s=s->next) {
+        if (strcmp(s->next->pipe->name, stream_name) == 0) {
+            // remove s->next
+            struct Stream *d = s->next;
+            s->next = d->next;
+            delete_stream(d);
+            return true;
+        }
+    }
+    return false;
+}
+
+bool parsetree_replace_stream(struct ParseTree *pt, struct HeaderDescriptor *headers, struct Pipeline *pipe)
+{
+    for (struct Stream *s=pt->streams; s; s=s->next) {
+        if (strcmp(s->pipe->name, pipe->name) == 0) {
+            pipeline_unref(s->pipe);
+            delete_header_list(s->headers);
+            s->headers = copy_header_list(headers, true);
+            s->pipe = pipe;
+            pipeline_ref(pipe);
+            return true;
+        }
+    }
+    return false;
 }
 
 static bool parsetree_match_header(const struct HeaderMatch *fields, const struct Packet *p)

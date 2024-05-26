@@ -52,6 +52,7 @@ struct ParseTree *delete_parsetree(struct ParseTree *pt);
 // the name of the stream is @pipe->name
 // @returns false if a stream with this name is already in the decision tree
 // the add order matters: if a packet matches multiple streams, the first one added will match
+//      TODO we could introduce a priority for reordering
 // this will make a deep copy of @headers (easy to copy, difficult to refcount)
 // this will add a reference to @pipe (difficult to copy)
 bool parsetree_add_stream(struct ParseTree *pt, struct HeaderDescriptor *headers, struct Pipeline *pipe);
@@ -59,6 +60,13 @@ bool parsetree_add_stream(struct ParseTree *pt, struct HeaderDescriptor *headers
 // removes a stream from the decision tree
 // @returns true on success, false if the stream is unknown
 bool parsetree_del_stream(struct ParseTree *pt, const char *stream_name);
+
+// replaces an existing stream in the decision tree
+// the name of the stream is @pipe->name
+// @returns false if a stream with this name is not found in the decision tree
+// this will make a deep copy of @headers (easy to copy, difficult to refcount)
+// this will add a reference to @pipe (difficult to copy)
+bool parsetree_replace_stream(struct ParseTree *pt, struct HeaderDescriptor *headers, struct Pipeline *pipe);
 
 // parses the packet:
 //      - identify headers, fill p->headers
