@@ -19,6 +19,7 @@ struct ConfStream {
 };
 
 // parses the stream definitions into @streams
+// @ifaces and @objects are the new ones added in the transaction
 // @returns false on error
 bool parse_streams(struct HashMap *streams, const struct IniSection *streams_section,
         const struct HashMap *ifaces, const struct HashMap *objects);
