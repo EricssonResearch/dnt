@@ -211,15 +211,16 @@ void confheaders_print(const struct HeaderDescriptor *headers)
             for (const struct HeaderMatch *m=h->matches; m; m=m->next) {
                 unsigned bytes = DIVCEIL(m->value.bitoffset + m->value.bitcount, 8);
                 unsigned char *cst = (unsigned char *)m->value.value;
-                char b_str[32];
+                char b_str[128];
                 unsigned b_off = 0;
                 if (log_enabled(INFO)) {
                     for (unsigned i=0; i<bytes; i++) {
+                        if (b_off >= sizeof(b_str)) break;
                         b_off += snprintf(b_str+b_off, sizeof(b_str)-b_off, " 0x%.2x", cst[i]);
                     }
                 }
 
-                log_info("    field idx %u bitoffset %u bitcount %u value bitoffset %u bitlength %u bytes%s",
+                log_info("    field idx %u bitoffset %u bitcount %u value bitoffset %u bitlength %u, bytes%s",
                         m->field.header_idx, m->field.bitoffset, m->field.bitcount,
                         m->value.bitoffset, m->value.bitcount, b_str);
             }

@@ -1465,7 +1465,7 @@ static bool process_action(struct StageState *stst)
             if (newaction->send.iface == NULL) {
                 THROW("no send interface specified");
             }
-            
+
             // set offload on the interface if the offload appeared in actions
             if (stst->had_delay_offload && !newaction->send.iface->delay_offload)
                 newaction->send.iface->delay_offload = true;
@@ -1940,10 +1940,11 @@ void confactions_print(const struct ConfAction *ca_list, unsigned indent)
                     } else if (a->rhs.type == CVT_CONST) {
                         unsigned bytes = DIVCEIL(a->rhs.value.bitoffset + a->rhs.value.bitcount, 8);
                         unsigned char *cst = (unsigned char *)a->rhs.value.value;
-                        char b_str[32];
+                        char b_str[128];
                         unsigned b_off = 0;
                         if (log_enabled(INFO)) {
                             for (unsigned i=0; i<bytes; i++) {
+                                if (b_off >= sizeof(b_str)) break;
                                 b_off += snprintf(b_str+b_off, sizeof(b_str)-b_off, " 0x%.2x", cst[i]);
                             }
                         }
@@ -1985,8 +1986,6 @@ void confactions_print(const struct ConfAction *ca_list, unsigned indent)
                 log_debug("%*cobject %s", indent+2, ' ', ca->seq.gen->name);
                 break;
             case CA_TTLCHECK:
-                log_debug("%*cfield idx %u bitoffset %u bitcount %u", indent+2, ' ',
-                        ca->ttl.field->header_idx, ca->ttl.field->bitoffset, ca->ttl.field->bitcount);
                 break;
             case CA_TTLREDUCE:
                 log_debug("%*cfield idx %u bitoffset %u bitcount %u", indent+2, ' ',
