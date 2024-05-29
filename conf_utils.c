@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <errno.h>
 
 #include <arpa/inet.h>
 #include <netinet/ether.h>
@@ -172,10 +173,19 @@ bool read_constant(struct Value *val, enum ProtocolID proto, enum ProtocolFieldT
                     THROW("invalid boolean");
                 }
                 num = b;
+            } else if (val->bitcount > 64) {
+                THROW("numbers are only supported up to 64 bits, %d is too large", val->bitcount);
             } else {
-                char c;
-                if (sscanf(string, "%li%c", &num, &c) != 1) {
-                    THROW("invalid number");
+                char *str_end = NULL;
+                num = strtoull(string, &str_end, 0);
+                if (str_end == string) {
+                    THROW("number is invalid");
+                }
+                if (num == UINT64_MAX && errno == ERANGE) {
+                    THROW("number is too big");
+                }
+                if (*str_end != 0) {
+                    THROW("invalid character '%c' after number", *str_end);
                 }
             }
             if (!prepare_constant_number(val, num)) {
