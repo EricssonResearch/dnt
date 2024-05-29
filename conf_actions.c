@@ -677,6 +677,7 @@ static bool process_token(char *token, void *userdata)
                 a->next = newaction->add.assignments;
                 newaction->add.assignments = a;
                 a->text = strdup(token);
+                a->lhs_protoid = newaction->add.id;
                 if (parse_assignment(token, &lhs, &rhs)) {
                     const struct ProtocolField *f = protocol_get_field_by_name(newaction->add.id, lhs);
                     if (f == NULL) {
