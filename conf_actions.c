@@ -956,8 +956,7 @@ static struct ConfAssignment *assign_nexthdrid_from_header_type(const char *acti
 {
     uint16_t nexthdrnum;
     const struct Protocol *dstpr = &protocol_list[dstheader->id];
-    unsigned dst_idx = dstpr->nexthdr_idx;
-    const struct ProtocolField *dstf = &dstpr->header_fields[dst_idx];
+    const struct ProtocolField *dstf = protocol_get_field_by_type(dstheader->id, FT_NEXTHEADER);
     if (!dstpr->get_nexthdr(&nexthdrnum, typeheader->id)) {
         return NULL;
     }
@@ -987,11 +986,9 @@ static struct ConfAssignment *assign_nexthdrid_copy_from_srcheader(const char *a
         const struct HeaderDescriptor *srcheader, unsigned srcpos)
 {
     const struct Protocol *dstpr = &protocol_list[dstheader->id];
-    unsigned dst_idx = dstpr->nexthdr_idx;
-    const struct ProtocolField *dstf = &dstpr->header_fields[dst_idx];
+    const struct ProtocolField *dstf = protocol_get_field_by_type(dstheader->id, FT_NEXTHEADER);
     const struct Protocol *srcpr = &protocol_list[srcheader->id];
-    unsigned src_idx = srcpr->nexthdr_idx;
-    const struct ProtocolField *srcf = &srcpr->header_fields[src_idx];
+    const struct ProtocolField *srcf = protocol_get_field_by_type(srcheader->id, FT_NEXTHEADER);
     if (dstpr->get_nexthdr != srcpr->get_nexthdr) {
         log_error("nexthdr field type mismatch");
         return NULL;

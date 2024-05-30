@@ -67,7 +67,6 @@ struct Protocol {
     const struct ProtocolField *header_fields;
     unsigned header_field_count;
     unsigned bytelength;
-    unsigned nexthdr_idx; // index of the next header field
     id_from_nexthdr *get_id; // translates the value of the next header field to protocol id
     nexthdr_from_id *get_nexthdr; // translates protocol id to next header field value
 };

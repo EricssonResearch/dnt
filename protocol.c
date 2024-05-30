@@ -243,22 +243,22 @@ static const struct ProtocolField oam_fields[] = {
 
 //TODO autogenerate this list
 const struct Protocol protocol_list[] = {
-    {"payload", payload_fields, 0, 0, 0, NULL, NULL},
-    {"eth", eth_fields, ARRAY_SIZE(eth_fields), 6+6+2, 2, id_from_ethertype, ethertype_from_id},
-    {"svlan", vlan_fields, ARRAY_SIZE(vlan_fields), 4, 3, id_from_ethertype, ethertype_from_id},
-    {"cvlan", vlan_fields, ARRAY_SIZE(vlan_fields), 4, 3, id_from_ethertype, ethertype_from_id},
+    {"payload", payload_fields, 0, 0, NULL, NULL},
+    {"eth", eth_fields, ARRAY_SIZE(eth_fields), 6+6+2, id_from_ethertype, ethertype_from_id},
+    {"svlan", vlan_fields, ARRAY_SIZE(vlan_fields), 4, id_from_ethertype, ethertype_from_id},
+    {"cvlan", vlan_fields, ARRAY_SIZE(vlan_fields), 4, id_from_ethertype, ethertype_from_id},
     // note: we cannot destinguish rtag and ttag by their ethertype,
     //       ACT_DELAY and ACT_ELIM must check the rt_flag
-    {"rtag", rtag_fields, ARRAY_SIZE(rtag_fields), 6, 5, id_from_ethertype, ethertype_from_id},
-    {"ttag", ttag_fields, ARRAY_SIZE(ttag_fields), 6, 5, id_from_ethertype, ethertype_from_id},
-    {"mpls", mpls_fields, ARRAY_SIZE(mpls_fields), 4, 0, NULL, NULL},
-    {"dcw", dcw_fields, ARRAY_SIZE(dcw_fields), 4, 0, NULL, NULL},
-    {"tcw", tcw_fields, ARRAY_SIZE(tcw_fields), 4, 0, NULL, NULL},
-    {"ipv4", ipv4_fields, ARRAY_SIZE(ipv4_fields), 20, 12, id_from_ipproto, ipproto_from_id},
-    {"ipv6", ipv6_fields, ARRAY_SIZE(ipv6_fields), 40, 4, id_from_ipproto, ipproto_from_id},
-    {"arp", arp_fields, ARRAY_SIZE(arp_fields), 28, 0, NULL, NULL}, //TODO this is variable-length
-    {"udp", udp_fields, ARRAY_SIZE(udp_fields), 8, 0, NULL, NULL},
-    {"oam", oam_fields, ARRAY_SIZE(oam_fields), 8, 0, NULL, NULL},
+    {"rtag", rtag_fields, ARRAY_SIZE(rtag_fields), 6, id_from_ethertype, ethertype_from_id},
+    {"ttag", ttag_fields, ARRAY_SIZE(ttag_fields), 6, id_from_ethertype, ethertype_from_id},
+    {"mpls", mpls_fields, ARRAY_SIZE(mpls_fields), 4, NULL, NULL},
+    {"dcw", dcw_fields, ARRAY_SIZE(dcw_fields), 4, NULL, NULL},
+    {"tcw", tcw_fields, ARRAY_SIZE(tcw_fields), 4, NULL, NULL},
+    {"ipv4", ipv4_fields, ARRAY_SIZE(ipv4_fields), 20, id_from_ipproto, ipproto_from_id},
+    {"ipv6", ipv6_fields, ARRAY_SIZE(ipv6_fields), 40, id_from_ipproto, ipproto_from_id},
+    {"arp", arp_fields, ARRAY_SIZE(arp_fields), 28, NULL, NULL}, //TODO this is variable-length
+    {"udp", udp_fields, ARRAY_SIZE(udp_fields), 8, NULL, NULL},
+    {"oam", oam_fields, ARRAY_SIZE(oam_fields), 8, NULL, NULL},
 };
 
 const unsigned protocol_count = ARRAY_SIZE(protocol_list);
