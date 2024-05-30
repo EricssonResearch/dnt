@@ -9,7 +9,7 @@ CFLAGS += -g -std=gnu99
 CFLAGS += -Wall -Wextra -Wshadow -Wstrict-prototypes -Wmissing-declarations -Wwrite-strings -Wvla
 CFLAGS += -Werror
 CFLAGS += -Iinifile
-CFLAGS += -D_FORTIFY_SOURCE=3
+CFLAGS += -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=3
 #CFLAGS += -fanalyzer
 
 # ASan is incompatible with Valgrind
