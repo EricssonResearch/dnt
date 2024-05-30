@@ -19,6 +19,7 @@
 #include "pipeline.h"
 #include "protocol.h"
 #include "seq_gen.h"
+#include "state.h"
 #include "utils.h"
 #include "value.h"
 
@@ -194,6 +195,18 @@ struct StageState {
 };
 
 
+#define GET_IFACE(_name)                                                                        \
+    struct Interface *iface = (struct Interface *)hashmap_find(stst->ifaces, _name);            \
+    if (iface == NULL) {                                                                        \
+        iface = state_get_interface(_name);                                                     \
+    }
+
+#define GET_OBJECT(_name)                                                                       \
+    struct PipelineObject *obj = (struct PipelineObject *)hashmap_find(stst->objects, _name);   \
+    if (obj == NULL) {                                                                          \
+        obj = state_get_object(_name);                                                          \
+    }
+
 static void replicatelist_push(struct ReplicateList **list, char *name, struct ConfAction *actions)
 {
     struct ReplicateList *l = calloc_struct(ReplicateList);
@@ -201,30 +214,6 @@ static void replicatelist_push(struct ReplicateList **list, char *name, struct C
     l->actions = actions;
     l->next = *list;
     *list = l;
-}
-
-// shallow copy, we are not interested in the match lists
-static struct HeaderDescriptor *copy_header_list(const struct HeaderDescriptor *headers)
-{
-    struct HeaderDescriptor *ret = NULL;
-    struct HeaderDescriptor *r = NULL;
-    const struct HeaderDescriptor *h = headers;
-
-    while (h) {
-        struct HeaderDescriptor *w = calloc_struct(HeaderDescriptor);
-        if (r) {
-            r->next = w;
-            r = w;
-        } else {
-            ret = r = w;
-        }
-        w->name = strdup(h->name);
-        w->id = h->id;
-
-        h = h->next;
-    }
-
-    return ret;
 }
 
 // make a copy of @stst->must_write list, adjusting the header references to @newheaders
@@ -501,7 +490,7 @@ static bool process_assignment_rhs(struct StageState *stst, struct ConfAssignmen
             }
         }
 
-        struct Interface *iface = (struct Interface *)hashmap_find(stst->ifaces, key);
+        GET_IFACE(key);
         if (iface) {
             log_debug("rhs is an interface");
             if (iface->get_property_reader) {
@@ -614,7 +603,7 @@ static bool process_token(char *token, void *userdata)
             } else if (strcmp(token, "writetstamp") == 0) {
                 newaction->type = CA_WRITETSTAMP;
             } else {
-                struct PipelineObject *obj = (struct PipelineObject *)hashmap_find(stst->objects, token);
+                GET_OBJECT(token);
                 if (obj) {
                     switch (obj->type) {
                         case PO_SEQGEN:
@@ -750,7 +739,7 @@ static bool process_token(char *token, void *userdata)
             break; }
         case CA_ELIM:
             if (newaction->elim.rec == NULL) {
-                struct PipelineObject *obj = (struct PipelineObject *)hashmap_find(stst->objects, token);
+                GET_OBJECT(token);
                 if (obj) {
                     if (obj->type == PO_SEQREC) {
                         newaction->elim.rec = obj;
@@ -794,7 +783,7 @@ static bool process_token(char *token, void *userdata)
                 }
                 break;
             } else if (newaction->oam.obj == NULL) {
-                struct PipelineObject *obj = (struct PipelineObject *)hashmap_find(stst->objects, token);
+                GET_OBJECT(token);
                 if (!obj) {
                     THROW("unknown object '%s' for OAM action", token);
                 }
@@ -806,7 +795,7 @@ static bool process_token(char *token, void *userdata)
             break;
         case CA_POF:
             if (newaction->pof.pof == NULL) {
-                struct PipelineObject *obj = (struct PipelineObject *)hashmap_find(stst->objects, token);
+                GET_OBJECT(token);
                 if (obj) {
                     if (obj->type == PO_POF) {
                         newaction->pof.pof = obj;
@@ -852,7 +841,7 @@ static bool process_token(char *token, void *userdata)
                 // first argument can be the name of a state object
                 if (newaction->repl.replobj == NULL
                         && newaction->repl.pipelines == NULL) {
-                    struct PipelineObject *obj = (struct PipelineObject *)hashmap_find(stst->objects, token);
+                    GET_OBJECT(token);
                     if (obj) {
                         if (obj->type == PO_REPL) {
                             newaction->repl.replobj = obj;
@@ -873,7 +862,7 @@ static bool process_token(char *token, void *userdata)
                 struct StageState pstst = *stst;
                 char *replname = strdup(token);
                 pstst.stream = replname;
-                pstst.headers = copy_header_list(stst->headers);
+                pstst.headers = copy_header_list(stst->headers, false);
                 pstst.actions = NULL;
                 pstst.must_write = copy_mustwrite_list(stst, pstst.headers);
                 pstst.depth += 1;
@@ -908,18 +897,16 @@ static bool process_token(char *token, void *userdata)
             if (newaction->send.iface) {
                 THROW("we can only send on one interface at once");
             } else {
-                struct Interface *iface = (struct Interface *)hashmap_find(stst->ifaces, token);
+                GET_IFACE(token);
                 if (iface == NULL) {
                     THROW("unknown interface '%s'", token);
                 }
-                //TODO dynconf: defer finalizing the iface pointer to assemble_actions() ?
-                //      that's the least of our problems when dynconf changes interfaces :(
                 newaction->send.iface = iface;
             }
             break;
         case CA_SEQGEN:
             if (newaction->seq.gen == NULL) {
-                struct PipelineObject *obj = (struct PipelineObject *)hashmap_find(stst->objects, token);
+                GET_OBJECT(token);
                 if (obj) {
                     if (obj->type == PO_SEQGEN) {
                         newaction->seq.gen = obj;
@@ -1550,7 +1537,7 @@ struct ConfAction *parse_actions_line(const char *stream, const char *line,
     struct StageState stst = {
         .stream = stream,
         .actions = NULL,
-        .headers = copy_header_list(headers),
+        .headers = copy_header_list(headers, false),
         .ifaces = ifaces,
         .objects = objects,
         .streams_sec = streams_sec,
@@ -1752,15 +1739,6 @@ static struct EditAssign *assemble_fieldassigns(struct ConfAssignment *list, uns
     return ret;
 }
 
-// add reference to the outgoing interfaces so they know they are in use
-static void ref_send_interfaces(struct Pipeline *pipe)
-{
-    for (unsigned i=0; i<pipe->action_count; i++) {
-        if (pipe->actions[i].type == ACT_SEND) {
-            iface_ref(action_send_get_iface(pipe->actions+i));
-        }
-    }
-}
 
 struct Pipeline *assemble_actions(const char *stream_name, const struct ConfAction *ca_list)
 {
@@ -1857,7 +1835,6 @@ struct Pipeline *assemble_actions(const char *stream_name, const struct ConfActi
                         //TODO cleanup on error
                         return NULL;
                     }
-                    pipeline_ref(r_pipe);
 
                     struct PipelineList *p = calloc_struct(PipelineList);
                     p->pipe = r_pipe;
@@ -1894,7 +1871,7 @@ struct Pipeline *assemble_actions(const char *stream_name, const struct ConfActi
     ret->actions = actions;
     ret->action_count = count;
     ret->name = strdup(stream_name);
-    ref_send_interfaces(ret);
+    ret->reference_count = 1; // the initial owner is the caller of assemble_actions()
     return ret;
 #undef THROW
 }

@@ -17,7 +17,7 @@ struct Pipeline;
 
 struct HeaderMatch {
     struct HeaderField field;
-    struct Value value;
+    struct Value value; // currently always a constant
     value_comparator *comparator;
 
     struct HeaderMatch *next;
@@ -31,35 +31,47 @@ struct HeaderDescriptor {
     struct HeaderDescriptor *next;
 };
 
-struct ParseTree;
-
-struct ParseTree *new_parsetree(struct Interface *iface);
-
-void parsetree_ref(struct ParseTree *pt);
-
-void parsetree_unref(struct ParseTree *pt);
-
-// adds a new stream to the decision tree
-// this will add a reference to @pipe
-// this should not alter @headers, dynconf will need it later
-bool parsetree_add_stream(struct ParseTree *pt, struct HeaderDescriptor *headers, struct Pipeline *pipe);
-
-//TODO parsetree_del_stream()
-
-// parses the packet:
-//      - identify headers, fill p->headers
-//      - match header field values against known streams
-// @returns an action pipeline to process the packet or NULL if unknown stream
-struct Pipeline *parsetree_process(struct ParseTree *pt, struct Packet *p);
-
-// always returns NULL
-struct HeaderMatch *delete_match_list(struct HeaderMatch *matches);
-
 // always returns NULL
 struct HeaderDescriptor *delete_header_list(struct HeaderDescriptor *headers);
+
+struct HeaderDescriptor *copy_header_list(const struct HeaderDescriptor *headers, bool copy_matchlist);
 
 struct HeaderDescriptor *header_list_find_by_name(struct HeaderDescriptor *headers, const char *name);
 
 struct HeaderDescriptor *header_list_find_by_typeid(struct HeaderDescriptor *headers, enum ProtocolID id);
+
+
+struct ParseTree;
+
+struct ParseTree *new_parsetree(const struct Interface *iface);
+
+// always returns NULL
+struct ParseTree *delete_parsetree(struct ParseTree *pt);
+
+// adds a new stream to the decision tree
+// the name of the stream is @pipe->name
+// @returns false if a stream with this name is already in the decision tree
+// the add order matters: if a packet matches multiple streams, the first one added will match
+//      TODO we could introduce a priority for reordering
+// this will make a deep copy of @headers (easy to copy, difficult to refcount)
+// this will add a reference to @pipe (difficult to copy)
+bool parsetree_add_stream(struct ParseTree *pt, struct HeaderDescriptor *headers, struct Pipeline *pipe);
+
+// removes a stream from the decision tree
+// @returns true on success, false if the stream is unknown
+bool parsetree_del_stream(struct ParseTree *pt, const char *stream_name);
+
+// replaces an existing stream in the decision tree
+// the name of the stream is @pipe->name
+// @returns false if a stream with this name is not found in the decision tree
+// this will make a deep copy of @headers (easy to copy, difficult to refcount)
+// this will add a reference to @pipe (difficult to copy)
+bool parsetree_replace_stream(struct ParseTree *pt, struct HeaderDescriptor *headers, struct Pipeline *pipe);
+
+// parses the packet:
+//      - identify headers, fill p->headers
+//      - match header field values against known streams
+// @returns an action pipeline iterator to process the packet or NULL if unknown stream
+struct PipelineIterator *parsetree_identify(struct ParseTree *pt, struct Packet *p);
 
 #endif // R2_PARSETREE_H

@@ -85,8 +85,8 @@ bool packet_dummy(const struct Packet *p);
 // this will create a new entry in p->headers
 // @offset is counted from p->start not from p->buf!
 // the headers MUST be identified by increasing offset
-// TODO do we prevent the headers from overlapping? do we have to?
-void packet_identify_header(struct Packet *p, enum ProtocolID type, unsigned offset, unsigned len);
+// @returns false on error
+bool packet_identify_header(struct Packet *p, enum ProtocolID type, unsigned offset, unsigned len);
 
 // adds a new header on the scratch space, adds an entry to @p->headers
 // the position in the header list is @idx

@@ -5,11 +5,14 @@
 #ifndef R2_CONF_OBJECT_H
 #define R2_CONF_OBJECT_H
 
+#include <stdbool.h>
+
 struct HashMap;
 struct IniSection;
 
-// @returns map of PipelineObject keyed by their names
-struct HashMap *parse_objects(const struct IniSection *objects_section);
+// parses the object definitions into @objects
+// @returns false on error
+bool parse_objects(struct HashMap *objects, const struct IniSection *objects_section);
 
 #endif // R2_CONF_OBJECT_H
 

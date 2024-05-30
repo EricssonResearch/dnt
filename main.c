@@ -28,7 +28,6 @@
 DEFAULT_LOGGING_MODULE(MAIN, INFO);
 
 int sigint_count = 0;
-struct R2d2Config *config;
 
 static void sigint_handler(int sig, siginfo_t *si, void *uc)
 {
@@ -48,7 +47,7 @@ static void sigusr1_handler(int sig, siginfo_t *si, void *uc)
         return;
 
     log_info("SIGUSR1 caught, resetting seq generators");
-    hashmap_foreach(config->objects, reset_all_seq_generators, NULL);
+    state_foreach_objects(reset_all_seq_generators, NULL);
 }
 
 static int add_iface_to_epollfd(const char *key, void *value, void *userdata) {
@@ -68,7 +67,7 @@ static int add_iface_to_epollfd(const char *key, void *value, void *userdata) {
     return 1;
 }
 
-static void recv_loop(struct HashMap *ifaces)
+static void recv_loop(void)
 {
     struct sigaction sa;
     //struct sigevent sev;
@@ -96,7 +95,7 @@ static void recv_loop(struct HashMap *ifaces)
         return;
     }
 
-    if (hashmap_foreach(ifaces, add_iface_to_epollfd, &epollfd) == 0) {
+    if (state_foreach_interfaces(add_iface_to_epollfd, &epollfd) == 0) {
         return;
     }
 
@@ -131,14 +130,6 @@ static void recv_loop(struct HashMap *ifaces)
             last_perfcheck_time = now;
         }
     }
-}
-
-static int open_interface(const char *key, void *value, void *userdata)
-{
-    (void)userdata;
-    log_debug("opening interface %s", key);
-    struct Interface *iface = (struct Interface *)value;
-    return iface->open(iface);
 }
 
 // expected format: "MOD1:LEVEL1,MOD2:LEVEL2"
@@ -295,38 +286,30 @@ int main(int argc, char **argv)
     log_debug("debug");*/
 
     log_info("Reading config '%s'", arguments.configfile);
-    config = read_config(arguments.configfile);
-    if (config == NULL) {
+    struct StateTransaction *tr = read_config_file(arguments.configfile);
+    if (tr == NULL) {
         log_error("the config is invalid");
         return EXIT_FAILURE;
     }
 
-    if (!config_add_streams_to_interfaces(config)) {
-        delete_config(config);
-        return EXIT_FAILURE;
-    }
-
-    if (hashmap_foreach(config->ifaces, open_interface, NULL) == 0) {
-        delete_config(config);
+    bool commit_success = state_commit_transaction(tr);
+    delete_transaction(tr);
+    if (!commit_success) {
         return EXIT_FAILURE;
     }
 
     if (!init_delay()) {
-        delete_config(config);
         return EXIT_FAILURE;
     }
 
-    if(!init_oam(config->oam)) {
-        delete_config(config);
+    if(!init_oam()) {
         return EXIT_FAILURE;
     }
 
-    recv_loop(config->ifaces);
+    recv_loop();
     log_info("receive loop ended");
 
     fini_delay();
-
-    delete_config(config);
 
     finish_oam();
 

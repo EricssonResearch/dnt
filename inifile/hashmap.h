@@ -33,7 +33,8 @@
  * Donald Knuth advises that the bucket count should be a prime number. AFAIK
  * it's not proven to be optimal, but Knuth is always right.
  *
- * The bucket count should be slightly larger than the expected number of items.
+ * The bucket count should be slightly larger than the expected number of items
+ * for optimal performance, by avoiding the chaining inside the buckets.
  *
  * The data pointed by the key and value pointers supplied to hashmap_insert()
  * are not copied, just the given pointers are remembered. The @item_delete_cb
@@ -46,6 +47,8 @@
 
 struct HashMap;
 
+// callback for foreach and delete
+// the key is const because that should never be changed in foreach
 typedef int hashmap_cb(const char *key, void *value, void *userdata);
 
 // create a hash map with @bucketcount buckets
@@ -61,11 +64,14 @@ struct HashMap *delete_hashmap(struct HashMap *hash);
 // add (key, value) pair to the hash map
 // if this key already exists in the hash this overrides that value
 // when an existing value is overridden, the delete callback is called with the old key and value
-void hashmap_insert(struct HashMap *hash, char *key, void *value);
+// returns 1 if a new item was inserted into the hash
+// returns 0 on error or an existing item was overwritten
+int hashmap_insert(struct HashMap *hash, char *key, void *value);
 
 // removes the (key, value) pair from the hash map, if it exists
 // the delete callback is called for the element
-void hashmap_remove(struct HashMap *hash, const char *key);
+// returns 1 if an item was deleted, 0 otherwise
+int hashmap_remove(struct HashMap *hash, const char *key);
 
 // returns the value associated with the given key
 // returns NULL if the key is not in the hash or the value is NULL
@@ -81,7 +87,7 @@ unsigned hashmap_count(const struct HashMap *hash);
 // returns the number of buckets in the hash
 unsigned hashmap_bucketcount(const struct HashMap *hash);
 
-// return the number of buckets that contain value
+// returns the number of buckets that contain value
 unsigned hashmap_usedbuckets(const struct HashMap *hash);
 
 // calls @cb for each element in the hash
@@ -89,13 +95,14 @@ unsigned hashmap_usedbuckets(const struct HashMap *hash);
 // @userdata is passed to the callback
 // stops and returns false if the callback returns false
 // returns true on success
-//TODO is it safe to remove stuff in foreach?
+// it is safe to call @hashmap_remove on the current item in @cb (only on that one!)
 int hashmap_foreach(const struct HashMap *hash, hashmap_cb *cb, void *userdata);
 
 // calls @cb for each element in the hash
 // the elements are ordered by their keys
 // @userdata is passed to the callback
 // stops and returns false if the callback returns false
+// it is not safe to call @hashmap_remove in @cb
 int hashmap_foreach_sorted(const struct HashMap *hash, hashmap_cb *cb, void *userdata);
 
 #endif // HASHMAP_H

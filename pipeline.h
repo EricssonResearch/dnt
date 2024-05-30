@@ -8,6 +8,7 @@
 #include <stdbool.h>
 
 struct Action;
+struct Interface;
 struct Packet;
 
 struct Pipeline {
@@ -18,6 +19,7 @@ struct Pipeline {
 };
 
 
+//TODO make the contents private
 struct PipelineIterator {
     struct Packet *packet;
     struct Pipeline *pipe;
@@ -32,6 +34,10 @@ void pipeline_ref(struct Pipeline *pipe);
 // remove a reference from the pipeline
 // when all references are removed the pipeline deletes itself
 void pipeline_unref(struct Pipeline *pipe);
+
+// add reference to the interfaces this @pipe is sending on
+void pipeline_ref_send_interfaces(struct Pipeline *pipe);
+
 
 // the iterator will own the packet
 struct PipelineIterator *new_pipe_iterator(struct Pipeline *pipe, struct Packet *p);

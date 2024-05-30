@@ -224,6 +224,7 @@ struct PipelineObject *new_seq_rec(const char *name, enum SequenceRecoveryAlgori
     ret->base.name = strdup(name);
     ret->base.get_state = get_state_json;
     ret->base.process_packet = seq_recovery;
+    ret->base.reference_count = 1;
 
     ret->algorithm = algo;
     ret->use_reset_flag = use_reset_flag;

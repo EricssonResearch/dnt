@@ -12,7 +12,8 @@ struct IniSection;
 struct Pipeline;
 
 // parse the "*:actions" line for a stream
-// returns a linked list of (opaque) action descriptors
+// @ifaces and @objects are the new ones added in the transaction
+// @returns a linked list of (opaque) action descriptors
 struct ConfAction *parse_actions_line(const char *stream, const char *line,
         const struct HeaderDescriptor *headers,
         const struct HashMap *ifaces,
@@ -23,7 +24,7 @@ struct ConfAction *parse_actions_line(const char *stream, const char *line,
 struct ConfAction *delete_confaction_list(struct ConfAction *ca_list);
 
 // creates an action pipeline from the action descriptor list
-// returns NULL if @ca_list is empty
+// @returns NULL if @ca_list is empty
 // doesn't add reference to the returned pipeline
 struct Pipeline *assemble_actions(const char *stream_name, const struct ConfAction *ca_list);
 

@@ -35,4 +35,12 @@ void stop_monitoring_error_queue(void *monitor);
 struct ifaddrs;
 void print_ifaddrs(struct ifaddrs *ifa);
 
+// helper for the type-specific constructors
+#define _NEW_IFACE(type_)                               \
+    struct Interface *iface = calloc_struct(Interface); \
+    iface->name = strdup(name);                         \
+    iface->reference_count = 1;                         \
+    iface->type = type_;                                \
+    iface->state = IFS_INIT
+
 #endif // R2_IF_UTILS_H

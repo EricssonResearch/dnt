@@ -289,11 +289,8 @@ static value_producer *eth_get_property_reader(const struct Interface *iface, co
 
 struct Interface *new_eth_interface(const char *name, const char *ifname)
 {
-    struct Interface *iface = calloc_struct(Interface);
-    iface->name = strdup(name);
+    _NEW_IFACE(IF_ETH);
     iface->ifname = strdup(ifname);
-    iface->type = IF_ETH;
-    iface->state = IFS_INIT;
     iface->recv = eth_recv;
     iface->send = eth_send;
     iface->open = eth_open;
@@ -304,7 +301,6 @@ struct Interface *new_eth_interface(const char *name, const char *ifname)
     iface->iface_private = eid;
 
     iface->parsetree_ = new_parsetree(iface);
-    parsetree_ref(iface->parsetree_);
 
     return iface;
 }

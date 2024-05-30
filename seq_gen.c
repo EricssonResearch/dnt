@@ -66,6 +66,7 @@ struct PipelineObject *new_seq_gen(const char *name, bool use_reset_flag, bool u
     ret->base.name = strdup(name);
     ret->base.get_state = get_state_json;
     ret->base.process_packet = seq_generator;
+    ret->base.reference_count = 1;
 
     ret->use_reset_flag = use_reset_flag;
     ret->use_init_flag = use_init_flag;

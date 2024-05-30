@@ -27,7 +27,7 @@ List of interfaces where we can send/receive packets. The keys of the items are 
     * `iface` the name of the hardware interface
     * `srcport` the UDP source port of the sent packets (default: let Linux choose)
     * `dstport` the UDP port to send to (default: 6635)
-    * `dstip` the IP address to send to (also determines the IP version, domain names are also accepted)
+    * `dstip` the IP address to send to (also determines the IP version, domain names are also accepted), `ipv4` and `ipv6` mean the address will be specified later (can't send until a valid destination is set)
     * `prio` the IPv4 TOS or IPv6 Traffic Class for the sent packets (default: 0)
 * `internal` a virtual interface within R2DTWO, useful for stream re-classification in decapsulating scenarios, no parameters
 * `oam` receives OAM reply messages out-of-band

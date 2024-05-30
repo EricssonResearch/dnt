@@ -5,6 +5,8 @@
 #ifndef R2_CONF_STREAMS_H
 #define R2_CONF_STREAMS_H
 
+#include <stdbool.h>
+
 struct ConfAction;
 struct IniSection;
 struct Interface;
@@ -16,8 +18,10 @@ struct ConfStream {
     struct HeaderDescriptor *headers;
 };
 
-// @returns hash of ConfStream keyed by stream name
-struct HashMap *parse_streams(const struct IniSection *streams_section,
+// parses the stream definitions into @streams
+// @ifaces and @objects are the new ones added in the transaction
+// @returns false on error
+bool parse_streams(struct HashMap *streams, const struct IniSection *streams_section,
         const struct HashMap *ifaces, const struct HashMap *objects);
 
 struct ConfStream *delete_confstream(struct ConfStream *stream);

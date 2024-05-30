@@ -4,7 +4,7 @@ project(INI_Testing)
 
 include_directories(../)
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -Og -std=gnu99 -Wall -Wextra -Wstrict-prototypes -Wmissing-declarations -Wwrite-strings -Wshadow -Werror")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O0 -std=c99 -Wall -Wextra -Wstrict-prototypes -Wmissing-declarations -Wwrite-strings -Wshadow -Wvla -Werror")
 
 #set(MY_EXECUTABLES "")
 

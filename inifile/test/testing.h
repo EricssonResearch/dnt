@@ -140,9 +140,9 @@
         snprintf(_msg, sizeof(_msg), _description, ##__VA_ARGS__);  \
         _msg[255] = 0;                                              \
         printf(test_color ?                                         \
-                "\n    LINE %d \033[1;31mFAILED\033[0m: %s" :       \
-                "\n    LINE %d FAILED: %s",                         \
-                __LINE__, _msg);                                    \
+                "\n    %s %d \033[1;31mFAILED\033[0m: %s" :         \
+                "\n    %s %d FAILED: %s",                           \
+                __FILE__, __LINE__, _msg);                          \
     }                                                               \
 } while (0)
 
@@ -155,9 +155,9 @@
         snprintf(_msg, sizeof(_msg), _description, ##__VA_ARGS__);  \
         _msg[255] = 0;                                              \
         printf(test_color ?                                         \
-                "\n    LINE %d \033[1;31mFAILED\033[0m: %s" :       \
-                "\n    LINE %d FAILED: %s",                         \
-                __LINE__, _msg);                                    \
+                "\n    %s %d \033[1;31mFAILED\033[0m: %s" :         \
+                "\n    %s %d FAILED: %s",                           \
+                __FILE__, __LINE__, _msg);                          \
         longjmp(test_jmp_buffer, 9);                                \
     }                                                               \
 } while (0)
@@ -180,9 +180,9 @@
         snprintf(_msg, sizeof(_msg), _description, ##__VA_ARGS__);  \
         _msg[255] = 0;                                              \
         printf(test_color ?                                         \
-                "\n    LINE %d \033[1;31mNO ASSERT\033[0m: %s" :    \
-                "\n    LINE %d NO ASSERT: %s",                      \
-                __LINE__, _msg);                                    \
+                "\n    %s %d \033[1;31mNO ASSERT\033[0m: %s" :      \
+                "\n    %s %d NO ASSERT: %s",                        \
+                __FILE__, __LINE__, _msg);                          \
         _reaction;                                                  \
     }                                                               \
 } while(0)

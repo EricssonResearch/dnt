@@ -249,11 +249,8 @@ static value_producer *ip_get_property_reader(const struct Interface *iface, con
 
 struct Interface *new_ip_interface(const char *name, const char *ifname)
 {
-    struct Interface *iface = calloc_struct(Interface);
-    iface->name = strdup(name);
+    _NEW_IFACE(IF_IP);
     iface->ifname = strdup(ifname);
-    iface->type = IF_IP;
-    iface->state = IFS_INIT;
     iface->recv = ip_recv;
     iface->send = ip_send;
     iface->open = ip_open;

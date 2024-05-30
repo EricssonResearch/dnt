@@ -3,6 +3,7 @@
 
 
 #include "if_oam_cmd.h"
+#include "if_utils.h"
 #include "interface.h"
 #include "log.h"
 #include "oam.h"
@@ -157,8 +158,7 @@ static bool oam_cmd_close(struct Interface *iface)
 struct Interface *new_oam_cmd_interface(const char *name, const char *ifname,
                             const char *oam_cmd_ip, unsigned port)
 {
-    struct Interface *iface = calloc_struct(Interface);
-    iface->name = strdup(name);
+    _NEW_IFACE(IF_OAM_CMD);
     if (ifname != NULL) {
         if(strcmp(ifname,"any")==0)
             iface->ifname = NULL;
@@ -167,8 +167,6 @@ struct Interface *new_oam_cmd_interface(const char *name, const char *ifname,
     } else {
         iface->ifname = NULL;
     }
-    iface->type = IF_OAM_CMD;
-    iface->state = IFS_INIT;
     iface->recv = oam_cmd_recv;
     iface->send = oam_cmd_send;
     iface->open = oam_cmd_open;

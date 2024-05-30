@@ -226,11 +226,8 @@ static value_producer *udpin_get_property_reader(const struct Interface *iface, 
 struct Interface *new_udp_in_interface(const char *name, const char *ifname,
         unsigned port, unsigned ipversion)
 {
-    struct Interface *iface = calloc_struct(Interface);
-    iface->name = strdup(name);
+    _NEW_IFACE(IF_UDP_IN);
     iface->ifname = strdup(ifname);
-    iface->type = IF_UDP_IN;
-    iface->state = IFS_INIT;
     iface->recv = udpin_recv;
     iface->send = udpin_send;
     iface->open = udpin_open;
@@ -243,7 +240,6 @@ struct Interface *new_udp_in_interface(const char *name, const char *ifname,
     uid->family = ipversion == 6 ? AF_INET6 : AF_INET;
 
     iface->parsetree_ = new_parsetree(iface);
-    parsetree_ref(iface->parsetree_);
 
     return iface;
 }

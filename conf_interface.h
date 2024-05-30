@@ -5,6 +5,8 @@
 #ifndef R2_CONF_INTERFACE_H
 #define R2_CONF_INTERFACE_H
 
+#include <stdbool.h>
+
 struct HashMap;
 struct IniSection;
 struct Interface;
@@ -16,14 +18,14 @@ struct ConfStreamList {
     struct ConfStreamList *next;
 };
 
-// returns a hash of the interfaces
+// parses the interface definitions into @ifaces
 // the interfaces are just created, but not opened
-// returns NULL on error
-struct HashMap *parse_interfaces(const struct IniSection *interfaces_section);
+// @returns false on error
+bool parse_interfaces(struct HashMap *ifaces, const struct IniSection *interfaces_section);
 
-// returns a hash of ConfStreamList keyed by interface name
-// returns NULL on error
-struct HashMap *parse_interface_streams(const struct IniSection *interfaces_section,
+// parses the list of streams received by the interfaces
+// @returns false on error
+bool parse_interface_streams(struct HashMap *iface_streams, const struct IniSection *interfaces_section,
         const struct HashMap *ifaces, const struct HashMap *streams);
 
 #endif // R2_CONF_INTERFACE_H

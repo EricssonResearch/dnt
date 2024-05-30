@@ -23,7 +23,7 @@ struct OamEndPoint {
     bool stop; // false: MIP, true: MEP-Stop
 };
 
-bool init_oam(struct HashMap *config_oam);
+bool init_oam(void);
 void finish_oam(void);
 
 // receive on the return interface
@@ -53,5 +53,7 @@ struct OamEndPoint *oam_delete_endpoint(struct OamEndPoint *end);
 
 bool set_oam_cmd_if(struct Interface *iface);
 void add_oam_if(struct Interface *iface);
+
+bool oam_start_background_ping(const char *name, const char *command);
 
 #endif // R2_OAM_H

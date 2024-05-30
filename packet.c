@@ -62,7 +62,7 @@ struct Packet *copy_packet(const struct Packet *p)
     *newp = *p;
     newp->id = __atomic_fetch_add(&next_packet_id, 1, __ATOMIC_RELAXED);
 #if 0
-    newp->buf = memdup(p->buf, PACKET_BUF_LEN);
+    newp->buf = (unsigned char *)memdup(p->buf, PACKET_BUF_LEN);
 #else
     // optimization: only copy the packet and the scratch
     newp->buf = (unsigned char *)malloc(PACKET_BUF_LEN);
@@ -89,6 +89,7 @@ struct Packet *serialize_packet(const struct Packet *p)
         dstlen += len;
     }
     ret->len = dstlen;
+    ret->header_count = 0;
 
     ret->id = __atomic_fetch_add(&next_packet_id, 1, __ATOMIC_RELAXED);
     __atomic_fetch_add(&packet_count, 1, __ATOMIC_RELAXED);
@@ -100,23 +101,28 @@ bool packet_dummy(const struct Packet *p)
     return p->buf == dummybuf;
 }
 
-void packet_identify_header(struct Packet *p, enum ProtocolID type, unsigned offset, unsigned len)
+bool packet_identify_header(struct Packet *p, enum ProtocolID type, unsigned offset, unsigned len)
 {
     if (p->header_count == PACKET_MAX_HEADER_NUM) {
         log_error("packet_identify_header: already at maximum header count");
-        return;
+        return false;
     }
     if (p->header_count > 0 && p->headers[p->header_count-1].start > p->start + offset) {
-        log_error("packet_identify_header: new offset % is smaller than the previous %u",
-                offset, p->headers[p->header_count-1].start);
-        return;
+        log_error("packet_identify_header: new offset %u is smaller than the previous %u",
+                p->start + offset, p->headers[p->header_count-1].start);
+        return false;
+    }
+    if (offset + len > p->len) {
+        log_error("packet_identify_header: offset %u + len %u is larger than the packet %u",
+                offset, len, p->len);
+        return false;
     }
     struct PacketHeader *h = p->headers+p->header_count;
     h->type = type;
-    //TODO check that h->start + h->len < p->start + p->len
     h->start = p->start + offset;
     h->len = len;
     p->header_count++;
+    return true;
 }
 
 static int scratch_alloc(struct Packet *p, unsigned len)

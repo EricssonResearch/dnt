@@ -26,11 +26,15 @@ struct PipelineObject {
     enum ActionResult (*process_packet)(struct PipelineObject *self, struct PipelineIterator *pi);
     struct JsonValue *(*get_state)(const struct PipelineObject *self);
     int auto_mip_level;
+    int reference_count;
 };
 
-// uses the delete function for the appropriate type
-// always returns NULL
-struct PipelineObject *delete_pipeline_object(struct PipelineObject *obj);
+// add a reference to the object
+void pipeline_object_ref(struct PipelineObject *obj);
+
+// remove a reference from the object
+// when all references are removed the object deletes itself
+void pipeline_object_unref(struct PipelineObject *obj);
 
 // @returns string representation of the @type enum
 const char *pipelineobject_name_from_type(enum PipelineObjectType type);

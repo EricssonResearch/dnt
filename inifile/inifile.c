@@ -114,9 +114,8 @@ struct IniSection *read_inifile(const char *filename)
 
     if (!f) {
 #ifndef INIFILE_QUIET
-        char errstr[256] = {0};
-        strerror_r(errno, errstr, sizeof(errstr));
-        fprintf(stderr, "read_inifile() can't open '%s': %s\n", filename, errstr);
+        //TODO we should be using strerror_r for thread-safety but it's not available
+        fprintf(stderr, "read_inifile() can't open '%s': %s\n", filename, strerror(errno));
 #endif
         return NULL;
     }
@@ -264,9 +263,8 @@ int write_inifile(const char *filename, const struct IniSection *sec)
 
     if (!f) {
 #ifndef INIFILE_QUIET
-        char errstr[256] = {0};
-        strerror_r(errno, errstr, sizeof(errstr));
-        fprintf(stderr, "write_inifile() can't open '%s': %s\n", filename, errstr);
+        //TODO we should be using strerror_r for thread-safety but it's not available
+        fprintf(stderr, "write_inifile() can't open '%s': %s\n", filename, strerror(errno));
 #endif
         return 1;
     }
