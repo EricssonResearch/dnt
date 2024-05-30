@@ -9,18 +9,14 @@
 
 #include <arpa/inet.h> /* htons() */
 #include <linux/if_ether.h> /* ETH_P_* */
+#include <netinet/in.h> /* IPPROTO_* */
 
 #define ETH_P_FRER 0xf1c1
 
 //TODO writing these conversion functions is a pain, we need a script to generate them
 static bool id_from_ethertype(enum ProtocolID *id, uint16_t nexthdr)
 {
-#define SET_ID(x)       \
-    do {                \
-        *id = x;        \
-        return true;    \
-    } while (0)
-
+#define SET_ID(x) *id = x; return true
     switch (nexthdr) {
         case ETH_P_8021Q:
             SET_ID(PROTO_ID_CVLAN);
@@ -43,12 +39,7 @@ static bool id_from_ethertype(enum ProtocolID *id, uint16_t nexthdr)
 
 static bool ethertype_from_id(uint16_t *nexthdr, enum ProtocolID id)
 {
-#define SET_TYPE(x)     \
-    do {                \
-        *nexthdr = x;   \
-        return true;    \
-    } while (0)
-
+#define SET_TYPE(x) *nexthdr = x; return true
     switch (id) {
         case PROTO_ID_SVLAN:
             SET_TYPE(ETH_P_8021AD);
@@ -75,6 +66,54 @@ static bool ethertype_from_id(uint16_t *nexthdr, enum ProtocolID id)
     }
     return false;
 #undef SET_TYPE
+}
+
+static bool id_from_ipproto(enum ProtocolID *id, uint16_t proto)
+{
+#define SET_ID(x) *id = x; return true
+    switch (proto) {
+        case IPPROTO_IPIP:
+            SET_ID(PROTO_ID_IPv4);
+        case IPPROTO_IPV6:
+            SET_ID(PROTO_ID_IPv6);
+        case IPPROTO_UDP:
+            SET_ID(PROTO_ID_UDP);
+        case IPPROTO_MPLS:
+            SET_ID(PROTO_ID_MPLS);
+        case IPPROTO_ETHERNET:
+            SET_ID(PROTO_ID_ETH);
+    }
+    return false;
+#undef SET_ID
+}
+
+static bool ipproto_from_id(uint16_t *proto, enum ProtocolID id)
+{
+#define SET_PROTO(x) *proto = x; return true
+    switch (id) {
+        case PROTO_ID_ETH:
+            SET_PROTO(IPPROTO_ETHERNET);
+        case PROTO_ID_IPv4:
+            SET_PROTO(IPPROTO_IPIP);
+        case PROTO_ID_IPv6:
+            SET_PROTO(IPPROTO_IPV6);
+        case PROTO_ID_UDP:
+            SET_PROTO(IPPROTO_UDP);
+        case PROTO_ID_MPLS:
+            SET_PROTO(IPPROTO_MPLS);
+        case PROTO_ID_PAYLOAD:
+        case PROTO_ID_CVLAN:
+        case PROTO_ID_SVLAN:
+        case PROTO_ID_RTAG:
+        case PROTO_ID_TTAG:
+        case PROTO_ID_DCW:
+        case PROTO_ID_TCW:
+        case PROTO_ID_OAM:
+        case PROTO_ID_ARP:
+            return false;
+    }
+    return false;
+#undef SET_PROTO
 }
 
 static const struct ProtocolField payload_fields[] = {
@@ -215,8 +254,8 @@ const struct Protocol protocol_list[] = {
     {"mpls", mpls_fields, ARRAY_SIZE(mpls_fields), 4, 0, NULL, NULL},
     {"dcw", dcw_fields, ARRAY_SIZE(dcw_fields), 4, 0, NULL, NULL},
     {"tcw", tcw_fields, ARRAY_SIZE(tcw_fields), 4, 0, NULL, NULL},
-    {"ipv4", ipv4_fields, ARRAY_SIZE(ipv4_fields), 20, 0, NULL, NULL}, //TODO protocol field
-    {"ipv6", ipv6_fields, ARRAY_SIZE(ipv6_fields), 40, 0, NULL, NULL}, //TODO next header field
+    {"ipv4", ipv4_fields, ARRAY_SIZE(ipv4_fields), 20, 12, id_from_ipproto, ipproto_from_id},
+    {"ipv6", ipv6_fields, ARRAY_SIZE(ipv6_fields), 40, 4, id_from_ipproto, ipproto_from_id},
     {"arp", arp_fields, ARRAY_SIZE(arp_fields), 28, 0, NULL, NULL}, //TODO this is variable-length
     {"udp", udp_fields, ARRAY_SIZE(udp_fields), 8, 0, NULL, NULL},
     {"oam", oam_fields, ARRAY_SIZE(oam_fields), 8, 0, NULL, NULL},
