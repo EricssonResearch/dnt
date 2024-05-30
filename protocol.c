@@ -19,9 +19,9 @@ static bool id_from_ethertype(enum ProtocolID *id, uint16_t nexthdr)
     do {                \
         *id = x;        \
         return true;    \
-    } while (0);
+    } while (0)
 
-    switch (ntohs(nexthdr)) {
+    switch (nexthdr) {
         case ETH_P_8021Q:
             SET_ID(PROTO_ID_CVLAN);
         case ETH_P_8021AD:
@@ -43,10 +43,10 @@ static bool id_from_ethertype(enum ProtocolID *id, uint16_t nexthdr)
 
 static bool ethertype_from_id(uint16_t *nexthdr, enum ProtocolID id)
 {
-#define SET_TYPE(x)             \
-    do {                        \
-        *nexthdr = htons(x);    \
-        return true;            \
+#define SET_TYPE(x)     \
+    do {                \
+        *nexthdr = x;   \
+        return true;    \
     } while (0)
 
     switch (id) {

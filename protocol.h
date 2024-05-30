@@ -54,11 +54,11 @@ struct ProtocolField {
  */
 
 // @returns false on error
-// @nexthdr is in network byte order
+// @nexthdr is in host byte order
 typedef bool id_from_nexthdr(enum ProtocolID *id, uint16_t nexthdr);
 
 // @returns false on error
-// @returns @nexthdr in network byte order
+// @returns @nexthdr in host byte order
 typedef bool nexthdr_from_id(uint16_t *nexthdr, enum ProtocolID id);
 
 // describes one fixed-size protocol header

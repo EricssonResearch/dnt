@@ -238,12 +238,12 @@ bool read_constant(struct Value *val, enum ProtocolID proto, enum ProtocolFieldT
                 if (protocol_list[proto].get_nexthdr) {
                     uint16_t nexthdr;
                     if (protocol_list[proto].get_nexthdr(&nexthdr, val_id)) {
-                        if (prepare_constant_number(val, ntohs(nexthdr))) {
+                        if (prepare_constant_number(val, nexthdr)) {
                             return true;
                         } else {
                             // if this happens then get_nexthdr() of the protocol is bugged
                             THROW("invalid nexthdr value 0x%x for protocol %s",
-                                    ntohs(nexthdr), protocol_type_from_id(proto));
+                                    nexthdr, protocol_type_from_id(proto));
                         }
                     } else {
                         THROW("invalid nexthdr type for protocol %s",

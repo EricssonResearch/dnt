@@ -962,10 +962,9 @@ static struct ConfAssignment *assign_nexthdrid_from_header_type(const char *acti
         return NULL;
     }
 
-    nexthdrnum = ntohs(nexthdrnum); // we need it in host order
     struct ConfAssignment *a = calloc_struct(ConfAssignment);
-    a->text = strdup_printf("%s sets %s.%s=0x%.4x", action_name,
-            dstheader->name, dstf->name, nexthdrnum);
+    a->text = strdup_printf("%s sets %s.%s=0x%.4x (%s)", action_name,
+            dstheader->name, dstf->name, nexthdrnum, protocol_type_from_id(typeheader->id));
     init_confvariable(&a->lhs, CVT_FIELD, dstf);
     init_confvariable(&a->rhs, CVT_CONST, dstf);
     prepare_constant_number(&a->rhs.value, nexthdrnum);
