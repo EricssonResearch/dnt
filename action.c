@@ -374,6 +374,11 @@ static enum ActionResult action_REPL_execute(struct Action *a, struct PipelineIt
 
     struct PipelineList *list = rd->pipes;
     while (list) {
+        // do not replicate to masked pipes (member streams)
+        if (list->pipe->mask) {
+            list = list->next;
+            continue;
+        }
         struct Packet *p;
         if (list->next) {
             p = copy_packet(iterpacket);

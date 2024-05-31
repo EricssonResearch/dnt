@@ -103,6 +103,7 @@ struct ReplicateList {
     char *name;
     struct ConfAction *actions;
     struct ReplicateList *next;
+    bool masked;
 };
 
 // compiler-internal representation of an action
@@ -207,12 +208,13 @@ struct StageState {
         obj = state_get_object(_name);                                                          \
     }
 
-static void replicatelist_push(struct ReplicateList **list, char *name, struct ConfAction *actions)
+static void replicatelist_push(struct ReplicateList **list, char *name, struct ConfAction *actions, bool masked)
 {
     struct ReplicateList *l = calloc_struct(ReplicateList);
     l->name = name;
     l->actions = actions;
     l->next = *list;
+    l->masked = masked;
     *list = l;
 }
 
@@ -836,7 +838,18 @@ static bool process_token(char *token, void *userdata)
             }
             break;
         case CA_REPL: {
+            char *token_masked = strdup_printf("%s:masked", token);
+            char *pstring_masked = inisection_get(stst->streams_sec, token_masked);
             char *pstring = inisection_get(stst->streams_sec, token);
+            bool masked = false;
+            free(token_masked);
+            if (pstring && pstring_masked) {
+                THROW("redefinition of pipeline '%s'", token);
+            } else if (pstring_masked != NULL) {
+                pstring = pstring_masked;
+                masked = true;
+            }
+
             if (pstring == NULL) {
                 // first argument can be the name of a state object
                 if (newaction->repl.replobj == NULL
@@ -890,7 +903,7 @@ static bool process_token(char *token, void *userdata)
                     THROW("no actions in pipeline '%s'", token);
                 }
                 REVERSE_LIST(pstst.actions);
-                replicatelist_push(&newaction->repl.pipelines, strdup(token), pstst.actions);
+                replicatelist_push(&newaction->repl.pipelines, strdup(token), pstst.actions, masked);
             }
             break; }
         case CA_SEND:
@@ -1840,6 +1853,7 @@ struct Pipeline *assemble_actions(const char *stream_name, const struct ConfActi
                     p->pipe = r_pipe;
                     p->text = r->name;
                     p->next = pipes;
+                    p->pipe->mask = r->masked;
                     pipes = p;
                 }
                 REVERSE_LIST(pipes);
