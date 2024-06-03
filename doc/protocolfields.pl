@@ -19,7 +19,9 @@ while (<>) {
         if (/^};/) {
             undef $protoname
         } else {
-            /"(\w+)"/ and print "* `$1`\n"
+            /"(\w+)"/ and print "* `$1`";
+            /\/\/(.*)/ and print "$1";
+            print "\n";
         }
     } else {
         if (/^static const struct ProtocolField (\w+)_fields/) {

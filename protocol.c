@@ -127,7 +127,7 @@ static const struct ProtocolField eth_fields[] = {
 
 static const struct ProtocolField vlan_fields[] = {
     {"pcp",   0,  3, FT_NUMBER},
-    {"dei",   3,  1, FT_NUMBER},
+    {"dei",   3,  1, FT_NUMBER}, // drop eligible indicator
     {"vid",   4, 12, FT_NUMBER},
     {"tpid", 16, 16, FT_NEXTHEADER},
     {"vlan",  0, 16, FT_NUMBER}, // the whole header at once
@@ -179,8 +179,9 @@ static const struct ProtocolField tcw_fields[] = {
 };
 
 static const struct ProtocolField ipv4_fields[] = {
-    {"version",         0,  4, FT_NUMBER},
-    {"ihl",             4,  4, FT_NUMBER},
+    {"version",         0,  4, FT_NUMBER}, // should be 4
+    {"ihl",             4,  4, FT_NUMBER}, // should be 5
+    {"verihl",          0,  8, FT_NUMBER}, // should be 0x45
     {"dscp",            8,  6, FT_NUMBER},
     {"ecn",            14,  2, FT_NUMBER},
     {"tos",             8,  8, FT_NUMBER},
@@ -198,7 +199,7 @@ static const struct ProtocolField ipv4_fields[] = {
 };
 
 static const struct ProtocolField ipv6_fields[] = {
-    {"version",      0,   4, FT_NUMBER},
+    {"version",      0,   4, FT_NUMBER}, // should be 6
     {"class",        4,   8, FT_NUMBER},
     {"label",       12,  20, FT_NUMBER},
     {"length",      32,  16, FT_NUMBER},
@@ -208,7 +209,7 @@ static const struct ProtocolField ipv6_fields[] = {
     {"dst",        192, 128, FT_IPV6ADDRESS},
 };
 
-//TODO IPv6 extension headers?
+//TODO IPv6 extension headers? most of them are variable-length...
 
 static const struct ProtocolField arp_fields[] = {
     {"hwtype",   0, 16, FT_NUMBER}, // should be 1 (Eth)
