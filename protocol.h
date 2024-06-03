@@ -15,6 +15,7 @@ enum ProtocolFieldType {
     FT_IPV4ADDRESS,
     FT_IPV6ADDRESS,
     FT_TSNSEQ,
+    FT_SRV6SEQ,
     FT_TSNTSTAMP,
     FT_TTL,
     FT_CHECKSUM,
@@ -54,11 +55,11 @@ struct ProtocolField {
  */
 
 // @returns false on error
-// @nexthdr is in host byte order
+// @nexthdr is in network byte order
 typedef bool id_from_nexthdr(enum ProtocolID *id, uint16_t nexthdr);
 
 // @returns false on error
-// @returns @nexthdr in host byte order
+// @returns @nexthdr in network byte order
 typedef bool nexthdr_from_id(uint16_t *nexthdr, enum ProtocolID id);
 
 // describes one fixed-size protocol header
@@ -67,8 +68,11 @@ struct Protocol {
     const struct ProtocolField *header_fields;
     unsigned header_field_count;
     unsigned bytelength;
+//    unsigned nexthdr_idx; // index of the next header field
     id_from_nexthdr *get_id; // translates the value of the next header field to protocol id
     nexthdr_from_id *get_nexthdr; // translates protocol id to next header field value
+    const char *default_value; // initialize newly created header with these bytes
+    unsigned default_value_len; // only initialize the first few octets
 };
 
 // the internal id of the protocols is their index in this array
@@ -104,5 +108,8 @@ const struct ProtocolField *protocol_get_field_by_type(enum ProtocolID id, enum 
 // @returns index of the field in the protocol header
 // @returns -1 if the protocol has no field with the given @type
 int protocol_get_field_idx_by_type(enum ProtocolID id, enum ProtocolFieldType type);
+
+// sets protocol defaults
+void protocol_set_header_defaults(unsigned char *phdr, enum ProtocolID id);
 
 #endif // R2_PROTOCOL_H
