@@ -377,7 +377,9 @@ static void command_loop(struct command_connection *conn)
                 };
                 state_foreach_objects(try_set_mask, &mask_arg);
                 if (mask_arg.success == false)
-                    fprintf(cmd_w, "'%s': no such pipeline\n", pipename);
+                    fprintf(cmd_w, "'%s': no such replication pipeline\n", pipename);
+                else
+                    fprintf(cmd_w, "Pipeline '%s' %s\n", pipename, new_mask ? "masked" : "unmasked");
             }
             else {
                 ERROR("unknown command '%s'", oam_command);
