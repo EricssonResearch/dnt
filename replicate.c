@@ -2,9 +2,10 @@
 // All rights reserved.
 
 
-#include "replicate.h"
 #include "json.h"
+#include "object.h"
 #include "pipeline.h"
+#include "replicate.h"
 #include "utils.h"
 
 #include <stdlib.h>
@@ -12,6 +13,7 @@
 
 struct Replicate {
     struct PipelineObject base;
+    struct PipelineList *pipes;
 
     unsigned packets_passed;
     unsigned octets_passed;
@@ -71,4 +73,37 @@ enum ActionResult replicate_packet_passed(struct PipelineObject *rep, struct Pip
     return ACR_CONTINUE;
 }
 
+void store_replication_pipelines(struct PipelineObject *obj, struct PipelineList *pipes)
+{
+    struct Replicate *r = (struct Replicate *)obj;
+    r->pipes = pipes;
+}
+
+int try_set_mask(const char *key, void *value, void *udata)
+{
+    (void) key;
+    bool success = false;
+    struct MaskArg *args = (struct MaskArg *)udata;
+    struct PipelineObject *obj = (struct PipelineObject *)value;
+
+    if (obj->type == PO_REPL) {
+        struct Replicate *r = (struct Replicate *)obj;
+        struct PipelineList *list = r->pipes;
+        while (list) {
+            if (!strcmp(list->pipe->name, args->pipename)) {
+                list->pipe->mask = args->new_mask;
+                success = true;
+                break;
+            }
+            list = list->next;
+        }
+    }
+
+    // ...assuming replication:pipeline 1:1
+    if (success) {
+        args->success = true;
+        return 0;
+    }
+    return 1;
+}
 

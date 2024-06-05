@@ -374,6 +374,11 @@ static enum ActionResult action_REPL_execute(struct Action *a, struct PipelineIt
 
     struct PipelineList *list = rd->pipes;
     while (list) {
+        // do not replicate to masked pipes (member streams)
+        if (list->pipe->mask) {
+            list = list->next;
+            continue;
+        }
         struct Packet *p;
         if (list->next) {
             p = copy_packet(iterpacket);
@@ -410,8 +415,10 @@ void create_action_repl(struct Action *a, struct PipelineList *list, struct Pipe
     struct ReplData *rd = calloc_struct(ReplData);
     rd->pipes = list;
     rd->replobj = replobj;
-    if (replobj)
+    if (replobj) {
         pipeline_object_ref(replobj);
+        store_replication_pipelines(replobj, list);
+    }
     a->action_private = rd;
 }
 
