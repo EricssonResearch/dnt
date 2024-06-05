@@ -494,6 +494,8 @@ static void recovery_diagnostic(struct SequenceRecovery *rec)
         return;
     discarded_diff = rec->discarded_packets - rec->discarded_packets_last;
     passed_diff = rec->passed_packets - rec->passed_packets_last;
+    if (passed_diff == 0)
+        return;
     diff = discarded_diff - ((diag->latent_error_paths - 1) * passed_diff);
     unsigned int working_ceil = (discarded_diff + diag->latent_error_difference - 1) / passed_diff;
     unsigned int working_floor = (discarded_diff - diag->latent_error_difference) / passed_diff;
