@@ -415,8 +415,10 @@ void create_action_repl(struct Action *a, struct PipelineList *list, struct Pipe
     struct ReplData *rd = calloc_struct(ReplData);
     rd->pipes = list;
     rd->replobj = replobj;
-    if (replobj)
+    if (replobj) {
         pipeline_object_ref(replobj);
+        store_replication_pipelines(replobj, list);
+    }
     a->action_private = rd;
 }
 

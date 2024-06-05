@@ -19,4 +19,19 @@ enum ActionResult replicate_packet_passed(struct PipelineObject *rep, struct Pip
 // use sprintf_state_json() instead of this
 char *repl_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep);
 
+// store the pipelines in the replication object
+void store_replication_pipelines(struct PipelineObject *obj, struct PipelineList *pipes);
+
+// arguments for try_set_mask callback
+struct MaskArg {
+    char *pipename; //pipeline to mask/unmask
+    bool new_mask; //true: mask, false: unmask
+    bool success;   //true: if pipeline found, false: no pipeline
+};
+// set new mask value on a replicaiton object's pipeline if exists
+// callback function for state_foreach_objects
+// pipeline name passed in struct mask_arg.pipename
+// on success mask_arg.ret=true if no pipeline mask_arg.ret=false
+int try_set_mask(const char *key, void *value, void *udata);
+
 #endif // R2_REPLICATE_H

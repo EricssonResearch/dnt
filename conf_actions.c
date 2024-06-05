@@ -838,6 +838,10 @@ static bool process_token(char *token, void *userdata)
             }
             break;
         case CA_REPL: {
+             /* The replication pipelines can be masked from config at the start or at runtime from CLI.
+             * Here we handle the config case. Pipeline is masked if definition ends with ":masked".
+             * As a result "pipename:masked" and "pipename" represents the same pipeline: having both is config error.
+             * */
             char *token_masked = strdup_printf("%s:masked", token);
             char *pstring_masked = inisection_get(stst->streams_sec, token_masked);
             char *pstring = inisection_get(stst->streams_sec, token);

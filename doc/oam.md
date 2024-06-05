@@ -34,6 +34,7 @@ The available commands are:
 * `list` - list monitoring start points
 * `rlist[@if] <stream:mep-start/mip> <mep-stop/mip/any> <level>` - list monitoring start points of the remote node.
 * `mode <mode>` - terminal mode. Mode can be 'dump' or 'json'.
+* `[un]mask <replication pipeline>` - mask/unmask a replication pipeline.
 * `sessions [stream]` - list active sessions for stream. If no 'stream' specified, lists all sessions
 * `stop [stream session_id]` - stop a running OAM session, identified by 'stream:session_id'. Without parameters it stops the last session
 * `returns` - list return interfaces
@@ -45,6 +46,9 @@ The `ping` command sends a ping request inside a stream, and the responder will 
 If `@if` parameter specifies the OAM return interface for *ping/rping/rlist*, where the reply will be sent by the responder. If unspecified, the default OAM return interface will be used. For `rping`, the `@if` parameter refers to the interface at the originator node.
 
 It is also possible to specify an IP address and port instead of the name of a return interface, if e.g. one is using a central report collection server. The accepted formats are: IPv4, IPv4:port, IPv6, [IPv6], [IPv6]:port. The port defaults to 6634.
+
+With the `mask` and `unmask` command the operator can disable or enable the transmission on replication pipelines at runtime.
+Only works with replication pipelines, normal stream and jump pipelines cannot be masked.
 
 ## OAM message formats
 

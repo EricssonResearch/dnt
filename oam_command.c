@@ -12,9 +12,12 @@
 
 #include "if_oam.h"
 #include "log.h"
+#include "replicate.h"
+#include "state.h"
 #include "thread_utils.h"
 #include "utils.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
@@ -88,6 +91,7 @@ static const char help_str[] =
     "help - get help\n"
     "exit - exit OAM\n"
     "mode <mode> - terminal mode. Mode can be 'dump' or 'json'.\n"
+    "[un]mask <replication pipeline> - mask/unmask a replication pipeline\n"
     "log [module newlevel] - get current log levels or set it for the given module.\n"
     "list - list monitoring start points\n"
     "rlist[@if] <stream:mep-start/mip> <mep-stop/mip/any> <level> - list monitoring start points of the remote node.\n"
@@ -354,6 +358,26 @@ static void command_loop(struct command_connection *conn)
                 if (!initiate_request(rlist_req)) {
                     ERROR("sending rlist command failed");
                 }
+            }
+            else if (!strncmp(oam_command, "mask", 4) || !strncmp(oam_command, "unmask", 6)) {
+                //TODO: signaling mask through the stream
+                char pipename[64];
+                char *command = oam_command;
+                bool new_mask = true;
+                if (strncmp(oam_command, "unmask", 6) == 0) {
+                    new_mask = false;
+                    command = oam_command + 2;
+                }
+
+                sscanf(command, "mask %s", pipename);
+                struct MaskArg mask_arg = {
+                    .pipename = pipename,
+                    .new_mask = new_mask,
+                    .success = false
+                };
+                state_foreach_objects(try_set_mask, &mask_arg);
+                if (mask_arg.success == false)
+                    fprintf(cmd_w, "'%s': no such pipeline\n", pipename);
             }
             else {
                 ERROR("unknown command '%s'", oam_command);
