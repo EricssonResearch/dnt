@@ -12,7 +12,6 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 
 #include <unistd.h>
 #include <sys/socket.h>
@@ -34,62 +33,10 @@ struct IpIfData {
     struct in6_addr ipv6;
 };
 
-static void process_msghdr(struct msghdr *msg, struct Packet *p, void *userdata)  // ez lehet nem fog kelleni
-{
-    (void)userdata;
-    (void)p;
-
-    for (struct cmsghdr *cmsg=CMSG_FIRSTHDR(msg); cmsg; cmsg=CMSG_NXTHDR(msg, cmsg)) {
-        switch (cmsg->cmsg_level) {
-            case SOL_PACKET:
-                if (cmsg->cmsg_type == IPV6_PKTINFO) {
-                    ;
-                }
-                break;
-        }
-    }
-}
-
 static bool ip_recv(struct Interface *iface)
 {
-    struct IpIfData *iid = (struct IpIfData *)iface->iface_private;
-    (void)iid;
-
-
-    struct Packet *p = iface_common_recv(iface, process_msghdr, NULL);
-    if (p == NULL) return false;
-
-    unsigned short *ethertype = (unsigned short*)(p->buf + p->start + 12);
-
-    //log_info("ip packet: %x", htons(*ethertype));
-
-    if(htons(*ethertype) != ETH_P_IPV6) {
-        packet_logcat(p, "%s %u not IPv6 (%x), drop.", iface->name, p->len, htons(*ethertype));
-        return delete_packet(p);
-    }
-
-    // Skip Eth header
-    p->start += 14;
-    p->len -= 14;
-
-/* hex dump packet - just debug
-
-    char dump_str[4000], ch[5];
-    sprintf(dump_str,"\n");
-    unsigned char *pp=p->buf + p->start;;
-    for(int i=1; i<=128; i++){
-        sprintf(ch, " %02x", *pp);
-        strcat(dump_str, ch);
-        pp++;
-        if(i%16==0)
-            strcat(dump_str, "\n");
-    }
-    strcat(dump_str, "\n");
-    log_info("ip packet: %s", dump_str);
-*/
-
-    packet_logcat(p, "%s %u ", iface->name, p->len);
-    return iface_common_process(iface, p);
+    log_error("ip interface %s recv how??", iface->name);
+    return false;
 }
 
 static bool ip_send(struct Interface *iface, struct Packet *p)
@@ -108,14 +55,6 @@ static bool ip_send(struct Interface *iface, struct Packet *p)
         memcpy(&socket_address.sin_addr.s_addr,  p->buf + p->headers[0].start + 16, 4);
         return iface_common_send(iface, p, iid->sock4, &socket_address, sizeof(socket_address));
     } else if (p->headers[0].type == PROTO_ID_IPv6) {
-        // update packet length
-        unsigned short *length = (unsigned short*)(p->buf + p->headers[0].start + 4);
-        *length = htons(p->len-40);     // IPv6 header length
-        // if srcip is zero, set source addr.
-        unsigned int *p_ip = (unsigned int*)(p->buf + p->headers[0].start + 8);
-        if((*p_ip+*(p_ip+1)+*(p_ip+2)+*(p_ip+3))==0)
-            memcpy(p_ip, &iid->ipv6, 16);
-        // fill in some Eth header to send
         struct sockaddr_ll socket_address;
         memset(&socket_address, 0, sizeof(struct sockaddr_ll));
         socket_address.sll_family = AF_PACKET;
@@ -182,21 +121,6 @@ static bool ip_open(struct Interface *iface)
         if (!enable_so_txtime(sock4, "ip", iface->ifname, false))
             return false;
 
-
-    // Setup receiver sockets
-    int sock_raw = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));  // ez vesz mindent
-    if (sock_raw < 0) {
-        log_perror("create socket raw for %s", iface->name);
-        close(sock4);
-        return false;
-    }
-    if (setsockopt(sock_raw, SOL_SOCKET, SO_BINDTODEVICE, iface->ifname, strlen(iface->ifname)) < 0) {
-        log_perror("ip6 setsockopt SO_BINDTODEVICE for %s on %s", iface->name, iface->ifname);
-        close(sock4);
-        close(sock_raw);
-        return false;
-    }
-
     // note: IP_HDRINCL has no equivalent for IPv6, we must use L2 socket
     // proto=0 means no reception
     int sock6 = socket(AF_PACKET, SOCK_DGRAM, 0);
@@ -210,7 +134,6 @@ static bool ip_open(struct Interface *iface)
         log_perror("ip6 setsockopt SO_BINDTODEVICE for %s on %s", iface->name, iface->ifname);
         close(sock4);
         close(sock6);
-        close(sock_raw);
         return false;
     }
 
@@ -219,7 +142,6 @@ static bool ip_open(struct Interface *iface)
         log_perror("ip getifaddrs for %s", iface->name);
         close(sock4);
         close(sock6);
-        close(sock_raw);
         return false;
     }
 
@@ -250,7 +172,6 @@ static bool ip_open(struct Interface *iface)
         log_error("open ip interface %s: no address on interface %s", iface->name, iface->ifname);
         close(sock4);
         close(sock6);
-        close(sock_raw);
         return false;
     }
     //TODO see the comment in if_udp_in.c
@@ -258,11 +179,10 @@ static bool ip_open(struct Interface *iface)
 
     iid->sock4 = sock4;
     iid->sock6 = sock6;
-    iface->recvfd = sock_raw;
     iface->dropstat_cntr = 0;
     iface->dropstat_last_warn = 0;
     iface->state = IFS_OPEN;
-    log_info("IP interface %s on device %s", iface->name, iface->ifname);
+    log_info("IP-out interface %s on device %s", iface->name, iface->ifname);
 
     return true;
 }
@@ -270,11 +190,10 @@ static bool ip_open(struct Interface *iface)
 static bool ip_close(struct Interface *iface)
 {
     struct IpIfData *iid = (struct IpIfData *)iface->iface_private;
-    close(iface->recvfd);
     close(iid->sock4);
     close(iid->sock6);
     free(iid);
-    log_info("IP interface %s closed", iface->name);
+    log_info("IP-out interface %s closed", iface->name);
     return true;
 }
 
@@ -340,8 +259,6 @@ struct Interface *new_ip_interface(const char *name, const char *ifname)
 
     struct IpIfData *iid = calloc_struct(IpIfData);
     iface->iface_private = iid;
-
-    iface->parsetree_ = new_parsetree(iface);
 
     return iface;
 }

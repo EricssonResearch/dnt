@@ -157,7 +157,6 @@ void packet_add_header(struct Packet *p, unsigned idx, enum ProtocolID type, uns
     p->headers[idx].start = start;
     p->headers[idx].len = len;
     p->header_count++;
-    p->len += len;
 }
 
 void packet_del_header(struct Packet *p, unsigned idx)
@@ -170,7 +169,6 @@ void packet_del_header(struct Packet *p, unsigned idx)
         memmove(p->headers+idx, p->headers+idx+1,
                 (p->header_count-idx-1)*sizeof(struct PacketHeader));
     p->header_count--;
-    p->len -= p->headers[idx].len;
 }
 
 void packet_clear_headers(struct Packet *p)
