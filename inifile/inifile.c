@@ -31,7 +31,7 @@
 #include <errno.h>
 
 #define BUFFERSIZE 1024
-#define INIFILE_QUIET
+//#define INIFILE_QUIET
 
 // @end should be the last character before null-termination
 // note: newline is also trimmed
