@@ -6,7 +6,7 @@
 CFLAGS += -g -std=gnu99
 
 #TODO clang ignores -Wmissing-declarations
-CFLAGS += -Wall -Wextra -Wshadow -Wstrict-prototypes -Wmissing-declarations -Wwrite-strings -Wvla
+CFLAGS += -Wall -Wextra -Wshadow -Wstrict-prototypes -Wmissing-declarations -Wwrite-strings -Wvla -Wc++-compat
 CFLAGS += -Werror
 CFLAGS += -Iinifile
 CFLAGS += -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=3

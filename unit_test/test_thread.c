@@ -17,7 +17,7 @@ struct ThreadTestParam {
 
 static void *thread_func(void *arg)
 {
-    struct ThreadTestParam *param = arg;
+    struct ThreadTestParam *param = (struct ThreadTestParam *)arg;
     param->counter++;
     while (1) { usleep(1000*1000); }
     return NULL;
@@ -25,7 +25,7 @@ static void *thread_func(void *arg)
 
 static void *thread_exit_func(void *arg)
 {
-    struct ThreadTestParam *param = arg;
+    struct ThreadTestParam *param = (struct ThreadTestParam *)arg;
     usleep(2000); // make sure the assignment to param->th is done
     thread_stop(param->th); // should do nothing
     param->counter = 21;
@@ -91,10 +91,10 @@ struct ThreadMQParam {
 
 static void *thread_mq_timeout_func(void *arg)
 {
-    struct ThreadMQParam *param = arg;
+    struct ThreadMQParam *param = (struct ThreadMQParam *)arg;
 
     while (1) {
-        struct ThreadTestParam *message = messagequeue_pop(param->q, 1000*200);
+        struct ThreadTestParam *message = (struct ThreadTestParam *)messagequeue_pop(param->q, 1000*200);
         if (message) {
             param->counter += message->counter;
             free(message);
@@ -108,10 +108,10 @@ static void *thread_mq_timeout_func(void *arg)
 
 static void *thread_mq_immediate_func(void *arg)
 {
-    struct ThreadMQParam *param = arg;
+    struct ThreadMQParam *param = (struct ThreadMQParam *)arg;
 
     while (1) {
-        struct ThreadTestParam *message = messagequeue_pop(param->q, 0);
+        struct ThreadTestParam *message = (struct ThreadTestParam *)messagequeue_pop(param->q, 0);
         if (message) {
             param->counter += message->counter;
             free(message);
@@ -126,10 +126,10 @@ static void *thread_mq_immediate_func(void *arg)
 
 static void *thread_mq_notimeout_func(void *arg)
 {
-    struct ThreadMQParam *param = arg;
+    struct ThreadMQParam *param = (struct ThreadMQParam *)arg;
 
     while (1) {
-        struct ThreadTestParam *message = messagequeue_pop(param->q, -1);
+        struct ThreadTestParam *message = (struct ThreadTestParam *)messagequeue_pop(param->q, -1);
         if (message) {
             param->counter += message->counter;
             free(message);
@@ -143,10 +143,10 @@ static void *thread_mq_notimeout_func(void *arg)
 
 static void *thread_mq_multi_func(void *arg)
 {
-    struct ThreadMQParam *param = arg;
+    struct ThreadMQParam *param = (struct ThreadMQParam *)arg;
 
     while (1) {
-        struct ThreadTestParam *message = messagequeue_pop(param->q, 1000*200);
+        struct ThreadTestParam *message = (struct ThreadTestParam *)messagequeue_pop(param->q, 1000*200);
         if (message) {
             if (message->counter != param->counter + 1) {
                 param->errors++;
@@ -177,10 +177,10 @@ static void test_mq(void)
     OK(param.timeouts == 1, "timeouts %d", param.timeouts);
 
     struct ThreadTestParam *message;
-    message = malloc(sizeof(struct ThreadTestParam));
+    message = (struct ThreadTestParam *)malloc(sizeof(struct ThreadTestParam));
     message->counter = 4;
     messagequeue_push(param.q, message);
-    message = malloc(sizeof(struct ThreadTestParam));
+    message = (struct ThreadTestParam *)malloc(sizeof(struct ThreadTestParam));
     message->counter = 3;
     messagequeue_push(param.q, message);
     usleep(1000*50);
@@ -203,7 +203,7 @@ static void test_mq(void)
     usleep(1000*50);
     OK(param.counter == 0, "counter %d", param.counter);
     OK(param.timeouts == 3, "timeouts %d", param.timeouts);
-    message = malloc(sizeof(struct ThreadTestParam));
+    message = (struct ThreadTestParam *)malloc(sizeof(struct ThreadTestParam));
     message->counter = 9;
     messagequeue_push(param.q, message);
     usleep(1000*50);
@@ -220,7 +220,7 @@ static void test_mq(void)
     usleep(1000*200);
     OK(param.counter == 0, "counter %d", param.counter);
     OK(param.timeouts == 0, "timeouts %d", param.timeouts);
-    message = malloc(sizeof(struct ThreadTestParam));
+    message = (struct ThreadTestParam *)malloc(sizeof(struct ThreadTestParam));
     message->counter = 5;
     messagequeue_push(param.q, message);
     usleep(1000*50);
@@ -234,7 +234,7 @@ static void test_mq(void)
 
     // test pushing multiple items
     for (int i=1; i<20; i++) {
-        message = malloc(sizeof(struct ThreadTestParam));
+        message = (struct ThreadTestParam *)malloc(sizeof(struct ThreadTestParam));
         message->counter = i;
         messagequeue_push(param.q, message);
     }

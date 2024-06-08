@@ -16,23 +16,23 @@
 TEST_INIT("Sequence Recovery: Vector");
 
 // XXX stubs for stuff that we transitively depend on but don't need
-void oam_cli_alert(void);
-void oam_cli_alert(void) {}
+void oam_cli_alert(const char *s, ...);
+void oam_cli_alert(const char *s, ...) { (void)s; }
 void iface_ref(void);
 void iface_ref(void) {}
 void iface_unref(void);
 void iface_unref(void) {}
-void iface_add_sender(void);
-void iface_add_sender(void) {}
-void iface_del_sender(void);
-void iface_del_sender(void) {}
+void iface_add_sender(struct Interface *i);
+void iface_add_sender(struct Interface *i) { (void)i; }
+void iface_del_sender(struct Interface *i);
+void iface_del_sender(struct Interface *i) { (void)i; }
 struct Action *delete_action(struct Action *a) { (void)a; return NULL; }
 struct Interface *action_send_get_iface(struct Action *a) { (void)a; return NULL; }
 const char *action_name_from_type(enum ActionType type) { (void)type; return NULL; }
 struct PipelineList *action_repl_get_piplinelist(struct Action *a) { (void)a; return NULL; }
 // XXX end stubs
 
-static const unsigned history_length = 64; // must be 2^n
+enum { history_length = 64 }; // must be 2^n
 static const unsigned reset_ms = 30;
 
 // we don't want to use assemble_actions() in this test
@@ -135,8 +135,9 @@ static void test_single(void)
     struct PipelineIterator *pi = new_pipe_iterator(pl, p);
     OK(pi, "have iterator");
 
-    const unsigned start = history_length * 3;
-    const unsigned length = history_length * 10;
+    enum {
+        start = history_length * 3,
+        length = history_length * 10 };
     int results[start + length + history_length*2];
     for (unsigned i=0; i<ARRAY_SIZE(results); i++)
         results[i] = 0;

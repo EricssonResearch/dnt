@@ -16,16 +16,16 @@
 TEST_INIT("Sequence Recovery: Match");
 
 // XXX stubs for stuff that we transitively depend on but don't need
-void oam_cli_alert(void);
-void oam_cli_alert(void) {}
+void oam_cli_alert(const char *s, ...);
+void oam_cli_alert(const char *s, ...) { (void)s; }
 void iface_ref(void);
 void iface_ref(void) {}
 void iface_unref(void);
 void iface_unref(void) {}
-void iface_add_sender(void);
-void iface_add_sender(void) {}
-void iface_del_sender(void);
-void iface_del_sender(void) {}
+void iface_add_sender(struct Interface *i);
+void iface_add_sender(struct Interface *i) { (void)i; }
+void iface_del_sender(struct Interface *i);
+void iface_del_sender(struct Interface *i) { (void)i; }
 struct Action *delete_action(struct Action *a) { (void)a; return NULL; }
 struct Interface *action_send_get_iface(struct Action *a) { (void)a; return NULL; }
 const char *action_name_from_type(enum ActionType type) { (void)type; return NULL; }

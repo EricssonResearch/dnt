@@ -235,7 +235,7 @@ struct TestCase {
 };
 
 #define TEST_INIT(_name)                                                \
-static struct TestCase test_case_list[];                                \
+extern struct TestCase test_case_list[];                                \
                                                                         \
 int test_color = 0;                                                     \
 int test_succ = 0;                                                      \
@@ -296,7 +296,7 @@ int main(void)                                                          \
     return !!test_total_fail;                                           \
 }
 
-#define TEST_CASES static struct TestCase test_case_list[]
+#define TEST_CASES struct TestCase test_case_list[]
 
 #else
 

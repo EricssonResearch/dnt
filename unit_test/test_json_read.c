@@ -15,7 +15,7 @@ static void test_read_good(void)
 #define TEST_TYPE(s)                                        \
     for (unsigned i=0; (s)[i]; i++) {                       \
         unsigned _len = strlen((s)[i]);                     \
-        char *_js = memdup((s)[i], _len);                   \
+        char *_js = (char*)memdup((s)[i], _len);            \
         struct JsonValue *j = json_parse(_js, _len);        \
         free(_js);                                          \
         OK_FATAL(j != NULL, "json string should be valid");
@@ -141,9 +141,8 @@ static void test_read_good(void)
         OK_FATAL(j->type == JSON_OBJECT, "type");
         OK_FATAL(j->v.object != NULL, "object always has hashmap");
         OK(hashmap_count(j->v.object) == 1, "one item");
-        struct JsonValue *val = hashmap_find(j->v.object, "key");
+        struct JsonValue *val = json_object_get_string(j, "key");
         OK_FATAL(val != NULL, "have value");
-        OK(val->type == JSON_STRING, "value type");
         OK(strcmp(val->v.string, "value") == 0, "correct value '%s'", val->v.string);
         OK(json_delete(j) == NULL, "delete must return NULL");
     }
@@ -155,17 +154,14 @@ static void test_read_good(void)
         OK_FATAL(j->type == JSON_OBJECT, "type");
         OK_FATAL(j->v.object != NULL, "object always has hashmap");
         OK(hashmap_count(j->v.object) == 3, "three items");
-        struct JsonValue *val = hashmap_find(j->v.object, "key");
+        struct JsonValue *val = json_object_get_string(j, "key");
         OK_FATAL(val != NULL, "have value");
-        OK(val->type == JSON_STRING, "value type");
         OK(strcmp(val->v.string, "value") == 0, "correct value '%s'", val->v.string);
-        val = hashmap_find(j->v.object, "double");
+        val = json_object_get_number(j, "double");
         OK_FATAL(val != NULL, "have value");
-        OK(val->type == JSON_NUMBER, "value type");
         OK(val->v.number == -9.1, "correct value %.9f", val->v.number);
-        val = hashmap_find(j->v.object, "true");
+        val = json_object_get_true(j, "true");
         OK_FATAL(val != NULL, "have value");
-        OK(val->type == JSON_TRUE, "value type");
         OK(json_delete(j) == NULL, "delete must return NULL");
     }
 
@@ -222,9 +218,8 @@ static void test_read_good(void)
         OK(a->val->type == JSON_OBJECT, "array elem type");
         OK(a->val->v.object != NULL, "object always has hashmap");
         OK(hashmap_count(a->val->v.object) == 1, "one item");
-        struct JsonValue *val = hashmap_find(a->val->v.object, "k");
+        struct JsonValue *val = json_object_get_null(a->val, "k");
         OK_FATAL(val != NULL, "have value");
-        OK(val->type == JSON_NULL, "value type");
         a = a->next;
         OK_FATAL(a != NULL, "array has a second value");
         OK_FATAL(a->val != NULL, "array has a valid second value");
@@ -238,9 +233,8 @@ static void test_read_good(void)
         OK_FATAL(j->type == JSON_OBJECT, "type");
         OK_FATAL(j->v.object != NULL, "object always has hashmap");
         OK(hashmap_count(j->v.object) == 1, "one item");
-        struct JsonValue *val = hashmap_find(j->v.object, "k");
+        struct JsonValue *val = json_object_get_array(j, "k");
         OK_FATAL(val != NULL, "have value");
-        OK(val->type == JSON_ARRAY, "value type");
         struct JsonArray *a = val->v.array;
         OK_FATAL(a != NULL, "array has a value");
         OK_FATAL(a->val != NULL, "array has a valid value");
@@ -254,12 +248,11 @@ static void test_read_good(void)
         OK_FATAL(j->type == JSON_OBJECT, "type");
         OK_FATAL(j->v.object != NULL, "object always has hashmap");
         OK(hashmap_count(j->v.object) == 1, "one item");
-        struct JsonValue *val = hashmap_find(j->v.object, "k");
+        struct JsonValue *val = json_object_get_object(j, "k");
         OK_FATAL(val != NULL, "have value");
-        OK(val->type == JSON_OBJECT, "value type");
         OK_FATAL(val->v.object != NULL, "object always has hashmap");
         OK(hashmap_count(val->v.object) == 1, "one item");
-        struct JsonValue *val2 = hashmap_find(val->v.object, "m");
+        struct JsonValue *val2 = json_object_get_object(val, "m");
         OK_FATAL(val2 != NULL, "have value");
         OK(val2->type == JSON_OBJECT, "value type");
         OK_FATAL(val2->v.object != NULL, "object always has hashmap");
@@ -304,7 +297,7 @@ static void test_read_bad(void)
 
     for (unsigned i=0; strings[i]; i++) {
         unsigned len = strlen(strings[i]);
-        char *js = memdup(strings[i], len);
+        char *js = (char*)memdup(strings[i], len);
         struct JsonValue *j = json_parse(js, len);
         free(js);
         OK(j == NULL, "string %u should be invalid", i);
