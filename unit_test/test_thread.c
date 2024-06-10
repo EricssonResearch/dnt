@@ -70,11 +70,11 @@ static void test_thread(void)
     OK(thread_stop(NULL) == NULL, "stop NULL thread");
     thread_exit(NULL); // exit NULL thread shouldn't segfault either
 
-    th = thread_launch_priority(thread_func, &param, 10, "test thread %s", "prio");
+    th = thread_launch_priority(thread_func, &param, 10, "test thread %s", "p");
     if (th) {
         usleep(1000*50); // is this enough?
-        OK(param.counter == 2, "priority thread worked");
-        OK(strcmp(thread_getname(th), "test thread prio") == 0, "good name");
+        OK(param.counter == 22, "priority thread worked");
+        OK(strcmp(thread_getname(th), "test thread p") == 0, "good name");
         th = thread_stop(th);
         OK_FATAL(th == NULL, "thread object gone");
     } else {
