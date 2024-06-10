@@ -152,11 +152,11 @@ testcases = [
      ),
 
     ('n1', 'ping s1n1-e4-01 s1n4-i4-24 4 -r',
-        ['OAM request ping session 7 seq 0, s1n1-e4-01 -> s1n4-i4-24 level 4 count 1 interval 1000, rr: yes os: no\t[reply to ip: 10.0.0.1, port: 6634]\n', '{"label":124,"level":4,"nodeid":1,"receiver":"s1n4-i4-24","recv_ns":943982537,"recv_s":1697614356,"code":"reply","type":"ping","rr":["s1n4-i4-24","s1n1-e4-01"],"send_ns":922851702,"send_s":1697614356,"sequence":0,"session":7,"stream":"s1","target":"s1n4-i4-24"}']
+        ['OAM request ping session 7 seq 0, s1n1-e4-01 -> s1n4-i4-24 level 4 count 1 interval 1000, rr: yes os: no\t[reply to ip: 10.0.0.1, port: 6634]\n', '{"label":124,"level":4,"nodeid":1,"receiver":"s1n4-i4-24","recv_ns":943982537,"recv_s":1697614356,"code":"reply","type":"ping","rr":["s1n1-e4-01","s1n4-i4-24"],"send_ns":922851702,"send_s":1697614356,"sequence":0,"session":7,"stream":"s1","target":"s1n4-i4-24"}']
      ),
 
     ('n1', 'ping s1n1-e4-01 s1n4-e4-40 4 -r',
-        ['OAM request ping session 8 seq 0, s1n1-e4-01 -> s1n4-e4-40 level 4 count 1 interval 1000, rr: yes os: no\t[reply to ip: 10.0.0.1, port: 6634]\n', '{"label":134,"level":4,"nodeid":1,"receiver":"s1n4-e4-40","recv_ns":686240445,"recv_s":1697614357,"code":"reply","type":"ping","rr":["s1n4-e4-40","s1n4-i4-34","s1n3-i4-34","s1n3-i4-23","s1n1-e4-01"],"send_ns":683039091,"send_s":1697614357,"sequence":0,"session":8,"stream":"s1","target":"s1n4-e4-40"}']
+        ['OAM request ping session 8 seq 0, s1n1-e4-01 -> s1n4-e4-40 level 4 count 1 interval 1000, rr: yes os: no\t[reply to ip: 10.0.0.1, port: 6634]\n', '{"label":134,"level":4,"nodeid":1,"receiver":"s1n4-e4-40","recv_ns":686240445,"recv_s":1697614357,"code":"reply","type":"ping","rr":["s1n1-e4-01","s1n3-i4-23","s1n3-i4-34","s1n4-i4-34","s1n4-e4-40"],"send_ns":683039091,"send_s":1697614357,"sequence":0,"session":8,"stream":"s1","target":"s1n4-e4-40"}']
     ),
 
     (
@@ -317,7 +317,8 @@ def run_tests(net, test):
                     print("✘ FAILED: OAM reply different")
                     print(f"Actual reply:\n{replies}\nExpected reply:\n{expected_reply}\n")
             except Exception:
-                print("FAILED: OAM reply parts missing")
+                print(f"Node: {node}, command: {msg}", end=" ")
+                print("✘ FAILED: OAM reply parts missing")
                 print(f"Actual reply:\n{replies}\nExpected reply:\n{expected_reply}\n")
             finally:
                 s.close()

@@ -28,6 +28,7 @@ function(add_test_json name)
     target_compile_definitions(${name} PUBLIC TESTING)
 endfunction()
 
+add_test_json(test_json_api)
 add_test_json(test_json_read)
 add_test_json(test_json_write)
 

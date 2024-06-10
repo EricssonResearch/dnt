@@ -294,13 +294,14 @@ static int process_reply(const char *msg)
 
         JS_OBJECT_GET(list, array, j);
         sprintf(reply_str, "Rlist result from %s:\n", receiver->v.string);
-        for (struct JsonArray *l = list->v.array; l; l=l->next) {
-            if (l->val->type != JSON_STRING) {
+        for (unsigned i=0; i<json_array_size(list); i++) {
+            struct JsonValue *str = json_array_at(list, i);
+            if (str->type != JSON_STRING) {
                 log_error("rlist result is not string.");
                 json_delete(j);
                 return -1;
             }
-            strcat(reply_str, l->val->v.string);
+            strcat(reply_str, str->v.string);
             strcat(reply_str, "\n");
         }
         json_delete(j);
@@ -359,10 +360,15 @@ static int process_reply(const char *msg)
         rr_str[0] = 0;
         if(jrr){
             sprintf(rr_str, "Record Route: [");
-            REVERSE_LIST(jrr->v.array);
-            for (struct JsonArray *a = jrr->v.array; a; a = a->next) {
+            for (unsigned i=0; i<json_array_size(jrr); i++) {
+                struct JsonValue *rritem = json_array_at(jrr, i);
+                if (rritem->type != JSON_STRING) {
+                    log_error("record route item is not string");
+                    json_delete(j);
+                    return -1;
+                }
                 strcat(rr_str, " ");
-                strcat(rr_str, a->val->v.string);
+                strcat(rr_str, rritem->v.string);
             }
             strcat(rr_str, " ]");
         }
@@ -669,7 +675,7 @@ static int addstart_cb(const char *key, void *value, void *userdata)
 
     if (mep_start_in_stream(mep, st->oam->stream)) {
         //TODO supply more info: level, type
-        json_array_unshift(st->jlist, json_string(key));
+        json_array_push(st->jlist, json_string(key));
     }
 
     return 1;
@@ -809,7 +815,7 @@ static bool process_request(struct OamEndPoint *oam, struct Packet *p)
         struct JsonValue *jrr = json_object_get_array(j, "rr");
         if (jrr != NULL) {
             //TODO supply more info: type, level, attached object
-            json_array_unshift(jrr, json_string(oam->name));
+            json_array_push(jrr, json_string(oam->name));
 
             unsigned js_length;
             char *js_string = json_serialize(j, &js_length);
