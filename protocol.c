@@ -13,6 +13,11 @@
 
 #define ETH_P_FRER 0xf1c1
 
+// compatibility with glibc 2.31 and older
+#ifndef IPPROTO_ETHERNET
+#define IPPROTO_ETHERNET 143
+#endif
+
 //TODO writing these conversion functions is a pain, we need a script to generate them
 static bool id_from_ethertype(enum ProtocolID *id, uint16_t nexthdr)
 {
