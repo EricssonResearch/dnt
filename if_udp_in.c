@@ -8,10 +8,12 @@
 #include "log.h"
 #include "packet.h"
 #include "parsetree.h"
+#include "thread_utils.h"
 #include "utils.h"
 
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 
 #include <unistd.h>
 #include <sys/socket.h>
@@ -19,11 +21,12 @@
 #include <net/if.h> /* struct ifreq */
 #include <arpa/inet.h> /* ntohs() */
 #include <ifaddrs.h>
+#include <linux/rtnetlink.h>
 
 DEFAULT_LOGGING_MODULE(INTERFACE, INFO);
 
 struct UdpInIfData {
-    int ifindex;
+    unsigned ifindex;
     int mtu;
     unsigned port;
     int family;
@@ -31,7 +34,183 @@ struct UdpInIfData {
         struct in_addr v4;
         struct in6_addr v6;
     } srcip;
+    struct Thread *ifmon;
+    //TODO list of senders to notify
 };
+
+#define HAVE_IP (memcmp(&uid->srcip, "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0", sizeof(uid->srcip)) != 0)
+
+static struct rtattr *find_rtattr(struct rtattr *attr, unsigned len, unsigned type)
+{
+    while (RTA_OK(attr, len)) {
+        if (attr->rta_type == type) {
+            return attr;
+        }
+        attr = RTA_NEXT(attr, len);
+    }
+    return NULL;
+}
+
+// uid->srcip is only assigned when a good one is found
+// @returns false on fatal error
+static bool set_srcip(const char *ifname, struct UdpInIfData *uid)
+{
+    struct ifaddrs *ifaddr;
+    if (getifaddrs(&ifaddr) < 0) {
+        log_perror("udp-in getifaddrs");
+        return false;
+    }
+
+    for (struct ifaddrs *ifa=ifaddr; ifa!=NULL; ifa=ifa->ifa_next) {
+        if (ifa->ifa_addr == NULL) continue;
+        int family = ifa->ifa_addr->sa_family;
+        if (family != uid->family) continue;
+        if (strcmp(ifa->ifa_name, ifname) != 0) continue;
+        //print_ifaddrs(ifa);
+
+        if (family == AF_INET6) {
+            struct in6_addr *a6 = &((struct sockaddr_in6*)(ifa->ifa_addr))->sin6_addr;
+            if (IN6_IS_ADDR_LINKLOCAL(a6)) continue;
+            uid->srcip.v6 = *a6;
+            break;
+        } else if (family == AF_INET) {
+            uid->srcip.v4 = ((struct sockaddr_in*)(ifa->ifa_addr))->sin_addr;
+            break;
+        }
+    }
+
+    freeifaddrs(ifaddr);
+    return true;
+}
+
+static void send_notification(struct UdpInIfData *uid)
+{
+    char ip_str[INET6_ADDRSTRLEN];
+    if (HAVE_IP) {
+        if (inet_ntop(uid->family, &uid->srcip, ip_str, sizeof(ip_str)) == NULL) {
+            log_error("%s failed to decode ip", thread_getname(uid->ifmon));
+        }
+    } else {
+        strcpy(ip_str, "<none>");
+    }
+
+    log_info("%s sending notification, ip %s port %u", thread_getname(uid->ifmon), ip_str, uid->port);
+    //TODO we'll have a list of senders to notify
+}
+
+static void *iface_address_monitoring(void *arg)
+{
+    struct Interface *iface = (struct Interface *)arg;
+    struct UdpInIfData *uid = (struct UdpInIfData *)iface->iface_private;
+
+    usleep(1000); // wait until uid->ifmon gets assigned
+
+    log_info("iface address monitoring %s ifname %s ifindex %d", iface->name, iface->ifname, uid->ifindex);
+
+    int sock = socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE);
+    if (sock < 0) {
+        log_perror("%s could not create netlink socket", thread_getname(uid->ifmon));
+        struct Thread *self = uid->ifmon;
+        uid->ifmon = NULL;
+        thread_exit(self);
+    }
+
+    struct sockaddr_nl  addr;
+    memset(&addr, 0, sizeof(addr));
+
+    addr.nl_family = AF_NETLINK;
+    addr.nl_groups = RTMGRP_LINK | RTMGRP_IPV4_IFADDR | RTMGRP_IPV6_IFADDR;
+    // nl_pid can be safely left as 0
+
+    struct timeval timeout = {60, 0};
+    if (setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0) {
+        log_perror("%s setsockopt timeout", thread_getname(uid->ifmon));
+        close(sock);
+        struct Thread *self = uid->ifmon;
+        uid->ifmon = NULL;
+        thread_exit(self);
+    }
+
+    if (bind(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+        log_perror("%s could not bind netlink socket", thread_getname(uid->ifmon));
+        close(sock);
+        struct Thread *self = uid->ifmon;
+        uid->ifmon = NULL;
+        thread_exit(self);
+    }
+
+    send_notification(uid);
+
+    char recvbuf[8192]
+        __attribute__ ((aligned(__alignof__(struct nlmsghdr))));
+
+    while (1) {
+        int err = recv(sock, recvbuf, sizeof(recvbuf), 0);
+
+        if (err < 0) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                log_info("%s timeout", thread_getname(uid->ifmon));
+                send_notification(uid);
+            } else {
+                log_perror("%s recvmsg", thread_getname(uid->ifmon));
+            }
+            continue;
+        }
+        if (err == 0) continue;
+        unsigned recvlen = err;
+
+        log_debug("%s received %u bytes", thread_getname(uid->ifmon), recvlen);
+
+        for (struct nlmsghdr *nh=(struct nlmsghdr *)recvbuf; NLMSG_OK(nh, recvlen); nh=NLMSG_NEXT(nh, recvlen)) {
+            if (nh->nlmsg_type == NLMSG_DONE) {
+                log_debug("NLMSG_DONE\n"); // we get this in multipart reply (=never)
+                break;
+            } else if (nh->nlmsg_type == NLMSG_ERROR) {
+                struct nlmsgerr *nlerr = (struct nlmsgerr *)NLMSG_DATA(nh);
+                log_error("%s RTNETLINK ERROR %s\n", thread_getname(uid->ifmon), strerror(-nlerr->error));
+            } else if (nh->nlmsg_type == RTM_NEWLINK || nh->nlmsg_type == RTM_DELLINK) {
+                //TODO handle link down event: notify senders about the outage?
+                //  note that on link down the addresses may also disappear, should not send duplicate notifications
+            } else if (nh->nlmsg_type == RTM_NEWADDR || nh->nlmsg_type == RTM_DELADDR) {
+                struct ifaddrmsg *ifa = (struct ifaddrmsg*)NLMSG_DATA(nh);
+                if (ifa->ifa_index != uid->ifindex) continue;
+                if (ifa->ifa_family != uid->family) continue;
+                if (ifa->ifa_flags & IFA_F_TENTATIVE) continue;
+
+                struct rtattr *addr_attr = find_rtattr(IFA_RTA(ifa), nh->nlmsg_len, IFA_ADDRESS);
+                if (addr_attr == NULL) {
+                    log_error("%s netlink did not supply address!?!?", thread_getname(uid->ifmon));
+                    continue;
+                }
+
+                bool must_notify = false;
+                unsigned addrlen = ifa->ifa_family == AF_INET6 ? 16 : 4; //TODO RTA_PAYLOAD(addr_attr)
+                if (nh->nlmsg_type == RTM_NEWADDR) {
+                    if (HAVE_IP) continue;
+
+                    memcpy(&uid->srcip, RTA_DATA(addr_attr), addrlen);
+                    must_notify = true;
+                } else {
+                    // check if the removed address is the one we are using
+                    if (memcmp(&uid->srcip, RTA_DATA(addr_attr), addrlen) == 0) {
+                        memset(&uid->srcip, 0, sizeof(uid->srcip));
+                        // check if there is another address we can use instead
+                        if (!set_srcip(iface->ifname, uid)) {
+                            //TODO wtf?
+                        }
+                        must_notify = true;
+                    }
+                }
+
+                if (must_notify) {
+                    send_notification(uid);
+                }
+            }
+        }
+    }
+
+    return NULL;
+}
 
 static bool udpin_recv(struct Interface *iface)
 {
@@ -78,54 +257,28 @@ static bool udpin_open(struct Interface *iface)
     strncpy(if_mtu.ifr_name, iface->ifname, IFNAMSIZ-1);
     strncpy(if_idx.ifr_name, iface->ifname, IFNAMSIZ-1);
     if (ioctl(sock, SIOCGIFMTU, &if_mtu) < 0) {
-        log_perror("udp-in SIOCGIFMTU");
+        log_perror("udp-in get MTU for %s", iface->ifname);
         close(sock);
         return false;
     }
     if (ioctl(sock, SIOCGIFINDEX, &if_idx) < 0) {
-        log_perror("udp-in SIOCGIFINDEX");
+        log_perror("udp-in get ifindex for %s", iface->ifname);
         close(sock);
         return false;
     }
     uid->mtu = if_mtu.ifr_mtu;
     uid->ifindex = if_idx.ifr_ifindex;
 
-    struct ifaddrs *ifaddr;
-    if (getifaddrs(&ifaddr) < 0) {
-        log_perror("udp-in getifaddrs");
+    if (!set_srcip(iface->ifname, uid)) {
         close(sock);
         return false;
     }
 
-    bool srcip_set = false;
-    for (struct ifaddrs *ifa=ifaddr; ifa!=NULL; ifa=ifa->ifa_next) {
-        if (ifa->ifa_addr == NULL) continue;
-        int family = ifa->ifa_addr->sa_family;
-        if (family != uid->family) continue;
-        if (strcmp(ifa->ifa_name, iface->ifname) != 0) continue;
-        //print_ifaddrs(ifa);
-
-        if (family == AF_INET6) {
-            struct in6_addr *a6 = &((struct sockaddr_in6*)(ifa->ifa_addr))->sin6_addr;
-            if (IN6_IS_ADDR_LINKLOCAL(a6)) continue;
-            uid->srcip.v6 = *a6;
-            srcip_set = true;
-            break;
-        } else if (family == AF_INET) {
-            uid->srcip.v4 = ((struct sockaddr_in*)(ifa->ifa_addr))->sin_addr;
-            srcip_set = true;
-            break;
-        }
-    }
-
-    freeifaddrs(ifaddr);
-    if (!srcip_set) {
+    if (!HAVE_IP) {
         log_error("open udp-in interface %s: no address on interface %s", iface->name, iface->ifname);
         close(sock);
         return false;
     }
-    //TODO notification for changes in the interface address
-    //      see https://olegkutkov.me/2018/02/14/monitoring-linux-networking-state-using-netlink/
 
     if (setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, iface->ifname, strlen(iface->ifname)) < 0) {
         log_perror("udp-in setsockopt SO_BINDTODEVICE");
@@ -156,7 +309,11 @@ static bool udpin_open(struct Interface *iface)
     }
 
     enable_rx_tstamp(sock, "udp-in", iface->ifname/*, HWTSTAMP_FILTER_ALL*/);
-    log_info("Udp-in interface %s on device %s", iface->name, iface->ifname);
+    char if_ip[INET6_ADDRSTRLEN];
+    inet_ntop(uid->family, &uid->srcip, if_ip, sizeof(if_ip));
+    log_info("Udp-in interface %s on device %s ip %s", iface->name, iface->ifname, if_ip);
+
+    uid->ifmon = thread_launch(iface_address_monitoring, iface, "ifmon %s", iface->name);
 
     iface->recvfd = sock;
     iface->state = IFS_OPEN;
@@ -167,6 +324,7 @@ static bool udpin_close(struct Interface *iface)
 {
     struct UdpInIfData *uid = (struct UdpInIfData *)iface->iface_private;
     close(iface->recvfd);
+    thread_stop(uid->ifmon);
     free(uid);
     log_info("Udp-in interface %s closed", iface->name);
     return true;

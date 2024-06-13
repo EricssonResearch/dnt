@@ -174,7 +174,7 @@ static bool ip_open(struct Interface *iface)
         close(sock6);
         return false;
     }
-    //TODO see the comment in if_udp_in.c
+    //TODO interface address monitoring thread?
 
 
     iid->sock4 = sock4;
