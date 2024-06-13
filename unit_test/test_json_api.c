@@ -9,7 +9,7 @@
 
 TEST_INIT("Json API");
 
-static void test_create(void)
+static void test_simple(void)
 {
     struct JsonValue *js = json_null();
     OK_FATAL(js, "have value");
@@ -72,8 +72,10 @@ static void test_array(void)
         OK_FATAL(p != NULL, "popped value");
         OK_FATAL(p->type == JSON_NUMBER, "popped type");
         OK(p->v.number == 10-i, "i %u popped number %.9f", i, p->v.number);
+        OK(json_array_size(js) == 10-i-1, "size %u", json_array_size(js));
         OK(json_delete(p) == NULL, "delete returns null");
     }
+    OK(json_array_empty(js), "empty");
     OK_FATAL(json_array_pop(js) == NULL, "pop from empty array");
 
     // unshift
@@ -94,8 +96,10 @@ static void test_array(void)
         OK_FATAL(p != NULL, "shifted value");
         OK_FATAL(p->type == JSON_NUMBER, "shifted type");
         OK(p->v.number == 10-i, "i %u shifted number %.9f", i, p->v.number);
+        OK(json_array_size(js) == 10-i-1, "size %u", json_array_size(js));
         OK(json_delete(p) == NULL, "delete returns null");
     }
+    OK(json_array_empty(js), "empty");
     OK_FATAL(json_array_shift(js) == NULL, "shift from empty array");
 
     js = json_delete(js);
@@ -190,7 +194,7 @@ static void test_object(void)
 }
 
 TEST_CASES = {
-    {"Create", test_create},
+    {"Simple", test_simple},
     {"Array", test_array},
     {"Object", test_object},
     {NULL, NULL}
