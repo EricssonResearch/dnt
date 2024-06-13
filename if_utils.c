@@ -31,11 +31,17 @@
 #include <netdb.h> /* getnameinfo() */
 #include <linux/errqueue.h>
 #include <linux/if_packet.h> /* PACKET_STATISTICS */
+#include <linux/version.h>
 
 DEFAULT_LOGGING_MODULE(INTERFACE, INFO);
 
 #define PKT_DROP_WARNING_THRESHOLD 10
 #define PKT_DROP_WARNING_INTERVAL_SEC 5
+
+#ifndef SO_TXTIME
+#define SO_TXTIME 61
+#define SCM_TXTIME SO_TXTIME
+#endif
 
 const int filters[] =
 {
@@ -151,6 +157,7 @@ static void get_rx_tstamp(struct msghdr *msg, struct Packet *p, void *userdata)
 
 bool enable_so_txtime(int sock, const char *sockname, const char *ifname, bool deadline)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,19,0)
     static struct sock_txtime txtime = { .clockid = CLOCK_TAI, .flags = SOF_TXTIME_REPORT_ERRORS };
 
     if (deadline)
@@ -163,6 +170,14 @@ bool enable_so_txtime(int sock, const char *sockname, const char *ifname, bool d
 
     log_debug("SO_TXTIME enabled on '%s'", ifname);
     return true;
+#else
+    log_warning("No SO_TXTIME support (Linux version >= 4.19 required)");
+    (void) sock;
+    (void) sockname;
+    (void) ifname;
+    (void) deadline;
+    return false;
+#endif
 }
 
 struct Packet *iface_common_recv(struct Interface *iface, msghdr_process_cb *msg_cb, void *userdata)
@@ -259,6 +274,10 @@ bool iface_common_send(struct Interface *iface, struct Packet *p, int socket, vo
     msg.msg_iov = iov;
     msg.msg_iovlen = p->header_count;
 
+// ntp_gettime is available since glibc 2.1 version but the ABI
+// was different, since "struct ntptimeval" had no "tai" member
+// after glibc 2.12 ntp_gettime uses ntp_gettimex which get TAI too
+#if NTP_API >= 4
     char control[CMSG_SPACE(sizeof(uint64_t))];
     memset(control, 0, sizeof(control));
     struct cmsghdr *cm = NULL;
@@ -272,7 +291,7 @@ bool iface_common_send(struct Interface *iface, struct Packet *p, int socket, vo
         // get the difference between CLOCK_TAI and CLOCK_REALTIME
         struct ntptimeval offset;
         memset(&offset, 0, sizeof(offset));
-        ntp_gettimex(&offset);
+        ntp_gettime(&offset);
 
         // calculate the txtime with CLOCK_REALTIME and convert it to CLOCK_TAI
         clock_gettime(CLOCK_REALTIME, &now_ts);
@@ -288,6 +307,7 @@ bool iface_common_send(struct Interface *iface, struct Packet *p, int socket, vo
         cm->cmsg_len = CMSG_LEN(sizeof(txtime));
         memcpy(CMSG_DATA(cm), &txtime, sizeof(txtime));
     }
+#endif
 
     if (sendmsg(socket, &msg, 0) < 0) {
         log_perror("sendmsg on %s", iface->name);
