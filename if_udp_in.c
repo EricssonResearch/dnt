@@ -3,8 +3,12 @@
 
 
 #include "if_udp_in.h"
+#include "conf_utils.h" /* TODO don't include conf_xxx.h here */
+#include "if_oam.h"
 #include "if_utils.h"
+#include "inet_utils.h"
 #include "interface.h"
+#include "json.h"
 #include "log.h"
 #include "packet.h"
 #include "parsetree.h"
@@ -12,6 +16,7 @@
 #include "utils.h"
 
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include <errno.h>
 
@@ -20,10 +25,21 @@
 #include <sys/ioctl.h>
 #include <net/if.h> /* struct ifreq */
 #include <arpa/inet.h> /* ntohs() */
+#include <netdb.h> /* getaddrinfo() */
 #include <ifaddrs.h>
 #include <linux/rtnetlink.h>
 
 DEFAULT_LOGGING_MODULE(INTERFACE, INFO);
+
+struct SenderList {
+    unsigned port;
+    int family;
+    char *ip_str;
+    struct sockaddr *addr;
+    unsigned addrlen;
+    char *ifname;
+    struct SenderList *next;
+};
 
 struct UdpInIfData {
     unsigned ifindex;
@@ -35,10 +51,23 @@ struct UdpInIfData {
         struct in6_addr v6;
     } srcip;
     struct Thread *ifmon;
-    //TODO list of senders to notify
+    struct SenderList *senders;
 };
 
 #define HAVE_IP (memcmp(&uid->srcip, "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0", sizeof(uid->srcip)) != 0)
+
+static struct SenderList *delete_senderlist(struct SenderList *sl)
+{
+    while (sl) {
+        struct SenderList *d = sl;
+        sl = sl->next;
+        free(d->ip_str);
+        free(d->addr);
+        free(d->ifname);
+        free(d);
+    }
+    return NULL;
+}
 
 static struct rtattr *find_rtattr(struct rtattr *attr, unsigned len, unsigned type)
 {
@@ -94,8 +123,59 @@ static void send_notification(struct UdpInIfData *uid)
         strcpy(ip_str, "<none>");
     }
 
-    log_info("%s sending notification, ip %s port %u", thread_getname(uid->ifmon), ip_str, uid->port);
-    //TODO we'll have a list of senders to notify
+    log_info("%s sending notifications, ip %s port %u", thread_getname(uid->ifmon), ip_str, uid->port);
+    struct JsonValue *js = json_object();
+    json_object_insert(js, "type", json_string("newaddress"));
+    json_object_insert(js, "code", json_string("notify"));
+    struct JsonValue *ja = json_object();
+    json_object_insert(ja, "ip", json_string(ip_str));
+    json_object_insert(ja, "port", json_number(uid->port));
+    json_object_insert(js, "address", ja);
+    //TODO more info?
+
+    int sock4 = -1;
+    int sock6 = -1;
+
+    for (struct SenderList *s=uid->senders; s; s=s->next) {
+        int sock;
+        if (s->family == AF_INET6) {
+            if (sock6 < 0) {
+                sock6 = socket(AF_INET6, SOCK_DGRAM, 0);
+                if (sock6 < 0) {
+                    log_perror("address notification create sock6");
+                    goto out;
+                }
+            }
+            sock = sock6;
+        } else {
+            if (sock4 < 0) {
+                sock4 = socket(AF_INET, SOCK_DGRAM, 0);
+                if (sock4 < 0) {
+                    log_perror("address notification create sock4");
+                    goto out;
+                }
+            }
+            sock = sock4;
+        }
+
+        json_object_insert(js, "sendiface", json_string(s->ifname));
+        unsigned js_length;
+        char *js_string;
+        js_string = json_serialize(js, &js_length);
+        log_debug("  sender %s port %u iface %s json '%s'", s->ip_str, s->port, s->ifname, js_string);
+
+        int err = sendto(sock, js_string, js_length, 0, s->addr, s->addrlen);
+        if (err < 0) {
+            log_perror("address notification sendto");
+        }
+        free(js_string);
+    }
+
+out:
+    json_delete(js);
+    //TODO have permanent sockets?
+    if (sock4 >= 0) close(sock4);
+    if (sock6 >= 0) close(sock6);
 }
 
 static void *iface_address_monitoring(void *arg)
@@ -212,6 +292,92 @@ static void *iface_address_monitoring(void *arg)
     return NULL;
 }
 
+struct SenderState {
+    struct SenderList *senders;
+    struct SenderList *current;
+};
+
+static bool process_sender(char *str, void *userdata)
+{
+    struct SenderState *sest = (struct SenderState *)userdata;
+
+    if (sest->current) {
+        sest->current->ifname = strdup(str);
+        sest->current->next = sest->senders;
+        sest->senders = sest->current;
+        sest->current = NULL;
+    } else {
+        char *ip_str = NULL;
+        unsigned port = OAM_PORT;
+        if (!parse_ip_port(str, &ip_str, &port)) {
+            log_error("udp-in could not parse '%s' as ip and port", str);
+            return false;
+        }
+
+        char port_str[15];
+        sprintf(port_str, "%u", port);
+        struct addrinfo hints;
+        struct addrinfo *result, *rp;
+        bzero(&hints, sizeof(hints));
+        hints.ai_family = AF_UNSPEC;
+        hints.ai_socktype = SOCK_DGRAM;
+        hints.ai_flags = AI_NUMERICHOST;
+        int err = getaddrinfo(ip_str, port_str, &hints, &result);
+
+        if (err) {
+            // this should never happen, parse_ip_port() already validated
+            log_error("udp-in invalid sender ip '%s'", ip_str);
+            free(ip_str);
+            return false;
+        }
+
+        struct SenderList *current = calloc_struct(SenderList);
+        current->port = port;
+
+        for (rp=result; rp!=NULL; rp=rp->ai_next) {
+            log_debug("udp-in addrinfo family %d", rp->ai_family);
+            // we simply accept the first item
+            // (normally there is only one result)
+            current->family = rp->ai_family;
+            current->addr = (struct sockaddr *)memdup(rp->ai_addr, rp->ai_addrlen);
+            current->addrlen = rp->ai_addrlen;
+            current->ip_str = ip_str;
+            break;
+        }
+        freeaddrinfo(result);
+
+        if (rp == NULL) {
+            // this should never happen, parse_ip_port() already validated
+            log_error("udp-in could not interpret '%s' as a sender ip", ip_str);
+            free(ip_str);
+            free(current);
+            return false;
+        }
+        sest->current = current;
+    }
+
+    return true;
+}
+
+static struct SenderList *parse_senders(const char *ifname, char *senders)
+{
+    struct SenderState sest = {NULL, NULL};
+    if (!foreach_stages(senders, process_sender, &sest)) {
+        log_error("udp-in %s senders invalid", ifname);
+        delete_senderlist(sest.senders);
+        return NULL;
+    }
+
+    if (sest.current) {
+        delete_senderlist(sest.senders);
+        delete_senderlist(sest.current);
+        log_error("udp-in %s senders: the last address didn't have an interface name", ifname);
+        return NULL;
+    }
+
+    return sest.senders;
+}
+
 static bool udpin_recv(struct Interface *iface)
 {
     struct UdpInIfData *uid = (struct UdpInIfData *)iface->iface_private;
@@ -325,6 +491,7 @@ static bool udpin_close(struct Interface *iface)
     struct UdpInIfData *uid = (struct UdpInIfData *)iface->iface_private;
     close(iface->recvfd);
     thread_stop(uid->ifmon);
+    delete_senderlist(uid->senders);
     free(uid);
     log_info("Udp-in interface %s closed", iface->name);
     return true;
@@ -382,7 +549,7 @@ static value_producer *udpin_get_property_reader(const struct Interface *iface, 
 }
 
 struct Interface *new_udp_in_interface(const char *name, const char *ifname,
-        unsigned port, unsigned ipversion)
+        unsigned port, unsigned ipversion, const char *senders)
 {
     _NEW_IFACE(IF_UDP_IN);
     iface->ifname = strdup(ifname);
@@ -392,10 +559,28 @@ struct Interface *new_udp_in_interface(const char *name, const char *ifname,
     iface->close_ = udpin_close;
     iface->get_property_reader = udpin_get_property_reader;
 
+    struct SenderList *sender_list = NULL;
+    if (senders) {
+        char *sender_str = strdup(senders);
+        sender_list = parse_senders(ifname, sender_str);
+        free(sender_str);
+        if (sender_list == NULL) {
+            free(iface->ifname);
+            free(iface);
+            return NULL;
+        }
+
+        log_debug("udp-in %s senders:", ifname);
+        for (struct SenderList *s=sender_list; s; s=s->next) {
+            log_debug("  %s %s port %u %s", (s->family==AF_INET6?"IPv6":"IPv4"), s->ip_str, s->port, s->ifname);
+        }
+    }
+
     struct UdpInIfData *uid = calloc_struct(UdpInIfData);
     iface->iface_private = uid;
     uid->port = port;
     uid->family = ipversion == 6 ? AF_INET6 : AF_INET;
+    uid->senders = sender_list;
 
     iface->parsetree_ = new_parsetree(iface);
 
