@@ -22,6 +22,15 @@ add_test_seqrcvy(test_seq_rcvy_match)
 add_test_seqrcvy(test_seq_rcvy_vector)
 #TODO seamless
 
+function(add_test_inet name)
+    add_executable(${name} ../inet_utils.c ${name}.c)
+    #target_include_directories(${name} PUBLIC ../inifile)
+    #target_link_libraries(${name} pthread)
+    target_compile_definitions(${name} PUBLIC TESTING)
+endfunction()
+
+add_test_inet(test_inet_utils)
+
 function(add_test_json name)
     add_executable(${name} ../json.c ../inifile/hashmap.c ../utils.c ${name}.c)
     target_include_directories(${name} PUBLIC ../inifile)

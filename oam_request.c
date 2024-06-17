@@ -11,6 +11,7 @@
 #include "oam_message.h"
 
 #include "if_oam.h"
+#include "inet_utils.h"
 #include "json.h"
 #include "log.h"
 #include "packet.h"
@@ -65,88 +66,6 @@ static struct oam_request *new_oam_request(const char *type, char *conn_name)
     req->interval_ms = 1000;
 
     return req;
-}
-
-// parses @str, accepts 'ipv4' 'ipv4:port', 'ipv6', '[ipv6]', '[ipv6]:port'
-// TODO accept domain names?
-// allocates a new string for @ip
-// @returns true on success, otherwise doesn't touch the output parameter
-// TODO move this to common utils
-static bool parse_ip_port(const char *str, char **ip, unsigned *port)
-{
-    if (str[0] == '[') {
-            int n=1;
-            while (str[n]) {
-                if (str[n] == ']') break;
-                n++;
-            }
-            if (str[n] == ']') {
-                char *ip6_s = strndup(str+1, n-1);
-                struct in6_addr ip6;
-                if (inet_pton(AF_INET6, ip6_s, &ip6) != 1) {
-                    free(ip6_s);
-                    return false;
-                }
-                n++;
-                if (str[n]) {
-                    unsigned p;
-                    char err;
-                    if (sscanf(str+n, ":%u%c", &p, &err) != 1) {
-                        free(ip6_s);
-                        return false;
-                    }
-                    *port = p;
-                }
-                *ip = ip6_s;
-                return true;
-            } else {
-                // missing ']'
-                return false;
-            }
-    } else {
-        struct in6_addr ip6;
-        if (inet_pton(AF_INET6, str, &ip6) == 1) {
-            // IPv6 without port
-            *ip = strdup(str);
-            return true;
-        } else {
-            const char *colon = strchr(str, ':');
-            if (colon) {
-                const char *colon2 = strchr(colon+1, ':');
-                if (colon2) {
-                    return false;
-                }
-                char *ip_s = strndup(str, colon-str);
-                struct in_addr ip4;
-                //TODO check with getaddrinfo to accept domain name?
-                if (inet_pton(AF_INET, ip_s, &ip4) != 1) {
-                    free(ip_s);
-                    return false;
-                }
-                unsigned p;
-                char err;
-                if (sscanf(colon, ":%u%c", &p, &err) != 1) {
-                    free(ip_s);
-                    return false;
-                }
-                *ip = ip_s;
-                *port = p;
-                return true;
-            } else {
-                // no port
-                char *ip_s = strdup(str);
-                struct in_addr ip4;
-                //TODO check with getaddrinfo to accept domain name?
-                if (inet_pton(AF_INET, ip_s, &ip4) != 1) {
-                    free(ip_s);
-                    return false;
-                }
-                *ip = ip_s;
-                return true;
-            }
-        }
-        return false;
-    }
 }
 
 static bool parse_ping_returnif(struct oam_request *ping_req, const char *ifname)
