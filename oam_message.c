@@ -454,7 +454,7 @@ static int oam_send_reply(const char *address, unsigned port, const char *msg, u
     bzero(&hints, sizeof(hints));
     hints.ai_family = AF_UNSPEC;     // can be ipv4 or ipv6
     hints.ai_socktype = SOCK_DGRAM;
-    hints.ai_flags = 0; //TODO AI_NUMERICHOST?
+    hints.ai_flags = AI_NUMERICHOST;
     if ((status = getaddrinfo(address, port_str, &hints, &res)) != 0) {
         log_error("oam_send_reply getaddrinfo for address '%s': %s", address, gai_strerror(status));
         return -1;

@@ -83,7 +83,7 @@ static bool oam_open(struct Interface *iface)
     bzero(&hints, sizeof(hints));
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_DGRAM;
-    hints.ai_flags = 0; //TODO AI_NUMERICHOST?
+    hints.ai_flags = AI_NUMERICHOST;
     int err = getaddrinfo(oid->oam_ip_str, port_str, &hints, &result);
     if (err) {
         log_error("oam interface: invalid ip '%s' : %s", oid->oam_ip_str, port_str);

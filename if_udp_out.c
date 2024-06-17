@@ -83,7 +83,7 @@ static bool udpout_open(struct Interface *iface)
     bzero(&hints, sizeof(hints));
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_DGRAM;
-    hints.ai_flags = 0; //TODO AI_NUMERICHOST?
+    hints.ai_flags = AI_NUMERICHOST;
     int err = getaddrinfo(uid->dst_ip, port_str, &hints, &result);
 
     if (err) {
@@ -389,7 +389,7 @@ bool udp_out_set_dst(struct Interface *iface, const char *dst_ip, unsigned dst_p
         bzero(&hints, sizeof(hints));
         hints.ai_family = AF_UNSPEC;
         hints.ai_socktype = SOCK_DGRAM;
-        hints.ai_flags = 0; //TODO AI_NUMERICHOST?
+        hints.ai_flags = AI_NUMERICHOST;
         int err = getaddrinfo(uid->dst_ip, port_str, &hints, &result);
 
         if (err) {
