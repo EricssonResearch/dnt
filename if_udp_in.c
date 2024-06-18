@@ -183,7 +183,9 @@ static void *iface_address_monitoring(void *arg)
     struct Interface *iface = (struct Interface *)arg;
     struct UdpInIfData *uid = (struct UdpInIfData *)iface->iface_private;
 
-    usleep(1000); // wait until uid->ifmon gets assigned
+    while (uid->ifmon == NULL) {
+        usleep(1000);
+    }
 
     log_info("iface address monitoring %s ifname %s ifindex %d", iface->name, iface->ifname, uid->ifindex);
 
