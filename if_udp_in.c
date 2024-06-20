@@ -25,7 +25,6 @@
 #include <sys/ioctl.h>
 #include <net/if.h> /* struct ifreq */
 #include <arpa/inet.h> /* ntohs() */
-#include <netdb.h> /* getaddrinfo() */
 #include <ifaddrs.h>
 #include <linux/rtnetlink.h>
 
@@ -35,7 +34,7 @@ struct SenderList {
     unsigned port;
     int family;
     char *ip_str;
-    struct sockaddr *addr;
+    struct sockaddr_storage addr;
     unsigned addrlen;
     char *ifname;
     struct SenderList *next;
@@ -62,7 +61,6 @@ static struct SenderList *delete_senderlist(struct SenderList *sl)
         struct SenderList *d = sl;
         sl = sl->next;
         free(d->ip_str);
-        free(d->addr);
         free(d->ifname);
         free(d);
     }
@@ -163,7 +161,7 @@ static void send_notification(struct UdpInIfData *uid)
         js_string = json_serialize(js, &js_length);
         log_debug("notify sender %s port %u iface %s json '%s'", s->ip_str, s->port, s->ifname, js_string);
 
-        int err = sendto(sock, js_string, js_length, 0, s->addr, s->addrlen);
+        int err = sendto(sock, js_string, js_length, 0, (struct sockaddr*)&s->addr, s->addrlen);
         if (err < 0) {
             log_perror("address notification sendto");
         }
@@ -196,7 +194,7 @@ static void *iface_address_monitoring(void *arg)
         thread_exit(self);
     }
 
-    struct sockaddr_nl  addr;
+    struct sockaddr_nl addr;
     memset(&addr, 0, sizeof(addr));
 
     addr.nl_family = AF_NETLINK;
@@ -325,44 +323,35 @@ static bool process_sender(char *str, void *userdata)
             return false;
         }
 
-        char port_str[15];
-        sprintf(port_str, "%u", port);
-        struct addrinfo hints;
-        struct addrinfo *result, *rp;
-        bzero(&hints, sizeof(hints));
-        hints.ai_family = AF_UNSPEC;
-        hints.ai_socktype = SOCK_DGRAM;
-        hints.ai_flags = AI_NUMERICHOST;
-        int err = getaddrinfo(ip_str, port_str, &hints, &result);
+        struct in_addr dst4;
+        struct in6_addr dst6;
+        int family; //TODO it would be useful if parse_ip_port also returned the family
 
-        if (err) {
-            // this should never happen, parse_ip_port() already validated
-            log_error("udp-in invalid sender ip '%s'", ip_str);
-            free(ip_str);
-            return false;
+        if (inet_pton(AF_INET, ip_str, &dst4) == 1) {
+            family = AF_INET;
+        } else if (inet_pton(AF_INET6, ip_str, &dst6) == 1) {
+            family = AF_INET6;
+        } else {
+            //TODO how did parse_ip_port accept this??
         }
 
         struct SenderList *current = calloc_struct(SenderList);
         current->port = port;
+        current->family = family;
+        current->ip_str = ip_str;
 
-        for (rp=result; rp!=NULL; rp=rp->ai_next) {
-            log_debug("udp-in addrinfo family %d", rp->ai_family);
-            // we simply accept the first item
-            // (normally there is only one result)
-            current->family = rp->ai_family;
-            current->addr = (struct sockaddr *)memdup(rp->ai_addr, rp->ai_addrlen);
-            current->addrlen = rp->ai_addrlen;
-            current->ip_str = ip_str;
-            break;
-        }
-        freeaddrinfo(result);
-
-        if (rp == NULL) {
-            // this should never happen, parse_ip_port() already validated
-            log_error("udp-in could not interpret '%s' as a sender ip", ip_str);
-            free(ip_str);
-            free(current);
-            return false;
+        if (family == AF_INET6) {
+            struct sockaddr_in6 *a6 = (struct sockaddr_in6 *)&current->addr;
+            a6->sin6_family = AF_INET6;
+            a6->sin6_addr = dst6;
+            a6->sin6_port = htons(port);
+            current->addrlen = sizeof(struct sockaddr_in6);
+        } else {
+            struct sockaddr_in *a4 = (struct sockaddr_in *)&current->addr;
+            a4->sin_family = AF_INET;
+            a4->sin_addr = dst4;
+            a4->sin_port = htons(port);
+            current->addrlen = sizeof(struct sockaddr_in);
         }
         sest->current = current;
     }
