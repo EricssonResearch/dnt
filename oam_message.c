@@ -10,11 +10,13 @@
 #include "oam_core.h"
 #include "oam_request.h"
 
+#include "if_udp_out.h"
 #include "json.h"
 #include "log.h"
 #include "object.h"
 #include "packet.h"
 #include "pipeline.h"
+#include "state.h"
 #include "time_utils.h"
 #include "thread_utils.h"
 #include "utils.h"
@@ -251,8 +253,42 @@ static int process_reply(const char *msg)
         log_error("JSON in reply is invalid.");
         return -1;
     }
-    JS_OBJECT_GET(nodeid, number, j);
+
     JS_OBJECT_GET(type, string, j);
+
+    if (strcmp(type->v.string, "newaddress") == 0) {
+        JS_OBJECT_GET(code, string, j);
+        if (strcmp(code->v.string, "notify") != 0) {
+            log_error("newaddress message is '%s' instead of 'notify'", code->v.string);
+            json_delete(j);
+            return -1;
+        }
+
+        JS_OBJECT_GET(sendiface, string, j);
+        struct Interface *sendif = state_get_interface(sendiface->v.string);
+        if (sendif == NULL) {
+            log_error("got newaddress notification for non-existing interface '%s'", sendiface->v.string);
+            json_delete(j);
+            return -1;
+        }
+        if (sendif->type != IF_UDP_OUT) {
+            log_error("got newaddress notification for interface '%s' that is %s",
+                    sendiface->v.string, iface_type_str(sendif->type));
+            json_delete(j);
+            return -1;
+        }
+
+        JS_OBJECT_GET(address, object, j);
+        JS_OBJECT_GET(ip, string, address);
+        JS_OBJECT_GET(port, number, address);
+        log_debug("newaddress notification for %s is %s %.0f",
+                sendiface->v.string, ip->v.string, port->v.number);
+        udp_out_set_dst(sendif, ip->v.string, port->v.number);
+        json_delete(j);
+        return 0;
+    }
+
+    JS_OBJECT_GET(nodeid, number, j);
     JS_OBJECT_GET(target, string, j);
     JS_OBJECT_GET(sequence, number, j);
     JS_OBJECT_GET(level, number, j);
@@ -263,6 +299,7 @@ static int process_reply(const char *msg)
     struct SessionTracker *sess = NULL;
     if (session->v.number < 0 || session->v.number > 15) {
         log_error("session id %.0f in reply is invalid", session->v.number);
+        json_delete(j);
         return -1;
     } else {
         if (known_stream(stream->v.string)) {

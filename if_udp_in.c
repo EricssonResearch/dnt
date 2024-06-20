@@ -123,7 +123,6 @@ static void send_notification(struct UdpInIfData *uid)
         strcpy(ip_str, "<none>");
     }
 
-    log_info("%s sending notifications, ip %s port %u", thread_getname(uid->ifmon), ip_str, uid->port);
     struct JsonValue *js = json_object();
     json_object_insert(js, "type", json_string("newaddress"));
     json_object_insert(js, "code", json_string("notify"));
@@ -162,7 +161,7 @@ static void send_notification(struct UdpInIfData *uid)
         unsigned js_length;
         char *js_string;
         js_string = json_serialize(js, &js_length);
-        log_debug("  sender %s port %u iface %s json '%s'", s->ip_str, s->port, s->ifname, js_string);
+        log_debug("notify sender %s port %u iface %s json '%s'", s->ip_str, s->port, s->ifname, js_string);
 
         int err = sendto(sock, js_string, js_length, 0, s->addr, s->addrlen);
         if (err < 0) {
@@ -204,7 +203,7 @@ static void *iface_address_monitoring(void *arg)
     addr.nl_groups = RTMGRP_LINK | RTMGRP_IPV4_IFADDR | RTMGRP_IPV6_IFADDR;
     // nl_pid can be safely left as 0
 
-    struct timeval timeout = {60, 0};
+    struct timeval timeout = {10, 0};
     if (setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0) {
         log_perror("%s setsockopt timeout", thread_getname(uid->ifmon));
         close(sock);
@@ -231,7 +230,7 @@ static void *iface_address_monitoring(void *arg)
 
         if (err < 0) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                log_info("%s timeout", thread_getname(uid->ifmon));
+                log_debug("%s timeout", thread_getname(uid->ifmon));
                 send_notification(uid);
             } else {
                 log_perror("%s recvmsg", thread_getname(uid->ifmon));
@@ -285,6 +284,16 @@ static void *iface_address_monitoring(void *arg)
                 }
 
                 if (must_notify) {
+                    char ip_str[INET6_ADDRSTRLEN];
+                    if (HAVE_IP) {
+                        if (inet_ntop(uid->family, &uid->srcip, ip_str, sizeof(ip_str)) == NULL) {
+                            log_error("%s failed to decode ip", thread_getname(uid->ifmon));
+                        }
+                    } else {
+                        strcpy(ip_str, "<none>");
+                    }
+
+                    log_info("udp-in %s new ip %s port %u", iface->name, ip_str, uid->port);
                     send_notification(uid);
                 }
             }
