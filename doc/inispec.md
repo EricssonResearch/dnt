@@ -13,27 +13,28 @@ There are 4 sections in the config: *interfaces*, *streams*, *objects*, *oam*. T
 
 ## interfaces
 
-List of interfaces where we can send/receive packets. The keys of the items are the names of the interfaces, actions refer to interfaces by their names, and not by the hardware interface names. The values of the items are in the form of `iftype parameter=value [parameter=value]`. The *iftype* is mandatory. The valid parameters depend on the *iftype* of the interface. The currently supported interface types with their parameters are the following:
+List of interfaces where we can send/receive packets. The keys of the items are the names of the interfaces, actions refer to interfaces by their names, and not by the hardware interface names. The values of the items are in the form of `iftype parameter=value [parameter=value]`. The *iftype* is mandatory. The valid parameters depend on the *iftype* of the interface. The currently supported interface types with their parameters are the following (parameters without a default value are mandatory):
 
 * `eth` raw Ethernet interface intended to be a TSN UNI, valid parameters:
     * `iface` the name of the hardware interface
 * `ip` outgoing UNI for IP-over-DetNet (cannot receive packets), valid parameters:
     * `iface` the name of the hardware interface
-* `udp-in` receiving end of an UDP tunnel (cannot send packets), valid parameters:
+* `udp-in` receiving end of an UDP PseudoWire tunnel (cannot send packets), valid parameters:
     * `iface` the name of the hardware interface
     * `port` the UDP port to listen on (default: 6635)
     * `ipv` the IP version, can be 4 or 6 (default: 4)
-* `udp-out` sending end of an UDP tunnel (cannot receive packets), valid parameters:
+    * `senders` optional list of nodes that send to this udp-in, they will be notified about ip address changes on the receiving interface, must specify the ip:port of the OAM return interface on those nodes (format: ipv4,udpoutname,ipv4:port,udpoutname, ipv6,udpoutname,[ipv6]:port,udpoutname)
+* `udp-out` sending end of an UDP PseudoWire tunnel (cannot receive packets), valid parameters:
     * `iface` the name of the hardware interface
     * `srcport` the UDP source port of the sent packets (default: let Linux choose)
     * `dstport` the UDP port to send to (default: 6635)
-    * `dstip` the IP address to send to (also determines the IP version, domain names are also accepted), `ipv4` and `ipv6` mean the address will be specified later (can't send until a valid destination is set)
+    * `dstip` the IP address to send to, `ipv4` and `ipv6` mean the address will be specified later (can't send until a valid destination is set, see `senders` parameter on udp-in)
     * `prio` the IPv4 TOS or IPv6 Traffic Class for the sent packets (default: 0)
 * `internal` a virtual interface within R2DTWO, useful for stream re-classification in decapsulating scenarios, no parameters
-* `oam` receives OAM reply messages out-of-band
-    * `ip` return address (required)
+* `oam` receives OAM reply messages out-of-band, can have multiple, default one is the first one in alphabetic order
+    * `ip` return address to listen on (required)
     * `port` return port (default: 6634)
-* `oam_cmd` OAM command interface, use telnet to connect to it, use the `help` command
+* `oam_cmd` OAM command interface, can have only one, use `telnet` to connect to it, use the `help` command
     * `ip` address (optional)
     * `port` listening port (default: 8000)
 
@@ -56,7 +57,7 @@ Example for a DetNet scenario:
 
 ifUNIin = eth iface=enp3s0
 ifUNIout = ip iface=enp3s0
-ifNNIin = udp-in iface=enp4s0 ipv=6
+ifNNIin = udp-in iface=enp4s0 ipv=6 senders=fd01::1,ifNNIout2
 ifNNIout = udp-out iface=enp4s0 dstip=fd03::11
 
 ifUNIin:streams = user_in
