@@ -333,6 +333,7 @@ static bool process_sender(char *str, void *userdata)
             family = AF_INET6;
         } else {
             //TODO how did parse_ip_port accept this??
+            return false;
         }
 
         struct SenderList *current = calloc_struct(SenderList);
