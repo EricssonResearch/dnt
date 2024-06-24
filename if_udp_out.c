@@ -38,7 +38,7 @@ struct UdpOutIfData {
         struct in_addr v4;
         struct in6_addr v6;
     } dstip;
-    void *errq_monitor;
+    struct MonitorState *errq_monitor;
     bool opened;
 };
 
@@ -465,6 +465,7 @@ bool udp_out_set_dst(struct Interface *iface, const char *dst_ip, unsigned dst_p
             }
             uid->dport = dst_port;
         } else {
+            uid->errq_monitor = stop_monitoring_error_queue(uid->errq_monitor);
             close(uid->sock);
             iface->state = IFS_INIT;
         }

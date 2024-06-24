@@ -26,11 +26,13 @@ bool iface_common_send(struct Interface *iface, struct Packet *p, int socket, vo
 
 bool iface_common_process(struct Interface *iface, struct Packet *p);
 
-// @returns a handle to the monitoring object or NULL on error
-void *monitor_error_queue(int socket, int family, const char *name);
+struct MonitorState;
 
-// @monitor is the object returned by @monitor_error_queue
-void stop_monitoring_error_queue(void *monitor);
+// @returns a handle to the monitoring object or NULL on error
+struct MonitorState *monitor_error_queue(int socket, int family, const char *name);
+
+// always @returns NULL
+struct MonitorState *stop_monitoring_error_queue(struct MonitorState *st);
 
 struct ifaddrs;
 void print_ifaddrs(struct ifaddrs *ifa);
