@@ -35,9 +35,13 @@ struct Interface *state_get_interface(const char *ifname);
 
 struct PipelineObject *state_get_object(const char *objname);
 
-int state_foreach_interfaces(hashmap_cb *cb, void *userdata);
+// returning false from the callback aborts the foreach
+typedef int state_foreach_if_cb(struct Interface *iface, void *userdata);
+int state_foreach_interfaces(state_foreach_if_cb *cb, void *userdata);
 
-int state_foreach_objects(hashmap_cb *cb, void *userdata);
+// returning false from the callback aborts the foreach
+typedef int state_foreach_obj_cb(struct PipelineObject *obj, void *userdata);
+int state_foreach_objects(state_foreach_obj_cb *cb, void *userdata);
 
 // make the changes described in in @tr to the active configuration
 // @returns true if the commit was successful

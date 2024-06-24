@@ -47,15 +47,14 @@ static void sigusr1_handler(int sig, siginfo_t *si, void *uc)
         return;
 
     log_info("SIGUSR1 caught, resetting seq generators");
-    state_foreach_objects(reset_all_seq_generators, NULL);
+    state_foreach_objects(reset_seq_generator, NULL);
 }
 
-static int add_iface_to_epollfd(const char *key, void *value, void *userdata) {
-    struct Interface *iface = (struct Interface *)value;
+static int add_iface_to_epollfd(struct Interface *iface, void *userdata) {
     int *epollfd = (int *)userdata;
     if (iface->recvfd == 0) return 1;
 
-    log_debug("adding interface %s to epoll", key);
+    log_debug("adding interface %s to epoll", iface->name);
 
     struct epoll_event ev;
     ev.events = EPOLLIN;

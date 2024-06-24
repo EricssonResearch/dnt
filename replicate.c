@@ -79,12 +79,10 @@ void store_replication_pipelines(struct PipelineObject *obj, struct PipelineList
     r->pipes = pipes;
 }
 
-int try_set_mask(const char *key, void *value, void *udata)
+int try_set_mask(struct PipelineObject *obj, void *userdata)
 {
-    (void) key;
     bool success = false;
-    struct MaskArg *args = (struct MaskArg *)udata;
-    struct PipelineObject *obj = (struct PipelineObject *)value;
+    struct MaskArg *args = (struct MaskArg *)userdata;
 
     if (obj->type == PO_REPL) {
         struct Replicate *r = (struct Replicate *)obj;

@@ -229,14 +229,38 @@ struct PipelineObject *state_get_object(const char *objname)
     return (struct PipelineObject *)hashmap_find(state_objects, objname);
 }
 
-int state_foreach_interfaces(hashmap_cb *cb, void *userdata)
+struct ForeachIfState {
+    state_foreach_if_cb *cb;
+    void *userdata;
+};
+static int foreach_if_cb(const char *key, void *value, void *userdata)
 {
-    return hashmap_foreach(state_interfaces, cb, userdata);
+    (void)key;
+    struct Interface *iface = (struct Interface *)value;
+    struct ForeachIfState *st = (struct ForeachIfState *)userdata;
+    return st->cb(iface, st->userdata);
+}
+int state_foreach_interfaces(state_foreach_if_cb *cb, void *userdata)
+{
+    struct ForeachIfState st = {cb, userdata};
+    return hashmap_foreach(state_interfaces, foreach_if_cb, &st);
 }
 
-int state_foreach_objects(hashmap_cb *cb, void *userdata)
+struct ForeachObjState {
+    state_foreach_obj_cb *cb;
+    void *userdata;
+};
+static int foreach_obj_cb(const char *key, void *value, void *userdata)
 {
-    return hashmap_foreach(state_objects, cb, userdata);
+    (void)key;
+    struct PipelineObject *obj = (struct PipelineObject *)value;
+    struct ForeachObjState *st = (struct ForeachObjState *)userdata;
+    return st->cb(obj, st->userdata);
+}
+int state_foreach_objects(state_foreach_obj_cb *cb, void *userdata)
+{
+    struct ForeachObjState st = {cb, userdata};
+    return hashmap_foreach(state_objects, foreach_obj_cb, &st);
 }
 
 bool state_commit_transaction(struct StateTransaction *tr)

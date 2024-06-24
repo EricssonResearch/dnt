@@ -21,8 +21,11 @@ enum ActionResult seq_generator(struct PipelineObject *gen, struct PipelineItera
 
 // Helper function to reset all sequence generators in the system
 // Triggered by manual reset signal (no timer expiration)
-// this is intended to be a hashmap_foreach callback
-int reset_all_seq_generators(const char *key, void *value, void *udata);
+// this is intended to be a callback for state_foreach_objects()
+// does nothing if the type of @obj is not PO_SEQGEN
+// doesn't use @userdata
+// always @returns 1
+int reset_seq_generator(struct PipelineObject *obj, void *userdata);
 
 // use sprintf_state_json() instead of this
 char *seq_gen_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep);

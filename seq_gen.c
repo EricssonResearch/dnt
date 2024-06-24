@@ -99,12 +99,10 @@ static void sequence_generation_reset(struct SequenceGenerator *gen)
     gen->resets += 1;
 }
 
-int reset_all_seq_generators(const char *key, void *value, void *udata)
+int reset_seq_generator(struct PipelineObject *obj, void *userdata)
 {
-    (void) key;
-    (void) udata;
+    (void) userdata;
 
-    struct PipelineObject *obj = (struct PipelineObject *)value;
     if (obj->type == PO_SEQGEN) {
         struct SequenceGenerator *g = (struct SequenceGenerator *)obj;
         sequence_generation_reset(g);
