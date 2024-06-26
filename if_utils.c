@@ -414,7 +414,7 @@ static void *socket_monitor_thread(void *param)
     return NULL;
 }
 
-void *monitor_error_queue(int socket, int family, const char *name)
+struct MonitorState *monitor_error_queue(int socket, int family, const char *name)
 {
     if (family == AF_INET6) {
         int enable = 1;
@@ -449,9 +449,8 @@ void *monitor_error_queue(int socket, int family, const char *name)
     return st;
 }
 
-void stop_monitoring_error_queue(void *monitor)
+struct MonitorState *stop_monitoring_error_queue(struct MonitorState *st)
 {
-    struct MonitorState *st = (struct MonitorState *)monitor;
     if (st) {
         thread_stop(st->thread);
 
@@ -468,6 +467,7 @@ void stop_monitoring_error_queue(void *monitor)
         }
     }
     free(st);
+    return NULL;
 }
 
 void print_ifaddrs(struct ifaddrs *ifa)

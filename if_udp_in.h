@@ -8,6 +8,6 @@
 struct Interface;
 
 struct Interface *new_udp_in_interface(const char *name, const char *ifname,
-        unsigned port, unsigned ipversion);
+        unsigned port, unsigned ipversion, const char *senders);
 
 #endif // R2_IF_UDP_IN_H

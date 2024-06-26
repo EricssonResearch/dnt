@@ -19,7 +19,6 @@
 #include <arpa/inet.h> /* ntohs() */
 
 #include <netinet/in.h>
-#include <netdb.h>
 
 DEFAULT_LOGGING_MODULE(INTERFACE, INFO);
 
@@ -76,55 +75,62 @@ static bool oam_open(struct Interface *iface)
         return false;
     }
 
-    char port_str[15];
-    sprintf(port_str, "%u", oid->port);
-    struct addrinfo hints;
-    struct addrinfo *result, *rp;
-    bzero(&hints, sizeof(hints));
-    hints.ai_family = AF_UNSPEC;
-    hints.ai_socktype = SOCK_DGRAM;
-    hints.ai_flags = 0; //TODO AI_NUMERICHOST?
-    int err = getaddrinfo(oid->oam_ip_str, port_str, &hints, &result);
-    if (err) {
-        log_error("oam interface: invalid ip '%s' : %s", oid->oam_ip_str, port_str);
-        return false;
-    }
+    struct in_addr ip4;
+    struct in6_addr ip6;
+    int family;
 
-    int sock;
-    int enable = 1;
-    for (rp=result; rp!=NULL; rp=rp->ai_next) {
-        sock = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
-        if (sock < 0)
-            continue;
-
-        if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable)) < 0) {
-            log_perror("oam setsockopt SO_REUSEADDR");
-            close(sock);
-            return false;
-        }
-
-        if (bind(sock, rp->ai_addr, rp->ai_addrlen) == 0)
-            break;
-
-        close(sock);
-    }
-    if (rp == NULL) {
-        log_error("oam interface: could not bind to ip '%s' : %s", oid->oam_ip_str, port_str);
-        freeaddrinfo(result);
-        return false;
-    }
-
-    if (rp->ai_family == AF_INET6) {
-        struct sockaddr_in6 *i6 = (struct sockaddr_in6 *)(rp->ai_addr);
-        oid->uid = ntohs(i6->sin6_addr.s6_addr16[7]);
-        log_info("OAM interface %s IPv6 '%s' port %s uid 0x%.4x", iface->name, oid->oam_ip_str, port_str, oid->uid);
+    if (inet_pton(AF_INET, oid->oam_ip_str, &ip4) == 1) {
+        family = AF_INET;
+    } else if (inet_pton(AF_INET6, oid->oam_ip_str, &ip6) == 1) {
+        family = AF_INET6;
     } else {
-        struct sockaddr_in *i4 = (struct sockaddr_in *)(rp->ai_addr);
-        oid->uid = ntohl(i4->sin_addr.s_addr) & 0xffff;
-        log_info("OAM interface %s IPv4 '%s' port %s uid 0x%.4x", iface->name, oid->oam_ip_str, port_str, oid->uid);
+        log_error("oam interface: invalid ip '%s'", oid->oam_ip_str);
+        return false;
     }
-    freeaddrinfo(result);
 
+    struct sockaddr *sa;
+    unsigned sa_len;
+    struct sockaddr_in6 addr6;
+    struct sockaddr_in addr4;
+
+    if (family == AF_INET6) {
+        sa = (struct sockaddr*)&addr6;
+        sa_len = sizeof(addr6);
+        memset(&addr6, 0, sizeof(addr6));
+        addr6.sin6_family = AF_INET6;
+        addr6.sin6_addr = ip6;
+        addr6.sin6_port = htons(oid->port);
+        oid->uid = ntohs(ip6.s6_addr16[7]);
+    } else {
+        sa = (struct sockaddr*)&addr4;
+        sa_len = sizeof(addr4);
+        memset(&addr4, 0, sizeof(addr4));
+        addr4.sin_family = AF_INET;
+        addr4.sin_addr = ip4;
+        addr4.sin_port = htons(oid->port);
+        oid->uid = ntohl(ip4.s_addr) & 0xffff;
+    }
+
+    int sock = socket(family, SOCK_DGRAM, 0);
+    if (sock < 0) {
+        log_perror("oam %s cannot create socket", iface->name);
+        return false;
+    }
+
+    int enable = 1;
+    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable)) < 0) {
+        log_perror("oam setsockopt SO_REUSEADDR");
+        close(sock);
+        return false;
+    }
+
+    if (bind(sock, sa, sa_len) < 0) {
+        log_perror("oam %s cannot bind socket", iface->name);
+        close(sock);
+        return false;
+    }
+
+    log_info("OAM return interface %s %s port %u uid 0x%.4x", iface->name, oid->oam_ip_str, oid->port, oid->uid);
     iface->recvfd = sock;
     iface->state = IFS_OPEN;
     add_oam_if(iface);

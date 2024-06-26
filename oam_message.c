@@ -10,11 +10,13 @@
 #include "oam_core.h"
 #include "oam_request.h"
 
+#include "if_udp_out.h"
 #include "json.h"
 #include "log.h"
 #include "object.h"
 #include "packet.h"
 #include "pipeline.h"
+#include "state.h"
 #include "time_utils.h"
 #include "thread_utils.h"
 #include "utils.h"
@@ -25,7 +27,7 @@
 
 #include <unistd.h>
 #include <pthread.h>
-#include <netdb.h>
+#include <arpa/inet.h>
 
 
 DEFAULT_LOGGING_MODULE(OAM, INFO);
@@ -251,8 +253,42 @@ static int process_reply(const char *msg)
         log_error("JSON in reply is invalid.");
         return -1;
     }
-    JS_OBJECT_GET(nodeid, number, j);
+
     JS_OBJECT_GET(type, string, j);
+
+    if (strcmp(type->v.string, "newaddress") == 0) {
+        JS_OBJECT_GET(code, string, j);
+        if (strcmp(code->v.string, "notify") != 0) {
+            log_error("newaddress message is '%s' instead of 'notify'", code->v.string);
+            json_delete(j);
+            return -1;
+        }
+
+        JS_OBJECT_GET(sendiface, string, j);
+        struct Interface *sendif = state_get_interface(sendiface->v.string);
+        if (sendif == NULL) {
+            log_error("got newaddress notification for non-existing interface '%s'", sendiface->v.string);
+            json_delete(j);
+            return -1;
+        }
+        if (sendif->type != IF_UDP_OUT) {
+            log_error("got newaddress notification for interface '%s' that is %s",
+                    sendiface->v.string, iface_type_str(sendif->type));
+            json_delete(j);
+            return -1;
+        }
+
+        JS_OBJECT_GET(address, object, j);
+        JS_OBJECT_GET(ip, string, address);
+        JS_OBJECT_GET(port, number, address);
+        log_debug("newaddress notification for %s is %s %.0f",
+                sendiface->v.string, ip->v.string, port->v.number);
+        udp_out_set_dst(sendif, ip->v.string, port->v.number);
+        json_delete(j);
+        return 0;
+    }
+
+    JS_OBJECT_GET(nodeid, number, j);
     JS_OBJECT_GET(target, string, j);
     JS_OBJECT_GET(sequence, number, j);
     JS_OBJECT_GET(level, number, j);
@@ -263,6 +299,7 @@ static int process_reply(const char *msg)
     struct SessionTracker *sess = NULL;
     if (session->v.number < 0 || session->v.number > 15) {
         log_error("session id %.0f in reply is invalid", session->v.number);
+        json_delete(j);
         return -1;
     } else {
         if (known_stream(stream->v.string)) {
@@ -446,35 +483,51 @@ void oam_recv_reply(const char *msg)
 */
 static int oam_send_reply(const char *address, unsigned port, const char *msg, unsigned msg_len)
 {
-    struct addrinfo hints, *res, *rp;
-    int status;
+    struct in_addr dst4;
+    struct in6_addr dst6;
+    int family;
 
-    char port_str[15];
-    sprintf(port_str, "%u", port);
-    bzero(&hints, sizeof(hints));
-    hints.ai_family = AF_UNSPEC;     // can be ipv4 or ipv6
-    hints.ai_socktype = SOCK_DGRAM;
-    hints.ai_flags = 0; //TODO AI_NUMERICHOST?
-    if ((status = getaddrinfo(address, port_str, &hints, &res)) != 0) {
-        log_error("oam_send_reply getaddrinfo for address '%s': %s", address, gai_strerror(status));
+    if (inet_pton(AF_INET, address, &dst4) == 1) {
+        family = AF_INET;
+    } else if (inet_pton(AF_INET6, address, &dst6) == 1) {
+        family = AF_INET6;
+    } else {
+        log_error("oam_send_reply invalid destination '%s'", address);
         return -1;
     }
 
-    int sock = -1;
-    for (rp=res; rp!=NULL; rp=rp->ai_next) {
-        sock = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
-        if (sock < 0) continue;
+    struct sockaddr *sa;
+    unsigned sa_len;
+    struct sockaddr_in6 addr6;
+    struct sockaddr_in addr4;
 
-        if (sendto(sock, msg, msg_len, 0, rp->ai_addr, rp->ai_addrlen) == 0) {
-            log_perror("oam repy sendto");
-            freeaddrinfo(res);
-            close(sock);
-            return -1;
-        } else
-        break;
+    if (family == AF_INET6) {
+        sa = (struct sockaddr*)&addr6;
+        sa_len = sizeof(addr6);
+        memset(&addr6, 0, sizeof(addr6));
+        addr6.sin6_family = AF_INET6;
+        addr6.sin6_addr = dst6;
+        addr6.sin6_port = htons(port);
+    } else {
+        sa = (struct sockaddr*)&addr4;
+        sa_len = sizeof(addr4);
+        memset(&addr4, 0, sizeof(addr4));
+        addr4.sin_family = AF_INET;
+        addr4.sin_addr = dst4;
+        addr4.sin_port = htons(port);
     }
 
-    freeaddrinfo(res);
+    int sock = socket(family, SOCK_DGRAM, 0);
+    if (sock < 0) {
+        log_perror("oam_send_reply cannot create socket");
+        return -1;
+    }
+
+    if (sendto(sock, msg, msg_len, 0, sa, sa_len) <= 0) {
+        log_perror("oam repy sendto");
+        close(sock);
+        return -1;
+    }
     close(sock);
     return 0;
 }

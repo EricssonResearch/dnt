@@ -147,7 +147,8 @@ static int iface_cb(const char *key, void *value, void *userdata)
         if (tstate.iface == NULL) {
             THROW("hw interface is unspecified");
         }
-        struct Interface *iface = new_udp_in_interface(key, tstate.iface, port, ipver);
+        char *senders = (char *)hashmap_find(tstate.params, "senders");
+        struct Interface *iface = new_udp_in_interface(key, tstate.iface, port, ipver, senders);
         if (!iface) {
             THROW("failed to create udp-in interface");
         }

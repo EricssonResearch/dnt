@@ -21,7 +21,7 @@ LFLAGS += -lm
 LFLAGS += -lpthread
 
 OBJECTS = main.o action.o delay.o header.o interface.o object.o packet.o parsetree.o pipeline.o protocol.o state.o
-OBJECTS += log.o thread_utils.o utils.o
+OBJECTS += log.o inet_utils.o thread_utils.o utils.o
 OBJECTS += if_eth.o if_internal.o if_ip.o if_oam.o if_oam_cmd.o if_udp_in.o if_udp_out.o if_utils.o
 OBJECTS += pof.o replicate.o seq_gen.o seq_recov.o
 OBJECTS += oam_command.o oam_core.o oam_message.o oam_request.o
@@ -30,7 +30,7 @@ OBJECTS += configfile.o conf_actions.o conf_interface.o conf_object.o conf_packe
 OBJECTS += inifile/hashmap.o inifile/inifile.o
 
 HEADERS = action.h delay.h header.h interface.h object.h packet.h parsetree.h pipeline.h protocol.h state.h value.h
-HEADERS += log.h thread_utils.h time_utils.h utils.h version.h
+HEADERS += log.h inet_utils.h thread_utils.h time_utils.h utils.h version.h
 HEADERS += if_eth.h if_internal.h if_ip.h if_udp_in.h if_udp_out.h if_utils.h if_oam.h if_oam_cmd.h
 HEADERS += seq_gen.h seq_recov.h pof.h replicate.h
 HEADERS += oam.h oam_command.h oam_core.h oam_message.h oam_request.h
