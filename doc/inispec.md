@@ -23,7 +23,7 @@ List of interfaces where we can send/receive packets. The keys of the items are 
     * `iface` the name of the hardware interface
     * `port` the UDP port to listen on (default: 6635)
     * `ipv` the IP version, can be 4 or 6 (default: 4)
-    * `senders` optional list of nodes that send to this udp-in, they will be notified about ip address changes on the receiving interface, must specify the ip:port of the OAM return interface on those nodes (format: ipv4,udpoutname,ipv4:port,udpoutname, ipv6,udpoutname,[ipv6]:port,udpoutname)
+    * `senders` optional list of nodes that send to this udp-in, they will be notified about ip address changes on the receiving interface, must specify the ip:port of the OAM return interface and the name of the udp-out interface on those nodes (format: `ipv4,udpoutname,ipv4:port,udpoutname,ipv6,udpoutname,[ipv6]:port,udpoutname`)
 * `udp-out` sending end of an UDP PseudoWire tunnel (cannot receive packets), valid parameters:
     * `iface` the name of the hardware interface
     * `srcport` the UDP source port of the sent packets (default: let Linux choose)
@@ -50,6 +50,8 @@ Each interface can have read-only properties that can be used as right-hand-side
 
 The OAM interfaces never send/receive data plane traffic, and they have no readable properties.
 
+Dynamic IP address allocation is possible for UDP PseudoWire tunnels: the receiving end of the UDP tunnel can have dynamically allocated address (e.g. via DHCP, ICMPv6). On the sender nodes, where the `udp-out` interface is, there has to be an `oam` interface to receive notifications. These must be listed on the `udp-in` interface with the `senders` parameter: the address of the `oam` interface, and the name of the `udp-out` interface that sends traffic to this `udp-in`. The `udp-out` interfaces can be configured to an initial target address, or just `ipv4` or `ipv6`, which means the target address will be known from notifications sent by the target `udp-in`. Note that the IP version of the tunnel cannot be changed dynamically.
+
 Example for a DetNet scenario:
 
 ```
@@ -57,7 +59,7 @@ Example for a DetNet scenario:
 
 ifUNIin = eth iface=enp3s0
 ifUNIout = ip iface=enp3s0
-ifNNIin = udp-in iface=enp4s0 ipv=6 senders=fd01::1,ifNNIout2
+ifNNIin = udp-in iface=enp4s0 ipv=6 senders=fd01::1,ifNNIout2,192.168.10.11:6666,ifNNIout1
 ifNNIout = udp-out iface=enp4s0 dstip=fd03::11
 
 ifUNIin:streams = user_in
