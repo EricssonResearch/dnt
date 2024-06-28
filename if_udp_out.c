@@ -51,14 +51,15 @@ static bool udpout_recv(struct Interface *iface)
 static bool udpout_send(struct Interface *iface, struct Packet *p)
 {
     struct UdpOutIfData *uid = (struct UdpOutIfData *)iface->iface_private;
+    pthread_mutex_lock(&uid->mutex);
     if (iface->state == IFS_OPEN) {
-        pthread_mutex_lock(&uid->mutex);
         // our socket is connected, so no dst
         bool ret = iface_common_send(iface, p, uid->sock, NULL, 0);
         pthread_mutex_unlock(&uid->mutex);
         return ret;
     } else {
         // we don't know the dst address yet
+        pthread_mutex_unlock(&uid->mutex);
         return false;
     }
 }
@@ -465,9 +466,13 @@ bool udp_out_set_dst(struct Interface *iface, const char *dst_ip, unsigned dst_p
             }
             uid->dport = dst_port;
         } else {
+            log_info("udp-out %s destination has lost its address", iface->name);
+            pthread_mutex_lock(&uid->mutex);
             uid->errq_monitor = stop_monitoring_error_queue(uid->errq_monitor);
             close(uid->sock);
+            uid->sock = 0;
             iface->state = IFS_INIT;
+            pthread_mutex_unlock(&uid->mutex);
         }
 
         free(uid->dst_ip);
