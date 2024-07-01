@@ -136,9 +136,9 @@
         test_succ++;                                                \
     } else {                                                        \
         test_fail++;                                                \
-        char _msg[256];                                             \
+        char _msg[512];                                             \
         snprintf(_msg, sizeof(_msg), _description, ##__VA_ARGS__);  \
-        _msg[255] = 0;                                              \
+        _msg[511] = 0;                                              \
         printf(test_color ?                                         \
                 "\n    %s %d \033[1;31mFAILED\033[0m: %s" :         \
                 "\n    %s %d FAILED: %s",                           \
@@ -151,9 +151,9 @@
         test_succ++;                                                \
     } else {                                                        \
         test_fail++;                                                \
-        char _msg[256];                                             \
+        char _msg[512];                                             \
         snprintf(_msg, sizeof(_msg), _description, ##__VA_ARGS__);  \
-        _msg[255] = 0;                                              \
+        _msg[511] = 0;                                              \
         printf(test_color ?                                         \
                 "\n    %s %d \033[1;31mFAILED\033[0m: %s" :         \
                 "\n    %s %d FAILED: %s",                           \
@@ -176,9 +176,9 @@
         test_succ++;                                                \
     } else {                                                        \
         test_fail++;                                                \
-        char _msg[256];                                             \
+        char _msg[512];                                             \
         snprintf(_msg, sizeof(_msg), _description, ##__VA_ARGS__);  \
-        _msg[255] = 0;                                              \
+        _msg[511] = 0;                                              \
         printf(test_color ?                                         \
                 "\n    %s %d \033[1;31mNO ASSERT\033[0m: %s" :      \
                 "\n    %s %d NO ASSERT: %s",                        \
@@ -194,9 +194,9 @@
      _ASSERTS(longjmp(test_jmp_buffer, 9), _expression, _description, ##__VA_ARGS__)
 
 #define SKIP(_description, ...) do {                            \
-    char _msg[256];                                             \
+    char _msg[512];                                             \
     snprintf(_msg, sizeof(_msg), _description, ##__VA_ARGS__);  \
-    _msg[255] = 0;                                              \
+    _msg[511] = 0;                                              \
     printf(test_color ?                                         \
             " \033[1;33mSKIP\033[0m %s " :                      \
             " SKIP %s ",                                        \

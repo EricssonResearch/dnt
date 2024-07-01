@@ -89,6 +89,7 @@ struct Packet *serialize_packet(const struct Packet *p)
         dstlen += len;
     }
     ret->len = dstlen;
+    ret->scratch_len = 0;
     ret->header_count = 0;
 
     ret->id = __atomic_fetch_add(&next_packet_id, 1, __ATOMIC_RELAXED);
@@ -107,9 +108,9 @@ bool packet_identify_header(struct Packet *p, enum ProtocolID type, unsigned off
         log_error("packet_identify_header: already at maximum header count");
         return false;
     }
-    if (p->header_count > 0 && p->headers[p->header_count-1].start > p->start + offset) {
-        log_error("packet_identify_header: new offset %u is smaller than the previous %u",
-                p->start + offset, p->headers[p->header_count-1].start);
+    if (p->header_count > 0 && p->headers[p->header_count-1].start >= p->start + offset) {
+        log_error("packet_identify_header: new start %u + %u is not larger than the previous %u",
+                p->start, offset, p->headers[p->header_count-1].start);
         return false;
     }
     if (offset + len > p->len) {
@@ -163,6 +164,8 @@ void packet_del_header(struct Packet *p, unsigned idx)
 {
     if (idx >= p->header_count) {
         //TODO error (this should never happen though)
+        log_error("packet_del_header index too large %u > %u", idx, p->header_count);
+        return;
     }
 
     if (idx < p->header_count)
@@ -173,7 +176,6 @@ void packet_del_header(struct Packet *p, unsigned idx)
 
 void packet_clear_headers(struct Packet *p)
 {
-    memset(p->headers, 0, p->header_count * sizeof(struct PacketHeader));
     p->header_count = 0;
 }
 
@@ -189,7 +191,7 @@ void packets_check_performance(void)
 
 void packet_logcat(struct Packet *p, const char *frmt, ...)
 {
-    if (__log_module_PACKETTRACE.level < PACKET)
+    if (!log_enabled_m(PACKETTRACE, PACKET))
         return;
 
     char msg[PACKET_LOG_BUF_SIZE - 1];
@@ -210,7 +212,7 @@ void packet_logcat(struct Packet *p, const char *frmt, ...)
         sprintf(&p->logbuf[PACKET_LOG_BUF_SIZE - 4], "...");
 }
 
-void packet_print(const struct Packet *p)
+void packet_printlog(const struct Packet *p)
 {
     log_packet_m(PACKETTRACE, "[id=%u oid=%u] %s", p->id, p->original_id, p->logbuf);
 }

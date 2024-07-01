@@ -24,8 +24,6 @@ add_test_seqrcvy(test_seq_rcvy_vector)
 
 function(add_test_inet name)
     add_executable(${name} ../inet_utils.c ${name}.c)
-    #target_include_directories(${name} PUBLIC ../inifile)
-    #target_link_libraries(${name} pthread)
     target_compile_definitions(${name} PUBLIC TESTING)
 endfunction()
 
@@ -40,6 +38,14 @@ endfunction()
 add_test_json(test_json_api)
 add_test_json(test_json_read)
 add_test_json(test_json_write)
+
+function(add_test_packet name)
+    add_executable(${name} ../packet.c ../inifile/hashmap.c ../log.c ../utils.c ${name}.c)
+    target_include_directories(${name} PUBLIC ../inifile)
+    target_compile_definitions(${name} PUBLIC TESTING)
+endfunction()
+
+add_test_packet(test_packet)
 
 function(add_test_time name)
     add_executable(${name} ${name}.c)

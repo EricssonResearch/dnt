@@ -315,7 +315,7 @@ bool iface_common_send(struct Interface *iface, struct Packet *p, int socket, vo
     }
 
     packet_logcat(p, "%s ", iface->name);
-    packet_print(p);
+    packet_printlog(p);
 
     dropstat(iface, socket);
 
@@ -326,7 +326,7 @@ bool iface_common_process(struct Interface *iface, struct Packet *p)
 {
     struct PipelineIterator *pi = parsetree_identify(iface->parsetree_, p);
     if (pi == NULL) {
-        packet_print(p);
+        packet_printlog(p);
         delete_packet(p);
         return false;
     } else {
