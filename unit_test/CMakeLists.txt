@@ -22,6 +22,14 @@ add_test_seqrcvy(test_seq_rcvy_match)
 add_test_seqrcvy(test_seq_rcvy_vector)
 #TODO seamless
 
+function(add_test_ifutil name)
+    add_executable(${name} ../if_utils.c ../log.c ../packet.c ../utils.c ../inifile/hashmap.c ${name}.c)
+    target_include_directories(${name} PUBLIC ../inifile)
+    target_compile_definitions(${name} PUBLIC TESTING)
+endfunction()
+
+add_test_ifutil(test_if_utils)
+
 function(add_test_inet name)
     add_executable(${name} ../inet_utils.c ${name}.c)
     target_compile_definitions(${name} PUBLIC TESTING)

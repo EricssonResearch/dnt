@@ -19,11 +19,19 @@ bool enable_so_txtime(int sock, const char *sockname, const char *ifname, bool d
 
 typedef void msghdr_process_cb(struct msghdr *msg, struct Packet *p, void *userdata);
 
+// receives a packet on @iface
+// blocks if there is nothing in the receive buffer!
+// @returns NULL on error, or when we have too many packets (never returns dummy packet)
 // the msghdr is passed to the @msg_cb callback if it's not NULL
 struct Packet *iface_common_recv(struct Interface *iface, msghdr_process_cb *msg_cb, void *userdata);
 
+// sends a packet on @socket, which can be different from @iface->recvfd
+// @dst and @dstlen should be compatible with the type of @socket
+// @returns true on succes
 bool iface_common_send(struct Interface *iface, struct Packet *p, int socket, void *dst, unsigned dstlen);
 
+// queries the parsetree of @iface, and runs the returned iterator
+// @returns true if a known stream was found for @p
 bool iface_common_process(struct Interface *iface, struct Packet *p);
 
 struct MonitorState;
