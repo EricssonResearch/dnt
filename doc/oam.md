@@ -2,25 +2,34 @@
 # OAM functions
 
 OAM functions include service basic ping and remote ping functionality, initiated either from telnet-like CLI or configuration file.
+
 The OAM functionality requires the following pre-requisites:
 
 * Configure `oam` and `oam_cmd` interfaces
 * Add `mep-start`, `mip` and `mep-stop` actions to the stream actions
-* optionally configure OAM background commands to be executed
-
-For each replication and elimination object, `mip` points can be automatically created. In case of replication objects, a `mip` is placed before the replication. in case of elimination objects, a `mip` is placed before AND after the elimination.  
-The automatically generated `mip`s are always uniquely identified, but they also can be listed with the `rlist` command.
-The naming for the auto generated replication `mip` objects is
- * o_<stream_action_name>_L<level>_pre_<replication_object_name>.
-For the elimination objects, the generated `mip`s are:
- * o_<stream_action_name>_L<level>_pre_<elimination_object_name>.
- * o_<stream_action_name>_L<level>_post_<elimination_object_name>.
-where `stream_action_name` is the name of the action pipeline. After a jump the stream name will be the action pipeline name where the jump refers. This is needed to uniquely identify the streams/substreams. For elimination objects, the post elimination `mip` is uniquely identified by the elimination object name.
-The level is currently fixed to 4. The `replication_object_name` and `elimination_object_name` refer to the replication and elimination objects.
+* optionally add OAM background commands in the config
 
 Examples and naming convention for the interface and command parameters can be found in **inispec.md**.
 
 The OAM CLI can be reached via `telnet` command to the address:port specified for the `oam_cmd` interface.
+
+## Automatic MIP generation
+
+For each replication and elimination object, `mip` points can be automatically created with the `AutoMIP=level` parameter. In case of replication objects, a `mip` is placed before the replication. In case of elimination objects, a `mip` is placed before AND after the elimination.
+The automatically generated `mip`s are always uniquely identified with the following naming scheme.
+
+The naming for the auto generated replication `mip` objects is
+
+* `o_<stream_action_name>_L<level>_pre_<replication_object_name>`
+
+For the elimination objects, the generated `mip`s are:
+
+* `o_<stream_action_name>_L<level>_pre_<elimination_object_name>`
+* `o_<stream_action_name>_L<level>_post_<elimination_object_name>`
+
+Here `stream_action_name` is the name of the action pipeline. After a jump the stream name will be the action pipeline name where the jump refers. This is needed to uniquely identify the streams/substreams. For elimination objects, the post elimination `mip` is uniquely identified by the elimination object name.
+The `replication_object_name` and `elimination_object_name` refer to the replication and elimination objects.
+The level of the generated `mip` actions is specified by the `AutoMIP=level` parameter of the object.
 
 ## OAM CLI commands
 
@@ -28,18 +37,27 @@ The main OAM commands are `ping` and `rping`. There also are several helping com
 
 The available commands are:
 
-* `help `- get help
-* `exit,` quit, CTRL+D - exit OAM
-* `log [module newlevel]` - get current log levels or set it for the given module.
-* `list` - list monitoring start points
-* `rlist[@if] <stream:mep-start/mip> <mep-stop/mip/any> <level>` - list monitoring start points of the remote node.
-* `mode <mode>` - terminal mode. Mode can be 'dump' or 'json'.
-* `[un]mask <replication pipeline>` - mask/unmask a replication pipeline.
-* `sessions [stream]` - list active sessions for stream. If no 'stream' specified, lists all sessions
-* `stop [stream session_id]` - stop a running OAM session, identified by 'stream:session_id'. Without parameters it stops the last session
-* `returns` - list return interfaces
-* `ping[@if] <stream:mep-start> <mep-stop/mip/any> <level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]`
-* `rping[@if] <remote stream:mep-stop/mip> <stream:mep-start> <mep-stop/mip/any> <level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]`
+* `help` get help
+* `exit`, `quit`, `CTRL+D` exit OAM
+* `log [module newlevel]` get current log levels or set it for the given module
+* `mode <mode>` set ping reply printing mode, can be 'dump' or 'json'
+* `list` list monitoring start points
+* `returns` list return interfaces
+* `sessions [stream]` list active sessions for stream, lists all sessions if no 'stream' is specified
+* `[un]mask <replication pipeline>` mask/unmask a replication pipeline
+* `rlist[@if] <stream:mep-start/mip> <mep-stop/mip/any> <level>` list monitoring start points of the remote node
+* `ping[@if] <stream:mep-start> <mep-stop/mip/any> <level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]` sends a ping request inside a stream, the reply will come out-of-band to @if
+    * `<stream:mep-start>` sets the position in the action pipeline where the ping starts
+    * `<mep-stop/mip/any>` is the name of the destination of the ping
+    * `<level>` is the OAM level of the session, can be 0..7
+    * `-r` ask for route record
+    * `-o` ask for object information
+    * `-i` interval in ms (default: 1000)
+    * `-n` number of requests to send (default: 1)
+    * `-t` ttl (default: 64)
+* `rping[@if] <remote stream:mep-stop/mip> <stream:mep-start> <mep-stop/mip/any> <level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]` sends a remote ping request: instruct a remote OAM start point to send a ping request
+    * accepts the same parameters as `ping`
+* `stop [stream session_id]` stop a running OAM session identified by `stream:session_id`, without parameter it stops the last session
 
 The `ping` command sends a ping request inside a stream, and the responder will send a ping reply out-of-bound to the OAM return interface. The `rping` command on an *originator* node is sent to the *initiator* node, which in turn will send a normal ping request to the given target.
 
@@ -51,6 +69,8 @@ With the `mask` and `unmask` command the operator can disable or enable the tran
 Only works with replication pipelines, normal stream and jump pipelines cannot be masked.
 
 ## OAM message formats
+
+The OAM in-band requests have a fixed header, and a payload in Json format. The out-of-band replies only have a Json payload.
 
 ### ping request
 
@@ -116,7 +136,7 @@ Json has mostly the same info as ping.
 
 Three actors: originator -> *rping* -> initiator -> *ping* -> responder -> *ping response* -> originator
 
-Receiving such a request triggers a normal ping by interpreting "command" as it came from the command line, minus the "ping" at the beginning. The initiated ping will use "stream" and "session" from this request instead of the ones allocated on the receiver. The return interface is the one supplied in this request instead of one of the interfaces on the receiver.
+Receiving such a request triggers a normal ping by interpreting "command" as it came from the command line, minus the "ping" at the beginning. The initiated ping will use "stream" and "session" from this request instead of the ones allocated on the initiator. The return interface is the one supplied in this request instead of one of the interfaces on the initiator.
 
 ### rping error
 

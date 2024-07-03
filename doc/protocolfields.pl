@@ -1,5 +1,6 @@
 #!/usr/bin/perl
 # build md from the protocol definitions
+#   usage: protocolfields.pl protocol.c > protocols.md
 use strict;
 use warnings;
 

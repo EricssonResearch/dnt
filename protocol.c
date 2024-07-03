@@ -161,7 +161,7 @@ static const struct ProtocolField ttag_fields[] = {
 static const struct ProtocolField mpls_fields[] = {
     {"label",  0, 20, FT_NUMBER},
     {"class", 20,  3, FT_NUMBER},
-    {"bos",   23,  1, FT_NUMBER},
+    {"bos",   23,  1, FT_NUMBER}, // bottom-of-stack indicator
     {"ttl",   24,  8, FT_TTL},
 };
 
@@ -188,17 +188,18 @@ static const struct ProtocolField ipv4_fields[] = {
     {"ihl",             4,  4, FT_NUMBER}, // should be 5
     {"verihl",          0,  8, FT_NUMBER}, // should be 0x45
     {"dscp",            8,  6, FT_NUMBER},
-    {"ecn",            14,  2, FT_NUMBER},
-    {"tos",             8,  8, FT_NUMBER},
+    {"ecn",            14,  2, FT_NUMBER}, // explicit congestion notification
+    {"tos",             8,  8, FT_NUMBER}, // type of service
     {"length",         16, 16, FT_NUMBER},
     {"id",             32, 16, FT_NUMBER},
     {"flags",          48,  3, FT_NUMBER},
+    {"evil",           48,  1, FT_NUMBER}, // RFC 3514
     {"dontfragment",   49,  1, FT_NUMBER},
     {"morefragments",  50,  1, FT_NUMBER},
     {"fragoffset",     51, 13, FT_NUMBER},
     {"ttl",            64,  8, FT_TTL},
     {"protocol",       72,  8, FT_NEXTHEADER},
-    {"checksum",       80, 16, FT_CHECKSUM},
+    {"checksum",       80, 16, FT_CHECKSUM}, // TODO support checksum calculation
     {"src",            96, 32, FT_IPV4ADDRESS},
     {"dst",           128, 32, FT_IPV4ADDRESS},
 };
@@ -232,7 +233,7 @@ static const struct ProtocolField udp_fields[] = {
     {"srcport",   0, 16, FT_NUMBER},
     {"dstport",  16, 16, FT_NUMBER},
     {"length",   32, 16, FT_NUMBER},
-    {"checksum", 48, 16, FT_CHECKSUM},
+    {"checksum", 48, 16, FT_CHECKSUM}, // TODO support checksum calculation
 };
 
 // DetNet MPLS PW OAM Associated Channel Header (d-ACH)

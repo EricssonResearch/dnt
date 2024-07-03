@@ -89,17 +89,18 @@ enum TerminalFormat command_connection_get_format(const struct command_connectio
 static const char help_str[] =
     "Available commands:\n"
     "help - get help\n"
-    "exit - exit OAM\n"
-    "mode <mode> - terminal mode. Mode can be 'dump' or 'json'.\n"
-    "[un]mask <replication pipeline> - mask/unmask a replication pipeline\n"
-    "log [module newlevel] - get current log levels or set it for the given module.\n"
+    "exit, quit, CTRL+D - exit OAM\n"
+    "log [module newlevel] - get current log levels or set it for the given module\n"
+    "mode <mode> - set ping reply printing mode, can be 'dump' or 'json'\n"
     "list - list monitoring start points\n"
-    "rlist[@if] <stream:mep-start/mip> <mep-stop/mip/any> <level> - list monitoring start points of the remote node.\n"
-    "sessions [stream] - list active sessions for 'stream'. List all sessions if no 'stream' specified.\n"
-    "stop [stream session_id] - stop a running OAM session, identified by stream:session_id. Stops the last session if no parameters given.\n"
     "returns - list return interfaces\n"
+    "sessions [stream] - list active sessions for stream, lists all sessions if no 'stream' is specified\n"
+    "[un]mask <replication pipeline> - mask/unmask a replication pipeline\n"
+    "rlist[@if] <stream:mep-start/mip> <mep-stop/mip/any> <level> - list monitoring start points of the remote node\n"
     "ping[@if] <stream:mep-start/mip> <mep-stop/mip/any> <level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]\n"
-    "rping[@if] <stream:mep-start/mip> <mep-stop/mip> <level> <remote stream:mep-start/mip> <remote mep-stop/mip/any> <remote level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]\n";
+    "rping[@if] <stream:mep-start/mip> <mep-stop/mip> <level> <remote stream:mep-start/mip> <remote mep-stop/mip/any> <remote level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]\n"
+    "stop [stream session_id] - stop a running OAM session identified by 'stream:session_id', without parameter it stops the last session\n"
+    ;
 
 static int list_mep_cb(const char *key, void *value, void *userdata)
 {
