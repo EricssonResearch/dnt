@@ -74,7 +74,7 @@ clean:
 
 .PHONY: doc
 doc:
-	-rm /tmp/r2dtwo.md
+	/usr/bin/echo -e '---\ntitle: R2DTWO\n...\n' > /tmp/r2dtwo.md
 	cat doc/getting_started/README.md >> /tmp/r2dtwo.md
 	cat doc/getting_started/scenario1/README.md >> /tmp/r2dtwo.md
 	cat doc/getting_started/scenario2/README.md >> /tmp/r2dtwo.md
@@ -84,6 +84,6 @@ doc:
 	cat doc/inispec.md >> /tmp/r2dtwo.md
 	doc/protocolfields.pl protocol.c > doc/protocols.md
 	cat doc/protocols.md >> /tmp/r2dtwo.md
-	#cat doc/stream_compiler.md >> /tmp/r2dtwo.md
 	pandoc --toc --pdf-engine=xelatex -V 'monofontoptions: Color=0070c0,Scale=0.7' \
 		-V monofont="Noto Sans Mono" -V fontsize=12pt -V geometry:margin=1.5cm /tmp/r2dtwo.md -o readme.pdf
+	rm /tmp/r2dtwo.md
