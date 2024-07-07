@@ -75,7 +75,8 @@ static bool udpout_open(struct Interface *iface)
     uid->opened = true;
 
     if (strcmp(uid->dst_ip, "<none>") == 0) {
-        log_info("open udp-out interface %s: deferring open until we learn the dst ip", iface->name);
+        log_info("open udp-out interface %s: deferring open until we learn the dst ip v%u",
+                iface->name, uid->family == AF_INET6 ? 6 : 4);
         return true;
     }
 
@@ -223,7 +224,7 @@ static bool udpout_open(struct Interface *iface)
 
     uid->errq_monitor = monitor_error_queue(sock, uid->family, iface->name);
 
-    log_info("Udp-out interface %s on device %s", iface->name, iface->ifname);
+    log_info("Udp-out interface %s on device %s destination %s port %u", iface->name, iface->ifname, uid->dst_ip, uid->dport);
     iface->dropstat_cntr = 0;
     iface->dropstat_last_warn = 0;
     iface->state = IFS_OPEN;

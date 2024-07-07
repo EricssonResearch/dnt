@@ -13,6 +13,7 @@
 #include "packet.h"
 #include "parsetree.h"
 #include "thread_utils.h"
+#include "time_utils.h"
 #include "utils.h"
 
 #include <stdlib.h>
@@ -218,7 +219,9 @@ static void *iface_address_monitoring(void *arg)
         thread_exit(self);
     }
 
+    struct timespec last_notify;
     send_notification(uid);
+    clock_gettime(CLOCK_REALTIME, &last_notify);
 
     char recvbuf[8192]
         __attribute__ ((aligned(__alignof__(struct nlmsghdr))));
@@ -230,6 +233,7 @@ static void *iface_address_monitoring(void *arg)
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
                 log_debug("%s timeout", thread_getname(uid->ifmon));
                 send_notification(uid);
+                clock_gettime(CLOCK_REALTIME, &last_notify);
             } else {
                 log_perror("%s recvmsg", thread_getname(uid->ifmon));
             }
@@ -240,6 +244,7 @@ static void *iface_address_monitoring(void *arg)
 
         log_debug("%s received %u bytes", thread_getname(uid->ifmon), recvlen);
 
+        bool must_notify = false;
         for (struct nlmsghdr *nh=(struct nlmsghdr *)recvbuf; NLMSG_OK(nh, recvlen); nh=NLMSG_NEXT(nh, recvlen)) {
             if (nh->nlmsg_type == NLMSG_DONE) {
                 log_debug("NLMSG_DONE\n"); // we get this in multipart reply (=never)
@@ -254,7 +259,15 @@ static void *iface_address_monitoring(void *arg)
                 struct ifaddrmsg *ifa = (struct ifaddrmsg*)NLMSG_DATA(nh);
                 if (ifa->ifa_index != uid->ifindex) continue;
                 if (ifa->ifa_family != uid->family) continue;
-                if (ifa->ifa_flags & IFA_F_TENTATIVE) continue;
+
+                int flags = ifa->ifa_flags;
+                struct rtattr *flags_attr = find_rtattr(IFA_RTA(ifa), nh->nlmsg_len, IFA_FLAGS);
+                if (flags_attr) {
+                    flags = ((int*)RTA_DATA(flags_attr))[0];
+                }
+
+                if (flags & IFA_F_TENTATIVE) continue;
+                //if (flags & IFA_F_MANAGETEMPADDR) continue;
 
                 struct rtattr *addr_attr = find_rtattr(IFA_RTA(ifa), nh->nlmsg_len, IFA_ADDRESS);
                 if (addr_attr == NULL) {
@@ -262,7 +275,6 @@ static void *iface_address_monitoring(void *arg)
                     continue;
                 }
 
-                bool must_notify = false;
                 unsigned addrlen = ifa->ifa_family == AF_INET6 ? 16 : 4; //TODO RTA_PAYLOAD(addr_attr)
                 if (nh->nlmsg_type == RTM_NEWADDR) {
                     if (HAVE_IP) continue;
@@ -277,24 +289,33 @@ static void *iface_address_monitoring(void *arg)
                         if (!set_srcip(iface->ifname, uid)) {
                             //TODO wtf?
                         }
+
+                        char ip_str[INET6_ADDRSTRLEN];
+                        if (HAVE_IP) {
+                            if (inet_ntop(uid->family, &uid->srcip, ip_str, sizeof(ip_str)) == NULL) {
+                                log_error("%s failed to decode ip", thread_getname(uid->ifmon));
+                            }
+                        } else {
+                            strcpy(ip_str, "<none>");
+                        }
+                        log_info("udp-in %s new ip %s port %u", iface->name, ip_str, uid->port);
                         must_notify = true;
                     }
                 }
-
-                if (must_notify) {
-                    char ip_str[INET6_ADDRSTRLEN];
-                    if (HAVE_IP) {
-                        if (inet_ntop(uid->family, &uid->srcip, ip_str, sizeof(ip_str)) == NULL) {
-                            log_error("%s failed to decode ip", thread_getname(uid->ifmon));
-                        }
-                    } else {
-                        strcpy(ip_str, "<none>");
-                    }
-
-                    log_info("udp-in %s new ip %s port %u", iface->name, ip_str, uid->port);
-                    send_notification(uid);
-                }
             }
+        }
+
+        struct timespec now;
+        clock_gettime(CLOCK_REALTIME, &now);
+        struct timespec diff;
+        timespecsub(&now, &last_notify, &diff);
+        if (diff.tv_sec > timeout.tv_sec) {
+            must_notify = true;
+        }
+
+        if (must_notify) {
+            send_notification(uid);
+            clock_gettime(CLOCK_REALTIME, &last_notify);
         }
     }
 
