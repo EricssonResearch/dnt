@@ -587,6 +587,7 @@ struct Interface *new_udp_in_interface(const char *name, const char *ifname,
         sender_list = parse_senders(ifname, sender_str);
         free(sender_str);
         if (sender_list == NULL) {
+            free(iface->name);
             free(iface->ifname);
             free(iface);
             return NULL;

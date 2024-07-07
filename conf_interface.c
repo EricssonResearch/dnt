@@ -78,6 +78,7 @@ static int iface_cb(const char *key, void *value, void *userdata)
         log_error("interface %s error: " msg,                       \
                 key, ##__VA_ARGS__);                                \
         free(tstate.type);                                          \
+        free(tstate.iface);                                         \
         delete_hashmap(tstate.params);                              \
         return 0;                                                   \
     } while (0)

@@ -28,7 +28,6 @@ struct UdpOutIfData {
     pthread_mutex_t mutex;
     int ifindex;
     int mtu;
-    char *ifname;
     char *dst_ip;
     unsigned sport;
     unsigned dport;
@@ -86,7 +85,7 @@ static bool udpout_open(struct Interface *iface)
             return false;
     }
 
-    if (setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, uid->ifname, strlen(uid->ifname)) < 0) {
+    if (setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, iface->ifname, strlen(iface->ifname)) < 0) {
         log_perror("udp-out setsockopt SO_BINDTODEVICE");
         close(sock);
         return false;
@@ -237,7 +236,6 @@ static bool udpout_close(struct Interface *iface)
     stop_monitoring_error_queue(uid->errq_monitor);
     close(uid->sock);
     free(uid->dst_ip);
-    free(uid->ifname);
     pthread_mutex_destroy(&uid->mutex);
     free(uid);
     log_info("Udp-out interface %s closed", iface->name);
@@ -342,6 +340,8 @@ struct Interface *new_udp_out_interface(const char *name, const char *ifname,
             dst_ip = "<none>";
         } else {
             log_error("udp-out invalid dstip '%s'", dst_ip);
+            free(iface->name);
+            free(iface->ifname);
             free(iface);
             return NULL;
         }
@@ -351,7 +351,6 @@ struct Interface *new_udp_out_interface(const char *name, const char *ifname,
 
     struct UdpOutIfData *uid = calloc_struct(UdpOutIfData);
     iface->iface_private = uid;
-    uid->ifname = strdup(ifname);
     uid->dst_ip = strdup(dst_ip);
     uid->sport = src_port;
     uid->dport = dst_port;
