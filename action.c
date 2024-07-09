@@ -376,6 +376,8 @@ static enum ActionResult action_REPL_execute(struct Action *a, struct PipelineIt
     while (list) {
         // do not replicate to masked pipes (member streams)
         if (list->pipe->mask) {
+            if (list->next == NULL)
+                delete_packet(iterpacket);
             list = list->next;
             continue;
         }
