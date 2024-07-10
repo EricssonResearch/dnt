@@ -52,6 +52,8 @@ Each interface can have read-only properties that can be used as right-hand-side
 
 The OAM interfaces never send/receive data plane traffic, and they have no readable properties.
 
+The packets received on an `eth` interface always have a VLAN tag. If the incoming packet didn't have a 802.1Q or 802.1AD tag (`cvlan` and `svlan` in our terminology) after the Ethernet header, then the interface automatically adds a null `cvlan` header. This is meant to simplify the [packet matching](#match) rules, if it is not needed, it can be removed with a `del` [action](#actions).
+
 Dynamic IP address allocation is possible for UDP PseudoWire tunnels: the receiving end of the UDP tunnel can have dynamically allocated address (e.g. via DHCP, ICMPv6). This implementation reuses the OAM framework for processing the address change notifications: on the sender node, where the `udp-out` interface is, there has to be an `oam` interface to receive notifications. These must be listed on the `udp-in` interface with the `senders` parameter: the address of the `oam` interface, and the name of the `udp-out` interface that sends traffic to this `udp-in`. The `udp-out` interfaces can be configured to an initial target address, or just `ipv4` or `ipv6`, which means the target address will be known from notifications sent by the target `udp-in`. Note that the IP version of the tunnel cannot be changed dynamically.
 
 Example for a DetNet scenario:
