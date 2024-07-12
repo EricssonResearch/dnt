@@ -66,6 +66,7 @@ static bool ethertype_from_id(uint16_t *nexthdr, enum ProtocolID id)
         case PROTO_ID_DCW:
         case PROTO_ID_TCW:
         case PROTO_ID_UDP:
+        case PROTO_ID_TCP:
         case PROTO_ID_OAM:
             return false;
     }
@@ -83,6 +84,8 @@ static bool id_from_ipproto(enum ProtocolID *id, uint16_t proto)
             SET_ID(PROTO_ID_IPv6);
         case IPPROTO_UDP:
             SET_ID(PROTO_ID_UDP);
+        case IPPROTO_TCP:
+            SET_ID(PROTO_ID_TCP);
         case IPPROTO_MPLS:
             SET_ID(PROTO_ID_MPLS);
         case IPPROTO_ETHERNET:
@@ -104,6 +107,8 @@ static bool ipproto_from_id(uint16_t *proto, enum ProtocolID id)
             SET_PROTO(IPPROTO_IPV6);
         case PROTO_ID_UDP:
             SET_PROTO(IPPROTO_UDP);
+        case PROTO_ID_TCP:
+            SET_PROTO(IPPROTO_TCP);
         case PROTO_ID_MPLS:
             SET_PROTO(IPPROTO_MPLS);
         case PROTO_ID_PAYLOAD:
@@ -236,6 +241,28 @@ static const struct ProtocolField udp_fields[] = {
     {"checksum", 48, 16, FT_CHECKSUM}, // TODO support checksum calculation
 };
 
+static const struct ProtocolField tcp_fields[] = {
+    {"srcport",      0, 16, FT_NUMBER},
+    {"dstport",     16, 16, FT_NUMBER},
+    {"seq",         32, 32, FT_NUMBER},
+    {"ack",         64, 32, FT_NUMBER},
+    {"dataoffs",    96,  4, FT_NUMBER}, // 5 when no options (counts in 4 octet units)
+    {"reserved",   100,  4, FT_NUMBER},
+    {"flags",      104,  8, FT_NUMBER},
+    {"cwr",        104,  1, FT_NUMBER}, // congestion window reduced
+    {"ece",        105,  1, FT_NUMBER}, // ECN echo
+    {"urg",        106,  1, FT_NUMBER}, // urgent
+    {"ack",        107,  1, FT_NUMBER}, // acknowledgement
+    {"psh",        108,  1, FT_NUMBER}, // push
+    {"rst",        109,  1, FT_NUMBER}, // reset
+    {"syn",        110,  1, FT_NUMBER}, // synchronize
+    {"fin",        111,  1, FT_NUMBER}, // finish
+    {"windowsize", 112, 16, FT_NUMBER},
+    {"checksum",   128, 16, FT_CHECKSUM}, // TODO support checksum calculati
+    {"urgentp",    144, 16, FT_NUMBER},
+    //TODO options how?
+};
+
 // DetNet MPLS PW OAM Associated Channel Header (d-ACH)
 static const struct ProtocolField oam_fields[] = {
     {"oam_nibble",  0,  4, FT_NUMBER}, // must be 1
@@ -265,6 +292,7 @@ const struct Protocol protocol_list[] = {
     {"ipv6", ipv6_fields, ARRAY_SIZE(ipv6_fields), 40, id_from_ipproto, ipproto_from_id},
     {"arp", arp_fields, ARRAY_SIZE(arp_fields), 28, NULL, NULL}, //TODO this is variable-length
     {"udp", udp_fields, ARRAY_SIZE(udp_fields), 8, NULL, NULL},
+    {"tcp", tcp_fields, ARRAY_SIZE(tcp_fields), 20, NULL, NULL},
     {"oam", oam_fields, ARRAY_SIZE(oam_fields), 8, NULL, NULL},
 };
 

@@ -125,7 +125,7 @@ static int iface_cb(const char *key, void *value, void *userdata)
         }
         hashmap_insert(state->ifaces, iface->name, iface);
     } else if (strcmp(tstate.type, "udp-in") == 0) {
-        unsigned port = 6635;
+        unsigned port = 6635; // RFC 7510
         unsigned ipver = 4;
         unsigned u;
         char err;
@@ -156,7 +156,7 @@ static int iface_cb(const char *key, void *value, void *userdata)
         hashmap_insert(state->ifaces, iface->name, iface);
     } else if (strcmp(tstate.type, "udp-out") == 0) {
         unsigned srcport = 0;
-        unsigned dstport = 6635;
+        unsigned dstport = 6635; // RFC 7510
         unsigned priority = 0;
         unsigned u;
         char err;
