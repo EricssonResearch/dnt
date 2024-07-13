@@ -21,13 +21,13 @@
  */
 
 /*
- * testing.h is a simple unit test framework for C
+ * testing.h is a simple unit test framework for C and C++ projects
  *
  * This framework aims to be simple, easy to use, and free of dependencies.
  * The only thing needed is a C compiler with at least C99 support.
  *
- * Let's suppose you have a project that contains module (foo.c and foo.h)
- * that has functions foo1() and foo2() you want to unit test. You need to
+ * Let's suppose you have a project that contains a module (foo.c and foo.h)
+ * that has functions you want to unit test. You need to
  * create a footest.c file that contains:
  *
  *   #include "testing.h"
@@ -42,7 +42,7 @@
  *
  *   static void test_foo2(void)
  *   {
- *      OK(foo2(42) == 0, "returns 0");
+ *      OK(foo2(42) == 0, "must return 0");
  *   }
  *
  *   TEST_CASES = {
@@ -86,14 +86,23 @@
  *   FAIL_FATAL(message)
  *      unconditional failure and abort the current test case
  *   test_assert(condition)
- *      unlike assert() this just aborts the current test case
- *      if TESTING is not defined, this is an alias to assert()
+ *      unlike regular assert() this just aborts the current test case
+ *      if TESTING is not defined, this is an alias to regular assert()
  *   ASSERTS(expression, message)
- *      the expression is expected to call test_assert(), fail if it doesn't
+ *      expression is expected to fail on a test_assert() call, fail if it doesn't
+ *      always continues the current test case
  *   ASSERTS_FATAL(expression, message)
- *      same as ASSERTS() but also aborts the current test case
+ *      same as ASSERTS() but aborts the current test case on failure
  *   SKIP(message)
  *      skips the rest of the test case without registering a failure
+ *      useful for unfinished test cases
+ *
+ * In C++ mode the following helpers are also available:
+ *
+ *   EXCEPTS(expression, exception type, message)
+ *      the expression is expected to throw an exception with the given type
+ *   EXCEPTS_FATAL(expression, exception type, message)
+ *      same as EXCEPTS(), but aborts the current test case on failure
  *
  * The message parameter can contain printf patterns and additional parameters
  * to be substituted. The printf substitution will be performed only when the
@@ -122,12 +131,16 @@
 // get isatty()
 #ifdef _WIN32
 // note: you need a fairly recent version of Windows 10
-// to be able to see colors on the console
+// and probably some regedit-hacking
+// to have colors on the console
 #include <io.h>
-// static inline int isatty(int fh) { (void)fh; return 0; }
+#define TTY_TEST _isatty(_fileno(stdout))
 #else
 #include <unistd.h>
+#define TTY_TEST isatty(STDOUT_FILENO)
 #endif
+
+#define TEST_MSG_BUF_SIZE 512
 
 //TODO the variadic macros prevent us from using -Wpedantic
 
@@ -136,9 +149,9 @@
         test_succ++;                                                \
     } else {                                                        \
         test_fail++;                                                \
-        char _msg[512];                                             \
+        char _msg[TEST_MSG_BUF_SIZE];                               \
         snprintf(_msg, sizeof(_msg), _description, ##__VA_ARGS__);  \
-        _msg[511] = 0;                                              \
+        _msg[TEST_MSG_BUF_SIZE-1] = 0;                              \
         printf(test_color ?                                         \
                 "\n    %s %d \033[1;31mFAILED\033[0m: %s" :         \
                 "\n    %s %d FAILED: %s",                           \
@@ -151,9 +164,9 @@
         test_succ++;                                                \
     } else {                                                        \
         test_fail++;                                                \
-        char _msg[512];                                             \
+        char _msg[TEST_MSG_BUF_SIZE];                               \
         snprintf(_msg, sizeof(_msg), _description, ##__VA_ARGS__);  \
-        _msg[511] = 0;                                              \
+        _msg[TEST_MSG_BUF_SIZE-1] = 0;                              \
         printf(test_color ?                                         \
                 "\n    %s %d \033[1;31mFAILED\033[0m: %s" :         \
                 "\n    %s %d FAILED: %s",                           \
@@ -166,7 +179,6 @@
 
 #define FAIL_FATAL(_description, ...) OK_FATAL(0, _description, ##__VA_ARGS__)
 
-// to use this, the code under test needs to call test_assert()
 #define _ASSERTS(_reaction, _expression, _description, ...) do {    \
     test_assert_count = 0;                                          \
     test_needs_assert = 1;                                          \
@@ -176,9 +188,9 @@
         test_succ++;                                                \
     } else {                                                        \
         test_fail++;                                                \
-        char _msg[512];                                             \
+        char _msg[TEST_MSG_BUF_SIZE];                               \
         snprintf(_msg, sizeof(_msg), _description, ##__VA_ARGS__);  \
-        _msg[511] = 0;                                              \
+        _msg[TEST_MSG_BUF_SIZE-1] = 0;                              \
         printf(test_color ?                                         \
                 "\n    %s %d \033[1;31mNO ASSERT\033[0m: %s" :      \
                 "\n    %s %d NO ASSERT: %s",                        \
@@ -194,9 +206,9 @@
      _ASSERTS(longjmp(test_jmp_buffer, 9), _expression, _description, ##__VA_ARGS__)
 
 #define SKIP(_description, ...) do {                            \
-    char _msg[512];                                             \
+    char _msg[TEST_MSG_BUF_SIZE];                               \
     snprintf(_msg, sizeof(_msg), _description, ##__VA_ARGS__);  \
-    _msg[511] = 0;                                              \
+    _msg[TEST_MSG_BUF_SIZE-1] = 0;                              \
     printf(test_color ?                                         \
             " \033[1;33mSKIP\033[0m %s " :                      \
             " SKIP %s ",                                        \
@@ -218,6 +230,47 @@
         }                                                   \
     }                                                       \
 } while (0)
+
+#ifdef __cplusplus
+
+#define _EXCEPTS(_reaction, _expression, _xcept_type, _description, ...) do {   \
+    bool _caught_good = false;                                                  \
+    bool _caught_bad = false;                                                   \
+    try { _expression; }                                                        \
+    catch (_xcept_type) { _caught_good = true; }                                \
+    catch (...) { _caught_bad = true; }                                         \
+    if (_caught_bad) {                                                          \
+        test_fail++;                                                            \
+        char _msg[TEST_MSG_BUF_SIZE];                                           \
+        snprintf(_msg, sizeof(_msg), _description, ##__VA_ARGS__);              \
+        _msg[TEST_MSG_BUF_SIZE-1] = 0;                                          \
+        printf(test_color ?                                                     \
+                "\n    %s %d \033[1;31mWRONG EXCEPTION\033[0m: %s" :            \
+                "\n    %s %d WRONG EXCEPTION: %s",                              \
+                __FILE__, __LINE__, _msg);                                      \
+        _reaction;                                                              \
+    } else if (!_caught_good) {                                                 \
+        test_fail++;                                                            \
+        char _msg[TEST_MSG_BUF_SIZE];                                           \
+        snprintf(_msg, sizeof(_msg), _description, ##__VA_ARGS__);              \
+        _msg[TEST_MSG_BUF_SIZE-1] = 0;                                          \
+        printf(test_color ?                                                     \
+                "\n    %s %d \033[1;31mNO EXCEPTION\033[0m: %s" :               \
+                "\n    %s %d NO EXCEPTION: %s",                                 \
+                __FILE__, __LINE__, _msg);                                      \
+        _reaction;                                                              \
+    } else {                                                                    \
+        test_succ++;                                                            \
+    }                                                                           \
+} while (0)
+
+#define EXCEPTS(_expression, _xcept_type, _description, ...) \
+     _EXCEPTS((void)_msg, _expression, _xcept_type, _description, ##__VA_ARGS__)
+
+#define EXCEPTS_FATAL(_expression, _xcept_type, _description, ...) \
+     _EXCEPTS(longjmp(test_jmp_buffer, 9), _expression, _xcept_type, _description, ##__VA_ARGS__)
+
+#endif // __cplusplus
 
 extern int test_color;
 extern int test_succ;
@@ -248,7 +301,7 @@ jmp_buf test_jmp_buffer;                                                \
                                                                         \
 int main(void)                                                          \
 {                                                                       \
-    test_color = isatty(STDOUT_FILENO);                                 \
+    test_color = TTY_TEST;                                              \
                                                                         \
     printf(test_color ?                                                 \
             "\033[0mRunning test \033[1;36m%s\033[0m ...\n" :           \
