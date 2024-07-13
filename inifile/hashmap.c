@@ -311,3 +311,40 @@ int hashmap_foreach_sorted(const struct HashMap *hash, hashmap_cb *cb, void *use
     free(buckets);
     return 1;
 }
+
+static int rehash_item_remove_cb(const char *key, void *value, void *userdata)
+{
+    (void)key;
+    (void)value;
+    (void)userdata;
+    return 1;
+}
+
+static int rehash_item_move_cb(const char *key, void *value, void *userdata)
+{
+    struct HashMap *newhash = (struct HashMap *)userdata;
+    hashmap_insert(newhash, (char*)key, value);
+    return 1;
+}
+
+void hashmap_rehash(struct HashMap *hash, unsigned bucketcount)
+{
+    if (!hash) return;
+    if (bucketcount == 0) return;
+    if (bucketcount == hash->bucketcount) return;
+
+    struct HashMap *newhash = new_hashmap(bucketcount, rehash_item_remove_cb, NULL);
+
+    // link the contents into new hash
+    hashmap_foreach(hash, rehash_item_move_cb, newhash);
+
+    // swap the contents
+    struct HashBucket *tmpb = newhash->buckets;
+    newhash->buckets = hash->buckets;
+    hash->buckets = tmpb;
+    newhash->bucketcount = hash->bucketcount;
+    hash->bucketcount = bucketcount;
+
+    // this doesn't delete items
+    delete_hashmap(newhash);
+}

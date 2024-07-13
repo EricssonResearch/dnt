@@ -247,6 +247,42 @@ static void test_change(void)
     OK(hashmap_foreach(hash, remove_divisible, &rem) == 1, "successful remove");
     OK(hashmap_count(hash) == 0, "empty %u", hashmap_count(hash));
     OK(delete_hashmap(hash) == NULL, "delete");
+
+    // rehash
+    hash = new_hashmap(23, NULL, NULL);
+    for (unsigned i=0; i<m; i++) {
+        for (unsigned j=0; j<n; j++) {
+            sprintf(buf, "hash %u %u", i, j);
+            hashmap_insert(hash, u_strdup(buf), u_strdup(buf));
+        }
+    }
+    OK(hashmap_count(hash) == m*n, "count %u", hashmap_count(hash));
+    hashmap_rehash(hash, 13);
+    OK(hashmap_bucketcount(hash) == 13, "bucketcount %u", hashmap_bucketcount(hash));
+    OK(hashmap_count(hash) == m*n, "count %u", hashmap_count(hash));
+    for (unsigned i=0; i<m; i++) {
+        for (unsigned j=0; j<n; j++) {
+            sprintf(buf, "hash %u %u", i, j);
+            char *val = hashmap_find(hash, buf);
+            OK(val != NULL, "missing '%s'", buf);
+            OK(strcmp(val, buf) == 0, "key '%s' value '%s'", buf, val);
+        }
+    }
+    hashmap_rehash(hash, 31);
+    OK(hashmap_bucketcount(hash) == 31, "bucketcount %u", hashmap_bucketcount(hash));
+    OK(hashmap_count(hash) == m*n, "count %u", hashmap_count(hash));
+    for (unsigned i=0; i<m; i++) {
+        for (unsigned j=0; j<n; j++) {
+            sprintf(buf, "hash %u %u", i, j);
+            char *val = hashmap_find(hash, buf);
+            OK(val != NULL, "missing '%s'", buf);
+            OK(strcmp(val, buf) == 0, "key '%s' value '%s'", buf, val);
+        }
+    }
+    hashmap_rehash(hash, 31);
+    OK(hashmap_bucketcount(hash) == 31, "bucketcount %u", hashmap_bucketcount(hash));
+    OK(hashmap_count(hash) == m*n, "count %u", hashmap_count(hash));
+    OK(delete_hashmap(hash) == NULL, "delete");
 }
 
 

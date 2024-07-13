@@ -25,6 +25,10 @@
 
 //TODO support localization: key[lang]=value
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * Read/write INI files.
  *
@@ -79,5 +83,9 @@ struct IniSection *read_inifile(const char *filename);
 // returns 0 on success or an error code
 // the output file is left incomplete when an error is detected
 int write_inifile(const char *filename, const struct IniSection *sec);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // INIFILE_H

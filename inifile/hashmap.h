@@ -23,6 +23,10 @@
 #ifndef HASHMAP_H
 #define HASHMAP_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * A simple string-keyed hash map (also called dictionary)
  *
@@ -104,5 +108,13 @@ int hashmap_foreach(const struct HashMap *hash, hashmap_cb *cb, void *userdata);
 // stops and returns false if the callback returns false
 // it is not safe to call @hashmap_remove in @cb
 int hashmap_foreach_sorted(const struct HashMap *hash, hashmap_cb *cb, void *userdata);
+
+// rearranges the contents to have @bucketcount buckets
+// the items in @hash are untouched, only the buckets are changed
+void hashmap_rehash(struct HashMap *hash, unsigned bucketcount);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // HASHMAP_H
