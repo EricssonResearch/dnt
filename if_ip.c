@@ -2,10 +2,10 @@
 // All rights reserved.
 
 
-#include "log.h"
 #include "if_ip.h"
 #include "if_utils.h"
 #include "interface.h"
+#include "log.h"
 #include "packet.h"
 #include "parsetree.h"
 #include "utils.h"
@@ -18,8 +18,6 @@
 #include <sys/ioctl.h>
 #include <netinet/in.h>
 #include <net/if.h> /* struct ifreq */
-#include <linux/if_ether.h>
-#include <linux/if_packet.h> /* struct sockaddr_ll TODO netpacket/packet.h? */
 #include <ifaddrs.h>
 
 DEFAULT_LOGGING_MODULE(INTERFACE, INFO);
@@ -50,19 +48,15 @@ static bool ip_send(struct Interface *iface, struct Packet *p)
 
     if (p->headers[0].type == PROTO_ID_IPv4) {
         struct sockaddr_in socket_address;
-        memset(&socket_address, 0, sizeof(struct sockaddr_in));
+        memset(&socket_address, 0, sizeof(socket_address));
         socket_address.sin_family = AF_INET;
         memcpy(&socket_address.sin_addr.s_addr,  p->buf + p->headers[0].start + 16, 4);
         return iface_common_send(iface, p, iid->sock4, &socket_address, sizeof(socket_address));
     } else if (p->headers[0].type == PROTO_ID_IPv6) {
-        struct sockaddr_ll socket_address;
-        memset(&socket_address, 0, sizeof(struct sockaddr_ll));
-        socket_address.sll_family = AF_PACKET;
-        socket_address.sll_protocol = htons (ETH_P_IPV6);
-        socket_address.sll_ifindex = iid->ifindex;
-        socket_address.sll_halen = ETH_ALEN;
-        //TODO can we do something about this broadcast?
-        memset(socket_address.sll_addr, 0xff, ETH_ALEN);
+        struct sockaddr_in6 socket_address;
+        memset(&socket_address, 0, sizeof(socket_address));
+        socket_address.sin6_family = AF_INET6;
+        memcpy(&socket_address.sin6_addr.s6_addr,  p->buf + p->headers[0].start + 24, 16);
         return iface_common_send(iface, p, iid->sock6, &socket_address, sizeof(socket_address));
     } else {
         log_error("ip %s send: first header of the packet is not IP", iface->name);
@@ -104,26 +98,23 @@ static bool ip_open(struct Interface *iface)
     iid->ifindex = if_idx.ifr_ifindex;
 
     if (setsockopt(sock4, SOL_SOCKET, SO_BINDTODEVICE, iface->ifname, strlen(iface->ifname)) < 0) {
-        log_perror("ip4 setsockopt SO_BINDTODEVICE for %s on %s", iface->name, iface->ifname);
+        log_perror("ipv4 setsockopt SO_BINDTODEVICE for %s on %s", iface->name, iface->ifname);
         close(sock4);
         return false;
     }
 
     int enable = 1;
     if (setsockopt(sock4, IPPROTO_IP, IP_HDRINCL, &enable, sizeof(enable)) < 0) {
-        log_perror("ip4 setsockopt IP_HDRINCL for %s", iface->name);
+        log_perror("ipv4 setsockopt IP_HDRINCL for %s", iface->name);
         close(sock4);
         return false;
     }
 
-    // enable so_txtime sockopt on the socket because delay offload appeared in actions
-    if (iface->delay_offload)
-        if (!enable_so_txtime(sock4, "ip", iface->ifname, false))
-            return false;
-
-    // note: IP_HDRINCL has no equivalent for IPv6, we must use L2 socket
-    // proto=0 means no reception
-    int sock6 = socket(AF_PACKET, SOCK_DGRAM, 0);
+    // note: RFC 3542 says IPV6_HDRINCL is deliberately not supported
+    // (they say the ancillary data API should be sufficient)
+    // Linux 4.5 added this nonstandard option (inspired by Windows)
+    // the dummy protocol type signals that we don't want to receive things
+    int sock6 = socket(AF_INET6, SOCK_RAW, IPPROTO_BEETPH);
     if (sock6 < 0) {
         log_perror("create socket6 for %s", iface->name);
         close(sock4);
@@ -131,10 +122,31 @@ static bool ip_open(struct Interface *iface)
     }
 
     if (setsockopt(sock6, SOL_SOCKET, SO_BINDTODEVICE, iface->ifname, strlen(iface->ifname)) < 0) {
-        log_perror("ip6 setsockopt SO_BINDTODEVICE for %s on %s", iface->name, iface->ifname);
+        log_perror("ipv6 setsockopt SO_BINDTODEVICE for %s on %s", iface->name, iface->ifname);
         close(sock4);
         close(sock6);
         return false;
+    }
+
+    if (setsockopt(sock6, IPPROTO_IPV6, IPV6_HDRINCL, &enable, sizeof(enable)) < 0) {
+        log_perror("ipv6 setsockopt IP_HDRINCL for %s", iface->name);
+        close(sock4);
+        close(sock6);
+        return false;
+    }
+
+    // enable so_txtime sockopt on the socket because delay offload appeared in actions
+    if (iface->delay_offload) {
+        if (!enable_so_txtime(sock4, "ipv4", iface->ifname, false)) {
+            close(sock4);
+            close(sock6);
+            return false;
+        }
+        if (!enable_so_txtime(sock6, "ipv6", iface->ifname, false)) {
+            close(sock4);
+            close(sock6);
+            return false;
+        }
     }
 
     struct ifaddrs *ifaddr;
