@@ -825,6 +825,11 @@ static bool process_token(char *token, void *userdata)
                             newaction->type == CA_WRITESEQ) ? FT_TSNSEQ : FT_TSNTSTAMP;
                     struct HeaderField *field = header_get_field_of_type(hdr,
                             header_index(stst->headers, hdr), fieldtype);
+                    if((field == NULL) && (fieldtype == FT_TSNSEQ)){        // check for FT_SRV6SEQ
+                        field = header_get_field_of_type(hdr,
+                                header_index(stst->headers, hdr), FT_SRV6SEQ);
+                        if(field != NULL) fieldtype = FT_SRV6SEQ;
+                    }
                     if (field == NULL) {
                         THROW("header '%s' doesn't have a field of type %s", hdr->name,
                                 fieldtype_name_from_type(fieldtype));
@@ -1172,6 +1177,26 @@ static bool process_action(struct StageState *stst)
             // create a new EDIT action from the nexthdr setters and the header field assignments
             struct ConfAction *edit = new_confaction(stst, CA_EDIT,
                     strdup_printf("assignments for %s", newaction->text));
+
+                    // set default value if there is one
+                    if (protocol_list[newheader->id].default_value) {
+                        struct ConfAssignment *a = calloc_struct(ConfAssignment);
+                        a->text = strdup_printf("add sets default value");
+                        //TODO this part is a bit hacky because we are not writing a defined header field
+                        init_confvariable_full(&a->lhs, CVT_FIELD, FT_NUMBER, 0, protocol_list[newheader->id].default_value_len*8);
+                        init_confvariable_full(&a->rhs, CVT_CONST, FT_NUMBER, 0, protocol_list[newheader->id].default_value_len*8);
+                        a->rhs.value.value = memdup(protocol_list[newheader->id].default_value,
+                                protocol_list[newheader->id].default_value_len);
+                        struct HeaderField *dsthf = calloc_struct(HeaderField);
+                        dsthf->header_idx = pos_idx;
+                        dsthf->bitoffset = 0;
+                        dsthf->bitcount = protocol_list[newheader->id].default_value_len*8;
+                        a->lhs.v.header.field = dsthf;
+                        a->write = header_get_field_writer(dsthf, &a->rhs.value);
+
+                        a->next = edit->edit.assignments;
+                        edit->edit.assignments = a;
+                    }
 
             // set the nexthdr field of newheader either by nextheader's type or by copying from prevheader
             if (protocol_list[newheader->id].get_nexthdr != NULL) {

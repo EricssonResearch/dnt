@@ -19,6 +19,7 @@
 #include <netinet/in.h>
 #include <net/if.h> /* struct ifreq */
 #include <ifaddrs.h>
+#include <linux/if_ether.h>
 
 DEFAULT_LOGGING_MODULE(INTERFACE, INFO);
 
@@ -27,14 +28,51 @@ struct IpIfData {
     int sock6;
     int ifindex;
     int mtu;
+    bool out_only;
     struct in_addr ipv4;
     struct in6_addr ipv6;
 };
 
 static bool ip_recv(struct Interface *iface)
 {
-    log_error("ip interface %s recv how??", iface->name);
-    return false;
+    struct IpIfData *iid = (struct IpIfData *)iface->iface_private;
+    (void)iid;
+
+
+    struct Packet *p = iface_common_recv(iface, NULL, NULL);
+    if (p == NULL) return false;
+
+    unsigned short *ethertype = (unsigned short*)(p->buf + p->start + 12);
+
+    //log_info("ip packet: %x", htons(*ethertype));
+
+    if((htons(*ethertype) != ETH_P_IPV6) && (htons(*ethertype) != ETH_P_IP)) {
+        packet_logcat(p, "%s %u not IPv4/IPv6 (%x), drop.", iface->name, p->len, htons(*ethertype));
+        return delete_packet(p);
+    }
+
+    // Skip Eth header
+    p->start += 14;
+    p->len -= 14;
+
+/* hex dump packet - just debug
+
+    char dump_str[4000], ch[5];
+    sprintf(dump_str,"\n");
+    unsigned char *pp=p->buf + p->start;;
+    for(int i=1; i<=128; i++){
+        sprintf(ch, " %02x", *pp);
+        strcat(dump_str, ch);
+        pp++;
+        if(i%16==0)
+            strcat(dump_str, "\n");
+    }
+    strcat(dump_str, "\n");
+    log_info("ip packet: %s", dump_str);
+*/
+
+    packet_logcat(p, "%s %u ", iface->name, p->len);
+    return iface_common_process(iface, p);
 }
 
 static bool ip_send(struct Interface *iface, struct Packet *p)
@@ -57,6 +95,13 @@ static bool ip_send(struct Interface *iface, struct Packet *p)
         memset(&socket_address, 0, sizeof(socket_address));
         socket_address.sin6_family = AF_INET6;
         memcpy(&socket_address.sin6_addr.s6_addr,  p->buf + p->headers[0].start + 24, 16);
+        // update packet length
+        unsigned short *length = (unsigned short*)(p->buf + p->headers[0].start + 4);
+        *length = htons(packet_length(p)-40);     // IPv6 header length
+        // if srcip is zero, set source addr.
+        unsigned int *p_ip = (unsigned int*)(p->buf + p->headers[0].start + 8);
+        if((p_ip[0] == 0) && (p_ip[1] == 0) && (p_ip[2] == 0) && (p_ip[3] == 0))
+            memcpy(p_ip, &iid->ipv6, 16);
         return iface_common_send(iface, p, iid->sock6, &socket_address, sizeof(socket_address));
     } else {
         log_error("ip %s send: first header of the packet is not IP", iface->name);
@@ -71,6 +116,11 @@ static bool ip_open(struct Interface *iface)
         log_error("open ip interface %s: already opened", iface->name);
         return false;
     }
+
+   if(parsetree_streams_empty(iface->parsetree_)) {
+       log_info("open ip interface %s empty stream list, assuming output-only", iface->name);
+       iid->out_only = true;
+   }
 
     // the dummy protocol type signals that we don't want to receive things
     int sock4 = socket(AF_INET, SOCK_RAW, IPPROTO_BEETPH);
@@ -189,12 +239,33 @@ static bool ip_open(struct Interface *iface)
     //TODO interface address monitoring thread?
 
 
+    // Setup receiver socket
+    if(!iid->out_only) {
+        int sock_raw = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));  // receive everything
+        if (sock_raw < 0) {
+            log_perror("create socket raw for %s", iface->name);
+            close(sock4);
+            close(sock6);
+            return false;
+        }
+        if (setsockopt(sock_raw, SOL_SOCKET, SO_BINDTODEVICE, iface->ifname, strlen(iface->ifname)) < 0) {
+            log_perror("ip6 setsockopt SO_BINDTODEVICE for %s on %s", iface->name, iface->ifname);
+            close(sock4);
+            close(sock6);
+            close(sock_raw);
+            return false;
+        }
+        iface->recvfd = sock_raw;
+    } else
+        iface->recvfd = sock4;
+
+
     iid->sock4 = sock4;
     iid->sock6 = sock6;
     iface->dropstat_cntr = 0;
     iface->dropstat_last_warn = 0;
     iface->state = IFS_OPEN;
-    log_info("IP-out interface %s on device %s", iface->name, iface->ifname);
+    log_info("IP interface %s on device %s", iface->name, iface->ifname);
 
     return true;
 }
@@ -202,10 +273,11 @@ static bool ip_open(struct Interface *iface)
 static bool ip_close(struct Interface *iface)
 {
     struct IpIfData *iid = (struct IpIfData *)iface->iface_private;
+    close(iface->recvfd);
     close(iid->sock4);
     close(iid->sock6);
     free(iid);
-    log_info("IP-out interface %s closed", iface->name);
+    log_info("IP interface %s closed", iface->name);
     return true;
 }
 
@@ -271,6 +343,8 @@ struct Interface *new_ip_interface(const char *name, const char *ifname)
 
     struct IpIfData *iid = calloc_struct(IpIfData);
     iface->iface_private = iid;
+
+    iface->parsetree_ = new_parsetree(iface);
 
     return iface;
 }
