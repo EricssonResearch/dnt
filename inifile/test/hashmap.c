@@ -207,9 +207,9 @@ static void test_change(void)
     // massive add-remove test
     const unsigned m = 20;
     const unsigned n = 300;
+    char buf[16];
     hash = new_hashmap(bucketcount, NULL, NULL);
     OK_FATAL(hash != NULL, "create hash");
-    char buf[16];
     for (unsigned i=0; i<m; i++) {
         for (unsigned j=0; j<n; j++) {
             sprintf(buf, "hash %u %u", i, j);
@@ -247,9 +247,14 @@ static void test_change(void)
     OK(hashmap_foreach(hash, remove_divisible, &rem) == 1, "successful remove");
     OK(hashmap_count(hash) == 0, "empty %u", hashmap_count(hash));
     OK(delete_hashmap(hash) == NULL, "delete");
+}
 
-    // rehash
-    hash = new_hashmap(23, NULL, NULL);
+static void test_rehash(void)
+{
+    const unsigned m = 20;
+    const unsigned n = 100;
+    char buf[16];
+    struct HashMap *hash = new_hashmap(23, NULL, NULL);
     for (unsigned i=0; i<m; i++) {
         for (unsigned j=0; j<n; j++) {
             sprintf(buf, "hash %u %u", i, j);
@@ -289,6 +294,7 @@ static void test_change(void)
 TEST_CASES = {
     {"insert", test_insert},
     {"change", test_change},
+    {"rehash", test_rehash},
     {NULL, NULL}
 };
 

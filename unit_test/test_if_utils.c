@@ -88,12 +88,14 @@ static void test_common_send(void)
     packet_add_header(p, 0, PROTO_ID_IPv4, 20); // beginning
     packet_add_header(p, 3, PROTO_ID_SVLAN, 4); // middle
     OK(p->header_count == 7, "header_count %u", p->header_count);
+    packet_del_header(p, 2); // CVLAN
+    OK(p->header_count == 6, "header_count %u", p->header_count);
 
     OK(iface_common_send(&iface, p, socks[0], NULL, 0) == true, "could not send");
 
     r = recv(socks[1], recvbuf, sizeof(recvbuf), 0);
     OK(r > 0, "recv error: %s", strerror(errno));
-    OK(r == 14+4+40+198+10+20+4, "recv length %d", r);
+    OK(r == 14+40+198+10+20+4, "recv length %d", r);
 
     // validate the buffer contents
     ru = 0;
