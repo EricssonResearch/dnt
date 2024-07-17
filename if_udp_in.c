@@ -164,7 +164,7 @@ static void send_notification(struct UdpInIfData *uid)
 
         int err = sendto(sock, js_string, js_length, 0, (struct sockaddr*)&s->addr, s->addrlen);
         if (err < 0) {
-            log_perror("address notification sendto");
+            log_perror("address notification sendto %s port %u", s->ip_str, s->port);
         }
         free(js_string);
     }

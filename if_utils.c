@@ -393,7 +393,7 @@ static void *socket_monitor_thread(void *param)
                 char errstr[1024] = {0}; // initialize because strerror_r() can fail
                 strerror_r(serr->ee_errno, errstr, sizeof(errstr));
                 // serr->ee_origin = 2 (SO_EE_ORIGIN_ICMP)
-                log_error("error on %s '%s' ICMP type %u code %u",
+                log_error("got ICMP error message on %s '%s' (type %u code %u)",
                         st->name, errstr,
                         serr->ee_type, serr->ee_code);
             } else if (cmsg->cmsg_level == SOL_IPV6 && cmsg->cmsg_type == IPV6_RECVERR) {
@@ -401,11 +401,11 @@ static void *socket_monitor_thread(void *param)
                 char errstr[1024] = {0}; // initialize because strerror_r() can fail
                 strerror_r(serr->ee_errno, errstr, sizeof(errstr));
                 // serr->ee_origin = 3 (SO_EE_ORIGIN_ICMP6)
-                log_error("error on %s '%s' ICMPv6 type %u code %u",
+                log_error("got ICMPv6 error message on %s '%s' (type %u code %u)",
                         st->name, errstr,
                         serr->ee_type, serr->ee_code);
             } else {
-                log_error("unexpected error on %s level %u type %u",
+                log_error("got unexpected error on %s level %u type %u",
                         st->name, cmsg->cmsg_level, cmsg->cmsg_type);
             }
         }

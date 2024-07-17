@@ -451,7 +451,8 @@ bool udp_out_set_dst(struct Interface *iface, const char *dst_ip, unsigned dst_p
             pthread_mutex_lock(&uid->mutex);
             if (connect(uid->sock, sa, sa_len) < 0) {
                 pthread_mutex_unlock(&uid->mutex);
-                log_error("TODO");
+                log_perror("udp-out %s could not connect to %s port %u",
+                        iface->name, dst_ip, dst_port);
                 return false;
             }
             pthread_mutex_unlock(&uid->mutex);
