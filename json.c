@@ -84,7 +84,6 @@ static struct JsonValue *parse_value(const char *text, unsigned length, unsigned
         ret->type = JSON_OBJECT;
         ret->v.object = new_hashmap(13, obj_delete_cb, NULL);
         *i += 1;
-        if (*i == length) THROW("object is unfinished");
         SKIP_WS;
         if (*i == length) THROW("object is unfinished");
 
