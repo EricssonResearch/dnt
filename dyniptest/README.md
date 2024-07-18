@@ -56,7 +56,7 @@ na# ping 10.0.4.5
 na# ping fd04::5
 ```
 
-Some more serious traffic:
+More serious traffic:
 
 ```
 ne# iperf -sV
@@ -74,9 +74,37 @@ Run *radvd* on *nc* to assign IPv6 address to `ethDC` on *nd*:
 nc# radvd -C ./radvdC.conf -m stderr -n
 ```
 
-This will use the prefix of the existing IPv6 address on *ethCD*. If the address on `ethCD` is changed to one with a differenct prefix, *radvd* will start advertising the new prefix. Note that it takes a few seconds for the new prefix to be advertised, during which there is an outage in the tunnel.
+This will use the prefix of the existing IPv6 address on `ethCD`. If the address on `ethCD` is changed to one with a differenct prefix, *radvd* will start advertising the new prefix. Note that it takes a few seconds for the new prefix to be advertised, during which there is an outage in the tunnel.
 
 ## DHCP
 
-**TODO find a DHCP server that works**
+There are several DHCP servers available for Linux.
+
+Once one of the servers is running on *nc*, on *nd* we can do `dhclient -d ethDC` to get IPv4 address or `dhclient -6 -d ethDC` to get IPv6 address. Note that only DHCPv4 can supply default gateway, on IPv6 we also need *radvd*.
+
+### Kea
+
+[Kea](https://kea.readthedocs.io/en/latest/index.html) is the official DHCP server of the Internet Systems Consortium, replacing their old implementation that is now deprecated.
+
+```
+apt install kea
+```
+
+There are two issues with the default Kea install.
+
+* the server runs by default (with a config that doesn't supply address on any interface), and this prevents us from running another instance in Mininet
+    * solution: `systemctl stop kea-dhcp4-server.service` and `systemctl stop kea-dhcp6-server.service` and optionally `systemctl stop kea-dhcp-ddns-server.service` (it's also a good idea to disable these services)
+* the package comes with Apparmor profiles that prevent loading the config file from anywhere other than `/etc/kea/`, and for some reason it also can't create the lock files in `/run/kea/`
+    * solution: `apt install apparmor-utils` and `sudo aa-complain /usr/sbin/kea-dhcp4` to turn the Apparmor errors into warnings (see `dmesg`)
+
+Start Kea like this:
+
+```
+nc# kea-dhcp4 -c kea4.conf
+
+nc# kea-dhcp6 -c kea6.conf
+```
+
+**TODO try other servers too**
+
 
