@@ -289,20 +289,22 @@ static void *iface_address_monitoring(void *arg)
                         if (!set_srcip(iface->ifname, uid)) {
                             //TODO wtf?
                         }
-
-                        char ip_str[INET6_ADDRSTRLEN];
-                        if (HAVE_IP) {
-                            if (inet_ntop(uid->family, &uid->srcip, ip_str, sizeof(ip_str)) == NULL) {
-                                log_error("%s failed to decode ip", thread_getname(uid->ifmon));
-                            }
-                        } else {
-                            strcpy(ip_str, "<none>");
-                        }
-                        log_info("udp-in %s new ip %s port %u", iface->name, ip_str, uid->port);
                         must_notify = true;
                     }
                 }
             }
+        }
+
+        if (must_notify) {
+            char ip_str[INET6_ADDRSTRLEN];
+            if (HAVE_IP) {
+                if (inet_ntop(uid->family, &uid->srcip, ip_str, sizeof(ip_str)) == NULL) {
+                    log_error("%s failed to decode ip", thread_getname(uid->ifmon));
+                }
+            } else {
+                strcpy(ip_str, "<none>");
+            }
+            log_info("udp-in %s new ip %s port %u", iface->name, ip_str, uid->port);
         }
 
         struct timespec now;
@@ -462,12 +464,6 @@ static bool udpin_open(struct Interface *iface)
         return false;
     }
 
-    if (!HAVE_IP) {
-        log_error("open udp-in interface %s: no address on interface %s", iface->name, iface->ifname);
-        close(sock);
-        return false;
-    }
-
     if (setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, iface->ifname, strlen(iface->ifname)) < 0) {
         log_perror("udp-in setsockopt SO_BINDTODEVICE");
         close(sock);
@@ -498,8 +494,13 @@ static bool udpin_open(struct Interface *iface)
 
     enable_rx_tstamp(sock, "udp-in", iface->ifname/*, HWTSTAMP_FILTER_ALL*/);
     char if_ip[INET6_ADDRSTRLEN];
-    inet_ntop(uid->family, &uid->srcip, if_ip, sizeof(if_ip));
-    log_info("Udp-in interface %s on device %s ip %s", iface->name, iface->ifname, if_ip);
+    if (HAVE_IP) {
+        inet_ntop(uid->family, &uid->srcip, if_ip, sizeof(if_ip));
+    }
+    else {
+        strcpy(if_ip, "<none>");
+    }
+    log_info("Udp-in interface %s on device %s ip %s port %u", iface->name, iface->ifname, if_ip, uid->port);
 
     uid->ifmon = thread_launch(iface_address_monitoring, iface, "ifmon %s", iface->name);
 

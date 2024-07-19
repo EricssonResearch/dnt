@@ -15,7 +15,6 @@
 #include <string.h>
 
 #include <unistd.h>
-#include <pthread.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <net/if.h> /* struct ifreq */
@@ -25,7 +24,8 @@ DEFAULT_LOGGING_MODULE(INTERFACE, INFO);
 
 struct UdpOutIfData {
     int sock;
-    pthread_mutex_t mutex;
+    struct sockaddr *dstaddr;
+    unsigned dstaddr_size;
     int ifindex;
     int mtu;
     char *dst_ip;
@@ -50,15 +50,11 @@ static bool udpout_recv(struct Interface *iface)
 static bool udpout_send(struct Interface *iface, struct Packet *p)
 {
     struct UdpOutIfData *uid = (struct UdpOutIfData *)iface->iface_private;
-    pthread_mutex_lock(&uid->mutex);
     if (iface->state == IFS_OPEN) {
-        // our socket is connected, so no dst
-        bool ret = iface_common_send(iface, p, uid->sock, NULL, 0);
-        pthread_mutex_unlock(&uid->mutex);
+        bool ret = iface_common_send(iface, p, uid->sock, uid->dstaddr, uid->dstaddr_size);
         return ret;
     } else {
         // we don't know the dst address yet
-        pthread_mutex_unlock(&uid->mutex);
         return false;
     }
 }
@@ -113,11 +109,10 @@ static bool udpout_open(struct Interface *iface)
     uid->ifindex = if_idx.ifr_ifindex;
 
     if (uid->family == AF_INET6) {
-        struct sockaddr_in6 addr6;
-        memset(&addr6, 0, sizeof(addr6));
-        addr6.sin6_family = AF_INET6;
-
         if (uid->sport) {
+            struct sockaddr_in6 addr6;
+            memset(&addr6, 0, sizeof(addr6));
+            addr6.sin6_family = AF_INET6;
             addr6.sin6_addr = in6addr_any;
             addr6.sin6_port = htons(uid->sport);
             if (bind(sock, (struct sockaddr*)&addr6, sizeof(addr6)) < 0) {
@@ -125,21 +120,6 @@ static bool udpout_open(struct Interface *iface)
                 close(sock);
                 return false;
             }
-        }
-
-        int val = IPV6_PMTUDISC_PROBE;
-        if (setsockopt(sock, IPPROTO_IPV6, IPV6_MTU_DISCOVER, &val, sizeof(val)) < 0) {
-            log_perror("udp-out %s setsockopt IP_MTU_DISCOVER", iface->name);
-            close(sock);
-            return false;
-        }
-
-        addr6.sin6_addr = uid->dstip.v6;
-        addr6.sin6_port = htons(uid->dport);
-        if (connect(sock, (struct sockaddr*)&addr6, sizeof(addr6)) < 0) {
-            log_perror("udp-out %s connect to '%s' port %u", iface->name, uid->dst_ip, uid->dport);
-            close(sock);
-            return false;
         }
 
         int tos = (uid->priority & 7) << 5;
@@ -150,18 +130,24 @@ static bool udpout_open(struct Interface *iface)
         }
 
         // it seems that setting IPv6 MTU discovery mode is also needed here
-        val = IPV6_PMTUDISC_PROBE;
+        int val = IPV6_PMTUDISC_PROBE;
         if (setsockopt(sock, IPPROTO_IPV6, IPV6_MTU_DISCOVER, &val, sizeof(val)) < 0) {
             log_perror("udp-out setsockopt IP_MTU_DISCOVER");
             close(sock);
             return false;
         }
-    } else {
-        struct sockaddr_in addr4;
-        memset(&addr4, 0, sizeof(addr4));
-        addr4.sin_family = AF_INET;
 
+        struct sockaddr_in6 *d6 = calloc_struct(sockaddr_in6);
+        d6->sin6_family = AF_INET6;
+        d6->sin6_addr = uid->dstip.v6;
+        d6->sin6_port = htons(uid->dport);
+        uid->dstaddr_size = sizeof(struct sockaddr_in6);
+        uid->dstaddr = (struct sockaddr*)d6;
+    } else {
         if (uid->sport) {
+            struct sockaddr_in addr4;
+            memset(&addr4, 0, sizeof(addr4));
+            addr4.sin_family = AF_INET;
             addr4.sin_addr.s_addr = htonl(INADDR_ANY);
             addr4.sin_port = htons(uid->sport);
             if (bind(sock, (struct sockaddr*)&addr4, sizeof(addr4)) < 0) {
@@ -169,21 +155,6 @@ static bool udpout_open(struct Interface *iface)
                 close(sock);
                 return false;
             }
-        }
-
-        int val = IP_PMTUDISC_PROBE;
-        if (setsockopt(sock, IPPROTO_IP, IP_MTU_DISCOVER, &val, sizeof(val)) < 0) {
-            log_perror("udp-out setsockopt IP_MTU_DISCOVER");
-            close(sock);
-            return false;
-        }
-
-        addr4.sin_addr = uid->dstip.v4;
-        addr4.sin_port = htons(uid->dport);
-        if (connect(sock, (struct sockaddr*)&addr4, sizeof(addr4)) < 0) {
-            log_perror("udp-out %s connect to '%s' port %u", iface->name, uid->dst_ip, uid->dport);
-            close(sock);
-            return false;
         }
 
         int tos = (uid->priority & 7) << 5;
@@ -194,12 +165,19 @@ static bool udpout_open(struct Interface *iface)
         }
 
         // it seems that setting IPv4 MTU discovery mode is also needed here
-        val = IP_PMTUDISC_PROBE;
+        int val = IP_PMTUDISC_PROBE;
         if (setsockopt(sock, IPPROTO_IP, IP_MTU_DISCOVER, &val, sizeof(val)) < 0) {
             log_perror("udp-out setsockopt IP_MTU_DISCOVER");
             close(sock);
             return false;
         }
+
+        struct sockaddr_in *d4 = calloc_struct(sockaddr_in);
+        d4->sin_family = AF_INET;
+        d4->sin_addr = uid->dstip.v4;
+        d4->sin_port = htons(uid->dport);
+        uid->dstaddr_size = sizeof(struct sockaddr_in);
+        uid->dstaddr = (struct sockaddr*)d4;
     }
 
     // enable so_txtime sockopt on the socket because delay offload appeared in actions
@@ -236,7 +214,7 @@ static bool udpout_close(struct Interface *iface)
     stop_monitoring_error_queue(uid->errq_monitor);
     close(uid->sock);
     free(uid->dst_ip);
-    pthread_mutex_destroy(&uid->mutex);
+    free(uid->dstaddr);
     free(uid);
     log_info("Udp-out interface %s closed", iface->name);
     return true;
@@ -323,8 +301,8 @@ struct Interface *new_udp_out_interface(const char *name, const char *ifname,
     iface->close_ = udpout_close;
     iface->get_property_reader = udpout_get_property_reader;
 
-    struct in_addr dst4;
-    struct in6_addr dst6;
+    struct in_addr dst4 = {0};
+    struct in6_addr dst6 = {0};
     int family;
 
     if (inet_pton(AF_INET, dst_ip, &dst4) == 1) {
@@ -361,7 +339,6 @@ struct Interface *new_udp_out_interface(const char *name, const char *ifname,
     } else {
         uid->dstip.v4 = dst4;
     }
-    pthread_mutex_init(&uid->mutex, NULL);
 
     return iface;
 }
@@ -384,8 +361,8 @@ bool udp_out_set_dst(struct Interface *iface, const char *dst_ip, unsigned dst_p
         return true;
     }
 
-    struct in_addr dst4;
-    struct in6_addr dst6;
+    struct in_addr dst4 = {0};
+    struct in6_addr dst6 = {0};
     int family;
     bool specified = false;
 
@@ -410,15 +387,16 @@ bool udp_out_set_dst(struct Interface *iface, const char *dst_ip, unsigned dst_p
         return false;
     }
 
+    uid->dport = dst_port;
+    free(uid->dst_ip);
+    uid->dst_ip = strdup(dst_ip);
+    if (family == AF_INET6) {
+        uid->dstip.v6 = dst6;
+    } else {
+        uid->dstip.v4 = dst4;
+    }
+
     if (iface->state == IFS_INIT) {
-        free(uid->dst_ip);
-        uid->dst_ip = strdup(dst_ip);
-        uid->dport = dst_port;
-        if (family == AF_INET6) {
-            uid->dstip.v6 = dst6;
-        } else {
-            uid->dstip.v4 = dst4;
-        }
         if (uid->opened) {
             // this means we wanted to open but had no address
             return udpout_open(iface); // try again with the newly acquired address
@@ -426,59 +404,37 @@ bool udp_out_set_dst(struct Interface *iface, const char *dst_ip, unsigned dst_p
         return true;
     } else {
         if (specified) {
-            // connect to new address
-            struct sockaddr *sa;
-            unsigned sa_len;
-            struct sockaddr_in6 addr6;
-            struct sockaddr_in addr4;
-
+            struct sockaddr *old_dst = uid->dstaddr;
             if (family == AF_INET6) {
-                sa = (struct sockaddr*)&addr6;
-                sa_len = sizeof(addr6);
-                memset(&addr6, 0, sizeof(addr6));
-                addr6.sin6_family = AF_INET6;
-                addr6.sin6_addr = dst6;
-                addr6.sin6_port = htons(dst_port);
+                struct sockaddr_in6 *d6 = calloc_struct(sockaddr_in6);
+                d6->sin6_family = AF_INET6;
+                d6->sin6_addr = uid->dstip.v6;
+                d6->sin6_port = htons(uid->dport);
+                uid->dstaddr_size = sizeof(struct sockaddr_in6);
+                uid->dstaddr = (struct sockaddr*)d6;
             } else {
-                sa = (struct sockaddr*)&addr4;
-                sa_len = sizeof(addr4);
-                memset(&addr4, 0, sizeof(addr4));
-                addr4.sin_family = AF_INET;
-                addr4.sin_addr = dst4;
-                addr4.sin_port = htons(dst_port);
+                struct sockaddr_in *d4 = calloc_struct(sockaddr_in);
+                d4->sin_family = AF_INET;
+                d4->sin_addr = uid->dstip.v4;
+                d4->sin_port = htons(uid->dport);
+                uid->dstaddr_size = sizeof(struct sockaddr_in);
+                uid->dstaddr = (struct sockaddr*)d4;
             }
-
-            pthread_mutex_lock(&uid->mutex);
-            if (connect(uid->sock, sa, sa_len) < 0) {
-                pthread_mutex_unlock(&uid->mutex);
-                log_perror("udp-out %s could not connect to %s port %u",
-                        iface->name, dst_ip, dst_port);
-                return false;
-            }
-            pthread_mutex_unlock(&uid->mutex);
+            free(old_dst);
 
             log_info("udp-out %s changed destination to %s port %u",
                     iface->name, dst_ip, dst_port);
-
-            if (family == AF_INET6) {
-                uid->dstip.v6 = dst6;
-            } else {
-                uid->dstip.v4 = dst4;
-            }
-            uid->dport = dst_port;
         } else {
             log_info("udp-out %s destination has lost its address", iface->name);
-            pthread_mutex_lock(&uid->mutex);
+            iface->state = IFS_INIT;
             uid->errq_monitor = stop_monitoring_error_queue(uid->errq_monitor);
             close(uid->sock);
             uid->sock = 0;
-            iface->state = IFS_INIT;
-            pthread_mutex_unlock(&uid->mutex);
+            struct sockaddr *old_dst = uid->dstaddr;
+            uid->dstaddr = NULL;
+            free(old_dst);
         }
 
-        free(uid->dst_ip);
-        uid->dst_ip = strdup(dst_ip);
-        uid->dport = dst_port;
         return true;
     }
 }

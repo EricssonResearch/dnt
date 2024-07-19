@@ -21,12 +21,12 @@ List of interfaces where we can send/receive packets. The keys of the items are 
     * `iface` the name of the hardware interface
 * `ip` outgoing UNI for IP-over-DetNet (cannot receive packets), valid parameters:
     * `iface` the name of the hardware interface
-* `udp-in` receiving end of an UDP PseudoWire tunnel (cannot send packets), valid parameters:
+* `udp-in` receiving end of an UDP tunnel (intended for PseudoWire), cannot send packets, valid parameters:
     * `iface` the name of the hardware interface
     * `port` the UDP port to listen on (default: 6635)
     * `ipv` the IP version, can be 4 or 6 (default: 4)
     * `senders` optional list of nodes that send to this udp-in, they will be notified about ip address changes on the receiving interface; must specify the ip:port of the OAM return interface and the name of the udp-out interface on those nodes (format: `ipv4,udpoutname,ipv4:port,udpoutname,ipv6,udpoutname,[ipv6]:port,udpoutname`)
-* `udp-out` sending end of an UDP PseudoWire tunnel (cannot receive packets), valid parameters:
+* `udp-out` sending end of an UDP tunnel (intended for PseudoWire), cannot receive packets, valid parameters:
     * `iface` the name of the hardware interface
     * `srcport` the UDP source port of the sent packets (default: let Linux choose)
     * `dstport` the UDP port to send to (default: 6635)
