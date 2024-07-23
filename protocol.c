@@ -258,10 +258,10 @@ static const struct ProtocolField tcp_fields[] = {
     {"syn",        110,  1, FT_NUMBER}, // synchronize
     {"fin",        111,  1, FT_NUMBER}, // finish
     {"windowsize", 112, 16, FT_NUMBER},
-    {"checksum",   128, 16, FT_CHECKSUM}, // TODO support checksum calculati
+    {"checksum",   128, 16, FT_CHECKSUM}, // TODO support checksum calculation
     {"urgentp",    144, 16, FT_NUMBER},
-    //TODO options how?
 };
+//TODO TCP options how? we must support variable-length headers somehow
 
 // DetNet MPLS PW OAM Associated Channel Header (d-ACH)
 static const struct ProtocolField oam_fields[] = {
