@@ -105,6 +105,20 @@ nc# kea-dhcp4 -c kea4.conf
 nc# kea-dhcp6 -c kea6.conf
 ```
 
-**TODO try other servers too**
+### CoreDHCP
+
+[CoreDHCP](https://github.com/coredhcp/coredhcp) is a modular DHCP server written in Go. They don't mention it in their readme, but it is actually a frontend for a [dhcp library](https://github.com/insomniacslk/dhcp) that is used in other projects too.
+
+```
+apt install coredhcp-server
+```
+
+Start CoreDHCP like this:
+
+```
+coredhcp -c coredhcp.yaml
+```
+
+**TODO the v6 lease doesn't work (and it doesn't support setting lease time)**
 
 

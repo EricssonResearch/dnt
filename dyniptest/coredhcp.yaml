@@ -1,0 +1,18 @@
+#TODO find out why this doesn't advertise lease on v6
+server6:
+  listen:
+    - "[ff02::1:2%ethCD]"
+  plugins:
+    - server_id: LL 00:de:ad:be:ef:00
+    - prefix: fd03::/48 64
+    #- lease_time: 20s TODO this is only for v4
+    #- file: "leases6.txt" TODO it's error if this file doesn't exist
+
+server4:
+  listen:
+    - "%ethCD"
+  plugins:
+    - router: 10.0.3.3
+    - netmask: 255.255.255.0
+    - range: leases.txt 10.0.3.10 10.0.3.30 20s
+
