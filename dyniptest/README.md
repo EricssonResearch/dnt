@@ -78,9 +78,9 @@ This will use the prefix of the existing IPv6 address on `ethCD`. If the address
 
 ## DHCP
 
-There are several DHCP servers available for Linux.
+There are several DHCP servers available for Linux. Once one of the servers is running on *nc*, on *nd* we can do `dhclient -d ethDC` to get IPv4 address or `dhclient -6 -d ethDC` to get IPv6 address.
 
-Once one of the servers is running on *nc*, on *nd* we can do `dhclient -d ethDC` to get IPv4 address or `dhclient -6 -d ethDC` to get IPv6 address. Note that only DHCPv4 can supply default gateway, on IPv6 we also need *radvd*.
+Note that only DHCPv4 can supply default gateway, on IPv6 we need *radvd* to set it. The `radvdC.conf` can be used in conjunction with DHCP, the address set by DHCP will take precedence over the address configured from the router advertisement. The `radvdCnoaddr.conf` doesn't configure address, just the default gateway.
 
 ### Kea
 
