@@ -200,14 +200,8 @@ static void __attribute__((destructor)) cleanup_mod_instances(void)
     delete_hashmap(mod_instances);
 }
 
-int __log_func(LOGGING_LEVELS level, const char *logmodule, const char *frmt, ...)
+static int __do_log(LOGGING_LEVELS level, const char *logmodule, const char *msg)
 {
-    char msg[1024];
-    va_list argp;
-    va_start(argp, frmt);
-    vsnprintf(msg, sizeof(msg), frmt, argp);
-    va_end(argp);
-
     if (log_output != LOG_OUT_SYSLOG) {
         time_t now;
         time(&now);
@@ -230,7 +224,7 @@ int __log_func(LOGGING_LEVELS level, const char *logmodule, const char *frmt, ..
     }
 }
 
-int __log_perror_func(const char *logmodule, const char *frmt, ...)
+int __log_func(LOGGING_LEVELS level, const char *logmodule, const char *frmt, ...)
 {
     char msg[1024];
     va_list argp;
@@ -238,7 +232,21 @@ int __log_perror_func(const char *logmodule, const char *frmt, ...)
     vsnprintf(msg, sizeof(msg), frmt, argp);
     va_end(argp);
 
-    char errstr[1024] = {0}; // initialize because strerror_r() can fail
+    return __do_log(level, logmodule, msg);
+}
+
+int __log_p_func(LOGGING_LEVELS level, const char *logmodule, const char *frmt, ...)
+{
+    char msg[2048];
+    va_list argp;
+    va_start(argp, frmt);
+    int msglen = vsnprintf(msg, sizeof(msg)-3, frmt, argp);
+    va_end(argp);
+
+    msg[msglen++] = ':';
+    msg[msglen++] = ' ';
+    msg[msglen] = 0;
+
     // note: in glibc there are two versions of strerror_r
     //       the XSI version always writes into the given buffer
     //       the GNU version can return a statically allocated string
@@ -246,30 +254,11 @@ int __log_perror_func(const char *logmodule, const char *frmt, ...)
     //      -> we want to have the XSI version for portability
     // how to detect which version we got: if _FORTIFY_SOURCE is set the
     //       GNU version warns about the unused return value
-    strerror_r(errno, errstr, sizeof(errstr));
-
-    if (log_output != LOG_OUT_SYSLOG) {
-        time_t now;
-        time(&now);
-        struct tm now_tm;
-        localtime_r(&now, &now_tm);
-        char date[32];
-        strftime(date, sizeof(date), "%Y.%m.%d %H:%M:%S", &now_tm);
-
-        if (color) {
-            return fprintf(logfile, "%s [\033[1m%s\033[0m] [%s%s%s] %s: %s\n",
-                    date, logmodule, colors[ERROR], log_level_strings[ERROR], colors[RESET], msg,
-                    errstr);
-        } else {
-            return fprintf(logfile, "%s [%s] [%s] %s: %s\n",
-                    date, logmodule, log_level_strings[ERROR], msg,
-                    errstr);
-        }
-    } else {
-        int syslog_prio = log_level_to_syslog_level(ERROR);
-        syslog(syslog_prio, "[%s] %s: %s", logmodule, msg, errstr);
-        return 0;
+    if (strerror_r(errno, msg+msglen, sizeof(msg)-msglen)) {
+        strncpy(msg+msglen, "unknown error...", sizeof(msg)-msglen);
     }
+
+    return __do_log(level, logmodule, msg);
 }
 
 struct ModuleForeachState {

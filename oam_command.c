@@ -219,9 +219,9 @@ static void command_loop(struct command_connection *conn)
     const char *last_stream=NULL; // the stream name of the last issued command
 
     if (have_default_iface()) {
-        fprintf(cmd_w, "OAM ready.\n");
+        fprintf(cmd_w, "\033[32mOAM ready.\033[0m\n");
     } else {
-        fprintf(cmd_w, "OAM ready, but has no configured return interface.\n");
+        fprintf(cmd_w, "\033[32mOAM ready\033[0m, but has no configured return interface.\n");
     }
 
     while (true) {

@@ -14,7 +14,6 @@
 
 DEFAULT_LOGGING_MODULE(PACKET, WARNING);
 LOGGING_MODULE(PACKETTRACE, WARNING);
-LOGGING_MODULE(OAM, INFO);
 
 static unsigned packet_count = 0;
 static unsigned char *dummybuf = NULL;
@@ -181,11 +180,10 @@ void packet_clear_headers(struct Packet *p)
 
 void packets_check_performance(void)
 {
-    //TODO why is this OAM?
     if (packet_count > PACKET_COUNT_LIMIT * 0.9) {
-        log_warning_m(OAM, "\033[0;31mSEVERE PERFORMANCE WARNING: too many packets in the system\033[0m");
+        log_warning("SEVERE PERFORMANCE WARNING: too many packets in the system");
     } else if (packet_count > PACKET_COUNT_LIMIT * 0.5) {
-        log_warning_m(OAM, "\033[0;33mPERFORMANCE WARNING: too many packets in the system\033[0m");
+        log_warning("PERFORMANCE WARNING: too many packets in the system");
     }
 }
 

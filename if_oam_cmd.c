@@ -62,7 +62,7 @@ static bool oam_cmd_recv(struct Interface *iface)
     }
 
     inet_ntop(their_addr.ss_family, get_in_addr((struct sockaddr *)&their_addr), s, sizeof s);
-    log_info("got connection from %s", s);
+    log_info("got Telnet connection from %s", s);
 
     oam_start_command_connection(new_fd);
     return true;
