@@ -230,12 +230,7 @@ struct ElimData {
 static enum ActionResult action_ELIM_execute(struct Action *a, struct PipelineIterator *pi)
 {
     struct ElimData *ed = (struct ElimData *)a->action_private;
-    enum ActionResult ret = seq_recovery(ed->rcvy, pi);
-    if(ret == ACR_DONE){
-        packet_logcat(pi->packet, "duplicate drop");
-        packet_printlog(pi->packet);
-    }
-    return ret;
+    return seq_recovery(ed->rcvy, pi);
 }
 
 static void action_ELIM_del(void *action_private)

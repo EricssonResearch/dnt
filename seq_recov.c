@@ -461,7 +461,12 @@ enum ActionResult seq_recovery(struct PipelineObject *r, struct PipelineIterator
             accept =  match_seq_recovery(oam_rec, oam_seq);
         }
     }
-    return accept ? ACR_CONTINUE : ACR_DONE;
+    if(!accept){
+        packet_logcat(p, "duplicate drop");
+        packet_printlog(p);
+        return ACR_DONE;
+    } else
+        return ACR_CONTINUE;
 }
 
 static void seq_recovery_reset(struct SequenceRecovery *rec)
@@ -607,5 +612,3 @@ static void *reset_thread(void *arg)
     }
     return rec;
 }
-
-
