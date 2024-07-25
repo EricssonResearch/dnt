@@ -45,6 +45,7 @@ endfunction()
 
 add_test_header(test_header_api)
 add_test_header(test_header_compare)
+add_test_header(test_header_read)
 add_test_header(test_header_write)
 
 add_custom_command(
