@@ -225,7 +225,7 @@ static const struct ProtocolField ipv6_fields[] = {
     {"dst",        192, 128, FT_IPV6ADDRESS},
     {"loc",        192,  64, FT_NUMBER},  // when dst is a SID, this is SRv6 Locator
     {"func",       256,  16, FT_NUMBER},  // SRv6 Functon
-    {"flow",       272,  20, FT_NUMBER},  // SRv6 flow_id
+    {"flowid",     272,  20, FT_NUMBER},  // SRv6 flow_id
     {"seq",        292,  28, FT_SRV6SEQ},  // SRv6 seq
 };
 
