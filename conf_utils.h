@@ -14,15 +14,17 @@ struct Value;
 
 typedef bool foreach_callback(char *str, void *userdata);
 
-// split the line into stages by ',' and call @cb for all of them
+// split the @line into stages by ',' and call @cb for all of them
 // modifies the given @line
+// removes starting whitespace, keeps trailing whitespace
 // stops and returns false if @cb returns false
 // empty line is not an error
 // @returns true on success
 bool foreach_stages(char *line, foreach_callback *cb, void *userdata);
 
-// split the stage into tokens by whitespace, call @cb for all of them
+// split the @stage into tokens by whitespace, call @cb for all of them
 // modifies the given @stage
+// removes starting and trailing whitespace
 // stops and returns false if @cb returns false
 // empty stage is not an error
 // @returns true on success

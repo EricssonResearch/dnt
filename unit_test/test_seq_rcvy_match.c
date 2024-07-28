@@ -135,7 +135,7 @@ static void test_multi(void)
 }
 
 TEST_CASES = {
-    {"duplicates", test_duplicates},
+    {"Duplicates", test_duplicates},
     {"Stress Single-Thread", test_single},
     {"Stress Multi-Thread", test_multi},
     {NULL, NULL}

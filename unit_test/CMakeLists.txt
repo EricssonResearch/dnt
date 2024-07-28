@@ -22,6 +22,24 @@ add_test_seqrcvy(test_seq_rcvy_match)
 add_test_seqrcvy(test_seq_rcvy_vector)
 #TODO seamless
 
+function(add_test_conf name)
+    add_executable(${name} ../conf_utils.c ../log.c ../protocol.c ../utils.c ../inifile/hashmap.c ${name}.c)
+    target_include_directories(${name} PUBLIC ../inifile)
+    target_compile_definitions(${name} PUBLIC TESTING)
+endfunction()
+
+add_test_conf(test_conf_utils)
+
+add_custom_command(
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/gen_conf_utils_dat.pl > conf_utils.dat
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/gen_conf_utils_dat.pl
+    OUTPUT conf_utils.dat
+    COMMENT "Generating conf_utils.dat"
+    VERBATIM)
+add_custom_target(gen_conf_utils_dat DEPENDS conf_utils.dat)
+add_dependencies(test_conf_utils gen_conf_utils_dat)
+target_include_directories(test_conf_utils PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
+
 function(add_test_ifutil name)
     add_executable(${name} ../if_utils.c ../log.c ../packet.c ../utils.c ../inifile/hashmap.c ${name}.c)
     target_include_directories(${name} PUBLIC ../inifile)
@@ -101,4 +119,11 @@ function(add_test_thread name)
 endfunction()
 
 add_test_thread(test_thread)
+
+function(add_test_util name)
+    add_executable(${name} ../utils.c ${name}.c)
+    target_compile_definitions(${name} PUBLIC TESTING)
+endfunction()
+
+add_test_util(test_utils)
 

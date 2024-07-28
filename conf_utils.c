@@ -211,6 +211,7 @@ bool read_constant(struct Value *val, enum ProtocolID proto, enum ProtocolFieldT
             }
             val->value = malloc(4*sizeof(char));
             if (inet_pton(AF_INET, string, val->value) != 1) {
+                free(val->value);
                 THROW("invalid IPv4 address '%s'", string);
             }
             return true;
@@ -221,6 +222,7 @@ bool read_constant(struct Value *val, enum ProtocolID proto, enum ProtocolFieldT
             }
             val->value = malloc(16*sizeof(char));
             if (inet_pton(AF_INET6, string, val->value) != 1) {
+                free(val->value);
                 THROW("invalid IPv6 address '%s'", string);
             }
             return true;
@@ -231,11 +233,9 @@ bool read_constant(struct Value *val, enum ProtocolID proto, enum ProtocolFieldT
             log_warning("It's not a good practice to set timestamp from constant");
             return read_constant(val, proto, FT_NUMBER, string);
         case FT_NEXTHEADER: {
-            enum ProtocolID val_id = protocol_id_from_type(string);
-            if (val_id < 0) {
-                return read_constant(val, proto, FT_NUMBER, string);
-            } else {
+            if (protocol_type_valid(string)) {
                 if (protocol_list[proto].get_nexthdr) {
+                    enum ProtocolID val_id = protocol_id_from_type(string);
                     uint16_t nexthdr;
                     if (protocol_list[proto].get_nexthdr(&nexthdr, val_id)) {
                         if (prepare_constant_number(val, nexthdr)) {
@@ -246,14 +246,15 @@ bool read_constant(struct Value *val, enum ProtocolID proto, enum ProtocolFieldT
                                     nexthdr, protocol_type_from_id(proto));
                         }
                     } else {
-                        THROW("invalid nexthdr type for protocol %s",
-                                protocol_type_from_id(proto));
+                        THROW("invalid nexthdr type '%s' for protocol %s",
+                                string, protocol_type_from_id(proto));
                     }
                 } else {
-                    // this should never happen
-                    THROW("protocol %s doesn't have nexthdr setter!?!",
+                    THROW("protocol %s doesn't have nexthdr field",
                             protocol_type_from_id(proto));
                 }
+            } else {
+                return read_constant(val, proto, FT_NUMBER, string);
             }
         }
         case FT_TTL:
