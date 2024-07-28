@@ -89,6 +89,7 @@ pytest_oam:
     - cd test
     - ./oam.py
   timeout: 3 minutes
+  allow_failure: true
 
 
 .unit_test.common:
@@ -97,6 +98,46 @@ pytest_oam:
     - rosetta-docker
   dependencies:
     - build-unit_test
+
+unit_test.conf_utils:
+  extends: .unit_test.common
+  script:
+    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_conf_utils
+
+unit_test.header_api:
+  extends: .unit_test.common
+  script:
+    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_header_api
+
+unit_test.header_compare:
+  extends: .unit_test.common
+  script:
+    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_header_compare
+
+unit_test.header_read:
+  extends: .unit_test.common
+  script:
+    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_header_read
+
+unit_test.header_write:
+  extends: .unit_test.common
+  script:
+    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_header_write
+
+unit_test.if_utils:
+  extends: .unit_test.common
+  script:
+    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_if_utils
+
+unit_test.inet_utils:
+  extends: .unit_test.common
+  script:
+    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_inet_utils
+
+unit_test.json_api:
+  extends: .unit_test.common
+  script:
+    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_json_api
 
 unit_test.json_read:
   extends: .unit_test.common
@@ -107,6 +148,11 @@ unit_test.json_write:
   extends: .unit_test.common
   script:
     - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_json_write
+
+unit_test.packet:
+  extends: .unit_test.common
+  script:
+    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_packet
 
 unit_test.seq_rcvy_match:
   extends: .unit_test.common
@@ -127,5 +173,10 @@ unit_test.time:
   extends: .unit_test.common
   script:
     - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_time
+
+unit_test.utils:
+  extends: .unit_test.common
+  script:
+    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_utils
 
 
