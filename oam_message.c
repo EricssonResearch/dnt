@@ -579,8 +579,9 @@ static bool process_ping_request(struct OamEndPoint *oam, struct Packet *p, stru
     // if object state is requested
     struct JsonValue *jos = json_object_get_any(j, "object");
     if(jos!=NULL){
-        if (oam->target) {
-            struct JsonValue *objinfo = oam->target->get_state(oam->target);
+        struct MepStart *mep = find_mep_start(oam->name);
+        if (mep && mep->target) {
+            struct JsonValue *objinfo = mep->target->get_state(mep->target);
             json_object_insert(j, "object", objinfo);
         }
     }

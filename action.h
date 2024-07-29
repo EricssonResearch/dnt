@@ -110,10 +110,10 @@ void create_action_filteroam(struct Action *a, const struct HeaderField *seqfiel
 
 //void create_action_mepstart(struct Action *a, int level, const char *name, const char *text);
 
-void create_action_mepstop(struct Action *a, const char *stream, int level, struct PipelineObject *target,
+void create_action_mepstop(struct Action *a, const char *stream, int level,
                             const char *name, const char *text);
 
-void create_action_mip(struct Action *a, const char *stream, int level, struct PipelineObject *target,
+void create_action_mip(struct Action *a, const char *stream, int level,
                         const char *name, const char *text);
 
 void create_action_pof(struct Action *a, struct PipelineObject *pof, const char *text);

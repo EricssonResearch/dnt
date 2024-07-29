@@ -39,6 +39,8 @@ void pipeline_object_unref(struct PipelineObject *obj);
 // @returns string representation of the @type enum
 const char *pipelineobject_name_from_type(enum PipelineObjectType type);
 
+const char *pipelineobject_get_name(const struct PipelineObject *obj);
+
 // returns a string that is the @json data decoded into a pretty format
 // uses @record_sep and @line_sep for formatting
 // uses the appropriate printing function based on the type encoded in the @json

@@ -1846,16 +1846,19 @@ struct Pipeline *assemble_actions(const char *stream_name, const struct ConfActi
             case CA_JUMP:
                 THROW("jump should have been inlined");
             case CA_MEPSTART: {
-                if (!oam_create_mep_start(ca->oam.stream, ca->oam.name, ca->oam.level, ret, i)) {
+                if (!oam_create_mep_start(ca->oam.stream, ca->oam.name, ca->oam.level, ca->oam.obj, ret, i)) {
                     THROW("couldn't create MEP Start");
                 }
                 break; }
             case CA_MEPSTOP:
-                create_action_mepstop(actions+i, ca->oam.stream, ca->oam.level, ca->oam.obj, ca->oam.name, ca->text);
+                create_action_mepstop(actions+i, ca->oam.stream, ca->oam.level, ca->oam.name, ca->text);
+                if (!oam_create_mep_start(ca->oam.stream, ca->oam.name, ca->oam.level, ca->oam.obj, ret, i+1)) {
+                    THROW("couldn't create start point for MEP Stop");
+                }
                 break;
             case CA_MIP:
-                create_action_mip(actions+i, ca->oam.stream, ca->oam.level, ca->oam.obj, ca->oam.name, ca->text);
-                if (!oam_create_mep_start(ca->oam.stream, ca->oam.name, ca->oam.level, ret, i+1)) {
+                create_action_mip(actions+i, ca->oam.stream, ca->oam.level, ca->oam.name, ca->text);
+                if (!oam_create_mep_start(ca->oam.stream, ca->oam.name, ca->oam.level, ca->oam.obj, ret, i+1)) {
                     THROW("couldn't create start point for MIP");
                 }
                 break;

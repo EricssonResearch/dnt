@@ -636,25 +636,25 @@ static void action_MEP_del(void *action_private)
 #define action_MEPSTOP_execute action_MEP_execute
 #define action_MIP_execute     action_MEP_execute
 
-void create_action_mepstop(struct Action *a, const char *stream, int level, struct PipelineObject *target,
+void create_action_mepstop(struct Action *a, const char *stream, int level,
         const char *name, const char *text)
 {
     INIT_ACTION(MEPSTOP);
     a->del = action_MEP_del;
 
     struct MepData *md = calloc_struct(MepData);
-    md->oam = oam_create_endpoint(name, stream, level, target, true);
+    md->oam = oam_create_endpoint(name, stream, level, true);
     a->action_private = md;
 }
 
-void create_action_mip(struct Action *a, const char *stream, int level, struct PipelineObject *target,
+void create_action_mip(struct Action *a, const char *stream, int level,
         const char *name, const char *text)
 {
     INIT_ACTION(MIP);
     a->del = action_MEP_del;
 
     struct MepData *md = calloc_struct(MepData);
-    md->oam = oam_create_endpoint(name, stream, level, target, false);
+    md->oam = oam_create_endpoint(name, stream, level, false);
     a->action_private = md;
 }
 

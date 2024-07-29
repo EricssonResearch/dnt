@@ -18,6 +18,7 @@ struct MepStart {
     struct Pipeline *pipe;
     int pipe_pos_idx;
     int level;
+    struct PipelineObject *target; // PRF, PEF, POF, etc.
 };
 
 struct Interface *get_oam_interface(const char *ifname);

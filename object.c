@@ -40,6 +40,11 @@ void pipeline_object_unref(struct PipelineObject *obj)
     }
 }
 
+const char *pipelineobject_get_name(const struct PipelineObject *obj)
+{
+    return obj->name;
+}
+
 const char *pipelineobject_name_from_type(enum PipelineObjectType type)
 {
     switch (type) {

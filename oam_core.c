@@ -9,6 +9,7 @@
 #include "oam_core.h"
 #include "oam_message.h"
 #include "oam_request.h"
+#include "object.h"
 
 #include "if_oam.h"
 #include "hashmap.h"
@@ -102,13 +103,26 @@ static int mep_start_delete_cb(const char *key, void *value, void *userdata)
 }
 
 bool oam_create_mep_start(const char *stream_name, const char *mep_name, int level,
-        struct Pipeline *pipe, unsigned idx)
+        struct PipelineObject *obj, struct Pipeline *pipe, unsigned idx)
 {
     if (mep_starts == NULL) {
         mep_starts = new_hashmap(13, mep_start_delete_cb, NULL);
     }
     struct MepStart *mepstart = (struct MepStart *)hashmap_find(mep_starts, mep_name);
     if (mepstart) {
+        if (mepstart->target != obj) {
+            if (!obj) {
+                log_error("Redefined MEP Start '%s' without target (original target is '%s')",
+                          mep_name, pipelineobject_get_name(mepstart->target));
+            } else if (!mepstart->target) {
+                log_error("MEP Start '%s' with target '%s' conflict with previous definition without target",
+                          mepstart->name, pipelineobject_get_name(obj));
+            } else {
+                log_error("Redefined MEP Start '%s' with mismatching target '%s' (original target is '%s')",
+                        mepstart->name, pipelineobject_get_name(obj), pipelineobject_get_name(mepstart->target));
+            }
+            return false;
+        }
         if (strcmp(stream_name, mepstart->stream_name) == 0) {
             // multiple instances of the same compound stream
             return true;
@@ -122,6 +136,7 @@ bool oam_create_mep_start(const char *stream_name, const char *mep_name, int lev
     mepstart->stream_name = strdup(stream_name);
     mepstart->level = level;
     mepstart->pipe = pipe;
+    mepstart->target = obj;
     mepstart->pipe_pos_idx = idx;
     // for mepstart->pipe see oam_set_pipeline_for_mep_start()
     hashmap_insert(mep_starts, mepstart->name, mepstart);
@@ -150,8 +165,7 @@ bool mep_start_in_stream(const struct MepStart *start, const char *stream)
     return strcmp(start->stream_name, stream) == 0;
 }
 
-struct OamEndPoint *oam_create_endpoint(const char *name, const char *stream, int level,
-        struct PipelineObject *target, bool stop)
+struct OamEndPoint *oam_create_endpoint(const char *name, const char *stream, int level, bool stop)
 {
     //TODO make sure that endpoints have unique names
     //      put them into the same hash as the startpoints?
@@ -159,7 +173,6 @@ struct OamEndPoint *oam_create_endpoint(const char *name, const char *stream, in
     ret->name = strdup(name);
     ret->stream = strdup(stream);
     ret->level = level;
-    ret->target = target;
     ret->stop = stop;
     return ret;
 }

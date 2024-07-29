@@ -14,13 +14,15 @@
 
 // public interface of the OAM module
 
+struct PipelineObject;
+struct MepStart;
 // state object for a point that receives OAM packets
 struct OamEndPoint {
     char *name;
     char *stream;
     int level;
-    struct PipelineObject *target; // PRF, PEF, POF, etc.
     bool stop; // false: MIP, true: MEP-Stop
+    struct MepStart *mep;
 };
 
 bool init_oam(void);
@@ -41,12 +43,11 @@ void oam_cli_alert(const char *fmt, ...)
     __attribute__((nonnull(1)));
 
 bool oam_create_mep_start(const char *stream_name, const char *mep_name, int level,
-        struct Pipeline *pipe, unsigned idx);
+        struct PipelineObject *obj, struct Pipeline *pipe, unsigned idx);
 
 // create a structure that represents an OAM request receiver point
 // used by MIP and MEP-STOP actions
-struct OamEndPoint *oam_create_endpoint(const char *name, const char *stream, int level,
-        struct PipelineObject *target, bool stop);
+struct OamEndPoint *oam_create_endpoint(const char *name, const char *stream, int level, bool stop);
 
 // always returns NULL
 struct OamEndPoint *oam_delete_endpoint(struct OamEndPoint *end);
