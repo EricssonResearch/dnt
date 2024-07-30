@@ -30,6 +30,15 @@ static struct JsonValue *get_state_json(const struct PipelineObject *obj)
     return js;
 }
 
+struct PipelineList *replicate_get_pipes(struct PipelineObject *rep)
+{
+    if (rep) {
+        struct Replicate *r = (struct Replicate *) rep;
+        return r->pipes;
+    }
+    return NULL;
+}
+
 char *repl_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep)
 {
     (void)record_sep;

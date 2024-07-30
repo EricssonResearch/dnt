@@ -375,15 +375,17 @@ struct ReplData {
 static enum ActionResult action_REPL_execute(struct Action *a, struct PipelineIterator *pi)
 {
     struct ReplData *rd = (struct ReplData *)a->action_private;
+    struct PipelineList *list = rd->pipes;
 
-    if (rd->replobj)
+    if (rd->replobj) {
+        list = replicate_get_pipes(rd->replobj);
         replicate_packet_passed(rd->replobj, pi);
+    }
 
     // extract the packet from our iterator
     struct Packet *iterpacket = pi->packet;
     pi->packet = NULL;
 
-    struct PipelineList *list = rd->pipes;
     while (list) {
         // do not replicate to masked pipes (member streams)
         if (list->pipe->mask) {

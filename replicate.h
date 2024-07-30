@@ -22,6 +22,8 @@ char *repl_sprintf_state_json(struct JsonValue *json, const char *record_sep, co
 // store the pipelines in the replication object
 void store_replication_pipelines(struct PipelineObject *obj, struct PipelineList *pipes);
 
+struct PipelineList *replicate_get_pipes(struct PipelineObject *rep);
+
 // arguments for try_set_mask callback
 struct MaskArg {
     const char *pipename; // pipeline to mask/unmask
