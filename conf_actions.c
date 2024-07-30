@@ -547,6 +547,8 @@ static bool process_assignment_rhs(struct StageState *stst, struct ConfAssignmen
 
 static bool process_stage(char *stage, void *userdata);
 
+static bool oam_mip_autoconfig(struct StageState *stst, struct StageState *pstst);
+
 // here we process the parameters for the action individually
 static bool process_token(char *token, void *userdata)
 {
@@ -556,6 +558,14 @@ static bool process_token(char *token, void *userdata)
                 stst->stream, stst->actions->text, ##__VA_ARGS__);  \
         return false;                                               \
     } while (0)
+
+#define CLEANUP_PSTST(_pstst)                            \
+    do {                                                 \
+        free(pstring);                                   \
+        free(replname);                                  \
+        delete_must_write_list(_pstst.must_write);       \
+        delete_header_list(_pstst.headers);              \
+    } while(0)
 
     struct StageState *stst = (struct StageState *)userdata;
     struct ConfAction *newaction = (struct ConfAction *)stst->actions;
@@ -855,6 +865,7 @@ static bool process_token(char *token, void *userdata)
             char *token_masked = strdup_printf("%s:masked", token);
             char *pstring_masked = inisection_get(stst->streams_sec, token_masked);
             char *pstring = inisection_get(stst->streams_sec, token);
+
             bool masked = false;
             free(token_masked);
             if (pstring && pstring_masked) {
@@ -895,28 +906,25 @@ static bool process_token(char *token, void *userdata)
                 pstst.depth += 1;
                 if (stst->must_write && !pstst.must_write) {
                     //TODO we need a stst destructor
-                    free(pstring);
-                    free(replname);
-                    delete_header_list(pstst.headers);
-                    delete_must_write_list(pstst.must_write);
+                    CLEANUP_PSTST(pstst);
                     THROW("failed to copy the must_write list?!?");
                 }
                 if (!foreach_stages(pstring, process_stage, &pstst)) {
-                    free(pstring);
-                    free(replname);
-                    delete_header_list(pstst.headers);
+                    CLEANUP_PSTST(pstst);
                     delete_confaction_list(pstst.actions);
-                    delete_must_write_list(pstst.must_write);
                     THROW("failed to process pipeline '%s'", token);
                 }
-                free(pstring);
-                free(replname);
-                delete_must_write_list(pstst.must_write);
-                delete_header_list(pstst.headers);
                 if (pstst.actions == NULL) {
+                    CLEANUP_PSTST(pstst);
                     THROW("no actions in pipeline '%s'", token);
                 }
                 REVERSE_LIST(pstst.actions);
+                if (newaction->repl.replobj && newaction->repl.replobj->auto_mip_level > 0
+                        && oam_mip_autoconfig(stst, &pstst) == false) {
+                    CLEANUP_PSTST(pstst);
+                    THROW("AutoMIP configuration for replication pipeline '%s' failed", token);
+                }
+                CLEANUP_PSTST(pstst);
                 replicatelist_push(&newaction->repl.pipelines, strdup(token), pstst.actions, masked);
             }
             break; }
@@ -974,6 +982,7 @@ static bool process_token(char *token, void *userdata)
 
     return true;
 #undef THROW
+#undef CLEANUP_PSTST
 }
 
 // set nexthdr value in @dstheader based on the type of @typeheader
@@ -1084,8 +1093,6 @@ static bool check_header_stack(const struct HeaderDescriptor *headers,
     return true;
 }
 
-
-static bool oam_mip_autoconfig(struct StageState *stst);
 
 // here we do processing that needs all the parameters of the action
 static bool process_action(struct StageState *stst)
@@ -1369,7 +1376,7 @@ static bool process_action(struct StageState *stst)
             if (!stst->seq_set) {
                 THROW("can't eliminate without a sequence number");
             }
-            if (newaction->elim.rec->auto_mip_level > 0 && !oam_mip_autoconfig(stst))
+            if (newaction->elim.rec->auto_mip_level > 0 && !oam_mip_autoconfig(stst, NULL))
                 log_warning("cannot generate MIP for '%s'", newaction->elim.rec->name);
             struct ConfAction *elimjump = new_confaction(stst, CA_JUMP,
                     strdup_printf("auto-generated jump for %s", newaction->text));
@@ -1487,7 +1494,7 @@ static bool process_action(struct StageState *stst)
             if (newaction->repl.pipelines == NULL) {
                 THROW("no pipelines specified");
             }
-            if (newaction->repl.replobj && newaction->repl.replobj->auto_mip_level > 0 && !oam_mip_autoconfig(stst))
+            if (newaction->repl.replobj && newaction->repl.replobj->auto_mip_level > 0 && !oam_mip_autoconfig(stst, NULL))
                 log_warning("cannot generate MIP for '%s'", newaction->repl.replobj->name);
             REVERSE_LIST(newaction->repl.pipelines);
             stst->had_final = true;
@@ -2026,8 +2033,18 @@ void confactions_print(const struct ConfAction *ca_list, unsigned indent)
     }
 }
 
-static bool oam_mip_autoconfig(struct StageState *stst)
+static bool oam_mip_autoconfig(struct StageState *stst, struct StageState *pstst)
 {
+#define CLEANUP_AUTOMIP()                                 \
+    do {                                          \
+        free(pre);                                \
+        free(post);                               \
+        free(ca_pre->oam.stream);                 \
+        free(ca_post->oam.stream);                \
+        free(ca_pre);                             \
+        free(ca_post);                            \
+    } while(0)
+
     struct ConfAction *ca = stst->actions;
     switch (ca->type) {
         case CA_ELIM: {
@@ -2037,20 +2054,19 @@ static bool oam_mip_autoconfig(struct StageState *stst)
                                        ca->elim.rec->auto_mip_level, ca->elim.rec->name);
             struct ConfAction *ca_pre = new_confaction(stst, CA_MIP,
                            strdup_printf("auto-generated MIP before '%s'", ca->text));
+            struct ConfAction *ca_post = NULL;
             ca_pre->oam.name = pre;
             ca_pre->oam.level = ca->elim.rec->auto_mip_level;
             ca_pre->oam.obj = ca->elim.rec;
             ca_pre->oam.auto_generated = true;
             ca_pre->oam.stream = strdup(stst->stream);
             if (!process_action(stst)) {
-                free(pre);
-                free(ca_pre->oam.stream);
-                free(ca_pre);
+                CLEANUP_AUTOMIP();
                 stst->actions = ca;
                 return false;
             }
             stst->actions = confaction_swap_with_next(stst->actions);
-            struct ConfAction *ca_post = new_confaction(stst, CA_MIP,
+            ca_post = new_confaction(stst, CA_MIP,
                             strdup_printf("auto-generated MIP after '%s'", ca->text));
             ca_post->oam.name = post;
             ca_post->oam.level = ca->elim.rec->auto_mip_level;
@@ -2058,36 +2074,54 @@ static bool oam_mip_autoconfig(struct StageState *stst)
             ca_post->oam.auto_generated = true;
             ca_post->oam.stream = strdup(ca->elim.pipename);
             if (!process_action(stst)) {
-                free(pre);
-                free(post);
-                free(ca_pre->oam.stream);
-                free(ca_post->oam.stream);
-                free(ca_pre);
-                free(ca_post);
+                CLEANUP_AUTOMIP();
                 stst->actions = ca;
                 return false;
             }
             break; }
         case CA_REPL: {
-            char *pre = strdup_printf("o_%s_L%u_pre-%s", stst->stream,
-                                      ca->repl.replobj->auto_mip_level, ca->repl.replobj->name);
-            struct ConfAction *ca_pre = new_confaction(stst, CA_MIP,
-                           strdup_printf("auto-generated MIP before '%s'", ca->text));
-            ca_pre->oam.name = pre;
-            ca_pre->oam.level = ca->repl.replobj->auto_mip_level;
-            ca_pre->oam.obj = ca->repl.replobj;
-            ca_pre->oam.auto_generated = true;
-            ca_pre->oam.stream = strdup(stst->stream);
-            if (!process_action(stst)) {
-                free(pre);
-                free(ca_pre->oam.stream);
-                free(ca_pre);
-                stst->actions = ca;
-                return false;
+            // autoconfig called on the last action (replication)
+            struct ConfAction *ca_pre = NULL;
+            struct ConfAction *ca_post = NULL;
+            char *pre = NULL;
+            char *post = NULL;
+            if (pstst == NULL) {
+                pre = strdup_printf("o_%s_L%u_pre-%s", stst->stream,
+                                        ca->repl.replobj->auto_mip_level, ca->repl.replobj->name);
+                ca_pre = new_confaction(stst, CA_MIP,
+                            strdup_printf("auto-generated MIP before '%s'", ca->text));
+                ca_pre->oam.name = pre;
+                ca_pre->oam.level = ca->repl.replobj->auto_mip_level;
+                ca_pre->oam.obj = ca->repl.replobj;
+                ca_pre->oam.auto_generated = true;
+                ca_pre->oam.stream = strdup(stst->stream);
+                if (!process_action(stst)) {
+                    CLEANUP_AUTOMIP();
+                    stst->actions = ca;
+                    return false;
+                }
+                stst->actions = confaction_swap_with_next(stst->actions);
+            } else { // working on pstst (pipeline) action list
+                struct ConfAction *pca = pstst->actions;
+                post = strdup_printf("o_%s_L%u_post-%s", pstst->stream,
+                                       ca->repl.replobj->auto_mip_level, ca->repl.replobj->name);
+                ca_post = new_confaction(pstst, CA_MIP,
+                                strdup_printf("auto-generated MIP after '%s'", ca->text));
+                ca_post->oam.name = post;
+                ca_post->oam.level = ca->repl.replobj->auto_mip_level;
+                ca_post->oam.obj = ca->repl.replobj;
+                ca_post->oam.auto_generated = true;
+                ca_post->oam.stream = strdup(pstst->stream);
+                if (!process_action(pstst)) {
+                    CLEANUP_AUTOMIP();
+                    pstst->actions = pca;
+                    return false;
+                }
             }
             break; }
         default:
             return false;
     }
     return true;
+#undef CLEANUP_AUTOMIP
 }

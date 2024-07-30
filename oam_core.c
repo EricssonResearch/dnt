@@ -136,8 +136,10 @@ bool oam_create_mep_start(const char *stream_name, const char *mep_name, int lev
     mepstart->stream_name = strdup(stream_name);
     mepstart->level = level;
     mepstart->pipe = pipe;
-    mepstart->target = obj;
-    pipelineobject_store_mep_start_name(obj, mep_name);
+    if (obj) {
+        mepstart->target = obj;
+        pipelineobject_store_mep_start_name(obj, mep_name);
+    }
     mepstart->pipe_pos_idx = idx;
     // for mepstart->pipe see oam_set_pipeline_for_mep_start()
     hashmap_insert(mep_starts, mepstart->name, mepstart);
