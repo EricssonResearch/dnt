@@ -47,6 +47,8 @@ static bool ip_recv(struct Interface *iface)
     //log_info("ip packet: %x", htons(*ethertype));
 
     if((htons(*ethertype) != ETH_P_IPV6) && (htons(*ethertype) != ETH_P_IP)) {
+        if (htons(*ethertype) == ETH_P_8021Q || htons(*ethertype) == ETH_P_8021AD)
+            log_warning("VLAN tagged packet received on IP interface %s, open it on the VLAN interface?", iface->name);
         packet_logcat(p, "%s %u not IPv4/IPv6 (%x), drop.", iface->name, p->len, htons(*ethertype));
         return delete_packet(p);
     }
@@ -95,9 +97,9 @@ static bool ip_send(struct Interface *iface, struct Packet *p)
         memset(&socket_address, 0, sizeof(socket_address));
         socket_address.sin6_family = AF_INET6;
         memcpy(&socket_address.sin6_addr.s6_addr,  p->buf + p->headers[0].start + 24, 16);
-        // update packet length
+        // update packet length field in IPv6 header
         unsigned short *length = (unsigned short*)(p->buf + p->headers[0].start + 4);
-        *length = htons(packet_length(p)-40);     // IPv6 header length
+        *length = htons(packet_length(p)-40);     // IPv6 header length is 40
         // if srcip is zero, set source addr.
         unsigned int *p_ip = (unsigned int*)(p->buf + p->headers[0].start + 8);
         if((p_ip[0] == 0) && (p_ip[1] == 0) && (p_ip[2] == 0) && (p_ip[3] == 0))
