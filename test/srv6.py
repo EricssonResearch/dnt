@@ -51,19 +51,19 @@ def setup_network():
     r2.cmd("ip link add name vrf1 type vrf table 10")
     r2.cmd("ip link set vrf1 mtu 2000 up")
     r2.cmd("ip -6 rule del priority 1000")
-    r2.cmd("ip -6 rule add type blackhole l3mdev to fd00:be1a:0:2::/64 priority 1000")
+    r2.cmd("ip -6 rule add type blackhole l3mdev to fd00:be1a:0:2::/64 priority 1000")   # prevent loop
     r2.cmd("ip -6 rule add table local priority 2000")
     r2.cmd("ip -6 addr add fd00:be12::2/64 dev vrf1")
 
     r4.cmd("ip link add name vrf1 type vrf table 10")
     r4.cmd("ip link set vrf1 mtu 2000 up")
     r4.cmd("ip -6 rule del priority 1000")
-    r4.cmd("ip -6 rule add type blackhole l3mdev to fd00:be1a:0:4::/64 priority 1000")
+    r4.cmd("ip -6 rule add type blackhole l3mdev to fd00:be1a:0:4::/64 priority 1000")   # prevent loop
     r4.cmd("ip -6 rule add table local priority 2000")
     r4.cmd("ip -6 addr add fd00:be12::4/64 dev vrf1")
 
 
-    # add dummy loopback interfaces for local SIDs
+    # add dummy loopback interfaces for local SIDs (loopback interfaces do not work with SRv6)
     r2.cmd("ip link add name sr0 type dummy")
     r2.cmd("ip a a fd12:fade::0/64 dev sr0")
     r3.cmd("ip link add name sr0 type dummy")
@@ -71,7 +71,7 @@ def setup_network():
     r4.cmd("ip link add name sr0 type dummy")
     r4.cmd("ip a a fd14:fade::0/64 dev sr0")
 
-    # add veth interfaces
+    # add veth interfaces (not needed for TSN over SRv6)
     r2.cmd("ip link add veth0 type veth peer name veth1")
     r2.cmd("ip link set veth0 mtu 2000 up")
     r2.cmd("ip link set veth1 mtu 2000 up")
@@ -91,7 +91,7 @@ def setup_network():
     r4.cmd("ip a a fd05:a1fa::4/64 dev eth_r4l5")
     l5.cmd("ip a a fd05:a1fa::5/64 dev eth_l5r4")
 
-    #IPv4 addresses and routes for IPv4 UNI
+    # IPv4 addresses and routes for IPv4 UNI
     t1.cmd("ip a a 10.0.1.1/24 dev eth_t1r2")
     r2.cmd("ip a a 10.0.1.2/24 dev eth_r2t1")
     r4.cmd("ip a a 10.0.5.2/24 dev eth_r4l5")
@@ -99,20 +99,20 @@ def setup_network():
     t1.cmd("ip r add 0.0.0.0/0 via 10.0.1.2 dev eth_t1r2")  # def. gw is r2
     l5.cmd("ip r add 0.0.0.0/0 via 10.0.5.2 dev eth_l5r4")  # def. gw is r4
 
-    #VLAN interfaces for TSN UNI
+    # VLAN interfaces for TSN UNI
     t1.cmd("ip link add link eth_t1r2 name eth_t1r2.10 type vlan id 10 egress-qos-map 0:0 1:1 2:2 3:3 4:4 5:5 6:6 7:7")
     t1.cmd("ip link set eth_t1r2.10 up")
     t1.cmd("ip a a 10.10.0.1/24 dev eth_t1r2.10")
     l5.cmd("ip link add link eth_l5r4 name eth_l5r4.10 type vlan id 10 egress-qos-map 0:0 1:1 2:2 3:3 4:4 5:5 6:6 7:7")
     l5.cmd("ip link set eth_l5r4.10 up")
     l5.cmd("ip a a 10.10.0.2/24 dev eth_l5r4.10")
-    # edit skb priority to map DSCP 0xC0 traffic to PCP 6
+    # edit skb priority on hosts to map DSCP 0xC0 traffic to PCP 6
     t1.cmd("tc qdisc add dev eth_t1r2.10 clsact")
     t1.cmd("tc filter add dev eth_t1r2.10 egress protocol ipv4 flower ip_tos 0xc0 action skbedit priority 6")
     l5.cmd("tc qdisc add dev eth_l5r4.10 clsact")
     l5.cmd("tc filter add dev eth_l5r4.10 egress protocol ipv4 flower ip_tos 0xc0 action skbedit priority 6")
 
-    # routing
+    # routing entries for interface IPs
     t1.cmd("ip -6 r add ::/0 via fd01:a1fa::2 dev eth_t1r2")  # def. gw is r2
     r2.cmd("ip -6 r add ::/0 via fd03:a1fa::4 dev eth_r2r4")  # def. path is via r4
     r3.cmd("ip -6 r add fd05:a1fa::/64 via fd04:a1fa::4 dev eth_r3r4")
@@ -120,7 +120,7 @@ def setup_network():
     r4.cmd("ip -6 r add ::/0 via fd03:a1fa::2 dev eth_r4r2")  # def. path is via r2
     l5.cmd("ip -6 r add ::/0 via fd05:a1fa::4 dev eth_l5r4")  # def. gw is r4
 
-    # set up SID locators
+    # set up routes for SID locators
     r2.cmd("ip -6 route add fd13:fade::/64 via fd02:a1fa::3 dev eth_r2r3")
     r2.cmd("ip -6 route add fd14:fade::/64 via fd03:a1fa::4 dev eth_r2r4")
     r3.cmd("ip -6 route add fd12:fade::/64 via fd02:a1fa::2 dev eth_r3r2")
@@ -318,7 +318,7 @@ def test_tsn():
         if pingcmd.stdout and f", {num_pings} received," not in pingcmd.stdout:
             print(pingcmd.stdout)
             retval=0
-        print(" DetNet traffic...", end=" ")
+        print(" TSN    traffic...", end=" ")
         pingcmd = exec_fg(f"ping 10.10.0.2 -Q 0xc0 -i {PING_INTERVAL_SEC} -c {num_pings}")
         if pingcmd.stdout and f", {num_pings} received," not in pingcmd.stdout:
             print(pingcmd.stdout)
