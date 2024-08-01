@@ -6,6 +6,7 @@
 #include "object.h"
 #include "pipeline.h"
 #include "replicate.h"
+#include "state.h"
 #include "utils.h"
 
 #include <stdlib.h>
@@ -88,29 +89,39 @@ void store_replication_pipelines(struct PipelineObject *obj, struct PipelineList
     r->pipes = pipes;
 }
 
-int try_set_mask(struct PipelineObject *obj, void *userdata)
+
+struct LookupPipelineArg {
+    const char *pipename;
+    struct Pipeline *pipe;
+    struct PipelineObject *repl;
+};
+static int match_pipeline_by_name_cb(struct PipelineObject *obj, void *userdata)
 {
-    bool success = false;
-    struct MaskArg *args = (struct MaskArg *)userdata;
-
+    struct LookupPipelineArg *arg = (struct LookupPipelineArg *) userdata;
     if (obj->type == PO_REPL) {
-        struct Replicate *r = (struct Replicate *)obj;
-        struct PipelineList *list = r->pipes;
-        while (list) {
-            if (!strcmp(list->pipe->name, args->pipename)) {
-                list->pipe->mask = args->new_mask;
-                success = true;
-                break;
+        struct Replicate *repl = (struct Replicate *) obj;
+        struct PipelineList *rlist = repl->pipes;
+        while (rlist) {
+            if (!strcmp(rlist->pipe->name, arg->pipename)) {
+                arg->pipe = rlist->pipe;
+                arg->repl = obj;
+                return 0;
             }
-            list = list->next;
+            rlist = rlist->next;
         }
-    }
-
-    // ...assuming replication:pipeline 1:1
-    if (success) {
-        args->success = true;
-        return 0;
     }
     return 1;
 }
 
+struct Pipeline *replicate_lookup_pipeline(const char *name, struct PipelineObject **repl)
+{
+    (void) repl;
+    struct LookupPipelineArg arg = {
+        .pipename = name, .pipe = NULL, .repl = NULL
+    };
+    state_foreach_objects(match_pipeline_by_name_cb, &arg);
+    if (repl && arg.repl) {
+        *repl = arg.repl;
+    }
+    return arg.pipe;
+}

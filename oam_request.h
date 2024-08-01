@@ -29,6 +29,9 @@ struct oam_request *parse_rping_command(const char *oam_command,
 struct oam_request *parse_rlist_command(const char *oam_command,
         char *conn_name);
 
+// always returns a request, sets ret->error to an error message
+struct oam_request *parse_mask_command(const char *oam_command, char *conn_name);
+
 struct oam_request *delete_oam_request(struct oam_request *req);
 
 const char *request_get_type(const struct oam_request *req);

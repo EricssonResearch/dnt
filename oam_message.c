@@ -77,6 +77,8 @@ bool known_stream(const char *stream_name)
     return contains ? true: false;
 }
 
+static void stream_stop_session(struct StreamSessions *stream, int session, struct command_connection *conn);
+
 int alloc_session_id(struct StreamSessions *stream, struct oam_request *req,
         const char *conn_name, unsigned interval_ms)
 {
@@ -89,7 +91,9 @@ int alloc_session_id(struct StreamSessions *stream, struct oam_request *req,
 
     while (stream->sessions[id].live) {
         unsigned timeout = MAX(ceil(1.0 + 0.001*stream->sessions[id].interval_ms), 2);
-        if (now.tv_sec > stream->sessions[id].access_time + timeout) {
+        bool timeout_exceeded = now.tv_sec > stream->sessions[id].access_time + timeout;
+        const char *reqt = request_get_type(stream->sessions[id].req);
+        if (timeout_exceeded || strcmp(reqt, "unmask")) {
             //log_info("session %u timeouted", id);
             stream->sessions[id].live = false;
             stream->sessions[id].multireq_thread = thread_stop(stream->sessions[id].multireq_thread);
@@ -101,12 +105,27 @@ int alloc_session_id(struct StreamSessions *stream, struct oam_request *req,
         if (id == next_id) break;
     }
 
+    // We cannot have more than one mask sessions per-stream (per-pipeline)
+    // Also if there is a mask session, we have to terminate that first before unmask
+    // This is not a good place for that, a simplified session handling would help
+    if (!strcmp(request_get_type(req), "unmask")) {
+        for (int i=0; i<16; ++i) {
+            const struct SessionTracker *session = &stream->sessions[i];
+            if (!session->live) continue;
+            if (!strcmp(request_get_type(session->req), "mask")) {
+                stream_stop_session(stream, i, NULL);
+                break;
+            }
+        }
+    }
+
     if (stream->sessions[id].live) {
         pthread_mutex_unlock(&session_lock);
         return -1;
     } else {
         stream->last_session = id;
-        stream->sessions[id].live = true;
+        if (strcmp(request_get_type(req), "unmask") != 0) //FIXME: leaks
+            stream->sessions[id].live = true;
         stream->sessions[id].access_time = now.tv_sec + 1;
         stream->sessions[id].req = req;
         stream->sessions[id].multireq_thread = NULL;
@@ -128,21 +147,22 @@ int stream_live_session_count(const struct StreamSessions *stream)
 
 static void stream_stop_session(struct StreamSessions *stream, int session, struct command_connection *conn)
 {
-    FILE *cmd_w = command_connection_get_w(conn);
+    FILE *cmd_w = NULL;
+    if (conn) cmd_w = command_connection_get_w(conn);
     if(stream->sessions[session].live){
         if (stream->sessions[session].multireq_thread) {
             stream->sessions[session].multireq_thread = thread_stop(stream->sessions[session].multireq_thread);
             free(stream->sessions[session].conn_name);
             stream->sessions[session].conn_name = NULL;
-            fprintf(cmd_w,"stopped.");
+            if (conn) fprintf(cmd_w,"stopped.");
         } else {
-            fprintf(cmd_w,"not running.");
+            if (conn) fprintf(cmd_w,"not running.");
         }
         stream->sessions[session].live = false;
     } else {
-        fprintf(cmd_w,"not live.");
+        if (conn) fprintf(cmd_w,"not live.");
     }
-    command_connection_release_w(conn);
+    if (conn) command_connection_release_w(conn);
 }
 
 void stop_session(const char *stream_name, int session, struct command_connection *conn)

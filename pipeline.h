@@ -51,4 +51,8 @@ void pipe_iterator_run(struct PipelineIterator *pi);
 // only needed in very specific cases
 void pipe_iteraror_cancel(struct PipelineIterator *pi);
 
+// pipeline mask setter
+// @returns: true if the mask changed (new_mask != pipe->mask)
+bool pipe_set_mask(struct Pipeline *pipe, bool new_mask);
+
 #endif // R2_PIPELINE_H

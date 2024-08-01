@@ -24,18 +24,9 @@ void store_replication_pipelines(struct PipelineObject *obj, struct PipelineList
 
 struct PipelineList *replicate_get_pipes(struct PipelineObject *rep);
 
-// arguments for try_set_mask callback
-struct MaskArg {
-    const char *pipename; // pipeline to mask/unmask
-    bool new_mask; // true: mask, false: unmask
-    bool success;   // true: if pipeline found, false: no pipeline found
-};
-// set new mask value on a replicaiton object's pipeline if @obj has a pipeline named mask->pipename
-// can be used as callback function for @state_foreach_objects()
-// @userdata must be a pointer to struct MaskArg
-// does nothing if the type of @obj is not PO_REPL
-// sets mask->success to true if @obj has a pipeline named mask->pipename
-// @returns 0 on success, 1 otherwise
-int try_set_mask(struct PipelineObject *obj, void *userdata);
+// Check all replication object and for a pipeline with a given @name
+// Returns the replication object of the pipeline through @repl if provided
+// @return the pipeline if exist or NULL
+struct Pipeline *replicate_lookup_pipeline(const char *name, struct PipelineObject **repl);
 
 #endif // R2_REPLICATE_H
