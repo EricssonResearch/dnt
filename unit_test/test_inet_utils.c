@@ -101,7 +101,50 @@ static void test_ip_port(void)
 #undef UNDEF
 }
 
+static void test_ether_pton(void)
+{
+    unsigned char buf[6];
+    OK(ether_pton("", buf) == 0, "should be invalid");
+    OK(ether_pton("1", buf) == 0, "should be invalid");
+    OK(ether_pton("1:", buf) == 0, "should be invalid");
+    OK(ether_pton("1:2", buf) == 0, "should be invalid");
+    OK(ether_pton("1:2:", buf) == 0, "should be invalid");
+    OK(ether_pton("1:2:3", buf) == 0, "should be invalid");
+    OK(ether_pton("1:2:3:", buf) == 0, "should be invalid");
+    OK(ether_pton("1:2:3:4", buf) == 0, "should be invalid");
+    OK(ether_pton("1:2:3:4:", buf) == 0, "should be invalid");
+    OK(ether_pton("1:2:3:4:5", buf) == 0, "should be invalid");
+    OK(ether_pton("1:2:3:4:5:", buf) == 0, "should be invalid");
+    OK(ether_pton(":::::", buf) == 0, "should be invalid");
+    OK(ether_pton("1:2:3:4:5:6", buf) == 1, "should be valid");
+    OK(memcmp(buf, "\x01\x02\x03\x04\x05\x06", 6) == 0, "result wrong %x:%x:%x:%x:%x:%x",
+            buf[0], buf[1], buf[2], buf[3], buf[4], buf[5]);
+    OK(ether_pton("01:02:03:04:05:06", buf) == 1, "should be valid");
+    OK(memcmp(buf, "\x01\x02\x03\x04\x05\x06", 6) == 0, "result wrong %x:%x:%x:%x:%x:%x",
+            buf[0], buf[1], buf[2], buf[3], buf[4], buf[5]);
+    OK(ether_pton("001:02:03:04:05:06", buf) == 0, "should be invalid");
+    OK(ether_pton("01:002:03:04:05:06", buf) == 0, "should be invalid");
+    OK(ether_pton("01:02:003:04:05:06", buf) == 0, "should be invalid");
+    OK(ether_pton("01:02:03:004:05:06", buf) == 0, "should be invalid");
+    OK(ether_pton("01:02:03:04:005:06", buf) == 0, "should be invalid");
+    OK(ether_pton("01:02:03:04:05:006", buf) == 0, "should be invalid");
+    OK(ether_pton("aa:bb:cc:dd:ee:ff", buf) == 1, "should be valid");
+    OK(memcmp(buf, "\xaa\xbb\xcc\xdd\xee\xff", 6) == 0, "result wrong %x:%x:%x:%x:%x:%x",
+            buf[0], buf[1], buf[2], buf[3], buf[4], buf[5]);
+    OK(ether_pton("1:2:3:4:5:6:", buf) == 0, "should be invalid");
+    OK(ether_pton("1:2:3:4:5:6:7", buf) == 0, "should be invalid");
+    OK(ether_pton("1:2:3:4:5:6x", buf) == 0, "should be invalid");
+    OK(ether_pton("1:2:3:4:5:66x", buf) == 0, "should be invalid");
+    OK(ether_pton("1:2:3:4:5:6 x", buf) == 0, "should be invalid");
+    OK(ether_pton("1:2:3:4:5:66 x", buf) == 0, "should be invalid");
+    OK(ether_pton("1:2:3:4:5:6/", buf) == 0, "should be invalid");
+    OK(ether_pton("1:2:3:4:5:6/7", buf) == 0, "should be invalid");
+    OK(ether_pton("1-2-3-4-5-6", buf) == 0, "should be invalid");
+    OK(ether_pton("1_2_3_4_5_6", buf) == 0, "should be invalid");
+}
+
 TEST_CASES = {
     {"IP Port", test_ip_port},
+    {"Ether Pton", test_ether_pton},
     {NULL, NULL}
 };

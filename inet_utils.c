@@ -93,3 +93,14 @@ bool parse_ip_port(const char *str, char **ip, unsigned *port)
     }
 }
 
+int ether_pton(const char *src, void *dst)
+{
+    unsigned char buf[6];
+    char err;
+    if (sscanf(src, "%2hhx:%2hhx:%2hhx:%2hhx:%2hhx:%2hhx%c",
+                buf+0, buf+1, buf+2, buf+3, buf+4, buf+5, &err) != 6) {
+        return 0;
+    }
+    memcpy(dst, buf, 6);
+    return 1;
+}

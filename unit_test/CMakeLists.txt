@@ -23,7 +23,7 @@ add_test_seqrcvy(test_seq_rcvy_vector)
 #TODO seamless
 
 function(add_test_conf name)
-    add_executable(${name} ../conf_utils.c ../log.c ../protocol.c ../utils.c ../inifile/hashmap.c ${name}.c)
+    add_executable(${name} ../conf_utils.c ../inet_utils.c ../log.c ../protocol.c ../utils.c ../inifile/hashmap.c ${name}.c)
     target_include_directories(${name} PUBLIC ../inifile)
     target_compile_definitions(${name} PUBLIC TESTING)
 endfunction()

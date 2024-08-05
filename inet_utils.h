@@ -15,4 +15,9 @@
 // @returns true on success, otherwise doesn't touch the output parameter
 bool parse_ip_port(const char *str, char **ip, unsigned *port);
 
+// parses @src, accepts MAC addresses in the colon-separated hex form
+// writes the result into @dst buffer, which should have enough space
+// @returns 1 on success, 0 on failure
+int ether_pton(const char *src, void *dst);
+
 #endif // R2_INET_UTILS_H

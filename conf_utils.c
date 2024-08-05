@@ -3,6 +3,7 @@
 
 
 #include "conf_utils.h"
+#include "inet_utils.h"
 #include "log.h"
 #include "utils.h"
 #include "value.h"
@@ -217,12 +218,12 @@ bool read_constant(struct Value *val, enum ProtocolID proto, enum ProtocolFieldT
                         val->bitoffset, val->bitcount);
             }
             PROCESS_PREFIX("MAC", 48);
-            struct ether_addr *a = ether_aton(stringdup);
-            if (a == NULL) {
+            val->value = malloc(6*sizeof(char));
+            if (ether_pton(stringdup, val->value) != 1) {
                 free(stringdup);
+                free(val->value); val->value = NULL;
                 THROW("invalid Ethernet address");
             }
-            val->value = memdup(a, 6);
             free(stringdup);
             return true; }
         case FT_IPV4ADDRESS: {

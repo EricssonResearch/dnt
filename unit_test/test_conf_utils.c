@@ -577,10 +577,8 @@ static void test_read_constant(void)
     free(val.value); val.value = NULL;
     OK(read_constant(&val, PROTO_ID_MPLS, FT_MACADDRESS, "1:2:3:4:5:6:7") == false, "should be rejected");
     OK(read_constant(&val, PROTO_ID_MPLS, FT_MACADDRESS, "1:2:3:4:5:6test") == false, "should be rejected");
-    //TODO ether_aton() accepts this
-    //OK(read_constant(&val, PROTO_ID_MPLS, FT_MACADDRESS, "1:2:3:4:5:6and something") == false, "should be rejected");
-    //TODO ether_aton() accepts this
-    //OK(read_constant(&val, PROTO_ID_MPLS, FT_MACADDRESS, "1:2:3:4:5:6 test") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, FT_MACADDRESS, "1:2:3:4:5:6and something") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, FT_MACADDRESS, "1:2:3:4:5:6 test") == false, "should be rejected");
     // ether_aton() only accepts the colon notation
     OK(read_constant(&val, PROTO_ID_MPLS, FT_MACADDRESS, "1-2-3-4-5-6") == false, "should be rejected");
     OK(read_constant(&val, PROTO_ID_MPLS, FT_MACADDRESS, "1_2_3_4_5_6") == false, "should be rejected");
