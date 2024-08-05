@@ -97,36 +97,39 @@ The matches for a stream are processed in the order they are given.
 
 If there is no matching stream for an incoming packet, it is dropped.
 
+The fieldvalues accepted by the matching follow the same rules as the constants in the assignments of the `edit` action, with one addition: prefix matching is supported on MAC, IPv4, IPv6 addresses with the format `address/prefix`.
+
 ### actions
 
 This line specifies the processing actions that must be run on the received packet that matches the corresponding *packet* and *match* lines. The actions in the list are separated by commas (,), and they are executed in the given order.
 
 The available actions are the following:
 
-* `{before|after} header add newheader fieldname=fieldvalue` adds a new header of type `newheader` with the given field values at the given position
-    * if the header has a nextheader field, it will be filled with the correct type code automatically
-    * if the header has a sequence number field, a `writeseq` action is automatically inserted after the `add` action
-    * if the header has a timestamp field, a `writetstamp` action is automatically inserted after the `add` action
+* `{before|after} header add newheader fieldname=fieldvalue` adds a new header of type `newheader` with the given field values at the given position relative to `header`
+    * if `newheader` has a nextheader field, it will be filled with the correct type code automatically
+    * if `newheader` has a sequence number field, a `writeseq` action is automatically inserted after the `add` action
+    * if `newheader` has a timestamp field, a `writetstamp` action is automatically inserted after the `add` action
 * `del header` removes the given header from the packet
-* `delay delay [offload]` puts the packet in a delay buffer, where it will be kept until the specified *delay* milliseconds have passed since the timestamp value of the packet; the *delay* should be between 0 and 2000 ms and it can float as well; there is an optional `offload` parameter; when `offload` is set, it will use an external delay mechanism provided by the OS, for example ETF qdisc; however if `offload` is set and ETF is not configured, no packets will be delayed; we assume that ETF qdisc is configured on the interface; the delay is influenced by the ETF's delta; the ETF qdisc will schedule its next wake-up time for the next packet's txtime minus the delta value; precision of the actual delay depends on the software configuration and the ETF hardware `offload` support; in hardware `offload` case the system clock and the network interface's clock must be synchronized
-* `drop` unconditionally drops the packet; this action is the last one in a pipeline
+* `delay delay [offload]` puts the packet in a delay buffer, where it will be kept until the specified *delay* milliseconds have passed since the timestamp value of the packet; the *delay* should be between 0 and 2000 ms and it can be a float value as well; there is an optional `offload` parameter; when `offload` is set, it will use an external delay mechanism provided by the OS, for example ETF qdisc; however if `offload` is set and ETF is not configured, no packets will be delayed; we assume that ETF qdisc is configured on the interface; the delay is influenced by the ETF's delta; the ETF qdisc will schedule its next wake-up time for the next packet's txtime minus the delta value; precision of the actual delay depends on the software configuration and the ETF hardware `offload` support; in hardware `offload` case the system clock and the network interface's clock must be synchronized
+* `drop` unconditionally drops the packet; no further actions can be in the pipeline
 * `edit header.fieldname=newvalue` changes the given field of the given header; multiple fields can be edited at once (separated by space), can edit multiple headers, can edit headers created by `add`; the right-hand-side of the edit expression can be
-    * constant:  format must be appropriate to the field type
-        * numbers can be given in decimal, octal, hexadecimal
+    * constant:  format must be appropriate for the field type
+        * numbers can be given in decimal, octal, hexadecimal (they are always unsigned)
         * 1 bit values can be 0/1, true/false, yes/no
         * IP/MAC addresses use their standard formatting (e.g. `ipv6.dst=fd00::1`, `ipv4.dst=1.2.3.4`, `eth.dmac=a:b:c:d:e:f`)
-        * nextheader accepts numeric value or protocol name (the `add` action sets this field automatically)
-    * another header field
+        * nextheader accepts numeric value or protocol name (the `add` action sets this field type automatically)
+        * all the other types (ttl, tsnseq etc.) are considered to be numbers
+    * another header field (can be in the same or in a different header)
     * an interface property (e.g. `ipv6.src=uniOut.srcip`)
-* `eliminate seq_rec pipeline` conditional drop, uses the given sequence recovery object and the packet's sequence number metadata (see `readseq` action); after elimination the processing jumps to the given pipeline
-* `jump pipeline` continues the processing on the named pipeline, which has to be defined in the *streams* section, it does not return to the current pipeline; useful for breaking up long pipelines or reuse operations for multiple streams; this action is the last one in a pipeline; see the [naming convention](#naming-convention) guidelines
+* `eliminate seq_rec pipeline` conditional drop, uses the given sequence recovery object and the packet's sequence number metadata (see `readseq` action); after elimination the processing jumps to the given pipeline; no further actions can be in the pipeline
+* `jump pipeline` continues the processing on the named pipeline, which has to be defined in the *streams* section, it does not return to the current pipeline; useful for breaking up long pipelines or reuse operations for multiple streams; no further actions can be in the pipeline; see the [naming convention](#naming-convention) guidelines
 * `mep-start name level` Monitoring EndPoint, can initiate OAM messages
 * `mep-stop name level [object]` Monitoring EndPoint, terminates an OAM monitoring route, can report status information about an object
 * `mip name level [object]` Monitoring Intermediate Point, answers OAM messages, implicitly a mep-start point, can report status information about an object
 * `pof pofobject` puts the packet in a reorder buffer based on its sequence number metadata, continues the actions on this pipeline when the ordering is okay
 * `readseq header` reads the sequence number from the given header into the packet metadata field (to be used by the `eliminate` and `pof` actions)
 * `readtstamp header` reads the timestamp from the given header into the packet metadata field (to be used by the `delay` action); initially the timestamp of the packet is the time it was received on the interface
-* `replicate [object] pipeline1 [pipeline2]` makes copies of the packet and continues processing them on the given pipelines, which have to be defined in the *streams* section; this can create any number of branches; the first argument can optionally be the name of a Replicate object that stores statistics about the replication; this action is the last one in a pipeline
+* `replicate [object] pipeline1 [pipeline2]` makes copies of the packet and continues processing them on the given pipelines, which have to be defined in the *streams* section; this can create any number of branches; the first argument can optionally be the name of a Replicate object that stores statistics about the replication; no further actions can be in the pipeline
 * `send iface` sends out the packet on the given interface from the *interfaces* list
 * `seqgen generator` uses the given sequence generator object to set the sequence number metadata of the packet
 * `ttlcheck` drops the packet if the metadata TTL is 0; see `ttlreduce` action
@@ -158,7 +161,7 @@ Example for a DetNet scenario:
 [streams]
 
 user_in:packet = eth, cvlan, ipv6
-user_in:match = cvlan vid=13, ipv6 src=fd03::3 dst=fd03::42
+user_in:match = cvlan vid=13, ipv6 src=fd03::3 dst=fd42::/64
 user_in:actions = del eth, del cvlan, seq_gen2, before ipv6 add dcw, before dcw add mpls bos=1 ttl=64, mep-start tunnelStart 3, edit mpls.label=13, send ifNNIout
 
 tunnel_in:packet = mpls, dcw_tunnel, ipv6_user

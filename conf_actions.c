@@ -526,11 +526,16 @@ static bool process_assignment_rhs(struct StageState *stst, struct ConfAssignmen
     init_confvariable_full(rhs, CVT_CONST, FT_UNKNOWN, lhs->value.bitoffset, lhs->value.bitcount);
     if (read_constant(&rhs->value, assign->lhs_protoid, lhs->value_type, string)) {
         log_debug("rhs is a constant");
+        if (lhs->value.bitcount != rhs->value.bitcount) {
+            free(rhs->value.value);
+            THROW("prefix assignment is not supported");
+        }
         rhs->value_type = lhs->value_type;
         assign->read = NULL;
 
         assign->write = header_get_field_writer(lhs->v.header.field, &rhs->value);
         if (assign->write == NULL) {
+            free(rhs->value.value);
             THROW("cannot write constant '%s' into the left-hand-side expression", string);
         }
         return true;
@@ -547,7 +552,7 @@ static bool process_token(char *token, void *userdata)
 {
 #define THROW(msg, ...)                                             \
     do {                                                            \
-        log_error("stream '%s' action '%s': " msg,                      \
+        log_error("stream '%s' action '%s': " msg,                  \
                 stst->stream, stst->actions->text, ##__VA_ARGS__);  \
         return false;                                               \
     } while (0)

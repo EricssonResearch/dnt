@@ -160,6 +160,25 @@ bool read_constant(struct Value *val, enum ProtocolID proto, enum ProtocolFieldT
         return false;                                       \
     } while (0)
 
+#define PROCESS_PREFIX(_type, _maxlen)                          \
+    char *stringdup = strdup(string);                           \
+    char *slash = strchr(stringdup, '/');                       \
+    if (slash) {                                                \
+        *slash = 0;                                             \
+        char *prefixstr = slash+1;                              \
+        unsigned prefix;                                        \
+        char err;                                               \
+        if (sscanf(prefixstr, "%u%c", &prefix, &err) != 1) {    \
+            free(stringdup);                                    \
+            THROW("invalid " _type " prefix");                  \
+        }                                                       \
+        if (prefix > _maxlen) {                                 \
+            free(stringdup);                                    \
+            THROW(_type " prefix too big");                     \
+        }                                                       \
+        val->bitcount = prefix;                                 \
+    }
+
     val->bitoffset %= 8;
 
     switch (type) {
@@ -197,35 +216,43 @@ bool read_constant(struct Value *val, enum ProtocolID proto, enum ProtocolFieldT
                 THROW("bitoffset %u bitcount %u invalid for Ethernet address",
                         val->bitoffset, val->bitcount);
             }
-            struct ether_addr *a = ether_aton(string);
+            PROCESS_PREFIX("MAC", 48);
+            struct ether_addr *a = ether_aton(stringdup);
             if (a == NULL) {
+                free(stringdup);
                 THROW("invalid Ethernet address");
             }
-            val->value = malloc(6*sizeof(char));
-            memcpy(val->value, a, 6);
+            val->value = memdup(a, 6);
+            free(stringdup);
             return true; }
-        case FT_IPV4ADDRESS:
+        case FT_IPV4ADDRESS: {
             if (val->bitoffset != 0 || val->bitcount != 4*8) {
                 THROW("bitoffset %u bitcount %u invalid for IPv4 address",
                         val->bitoffset, val->bitcount);
             }
+            PROCESS_PREFIX("IPv4", 32);
             val->value = malloc(4*sizeof(char));
-            if (inet_pton(AF_INET, string, val->value) != 1) {
-                free(val->value);
-                THROW("invalid IPv4 address '%s'", string);
+            if (inet_pton(AF_INET, stringdup, val->value) != 1) {
+                free(stringdup);
+                free(val->value); val->value = NULL;
+                THROW("invalid IPv4 address");
             }
-            return true;
-        case FT_IPV6ADDRESS:
+            free(stringdup);
+            return true; }
+        case FT_IPV6ADDRESS: {
             if (val->bitoffset != 0 || val->bitcount != 16*8) {
                 THROW("bitoffset %u bitcount %u invalid for IPv6 address",
                         val->bitoffset, val->bitcount);
             }
+            PROCESS_PREFIX("IPv6", 128);
             val->value = malloc(16*sizeof(char));
-            if (inet_pton(AF_INET6, string, val->value) != 1) {
-                free(val->value);
-                THROW("invalid IPv6 address '%s'", string);
+            if (inet_pton(AF_INET6, stringdup, val->value) != 1) {
+                free(stringdup);
+                free(val->value); val->value = NULL;
+                THROW("invalid IPv6 address");
             }
-            return true;
+            free(stringdup);
+            return true; }
         case FT_TSNSEQ:
             log_warning("It's not a good practice to set sequence number from constant");
             return read_constant(val, proto, FT_NUMBER, string);
