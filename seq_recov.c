@@ -612,3 +612,20 @@ static void *reset_thread(void *arg)
     }
     return rec;
 }
+
+void seq_rec_set_latent_error_paths(struct PipelineObject *obj, int paths)
+{
+    struct SequenceRecovery *rec = (struct SequenceRecovery *)obj;
+    if (paths < 0) {
+        log_error("%s: OAM detected negative available paths: %d", obj->name, paths);
+        return;
+    }
+    if (paths > rec->diag.admin_latent_error_paths) {
+        log_error("%s: OAM detected more paths (%d) than configured (%d)", obj->name,
+                  paths, rec->diag.admin_latent_error_paths);
+        return;
+    }
+    rec->diag.latent_error_paths = paths;
+    rec->diag.invalid = true;
+    latent_error_reset(rec);
+}

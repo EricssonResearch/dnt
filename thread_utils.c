@@ -18,6 +18,7 @@
 
 #include <pthread.h>
 #include <semaphore.h>
+#include <signal.h>
 
 DEFAULT_LOGGING_MODULE(THREAD, WARNING);
 
@@ -123,6 +124,14 @@ const char *thread_getname(const struct Thread *thread)
 unsigned thread_getid(const struct Thread *thread)
 {
     return thread->id;
+}
+
+void thread_wakeup(const struct Thread *thread)
+{
+    if (thread) {
+        log_debug("waking up thread '%s'", thread->name);
+        pthread_kill(thread->tid, SIGALRM);
+    }
 }
 
 struct Message {

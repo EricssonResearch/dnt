@@ -809,6 +809,37 @@ static bool process_rlist_request(struct OamEndPoint *oam, struct Packet *p, str
     return j_msg != NULL;
 }
 
+// Only pre-Elimination AutoMIPs react to mask/unmask
+// pre-elim MIPs update the last heartbeat timestamp
+// @returns false on error
+static bool process_mask_request(struct OamEndPoint *oam, struct Packet *p, struct JsonValue *j)
+{
+    (void) p;
+    // not auto-generated MIPs ignore the mask signals
+    if (strncmp(oam->name, "o_", 2))
+        return false;
+
+    const char *req_type = json_object_get_string(j, "type")->v.string;
+    struct MepStart *mep = find_mep_start(oam->name);
+    if (mep && mep->target && mep->target->type == PO_SEQREC) {
+
+        clock_gettime(CLOCK_REALTIME, &mep->last_mask_heartbeat);
+
+        hashmap_foreach_nocb(mep->target->meps, char) {
+            // we updated the elimination pre-MIP's heartbeat timestamp
+            // now we can wake up the post-MIP's mask checker thread
+            // to calculate the number of masked paths
+            if (strstr(key, "_post-")) {
+                struct MepStart *postmep = find_mep_start(key);
+                mep_start_wakeup_mask_checker(postmep);
+                log_debug("%s: '%s' signal received", oam->name, req_type);
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 static bool process_request(struct OamEndPoint *oam, struct Packet *p)
 {
     // note: we made sure in conf_actions.c that at this point of the pipeline the packet starts with mpls+dcw
@@ -942,6 +973,11 @@ static bool process_request(struct OamEndPoint *oam, struct Packet *p)
         if (strcmp(target->v.string, oam->name) == 0) {
             process_rlist_request(oam, p, j);
             return false;
+        }
+        return oam->stop ? false : true;
+    } else if (strcmp(jreqt->v.string, "mask") == 0 || strcmp(jreqt->v.string, "unamask") == 0) {
+        if (process_mask_request(oam, p, j)) {
+            return false; // mask signal successfully processed, DROP the packet
         }
         return oam->stop ? false : true;
     } else {

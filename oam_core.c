@@ -14,6 +14,8 @@
 #include "if_oam.h"
 #include "hashmap.h"
 #include "log.h"
+#include "seq_recov.h"
+#include "thread_utils.h"
 #include "utils.h"
 
 #include <stdlib.h>
@@ -180,6 +182,101 @@ struct OamEndPoint *oam_create_endpoint(const char *name, const char *stream, in
     return ret;
 }
 
+// check when the last mask heartbeat received
+// time < now+1sec: masked
+// time > now+1sec: unmasked
+static bool is_masked(const struct MepStart *mep, const struct timespec *now)
+{
+    // mask heartbeat timeout is 1 sec fixed
+    struct timespec timeout = { .tv_sec = 1 };
+    struct timespec diff = { 0 };
+    timespecsub(now, &mep->last_mask_heartbeat, &diff);
+    if (timespeccmp(&diff, &timeout, >)) {
+        return false;
+    } else {
+        return true;
+    }
+}
+
+static struct oam_request *new_mask_request(const char *command, struct MepStart *start, int level)
+{
+    struct oam_request *mask_req = parse_mask_command(command, NULL);
+    request_set_level(mask_req, level);
+    request_set_mepstart(mask_req, start);
+    return mask_req;
+}
+
+static void *mask_checker_thread_fn(void *arg)
+{
+    struct MepStart *postmep = (struct MepStart *) arg;
+    struct PipelineObject *target = postmep->target;
+    struct timespec to_sleep = { .tv_sec = 1 };
+    bool is_regenerating = false;
+
+    while (true) {
+        int masked_mep_count = 0;
+        int path_count = 0;
+        struct timespec now;
+
+        clock_gettime(CLOCK_REALTIME, &now);
+        hashmap_foreach_nocb(target->meps, char) {
+            if (strstr(key, "_pre-")) {
+                path_count += 1;
+                if (is_masked(find_mep_start(key), &now)) {
+                    masked_mep_count += 1;
+                }
+            }
+        }
+
+        log_debug("%s: masked/all paths: %d/%d", postmep->name, masked_mep_count, path_count);
+
+        if (masked_mep_count > path_count) {
+            log_error("more paths masked (%d) than available (%d)", masked_mep_count, path_count);
+        } else if (masked_mep_count < path_count) {
+            // Generate an unmask signal if some path unmasked
+            if (is_regenerating == true) {
+                struct oam_request *mask_req = new_mask_request("unmask", postmep, target->auto_mip_level);
+                initiate_request(mask_req);
+                log_debug("%s: stop re-generate mask signal", postmep->name);
+                is_regenerating = false;
+                break;
+            }
+        } else if (masked_mep_count == path_count) {
+            // Re-generate mask singal if all paths masked
+            if (is_regenerating == false) {
+                struct oam_request *mask_req = new_mask_request("mask", postmep, target->auto_mip_level);
+                initiate_request(mask_req);
+                log_debug("%s: start re-generate mask signal", postmep->name);
+                is_regenerating = true;
+            }
+        }
+
+        int not_masked = path_count - masked_mep_count;
+        seq_rec_set_latent_error_paths(target, not_masked);
+
+        if (masked_mep_count == 0)
+            break;
+
+        clock_nanosleep(CLOCK_REALTIME, 0, &to_sleep, NULL);
+    }
+    postmep->mask_check_worker = NULL;
+    return NULL;
+}
+
+// the only purpose of the worker right now is to
+// check masked pre-MIPs and re-generate mask/unmask signal
+void mep_start_wakeup_mask_checker(struct MepStart *start)
+{
+    if (start) {
+        if (start->mask_check_worker == NULL) {
+            start->mask_check_worker = thread_launch(mask_checker_thread_fn, start,
+                                          "w/post-%s_%s", start->target->name, start->stream_name);
+        } else {
+            thread_wakeup(start->mask_check_worker);
+        }
+    }
+}
+
 struct OamEndPoint *oam_delete_endpoint(struct OamEndPoint *end)
 {
     free(end->name);
@@ -208,7 +305,7 @@ bool oam_start_background_ping(const char *name, const char *command)
         return false;
     }
 
-    request_override_count(ping_req, 0);    // force infinite count
+    request_set_count(ping_req, 0);    // force infinite count
 
     struct StreamSessions *stream = get_stream_sessions(request_get_stream_name(ping_req));
     if (stream_live_session_count(stream) >= 14) {

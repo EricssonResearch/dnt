@@ -50,7 +50,7 @@ void pipelineobject_store_mep_start_name(struct PipelineObject *obj, const char 
 {
     if (obj->meps == NULL)
         obj->meps = new_hashmap(11, NULL, NULL);
-    hashmap_insert(obj->meps, strdup(mep_start), NULL);
+    hashmap_insert(obj->meps, strdup(mep_start), strdup(mep_start));
 }
 
 const char *pipelineobject_name_from_type(enum PipelineObjectType type)

@@ -318,6 +318,14 @@ struct oam_request *parse_mask_command(const char *oam_command, char *conn_name)
         mask_req = new_oam_request("mask", conn_name);
         mask_req->count = 0; // heartbeat until unmask
     }
+    sprintf(mask_req->mep_stop, "nexthop");
+    mask_req->return_ip = strdup("<none>");
+
+    // called by mask_checker_thread (the re-generator codepath, no CLI or repl obj involved)
+    // in that case we dont have CLI session or error cases
+    if (conn_name == NULL) {
+        return mask_req;
+    }
 
     if(sscanf(oam_command+seek, "mask %s", pipename) != 1) {
         mask_req->error = strdup_printf("mask command is invalid. Format: [un]mask PIPENAME");
@@ -332,21 +340,19 @@ struct oam_request *parse_mask_command(const char *oam_command, char *conn_name)
             mask_req->error = strdup_printf("pipeline already %sed", mask_req->type);
             return mask_req;
         }
-        else if (conn_name) {
-            struct command_connection *conn = find_command_connection(conn_name);
-            FILE *cmd_w = command_connection_get_w(conn);
-            fprintf(cmd_w, "Pipeline '%s' %sed\n", pipename, mask_req->type);
-            command_connection_release_w(conn);
-        }
+
+        struct command_connection *conn = find_command_connection(conn_name);
+        FILE *cmd_w = command_connection_get_w(conn);
+        fprintf(cmd_w, "Pipeline '%s' %sed\n", pipename, mask_req->type);
+        command_connection_release_w(conn);
+
         char *postmip_name = strdup_printf("o_%s_L%u_post-%s", pipename, repl->auto_mip_level, repl->name);
         mask_req->mep_start = find_mep_start(postmip_name);
     } else {
         mask_req->error = strdup_printf("replication pipeline '%s' not found", pipename);
         return mask_req;
     }
-    mask_req->return_ip = strdup("<none>");
     mask_req->level = repl->auto_mip_level;
-    sprintf(mask_req->mep_stop, "nexthop");
     return mask_req;
 }
 
@@ -397,9 +403,19 @@ int request_get_level(const struct oam_request *req)
     return req->level;
 }
 
-void request_override_count(struct oam_request *req, unsigned count)
+void request_set_level(struct oam_request *req, int level)
+{
+    req->level = level;
+}
+
+void request_set_count(struct oam_request *req, unsigned count)
 {
     req->count = count;
+}
+
+void request_set_mepstart(struct oam_request *req, struct MepStart *start)
+{
+    req->mep_start = start;
 }
 
 void request_set_return(struct oam_request *req, char *return_address, int return_port)
