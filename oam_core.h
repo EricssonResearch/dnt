@@ -9,7 +9,7 @@
 #error "this header is internal to the OAM module"
 #endif
 
-#include <stdio.h>
+#include <time.h>
 
 //TODO can we make this private? oam_message.c uses it heavily
 struct MepStart {
@@ -18,6 +18,9 @@ struct MepStart {
     struct Pipeline *pipe;
     int pipe_pos_idx;
     int level;
+    struct PipelineObject *target; // PRF, PEF, POF, etc.
+    struct timespec last_mask_heartbeat; // last mask signal received
+    struct Thread *mask_check_worker; // periodically check if path(s) masked
 };
 
 struct Interface *get_oam_interface(const char *ifname);
@@ -37,5 +40,7 @@ int foreach_mep_start(hashmap_cb *cb, void *userdata);
 int print_mep_start(const struct MepStart *start, FILE *cmd_w);
 
 bool mep_start_in_stream(const struct MepStart *start, const char *stream);
+
+void mep_start_wakeup_mask_checker(struct MepStart *start);
 
 #endif // R2_OAM_CORE_H

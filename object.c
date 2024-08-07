@@ -23,6 +23,7 @@ void pipeline_object_unref(struct PipelineObject *obj)
     int refcount = __atomic_sub_fetch(&obj->reference_count, 1, __ATOMIC_RELAXED);
 
     if (refcount == 0) {
+        delete_hashmap(obj->meps);
         switch (obj->type) {
             case PO_SEQGEN:
                 delete_seq_gen(obj);
@@ -38,6 +39,18 @@ void pipeline_object_unref(struct PipelineObject *obj)
                 break;
         }
     }
+}
+
+const char *pipelineobject_get_name(const struct PipelineObject *obj)
+{
+    return obj->name;
+}
+
+void pipelineobject_store_mep_start_name(struct PipelineObject *obj, const char *mep_start)
+{
+    if (obj->meps == NULL)
+        obj->meps = new_hashmap(11, NULL, NULL);
+    hashmap_insert(obj->meps, strdup(mep_start), strdup(mep_start));
 }
 
 const char *pipelineobject_name_from_type(enum PipelineObjectType type)

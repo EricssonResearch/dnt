@@ -24,6 +24,7 @@
  * to the SequenceRecovery instance
  *
  * @latent_error_paths: expected healthy paths at normal operation
+ * @admin_latent_error_paths: initial (user configured) value of latent_error_paths
  * @latent_error_period: periodicity of latent error testing in millisecs
  * @latent_error_period: periodicity of reseting latent error related counters
  * @latent_error_diff: only signal error, if passed and discarded packet counters
@@ -32,10 +33,12 @@
  */
 struct RecoveryDiagnosticConf {
     int latent_error_paths;
+    int admin_latent_error_paths;
     int latent_error_period;
     int latent_reset_period;
     int latent_error_difference;
     int outage_threshold;
+    bool invalid;
 };
 
 enum SequenceRecoveryAlgorithm {
@@ -66,5 +69,7 @@ enum ActionResult seq_recovery(struct PipelineObject *rec, struct PipelineIterat
 
 // use sprintf_state_json() instead of this
 char *seq_rec_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep);
+
+void seq_rec_set_latent_error_paths(struct PipelineObject *obj, int paths);
 
 #endif // R2_SEQ_RECOV_H

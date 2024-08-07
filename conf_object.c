@@ -162,6 +162,7 @@ static bool token_cb(char *str, void *userdata)
                             THROW("invalid latent error paths '%s'", val);
                         }
                         info->p.rec.diag.latent_error_paths = path;
+                        info->p.rec.diag.admin_latent_error_paths = path;
                     } else if (strcmp(key, "frerSeqRcvyLatentErrorPeriod") == 0) {
                         unsigned msec;
                         char err;

@@ -1,7 +1,9 @@
 from subprocess import Popen, run, run, PIPE, DEVNULL
 from pyroute2.netns import setns
+from socket import *
 import platform
 import shlex
+import time
 import os
 
 OUT_NONE = 1
@@ -95,3 +97,37 @@ def switch_netns(hostname = None):
         pid = netnspaces[hostname]
     setns(f"/proc/{pid}/ns/net")
 
+
+class Telnet:
+    def __init__(self, ip : str, port : int, auto_recv : bool = False) -> None:
+        self.sock = socket(AF_INET, SOCK_STREAM, IPPROTO_IP)
+        self.sock.connect((ip, port))
+        self.auto_recv = auto_recv
+        if auto_recv:
+            _ = self.sock.recv(1000) # OAM ready
+
+    def send(self, msg : str) -> None:
+        msg += "\r\n"
+        self.sock.send(msg.encode())
+        if self.auto_recv:
+            _ = self.sock.recv(1000)
+        time.sleep(0.1)
+
+    def recv(self) -> str:
+        if self.auto_recv:
+            print("Telnet warning: auto recv enabled, exiting...")
+            return
+        msg = self.sock.recv(10000)
+        if not msg:
+            return None
+        if msg[0] == b'\x1B':
+            msg = msg[1:]
+        time.sleep(0.1)
+        return msg.decode()
+
+    def close(self) -> None:
+        try:
+            self.sock.send(b"\x04")
+            self.sock.close()
+        except:
+            pass

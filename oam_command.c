@@ -12,7 +12,6 @@
 
 #include "if_oam.h"
 #include "log.h"
-#include "replicate.h"
 #include "state.h"
 #include "thread_utils.h"
 #include "utils.h"
@@ -361,26 +360,11 @@ static void command_loop(struct command_connection *conn)
                 }
             }
             else if (!strncmp(oam_command, "mask", 4) || !strncmp(oam_command, "unmask", 6)) {
-                //TODO: signaling mask through the stream
-                char pipename[64];
-                char *command = oam_command;
-                bool new_mask = true;
-                if (strncmp(oam_command, "unmask", 6) == 0) {
-                    new_mask = false;
-                    command = oam_command + 2;
+                struct oam_request *mask_req = parse_mask_command(oam_command, strdup(conn->name));
+                CHECK_REQUEST(mask_req);
+                if (!initiate_request(mask_req)) {
+                    log_info("sending '%s' signal failed (AutoMIP enabled?)", request_get_type(mask_req));
                 }
-
-                sscanf(command, "mask %s", pipename);
-                struct MaskArg mask_arg = {
-                    .pipename = pipename,
-                    .new_mask = new_mask,
-                    .success = false
-                };
-                state_foreach_objects(try_set_mask, &mask_arg);
-                if (mask_arg.success == false)
-                    fprintf(cmd_w, "'%s': no such replication pipeline\n", pipename);
-                else
-                    fprintf(cmd_w, "Pipeline '%s' %s\n", pipename, new_mask ? "masked" : "unmasked");
             }
             else {
                 ERROR("unknown command '%s'", oam_command);
@@ -439,7 +423,7 @@ static int alert_cb(const char *key, void *value, void *userdata)
     struct command_connection *conn = (struct command_connection *)value;
     char *msg = (char *)userdata;
     FILE *cmd_w = command_connection_get_w(conn);
-    if (cmd_w) fprintf(cmd_w, "\n\n%s\n\n", msg);
+    if (cmd_w) fprintf(cmd_w, "\n\33[0;33m%s\033[0m\n", msg);
     command_connection_release_w(conn);
     return 1;
 }

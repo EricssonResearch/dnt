@@ -77,6 +77,8 @@ bool known_stream(const char *stream_name)
     return contains ? true: false;
 }
 
+static void stream_stop_session(struct StreamSessions *stream, int session, struct command_connection *conn);
+
 int alloc_session_id(struct StreamSessions *stream, struct oam_request *req,
         const char *conn_name, unsigned interval_ms)
 {
@@ -89,7 +91,9 @@ int alloc_session_id(struct StreamSessions *stream, struct oam_request *req,
 
     while (stream->sessions[id].live) {
         unsigned timeout = MAX(ceil(1.0 + 0.001*stream->sessions[id].interval_ms), 2);
-        if (now.tv_sec > stream->sessions[id].access_time + timeout) {
+        bool timeout_exceeded = now.tv_sec > stream->sessions[id].access_time + timeout;
+        const char *reqt = request_get_type(stream->sessions[id].req);
+        if (timeout_exceeded || strcmp(reqt, "unmask")) {
             //log_info("session %u timeouted", id);
             stream->sessions[id].live = false;
             stream->sessions[id].multireq_thread = thread_stop(stream->sessions[id].multireq_thread);
@@ -101,12 +105,27 @@ int alloc_session_id(struct StreamSessions *stream, struct oam_request *req,
         if (id == next_id) break;
     }
 
+    // We cannot have more than one mask sessions per-stream (per-pipeline)
+    // Also if there is a mask session, we have to terminate that first before unmask
+    // This is not a good place for that, a simplified session handling would help
+    if (!strcmp(request_get_type(req), "unmask")) {
+        for (int i=0; i<16; ++i) {
+            const struct SessionTracker *session = &stream->sessions[i];
+            if (!session->live) continue;
+            if (!strcmp(request_get_type(session->req), "mask")) {
+                stream_stop_session(stream, i, NULL);
+                break;
+            }
+        }
+    }
+
     if (stream->sessions[id].live) {
         pthread_mutex_unlock(&session_lock);
         return -1;
     } else {
         stream->last_session = id;
-        stream->sessions[id].live = true;
+        if (strcmp(request_get_type(req), "unmask") != 0) //FIXME: leaks
+            stream->sessions[id].live = true;
         stream->sessions[id].access_time = now.tv_sec + 1;
         stream->sessions[id].req = req;
         stream->sessions[id].multireq_thread = NULL;
@@ -128,21 +147,22 @@ int stream_live_session_count(const struct StreamSessions *stream)
 
 static void stream_stop_session(struct StreamSessions *stream, int session, struct command_connection *conn)
 {
-    FILE *cmd_w = command_connection_get_w(conn);
+    FILE *cmd_w = NULL;
+    if (conn) cmd_w = command_connection_get_w(conn);
     if(stream->sessions[session].live){
         if (stream->sessions[session].multireq_thread) {
             stream->sessions[session].multireq_thread = thread_stop(stream->sessions[session].multireq_thread);
             free(stream->sessions[session].conn_name);
             stream->sessions[session].conn_name = NULL;
-            fprintf(cmd_w,"stopped.");
+            if (conn) fprintf(cmd_w,"stopped.");
         } else {
-            fprintf(cmd_w,"not running.");
+            if (conn) fprintf(cmd_w,"not running.");
         }
         stream->sessions[session].live = false;
     } else {
-        fprintf(cmd_w,"not live.");
+        if (conn) fprintf(cmd_w,"not live.");
     }
-    command_connection_release_w(conn);
+    if (conn) command_connection_release_w(conn);
 }
 
 void stop_session(const char *stream_name, int session, struct command_connection *conn)
@@ -579,8 +599,9 @@ static bool process_ping_request(struct OamEndPoint *oam, struct Packet *p, stru
     // if object state is requested
     struct JsonValue *jos = json_object_get_any(j, "object");
     if(jos!=NULL){
-        if (oam->target) {
-            struct JsonValue *objinfo = oam->target->get_state(oam->target);
+        struct MepStart *mep = find_mep_start(oam->name);
+        if (mep && mep->target) {
+            struct JsonValue *objinfo = mep->target->get_state(mep->target);
             json_object_insert(j, "object", objinfo);
         }
     }
@@ -788,6 +809,37 @@ static bool process_rlist_request(struct OamEndPoint *oam, struct Packet *p, str
     return j_msg != NULL;
 }
 
+// Only pre-Elimination AutoMIPs react to mask/unmask
+// pre-elim MIPs update the last heartbeat timestamp
+// @returns false on error
+static bool process_mask_request(struct OamEndPoint *oam, struct Packet *p, struct JsonValue *j)
+{
+    (void) p;
+    // not auto-generated MIPs ignore the mask signals
+    if (strncmp(oam->name, "o_", 2))
+        return false;
+
+    const char *req_type = json_object_get_string(j, "type")->v.string;
+    struct MepStart *mep = find_mep_start(oam->name);
+    if (mep && mep->target && mep->target->type == PO_SEQREC) {
+
+        clock_gettime(CLOCK_REALTIME, &mep->last_mask_heartbeat);
+
+        hashmap_foreach_nocb(mep->target->meps, char) {
+            // we updated the elimination pre-MIP's heartbeat timestamp
+            // now we can wake up the post-MIP's mask checker thread
+            // to calculate the number of masked paths
+            if (strstr(key, "_post-")) {
+                struct MepStart *postmep = find_mep_start(key);
+                mep_start_wakeup_mask_checker(postmep);
+                log_debug("%s: '%s' signal received", oam->name, req_type);
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 static bool process_request(struct OamEndPoint *oam, struct Packet *p)
 {
     // note: we made sure in conf_actions.c that at this point of the pipeline the packet starts with mpls+dcw
@@ -921,6 +973,11 @@ static bool process_request(struct OamEndPoint *oam, struct Packet *p)
         if (strcmp(target->v.string, oam->name) == 0) {
             process_rlist_request(oam, p, j);
             return false;
+        }
+        return oam->stop ? false : true;
+    } else if (strcmp(jreqt->v.string, "mask") == 0 || strcmp(jreqt->v.string, "unamask") == 0) {
+        if (process_mask_request(oam, p, j)) {
+            return false; // mask signal successfully processed, DROP the packet
         }
         return oam->stop ? false : true;
     } else {

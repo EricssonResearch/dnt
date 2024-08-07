@@ -15,6 +15,8 @@
 #include "json.h"
 #include "log.h"
 #include "packet.h"
+#include "replicate.h"
+#include "state.h"
 #include "thread_utils.h"
 #include "time_utils.h"
 #include "utils.h"
@@ -301,6 +303,59 @@ struct oam_request *parse_rlist_command(const char *oam_command,
     return rlist_req;
 }
 
+struct oam_request *parse_mask_command(const char *oam_command, char *conn_name)
+{
+    struct oam_request *mask_req = NULL;
+    bool new_mask = true;
+    char pipename[64] = { 0 };
+    int seek = 0;
+    if (strncmp(oam_command, "unmask", 6) == 0) {
+        mask_req = new_oam_request("unmask", conn_name);
+        mask_req->count = 1;
+        seek = 2;
+        new_mask = false;
+    } else {
+        mask_req = new_oam_request("mask", conn_name);
+        mask_req->count = 0; // heartbeat until unmask
+    }
+    sprintf(mask_req->mep_stop, "nexthop");
+    mask_req->return_ip = strdup("<none>");
+
+    // called by mask_checker_thread (the re-generator codepath, no CLI or repl obj involved)
+    // in that case we dont have CLI session or error cases
+    if (conn_name == NULL) {
+        return mask_req;
+    }
+
+    if(sscanf(oam_command+seek, "mask %s", pipename) != 1) {
+        mask_req->error = strdup_printf("mask command is invalid. Format: [un]mask PIPENAME");
+        return mask_req;
+    }
+
+    struct PipelineObject *repl = NULL;
+    struct Pipeline *pipe = replicate_lookup_pipeline(pipename, &repl);
+    if (pipe) {
+        bool changed = pipe_set_mask(pipe, new_mask);
+        if (changed == false) {
+            mask_req->error = strdup_printf("pipeline already %sed", mask_req->type);
+            return mask_req;
+        }
+
+        struct command_connection *conn = find_command_connection(conn_name);
+        FILE *cmd_w = command_connection_get_w(conn);
+        fprintf(cmd_w, "Pipeline '%s' %sed\n", pipename, mask_req->type);
+        command_connection_release_w(conn);
+
+        char *postmip_name = strdup_printf("o_%s_L%u_post-%s", pipename, repl->auto_mip_level, repl->name);
+        mask_req->mep_start = find_mep_start(postmip_name);
+    } else {
+        mask_req->error = strdup_printf("replication pipeline '%s' not found", pipename);
+        return mask_req;
+    }
+    mask_req->level = repl->auto_mip_level;
+    return mask_req;
+}
+
 
 struct oam_request *delete_oam_request(struct oam_request *req)
 {
@@ -348,9 +403,19 @@ int request_get_level(const struct oam_request *req)
     return req->level;
 }
 
-void request_override_count(struct oam_request *req, unsigned count)
+void request_set_level(struct oam_request *req, int level)
+{
+    req->level = level;
+}
+
+void request_set_count(struct oam_request *req, unsigned count)
 {
     req->count = count;
+}
+
+void request_set_mepstart(struct oam_request *req, struct MepStart *start)
+{
+    req->mep_start = start;
 }
 
 void request_set_return(struct oam_request *req, char *return_address, int return_port)
@@ -492,7 +557,6 @@ static void *oam_request_thread(void *arg)
     }
     struct Thread *th = session_get_thread(stream, req->session_id);
     //TODO keep the session live until we receive the replies
-    // stream->sessions[req->session_id].live = false;
     session_set_thread(stream, req->session_id, NULL);
     delete_oam_request(req);
     thread_exit(th);
@@ -503,6 +567,12 @@ bool initiate_request(struct oam_request *req)
 {
     struct command_connection *conn = find_command_connection(req->conn_name);
     FILE *cmd_w = command_connection_get_w(conn);
+    if (!req->mep_start) {
+        req->error = strdup_printf("mep start not found for '%s' command\n", req->type);
+        if (cmd_w) fprintf(cmd_w, "%s", req->error);
+        command_connection_release_w(conn);
+        return false;
+    }
 
     struct Pipeline *pipe = req->mep_start->pipe;
     if (!pipe) {
@@ -542,7 +612,7 @@ bool initiate_request(struct oam_request *req)
     } else {
         session_set_thread(stream, session_id, thread_launch(oam_request_thread, req, "oam req %d", session_id));
         if (session_get_thread(stream, session_id) == NULL) {
-            req->error = strdup("could not create new ping thread");
+            req->error = strdup("could not create new request thread");
             log_error("%s", req->error);
             if (cmd_w) fprintf(cmd_w, "%s", req->error);
             command_connection_release_w(conn);

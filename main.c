@@ -88,6 +88,11 @@ static void recv_loop(void)
         return;
     }
 
+    if (sigaction(SIGALRM, &sa, NULL) < 0) {    // ignore alarm signal
+        log_perror("sigaction for SIGALRM");
+        return;
+    }
+
     int epollfd = epoll_create1(0);
     if (epollfd < 0) {
         log_perror("epoll_create1 failed");

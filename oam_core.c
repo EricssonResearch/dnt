@@ -9,10 +9,13 @@
 #include "oam_core.h"
 #include "oam_message.h"
 #include "oam_request.h"
+#include "object.h"
 
 #include "if_oam.h"
 #include "hashmap.h"
 #include "log.h"
+#include "seq_recov.h"
+#include "thread_utils.h"
 #include "utils.h"
 
 #include <stdlib.h>
@@ -102,13 +105,26 @@ static int mep_start_delete_cb(const char *key, void *value, void *userdata)
 }
 
 bool oam_create_mep_start(const char *stream_name, const char *mep_name, int level,
-        struct Pipeline *pipe, unsigned idx)
+        struct PipelineObject *obj, struct Pipeline *pipe, unsigned idx)
 {
     if (mep_starts == NULL) {
         mep_starts = new_hashmap(13, mep_start_delete_cb, NULL);
     }
     struct MepStart *mepstart = (struct MepStart *)hashmap_find(mep_starts, mep_name);
     if (mepstart) {
+        if (mepstart->target != obj) {
+            if (!obj) {
+                log_error("Redefined MEP Start '%s' without target (original target is '%s')",
+                          mep_name, pipelineobject_get_name(mepstart->target));
+            } else if (!mepstart->target) {
+                log_error("MEP Start '%s' with target '%s' conflict with previous definition without target",
+                          mepstart->name, pipelineobject_get_name(obj));
+            } else {
+                log_error("Redefined MEP Start '%s' with mismatching target '%s' (original target is '%s')",
+                        mepstart->name, pipelineobject_get_name(obj), pipelineobject_get_name(mepstart->target));
+            }
+            return false;
+        }
         if (strcmp(stream_name, mepstart->stream_name) == 0) {
             // multiple instances of the same compound stream
             return true;
@@ -122,6 +138,10 @@ bool oam_create_mep_start(const char *stream_name, const char *mep_name, int lev
     mepstart->stream_name = strdup(stream_name);
     mepstart->level = level;
     mepstart->pipe = pipe;
+    if (obj) {
+        mepstart->target = obj;
+        pipelineobject_store_mep_start_name(obj, mep_name);
+    }
     mepstart->pipe_pos_idx = idx;
     // for mepstart->pipe see oam_set_pipeline_for_mep_start()
     hashmap_insert(mep_starts, mepstart->name, mepstart);
@@ -150,8 +170,7 @@ bool mep_start_in_stream(const struct MepStart *start, const char *stream)
     return strcmp(start->stream_name, stream) == 0;
 }
 
-struct OamEndPoint *oam_create_endpoint(const char *name, const char *stream, int level,
-        struct PipelineObject *target, bool stop)
+struct OamEndPoint *oam_create_endpoint(const char *name, const char *stream, int level, bool stop)
 {
     //TODO make sure that endpoints have unique names
     //      put them into the same hash as the startpoints?
@@ -159,9 +178,103 @@ struct OamEndPoint *oam_create_endpoint(const char *name, const char *stream, in
     ret->name = strdup(name);
     ret->stream = strdup(stream);
     ret->level = level;
-    ret->target = target;
     ret->stop = stop;
     return ret;
+}
+
+// check when the last mask heartbeat received
+// time < now+1sec: masked
+// time > now+1sec: unmasked
+static bool is_masked(const struct MepStart *mep, const struct timespec *now)
+{
+    // mask heartbeat timeout is 1 sec fixed
+    struct timespec timeout = { .tv_sec = 1 };
+    struct timespec diff = { 0 };
+    timespecsub(now, &mep->last_mask_heartbeat, &diff);
+    if (timespeccmp(&diff, &timeout, >)) {
+        return false;
+    } else {
+        return true;
+    }
+}
+
+static struct oam_request *new_mask_request(const char *command, struct MepStart *start, int level)
+{
+    struct oam_request *mask_req = parse_mask_command(command, NULL);
+    request_set_level(mask_req, level);
+    request_set_mepstart(mask_req, start);
+    return mask_req;
+}
+
+static void *mask_checker_thread_fn(void *arg)
+{
+    struct MepStart *postmep = (struct MepStart *) arg;
+    struct PipelineObject *target = postmep->target;
+    struct timespec to_sleep = { .tv_sec = 1 };
+    bool is_regenerating = false;
+
+    while (true) {
+        int masked_mep_count = 0;
+        int path_count = 0;
+        struct timespec now;
+
+        clock_gettime(CLOCK_REALTIME, &now);
+        hashmap_foreach_nocb(target->meps, char) {
+            if (strstr(key, "_pre-")) {
+                path_count += 1;
+                if (is_masked(find_mep_start(key), &now)) {
+                    masked_mep_count += 1;
+                }
+            }
+        }
+
+        log_debug("%s: masked/all paths: %d/%d", postmep->name, masked_mep_count, path_count);
+
+        if (masked_mep_count > path_count) {
+            log_error("more paths masked (%d) than available (%d)", masked_mep_count, path_count);
+        } else if (masked_mep_count < path_count) {
+            // Generate an unmask signal if some path unmasked
+            if (is_regenerating == true) {
+                struct oam_request *mask_req = new_mask_request("unmask", postmep, target->auto_mip_level);
+                initiate_request(mask_req);
+                log_debug("%s: stop re-generate mask signal", postmep->name);
+                is_regenerating = false;
+                break;
+            }
+        } else if (masked_mep_count == path_count) {
+            // Re-generate mask singal if all paths masked
+            if (is_regenerating == false) {
+                struct oam_request *mask_req = new_mask_request("mask", postmep, target->auto_mip_level);
+                initiate_request(mask_req);
+                log_debug("%s: start re-generate mask signal", postmep->name);
+                is_regenerating = true;
+            }
+        }
+
+        int not_masked = path_count - masked_mep_count;
+        seq_rec_set_latent_error_paths(target, not_masked);
+
+        if (masked_mep_count == 0)
+            break;
+
+        clock_nanosleep(CLOCK_REALTIME, 0, &to_sleep, NULL);
+    }
+    postmep->mask_check_worker = NULL;
+    return NULL;
+}
+
+// the only purpose of the worker right now is to
+// check masked pre-MIPs and re-generate mask/unmask signal
+void mep_start_wakeup_mask_checker(struct MepStart *start)
+{
+    if (start) {
+        if (start->mask_check_worker == NULL) {
+            start->mask_check_worker = thread_launch(mask_checker_thread_fn, start,
+                                          "w/post-%s_%s", start->target->name, start->stream_name);
+        } else {
+            thread_wakeup(start->mask_check_worker);
+        }
+    }
 }
 
 struct OamEndPoint *oam_delete_endpoint(struct OamEndPoint *end)
@@ -192,7 +305,7 @@ bool oam_start_background_ping(const char *name, const char *command)
         return false;
     }
 
-    request_override_count(ping_req, 0);    // force infinite count
+    request_set_count(ping_req, 0);    // force infinite count
 
     struct StreamSessions *stream = get_stream_sessions(request_get_stream_name(ping_req));
     if (stream_live_session_count(stream) >= 14) {

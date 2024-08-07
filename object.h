@@ -7,6 +7,7 @@
 
 #include "action.h"
 #include "json.h"
+#include "hashmap.h"
 
 #include <stdbool.h>
 
@@ -27,6 +28,7 @@ struct PipelineObject {
     struct JsonValue *(*get_state)(const struct PipelineObject *self);
     int auto_mip_level;
     int reference_count;
+    struct HashMap *meps;
 };
 
 // add a reference to the object
@@ -38,6 +40,12 @@ void pipeline_object_unref(struct PipelineObject *obj);
 
 // @returns string representation of the @type enum
 const char *pipelineobject_name_from_type(enum PipelineObjectType type);
+
+const char *pipelineobject_get_name(const struct PipelineObject *obj);
+
+// associate MEPStart (name) with the @obj PipelineObject
+// The name of the MEPStart stored in the hashmap PipielineObject::meps
+void pipelineobject_store_mep_start_name(struct PipelineObject *obj, const char *mep_start);
 
 // returns a string that is the @json data decoded into a pretty format
 // uses @record_sep and @line_sep for formatting

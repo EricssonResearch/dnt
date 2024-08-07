@@ -81,6 +81,15 @@ static void delete_iterator(struct PipelineIterator *pi)
     free(pi);
 }
 
+bool pipe_set_mask(struct Pipeline *pipe, bool new_mask)
+{
+    if (pipe->mask != new_mask) {
+        pipe->mask = new_mask;
+        return true;
+    }
+    return false;
+}
+
 void pipe_iterator_run(struct PipelineIterator *pi)
 {
     log_packet("pipe_iterator_run %s, action count %u", pi->pipe->name, pi->pipe->action_count);

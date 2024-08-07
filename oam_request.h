@@ -12,6 +12,7 @@
 #include <stdbool.h>
 
 struct oam_request;
+struct MepStart;
 
 
 // always returns a request, sets ret->error to an error message
@@ -29,6 +30,9 @@ struct oam_request *parse_rping_command(const char *oam_command,
 struct oam_request *parse_rlist_command(const char *oam_command,
         char *conn_name);
 
+// always returns a request, sets ret->error to an error message
+struct oam_request *parse_mask_command(const char *oam_command, char *conn_name);
+
 struct oam_request *delete_oam_request(struct oam_request *req);
 
 const char *request_get_type(const struct oam_request *req);
@@ -44,9 +48,13 @@ const char *request_get_start_name(const struct oam_request *req);
 
 const char *request_get_stop_name(const struct oam_request *req);
 
+void request_set_mepstart(struct oam_request *req, struct MepStart *start);
+
 int request_get_level(const struct oam_request *req);
 
-void request_override_count(struct oam_request *req, unsigned count);
+void request_set_level(struct oam_request *req, int level);
+
+void request_set_count(struct oam_request *req, unsigned count);
 
 // @return_address will be owned by the request
 void request_set_return(struct oam_request *req, char *return_address, int return_port);
