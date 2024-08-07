@@ -1,5 +1,10 @@
 # this is based on the C++.gitlab-ci.yml template
 
+# only run automatically on the main branch
+workflow:
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
 # this Docker image should contain everything we need
 image: mtmkls/ci-runner:v1
 
