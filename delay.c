@@ -42,7 +42,7 @@ static void *delay_thread(void *arg)
     (void)arg;
     log_info("Delay thread starting");
     pthread_setname_np(pthread_self(), "delay thread");
-    
+
     struct timespec time_now;
     int ret;
 
@@ -110,8 +110,12 @@ bool init_delay(void)
     //delay_queue = calloc_struct(DelayQueue);
     thread = thread_launch_priority(delay_thread, NULL, 97, "delay_thread");
     if (thread == NULL) {
-        log_error("Could not create delay thread");
-        return false;
+        thread = thread_launch(delay_thread, NULL, "delay_thread");
+        if (thread == NULL) {
+            log_error("Could not create delay thread");
+            return false;
+        }
+        log_warning("Could not set priority for delay thread");
     }
 
     return true;
