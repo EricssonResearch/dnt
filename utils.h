@@ -45,31 +45,26 @@ char *strdup_printf(const char *format, ...)
 //   const char *key //hashmap key
 //   _valuetype value //hashmap value for that key
 // TODO: HashMap version check compile-time and error on mismatch
-#define hashmap_foreach_nocb(_hash, _valuetype)                                                                                               \
-    for(unsigned i = 0; i <= 0;)                                                                                                              \
-    for(const char *key = NULL; i <= 0;)                                                                                                      \
-    for(_valuetype *value = NULL; i <= 0;)                                                                                                    \
-        for (                                                                                                                                 \
-            struct _HashMap {                                                                                                                 \
-                unsigned bucketcount;                                                                                                         \
-                unsigned elemcount;                                                                                                           \
-                struct _HashBucket {                                                                                                          \
-                    const char *key;                                                                                                          \
-                    void *value;                                                                                                              \
-                    struct _HashBucket *next;                                                                                                 \
-                } *buckets;                                                                                                                   \
-                void *unused_delete_cb;                                                                                                       \
-                void *userdata;                                                                                                               \
-            } *_hm = (struct _HashMap *)_hash; i < _hm->bucketcount; ++i                                                                      \
-        )                                                                                                                                     \
-            if (_hm->buckets[i].key)                                                                                                          \
-                for (                                                                                                                         \
-                    struct _HashBucket {                                                                                                      \
-                        const char *key;                                                                                                      \
-                        void *value;                                                                                                          \
-                        struct _HashBucket *next;                                                                                             \
-                    } *_hb = (struct _HashBucket *)&_hm->buckets[i]; _hb && (key=_hb->key, value=(_valuetype *)_hb->value); _hb = _hb->next   \
-                )
+struct __HashBucket {
+    const char *key;
+    void *value;
+    struct __HashBucket *next;
+};
+struct __HashMap {
+    unsigned bucketcount;
+    unsigned elemcount;
+    struct __HashBucket *buckets;
+    void *item_delete_cb;
+    void *userdata;
+};
+#define hashmap_foreach_nocb(_hash, _valuetype)                                                 \
+    for (unsigned i = 0; i == 0;)                                                               \
+    for (const char *key = NULL; i == 0;)                                                       \
+    for (_valuetype *value = NULL; i == 0; ++i)                                                 \
+    for (struct __HashMap *_hm = (struct __HashMap *)_hash; i < _hm->bucketcount; ++i)          \
+            if (_hm->buckets[i].key)                                                            \
+                for (struct __HashBucket *_hb = (struct __HashBucket *)&_hm->buckets[i];        \
+                        _hb && (key=_hb->key, value=(_valuetype *)_hb->value); _hb = _hb->next)
 
 
 #endif // R2_UTILS_H

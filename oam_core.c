@@ -188,8 +188,8 @@ struct OamEndPoint *oam_create_endpoint(const char *name, const char *stream, in
 static bool is_masked(const struct MepStart *mep, const struct timespec *now)
 {
     // mask heartbeat timeout is 1 sec fixed
-    struct timespec timeout = { .tv_sec = 1 };
-    struct timespec diff = { 0 };
+    struct timespec timeout = { .tv_sec = 1, .tv_nsec = 0 };
+    struct timespec diff = { 0, 0 };
     timespecsub(now, &mep->last_mask_heartbeat, &diff);
     if (timespeccmp(&diff, &timeout, >)) {
         return false;
@@ -210,7 +210,7 @@ static void *mask_checker_thread_fn(void *arg)
 {
     struct MepStart *postmep = (struct MepStart *) arg;
     struct PipelineObject *target = postmep->target;
-    struct timespec to_sleep = { .tv_sec = 1 };
+    struct timespec to_sleep = { .tv_sec = 1, .tv_nsec = 0 };
     bool is_regenerating = false;
 
     while (true) {
