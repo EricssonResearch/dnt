@@ -30,7 +30,7 @@ For debugging a scenario, the script must be started with two more parameters: '
 
 $ sudo python3 srv6.py debug tsn
 
-Possible scenarios are 'ipv6', 'ipv4' and 'tsn'. The default is 'ipv6', so if 'debug' is specified only, ipv6 scenario is supposed.
+Possible scenarios are `ipv6`, `ipv4` and `tsn`. The default is `ipv6`, so if `debug` is specified only, ipv6 scenario is supposed.
 
 ## Network topology
 
