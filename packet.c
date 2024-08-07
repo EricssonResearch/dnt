@@ -72,6 +72,16 @@ struct Packet *copy_packet(const struct Packet *p)
     return newp;
 }
 
+unsigned packet_length(const struct Packet *p)
+{
+    unsigned packetlen = 0;
+    for (unsigned i=0; i<p->header_count; i++) {
+        unsigned len = p->headers[i].len;
+        packetlen += len;
+    }
+    return packetlen;
+}
+
 struct Packet *serialize_packet(const struct Packet *p)
 {
     struct Packet *ret = calloc_struct(Packet);

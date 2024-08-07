@@ -15,6 +15,7 @@ enum ProtocolFieldType {
     FT_IPV4ADDRESS,
     FT_IPV6ADDRESS,
     FT_TSNSEQ,
+    FT_SRV6SEQ,
     FT_TSNTSTAMP,
     FT_TTL,
     FT_CHECKSUM,
@@ -70,6 +71,8 @@ struct Protocol {
     unsigned bytelength;
     id_from_nexthdr *get_id; // translates the value of the next header field to protocol id
     nexthdr_from_id *get_nexthdr; // translates protocol id to next header field value
+    const char *default_value; // initialize newly created header with these bytes
+    unsigned default_value_len; // only initialize the first few octets
 };
 
 // the internal id of the protocols is their index in this array

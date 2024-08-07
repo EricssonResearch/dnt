@@ -81,6 +81,9 @@ struct Packet *delete_packet(struct Packet *p);
 // the new packet has new @id, its @original_id is the same as in @p
 struct Packet *copy_packet(const struct Packet *p);
 
+// returns the packet length
+unsigned packet_length(const struct Packet *p);
+
 // @returns a new packet that is a serialization of the headers in @p
 // the new packet has every header data in correct order in the receive space
 // the result looks like it was received on the wire

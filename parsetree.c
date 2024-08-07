@@ -165,6 +165,11 @@ struct ParseTree *delete_parsetree(struct ParseTree *pt)
     return NULL;
 }
 
+bool parsetree_streams_empty(struct ParseTree *pt)
+{
+    return (pt->streams == NULL);
+}
+
 bool parsetree_add_stream(struct ParseTree *pt, struct HeaderDescriptor *headers, struct Pipeline *pipe)
 {
     for (struct Stream *s=pt->streams; s; s=s->next) {

@@ -255,6 +255,7 @@ bool read_constant(struct Value *val, enum ProtocolID proto, enum ProtocolFieldT
             free(stringdup);
             return true; }
         case FT_TSNSEQ:
+        case FT_SRV6SEQ:
             log_warning("It's not a good practice to set sequence number from constant");
             return read_constant(val, proto, FT_NUMBER, string);
         case FT_TSNTSTAMP:

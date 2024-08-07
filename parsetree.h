@@ -61,6 +61,10 @@ bool parsetree_add_stream(struct ParseTree *pt, struct HeaderDescriptor *headers
 // @returns true on success, false if the stream is unknown
 bool parsetree_del_stream(struct ParseTree *pt, const char *stream_name);
 
+// Checks if streams are empty.
+// @returns true on empty, false if there are streams
+bool parsetree_streams_empty(struct ParseTree *pt);
+
 // replaces an existing stream in the decision tree
 // the name of the stream is @pipe->name
 // @returns false if a stream with this name is not found in the decision tree

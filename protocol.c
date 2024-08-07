@@ -209,6 +209,11 @@ static const struct ProtocolField ipv4_fields[] = {
     {"dst",           128, 32, FT_IPV4ADDRESS},
 };
 
+static const char *const ipv4_default =
+        "\x45\x00\x00\x00"
+        "\x00\x00\x00\x00"
+        "\x40\x00\x00\x00";
+
 static const struct ProtocolField ipv6_fields[] = {
     {"version",      0,   4, FT_NUMBER}, // should be 6
     {"class",        4,   8, FT_NUMBER},
@@ -218,7 +223,15 @@ static const struct ProtocolField ipv6_fields[] = {
     {"hoplimit",    56,   8, FT_TTL},
     {"src",         64, 128, FT_IPV6ADDRESS},
     {"dst",        192, 128, FT_IPV6ADDRESS},
+    {"loc",        192,  64, FT_NUMBER},  // when dst is a SID, this is SRv6 Locator
+    {"func",       256,  16, FT_NUMBER},  // SRv6 Functon
+    {"flowid",     272,  20, FT_NUMBER},  // SRv6 flow_id
+    {"seq",        292,  28, FT_SRV6SEQ},  // SRv6 seq
 };
+
+static const char *const ipv6_default =
+    "\x60\x00\x00\x00"
+    "\x00\x00\x00\x40";
 
 //TODO IPv6 extension headers? most of them are variable-length...
 
@@ -277,23 +290,23 @@ static const struct ProtocolField oam_fields[] = {
 
 //TODO autogenerate this list
 const struct Protocol protocol_list[] = {
-    {"payload", payload_fields, 0, 0, NULL, NULL},
-    {"eth", eth_fields, ARRAY_SIZE(eth_fields), 6+6+2, id_from_ethertype, ethertype_from_id},
-    {"svlan", vlan_fields, ARRAY_SIZE(vlan_fields), 4, id_from_ethertype, ethertype_from_id},
-    {"cvlan", vlan_fields, ARRAY_SIZE(vlan_fields), 4, id_from_ethertype, ethertype_from_id},
+    {"payload", payload_fields, 0, 0, NULL, NULL, NULL, 0},
+    {"eth", eth_fields, ARRAY_SIZE(eth_fields), 6+6+2, id_from_ethertype, ethertype_from_id, NULL, 0},
+    {"svlan", vlan_fields, ARRAY_SIZE(vlan_fields), 4, id_from_ethertype, ethertype_from_id, NULL, 0},
+    {"cvlan", vlan_fields, ARRAY_SIZE(vlan_fields), 4, id_from_ethertype, ethertype_from_id, NULL, 0},
     // note: we cannot destinguish rtag and ttag by their ethertype,
     //       ACT_DELAY and ACT_ELIM must check the rt_flag
-    {"rtag", rtag_fields, ARRAY_SIZE(rtag_fields), 6, id_from_ethertype, ethertype_from_id},
-    {"ttag", ttag_fields, ARRAY_SIZE(ttag_fields), 6, id_from_ethertype, ethertype_from_id},
-    {"mpls", mpls_fields, ARRAY_SIZE(mpls_fields), 4, NULL, NULL},
-    {"dcw", dcw_fields, ARRAY_SIZE(dcw_fields), 4, NULL, NULL},
-    {"tcw", tcw_fields, ARRAY_SIZE(tcw_fields), 4, NULL, NULL},
-    {"ipv4", ipv4_fields, ARRAY_SIZE(ipv4_fields), 20, id_from_ipproto, ipproto_from_id},
-    {"ipv6", ipv6_fields, ARRAY_SIZE(ipv6_fields), 40, id_from_ipproto, ipproto_from_id},
-    {"arp", arp_fields, ARRAY_SIZE(arp_fields), 28, NULL, NULL}, //TODO this is variable-length
-    {"udp", udp_fields, ARRAY_SIZE(udp_fields), 8, NULL, NULL},
-    {"tcp", tcp_fields, ARRAY_SIZE(tcp_fields), 20, NULL, NULL},
-    {"oam", oam_fields, ARRAY_SIZE(oam_fields), 8, NULL, NULL},
+    {"rtag", rtag_fields, ARRAY_SIZE(rtag_fields), 6, id_from_ethertype, ethertype_from_id, NULL, 0},
+    {"ttag", ttag_fields, ARRAY_SIZE(ttag_fields), 6, id_from_ethertype, ethertype_from_id, NULL, 0},
+    {"mpls", mpls_fields, ARRAY_SIZE(mpls_fields), 4, NULL, NULL, NULL, 0},
+    {"dcw", dcw_fields, ARRAY_SIZE(dcw_fields), 4, NULL, NULL, NULL, 0},
+    {"tcw", tcw_fields, ARRAY_SIZE(tcw_fields), 4, NULL, NULL, NULL, 0},
+    {"ipv4", ipv4_fields, ARRAY_SIZE(ipv4_fields), 20, id_from_ipproto, ipproto_from_id, ipv4_default, 12},
+    {"ipv6", ipv6_fields, ARRAY_SIZE(ipv6_fields), 40, id_from_ipproto, ipproto_from_id, ipv6_default, 8},
+    {"arp", arp_fields, ARRAY_SIZE(arp_fields), 28, NULL, NULL, NULL, 0}, //TODO this is variable-length
+    {"udp", udp_fields, ARRAY_SIZE(udp_fields), 8, NULL, NULL, NULL, 0},
+    {"tcp", tcp_fields, ARRAY_SIZE(tcp_fields), 20, NULL, NULL, NULL, 0},
+    {"oam", oam_fields, ARRAY_SIZE(oam_fields), 8, NULL, NULL, NULL, 0},
 };
 
 const unsigned protocol_count = ARRAY_SIZE(protocol_list);
@@ -314,6 +327,8 @@ const char *fieldtype_name_from_type(enum ProtocolFieldType type)
             return "IPv6";
         case FT_TSNSEQ:
             return "TSNSeq";
+        case FT_SRV6SEQ:
+            return "SRv6Seq";
         case FT_TSNTSTAMP:
             return "TSNTstamp";
         case FT_TTL:

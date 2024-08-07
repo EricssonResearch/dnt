@@ -164,7 +164,8 @@ void create_action_delay(struct Action *a, const struct timespec delay, bool off
 static enum ActionResult action_DROP_execute(struct Action *a, struct PipelineIterator *pi)
 {
     (void)a;
-    (void)pi;
+    //struct Packet *p = pi->packet;
+    packet_printlog(pi->packet);
     return ACR_DONE;
 }
 
@@ -320,9 +321,19 @@ static enum ActionResult action_READSEQ_execute(struct Action *a, struct Pipelin
 {
     struct MetaData *md = (struct MetaData *)a->action_private;
     struct Packet *p = pi->packet;
-    uint8_t *src = p->buf + p->headers[md->field.header_idx].start + md->field.bitoffset/8;
+    uint8_t *src = p->buf + p->headers[md->field.header_idx].start + (md->field.bitoffset >> 3);
     unsigned len = md->field.bitcount/8; //TODO this is always 4
-    memcpy(&p->sequence, src, len);
+
+    if(p->headers[md->field.header_idx].type == PROTO_ID_IPv6) {
+        // this is an SRv6 sequence number, which is only 28 bit
+        uint8_t *dst = (uint8_t *)&p->sequence;
+        dst[0] = src[0] & 0x0f;      // write indcator bits
+        dst[1] = src[1];             // read reserved
+        dst[2] = src[2];             // read seqnum 2 bytes
+        dst[3] = src[3];
+    } else
+        memcpy(&p->sequence, src, len);
+
     return ACR_CONTINUE;
 }
 
@@ -549,8 +560,17 @@ static enum ActionResult action_WRITESEQ_execute(struct Action *a, struct Pipeli
     uint32_t seq;
     memcpy(&seq, src, len);
 
+    if(p->headers[md->field.header_idx].type == PROTO_ID_IPv6) {
+        // this is an SRv6 sequence number, which is only 28 bit
+        src = (uint8_t *)&p->sequence;
+        uint8_t *dst = p->buf + p->headers[md->field.header_idx].start + (md->field.bitoffset>>3);
+        dst[0] |= src[0] & 0x0f;  // write indcator bits, keep the first 4 bits
+        dst[1] = src[1];         // write reserved 1 byte
+        dst[2] = src[2];         // write seqnum 2 bytes
+        dst[3] = src[3];
+
     // skip if seq already contains OAM associated channel header
-    if (!SEQ_IS_OAM(seq)) {
+    } else if (!SEQ_IS_OAM(seq)) {
         uint8_t *dst = p->buf + p->headers[md->field.header_idx].start + md->field.bitoffset/8;
         memcpy(dst, &p->sequence, len);
     }
