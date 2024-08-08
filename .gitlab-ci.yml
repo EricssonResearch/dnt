@@ -97,6 +97,77 @@ pytest_oam:
   timeout: 3 minutes
   allow_failure: true
 
+pytest_elimination:
+  stage: test
+  tags:
+    - tsn
+  dependencies:
+    - build-r2dtwo-debug
+  script:
+    - cd test
+    - ./sequence.py
+  timeout: 3 minutes
+  allow_failure: false
+
+pytest_match:
+  stage: test
+  tags:
+    - tsn
+  dependencies:
+    - build-r2dtwo-debug
+  script:
+    - cd test
+    - ./match.py
+  timeout: 1 minutes
+  allow_failure: false
+
+pytest_mask:
+  stage: test
+  tags:
+    - tsn
+  dependencies:
+    - build-r2dtwo-debug
+  script:
+    - cd test
+    - ./mask.py
+  timeout: 1 minutes
+  allow_failure: false
+
+pytest_pof:
+  stage: test
+  tags:
+    - tsn
+  dependencies:
+    - build-r2dtwo-debug
+  script:
+    - cd test
+    - ./pof.py
+  timeout: 2 minutes
+  allow_failure: false
+
+pytest_delay:
+  stage: test
+  tags:
+    - tsn
+  dependencies:
+    - build-r2dtwo-debug
+  script:
+    - cd test
+    - ./delay.py
+  timeout: 2 minutes
+  allow_failure: false
+
+pytest_stress:
+  stage: test
+  tags:
+    - tsn
+  dependencies:
+    - build-r2dtwo-debug
+  script:
+    - cd test
+    - ./stress.py
+  timeout: 2 minutes
+  allow_failure: false
 
 .unit_test.common:
   stage: test

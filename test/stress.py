@@ -97,6 +97,7 @@ def create_net():
 
 def main():
     debug = False
+    all_ok = False
     print("R2DTWO stress test")
     if len(sys.argv) == 2 and sys.argv[1] == "--debug":
         debug = True
@@ -105,8 +106,10 @@ def main():
         result = long_run(net, debug)
         if result == 0:
             print("✘")
+            all_ok = False
         else:
             print("✔")
+            all_ok = True
         exec_fg("killall r2dtwo")
     except KeyboardInterrupt:
         print(" Interrupted, cleanup...")
@@ -120,6 +123,9 @@ def main():
         exec_fg("killall r2dtwo")
         exec_fg("killall gdb")
         net.stop()
+        if all_ok:
+            exit(0)
+        exit(1)
 
 if __name__ == "__main__":
     main()
