@@ -383,3 +383,7 @@ if __name__ == '__main__':
         print(f'All test completed, {ret}/{len(tests)} successfully')
 
     stop_network(net)
+
+    if ret == len(tests):
+        exit(0)
+    exit(1)

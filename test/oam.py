@@ -331,8 +331,12 @@ def run_tests(net, test):
     if auto_mip_test():
         success += 1
     print(f"Successful tests: {success}/{len(test) + 1}") # +1 is the auto MIP test
+    if success == len(test):
+        return True
+    return False
 
 def main():
+    all_ok = False
     try:
         debug = False
         if len(sys.argv) >= 2 and sys.argv[1] == "debug":
@@ -347,12 +351,15 @@ def main():
         if debug:
             CLI(net)
         else:
-            run_tests(net, testcases)
+            all_ok = run_tests(net, testcases)
     finally:
         print("Cleanup...")
         exec_fg("killall r2dtwo")
         #exec_fg("killall gdb")
         net.stop()
+        if all_ok:
+            exit(0)
+        exit(1)
 
 if __name__ == "__main__":
     main()

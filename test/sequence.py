@@ -286,7 +286,7 @@ def main():
         exit(0)
     except KeyboardInterrupt:
         cleanup_ifaces()
-        exit(0)
+        exit(1)
 
 
 if __name__ == "__main__":

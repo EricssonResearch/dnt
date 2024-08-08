@@ -339,13 +339,14 @@ def run_tests():
 
     print(f'All test completed, {sum_result}/{len(tests)} successfully')
     if sum_result != len(tests):
-        exit(1)
-    exit(0)
+        return False
+    return True
 
 
 def main():
     global should_run
     global debug
+    all_ok = False
     try:
         exec_fg("killall r2dtwo")
         exec_fg("killall gdb")
@@ -355,11 +356,14 @@ def main():
             print("R2DTWO mask debug (uncomment only the desired test)")
         else:
             print("R2DTWO mask test")
-        run_tests()
+        all_ok = run_tests()
     finally:
         print("Cleanup...")
         should_run = False
         exec_fg("killall -9 r2dtwo")
+        if all_ok:
+            exit(0)
+        exit(1)
 
 main()
 
