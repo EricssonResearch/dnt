@@ -11,63 +11,63 @@
 
 #include <stdbool.h>
 
-struct oam_request;
+struct OamRequest;
 struct MepStart;
 
 
 // always returns a request, sets ret->error to an error message
 // @conn_name will be owned by the request
-struct oam_request *parse_ping_command(const char *oam_command, bool allow_returniface, bool allow_num,
+struct OamRequest *parse_ping_command(const char *oam_command, bool allow_returniface, bool allow_num,
         char *conn_name);
 
 // always returns a request, sets ret->error to an error message
 // @conn_name will be owned by the request
-struct oam_request *parse_rping_command(const char *oam_command,
+struct OamRequest *parse_rping_command(const char *oam_command,
         char *conn_name);
 
 // always returns a request, sets ret->error to an error message
 // @conn_name will be owned by the request
-struct oam_request *parse_rlist_command(const char *oam_command,
+struct OamRequest *parse_rlist_command(const char *oam_command,
         char *conn_name);
 
 // always returns a request, sets ret->error to an error message
-struct oam_request *parse_mask_command(const char *oam_command, char *conn_name);
+struct OamRequest *parse_mask_command(const char *oam_command, char *conn_name);
 
-struct oam_request *delete_oam_request(struct oam_request *req);
+struct OamRequest *delete_oam_request(struct OamRequest *req);
 
-const char *request_get_type(const struct oam_request *req);
+const char *request_get_type(const struct OamRequest *req);
 
 // @error will be owned by the request
-void request_set_error(struct oam_request *req, char *error);
+void request_set_error(struct OamRequest *req, char *error);
 
-const char *request_get_error(const struct oam_request *req);
+const char *request_get_error(const struct OamRequest *req);
 
-const char *request_get_stream_name(const struct oam_request *req);
+const char *request_get_stream_name(const struct OamRequest *req);
 
-const char *request_get_start_name(const struct oam_request *req);
+const char *request_get_start_name(const struct OamRequest *req);
 
-const char *request_get_stop_name(const struct oam_request *req);
+const char *request_get_stop_name(const struct OamRequest *req);
 
-void request_set_mepstart(struct oam_request *req, struct MepStart *start);
+void request_set_mepstart(struct OamRequest *req, struct MepStart *start);
 
-int request_get_level(const struct oam_request *req);
+int request_get_level(const struct OamRequest *req);
 
-void request_set_level(struct oam_request *req, int level);
+void request_set_level(struct OamRequest *req, int level);
 
-void request_set_count(struct oam_request *req, unsigned count);
+void request_set_count(struct OamRequest *req, unsigned count);
 
 // @return_address will be owned by the request
-void request_set_return(struct oam_request *req, char *return_address, int return_port);
+void request_set_return(struct OamRequest *req, char *return_address, int return_port);
 
-const char *request_get_return_ip(const struct oam_request *req);
+const char *request_get_return_ip(const struct OamRequest *req);
 
-int request_get_return_port(const struct oam_request *req);
+int request_get_return_port(const struct OamRequest *req);
 
 // @stream will be owned by the request
-void request_set_originator(struct oam_request *req, char *stream, unsigned char session_id);
+void request_set_originator(struct OamRequest *req, char *stream, unsigned char session_id);
 
 // returns true on success
-bool initiate_request(struct oam_request *req);
+bool initiate_request(struct OamRequest *req);
 
 
 #endif // R2_OAM_REQUEST_H

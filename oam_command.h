@@ -16,19 +16,19 @@ enum TerminalFormat {
     TF_JSON,
 };
 
-struct command_connection;
+struct CommandConnection;
 
 const char *terminal_format_name(enum TerminalFormat f);
 
-struct command_connection *find_command_connection(const char *name);
+struct CommandConnection *find_command_connection(const char *name);
 
-bool command_connection_is_same(const struct command_connection *conn, const char *name);
+bool command_connection_is_same(const struct CommandConnection *conn, const char *name);
 
-FILE *command_connection_get_w(struct command_connection *conn);
+FILE *command_connection_get_w(struct CommandConnection *conn);
 
-void command_connection_release_w(struct command_connection *conn);
+void command_connection_release_w(struct CommandConnection *conn);
 
-enum TerminalFormat command_connection_get_format(const struct command_connection *conn);
+enum TerminalFormat command_connection_get_format(const struct CommandConnection *conn);
 
 void init_cmd_module(void);
 

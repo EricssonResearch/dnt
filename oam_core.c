@@ -198,9 +198,9 @@ static bool is_masked(const struct MepStart *mep, const struct timespec *now)
     }
 }
 
-static struct oam_request *new_mask_request(const char *command, struct MepStart *start, int level)
+static struct OamRequest *new_mask_request(const char *command, struct MepStart *start, int level)
 {
-    struct oam_request *mask_req = parse_mask_command(command, NULL);
+    struct OamRequest *mask_req = parse_mask_command(command, NULL);
     request_set_level(mask_req, level);
     request_set_mepstart(mask_req, start);
     return mask_req;
@@ -235,7 +235,7 @@ static void *mask_checker_thread_fn(void *arg)
         } else if (masked_mep_count < path_count) {
             // Generate an unmask signal if some path unmasked
             if (is_regenerating == true) {
-                struct oam_request *mask_req = new_mask_request("unmask", postmep, target->auto_mip_level);
+                struct OamRequest *mask_req = new_mask_request("unmask", postmep, target->auto_mip_level);
                 initiate_request(mask_req);
                 log_debug("%s: stop re-generate mask signal", postmep->name);
                 is_regenerating = false;
@@ -244,7 +244,7 @@ static void *mask_checker_thread_fn(void *arg)
         } else if (masked_mep_count == path_count) {
             // Re-generate mask singal if all paths masked
             if (is_regenerating == false) {
-                struct oam_request *mask_req = new_mask_request("mask", postmep, target->auto_mip_level);
+                struct OamRequest *mask_req = new_mask_request("mask", postmep, target->auto_mip_level);
                 initiate_request(mask_req);
                 log_debug("%s: start re-generate mask signal", postmep->name);
                 is_regenerating = true;
@@ -297,7 +297,7 @@ bool oam_start_background_ping(const char *name, const char *command)
         log_error("background command '%s' is not ping", name);
         return false;
     }
-    struct oam_request *ping_req = parse_ping_command(command+4, true, false, NULL);
+    struct OamRequest *ping_req = parse_ping_command(command+4, true, false, NULL);
 
     if (request_get_error(ping_req)) {
         log_error("background ping command '%s' invalid: %s", name, request_get_error(ping_req));

@@ -37,7 +37,7 @@ struct SessionTracker {
     time_t access_time;
     unsigned interval_ms;
     struct Thread *multireq_thread;
-    struct oam_request *req; // needed to list the active request sessions
+    struct OamRequest *req; // needed to list the active request sessions
     bool live;
 };
 
@@ -77,9 +77,9 @@ bool known_stream(const char *stream_name)
     return contains ? true: false;
 }
 
-static void stream_stop_session(struct StreamSessions *stream, int session, struct command_connection *conn);
+static void stream_stop_session(struct StreamSessions *stream, int session, struct CommandConnection *conn);
 
-int alloc_session_id(struct StreamSessions *stream, struct oam_request *req,
+int alloc_session_id(struct StreamSessions *stream, struct OamRequest *req,
         const char *conn_name, unsigned interval_ms)
 {
     pthread_mutex_lock(&session_lock);
@@ -145,7 +145,7 @@ int stream_live_session_count(const struct StreamSessions *stream)
     return live_session_count;
 }
 
-static void stream_stop_session(struct StreamSessions *stream, int session, struct command_connection *conn)
+static void stream_stop_session(struct StreamSessions *stream, int session, struct CommandConnection *conn)
 {
     FILE *cmd_w = NULL;
     if (conn) cmd_w = command_connection_get_w(conn);
@@ -165,7 +165,7 @@ static void stream_stop_session(struct StreamSessions *stream, int session, stru
     if (conn) command_connection_release_w(conn);
 }
 
-void stop_session(const char *stream_name, int session, struct command_connection *conn)
+void stop_session(const char *stream_name, int session, struct CommandConnection *conn)
 {
     pthread_mutex_lock(&session_lock);
     struct StreamSessions *stream = get_stream_sessions(stream_name);
@@ -182,7 +182,7 @@ void stop_session(const char *stream_name, int session, struct command_connectio
 static int stop_sessions_cb(const char *key, void *value, void *userdata)
 {
     struct StreamSessions *stream = (struct StreamSessions *)value;
-    struct command_connection *conn = (struct command_connection *)userdata;
+    struct CommandConnection *conn = (struct CommandConnection *)userdata;
     FILE *cmd_w = command_connection_get_w(conn);
 
     for (int i=0; i<16; i++) {
@@ -197,7 +197,7 @@ static int stop_sessions_cb(const char *key, void *value, void *userdata)
     return 1;
 }
 
-void stop_all_sessions_of_connection(struct command_connection *conn)
+void stop_all_sessions_of_connection(struct CommandConnection *conn)
 {
     pthread_mutex_lock(&session_lock);
     hashmap_foreach(session_ids, stop_sessions_cb, conn);
@@ -216,7 +216,7 @@ int list_sessions_of_stream(struct StreamSessions *stream, FILE *cmd_w)
 
     for(int i=0; i<16; i++){
         if(stream->sessions[i].live){
-            struct oam_request *req = stream->sessions[i].req;
+            struct OamRequest *req = stream->sessions[i].req;
             fprintf(cmd_w,"\t%d\t %s %s -> %s level %d\n",
                     i, request_get_type(req), request_get_start_name(req),
                     request_get_stop_name(req), request_get_level(req));
@@ -338,7 +338,7 @@ static int process_reply(const char *msg)
     log_packet("recv reply %s:%.0f seq %.0f lvl %.0f - %s",
             stream->v.string, session->v.number, sequence->v.number, level->v.number, msg);
 
-    struct command_connection *conn = NULL;
+    struct CommandConnection *conn = NULL;
     if (sess) conn = find_command_connection(sess->conn_name);
 
     if (strcmp(type->v.string, "rlist") == 0) {
@@ -641,7 +641,7 @@ static bool process_ping_request(struct OamEndPoint *oam, struct Packet *p, stru
 }
 
 static bool send_rping_error(struct OamEndPoint *oam, struct Packet *p, struct JsonValue *j,
-        struct oam_request *ping_req)
+        struct OamRequest *ping_req)
 {
     unsigned char *oam_hdr = p->buf + p->headers[1].start;
     unsigned char seq = oam_hdr[1];
@@ -711,7 +711,7 @@ static bool process_rping_request(struct OamEndPoint *oam, struct Packet *p, str
         return false;
     }
 
-    struct oam_request *ping_req = parse_ping_command(cmd->v.string, false, true, NULL);
+    struct OamRequest *ping_req = parse_ping_command(cmd->v.string, false, true, NULL);
     request_set_return(ping_req, reply_address, port);
     if (request_get_error(ping_req) == NULL) {
         //TODO fix this to behave like rlist

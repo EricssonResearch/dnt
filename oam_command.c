@@ -28,7 +28,7 @@
 
 DEFAULT_LOGGING_MODULE(OAM, INFO);
 
-struct command_connection {
+struct CommandConnection {
     char *name;
     int socket_fd; // RW
     FILE *cmd_w; // WRONLY
@@ -51,13 +51,13 @@ const char *terminal_format_name(enum TerminalFormat f)
     return NULL;
 }
 
-struct command_connection *find_command_connection(const char *name)
+struct CommandConnection *find_command_connection(const char *name)
 {
     if (name == NULL) return NULL;
-    return (struct command_connection *)hashmap_find(command_connections, name);
+    return (struct CommandConnection *)hashmap_find(command_connections, name);
 }
 
-bool command_connection_is_same(const struct command_connection *conn, const char *name)
+bool command_connection_is_same(const struct CommandConnection *conn, const char *name)
 {
     // no connection, no name -> same
     if (conn == NULL && name == NULL) return true;
@@ -67,20 +67,20 @@ bool command_connection_is_same(const struct command_connection *conn, const cha
     return false;
 }
 
-FILE *command_connection_get_w(struct command_connection *conn)
+FILE *command_connection_get_w(struct CommandConnection *conn)
 {
     if (conn == NULL) return NULL;
     __atomic_fetch_add(&conn->w_users, 1, __ATOMIC_RELAXED);
     return conn->cmd_w;
 }
 
-void command_connection_release_w(struct command_connection *conn)
+void command_connection_release_w(struct CommandConnection *conn)
 {
     if (conn == NULL) return;
     __atomic_fetch_sub(&conn->w_users, 1, __ATOMIC_RELAXED);
 }
 
-enum TerminalFormat command_connection_get_format(const struct command_connection *conn)
+enum TerminalFormat command_connection_get_format(const struct CommandConnection *conn)
 {
     return conn->mode;
 }
@@ -193,7 +193,7 @@ static void handle_telnet_command(unsigned char *oam_command, int *n, FILE *cmd_
     }
 }
 
-static void command_loop(struct command_connection *conn)
+static void command_loop(struct CommandConnection *conn)
 {
 #define ERROR(msg, ...)                             \
     fprintf(cmd_w, "Error: " msg "\n",              \
@@ -337,7 +337,7 @@ static void command_loop(struct command_connection *conn)
                 foreach_oam_ifaces(list_oam_ifaces_cb, conn->cmd_w);
             }
             else if (strncmp(oam_command, "ping", 4) == 0) {
-                struct oam_request *ping_req = parse_ping_command(oam_command+4, true, true, strdup(conn->name));
+                struct OamRequest *ping_req = parse_ping_command(oam_command+4, true, true, strdup(conn->name));
                 CHECK_REQUEST(ping_req);
                 const char *req_stream = request_get_stream_name(ping_req);
                 if (!initiate_request(ping_req)) {
@@ -346,21 +346,21 @@ static void command_loop(struct command_connection *conn)
                 last_stream = req_stream;
             }
             else if (strncmp(oam_command, "rping", 5) == 0) {
-                struct oam_request *rping_req = parse_rping_command(oam_command+5, strdup(conn->name));
+                struct OamRequest *rping_req = parse_rping_command(oam_command+5, strdup(conn->name));
                 CHECK_REQUEST(rping_req);
                 if (!initiate_request(rping_req)) {
                     ERROR("sending rping command failed");
                 }
             }
             else if (strncmp(oam_command, "rlist", 5) == 0) {
-                struct oam_request *rlist_req = parse_rlist_command(oam_command+5, strdup(conn->name));
+                struct OamRequest *rlist_req = parse_rlist_command(oam_command+5, strdup(conn->name));
                 CHECK_REQUEST(rlist_req);
                 if (!initiate_request(rlist_req)) {
                     ERROR("sending rlist command failed");
                 }
             }
             else if (!strncmp(oam_command, "mask", 4) || !strncmp(oam_command, "unmask", 6)) {
-                struct oam_request *mask_req = parse_mask_command(oam_command, strdup(conn->name));
+                struct OamRequest *mask_req = parse_mask_command(oam_command, strdup(conn->name));
                 CHECK_REQUEST(mask_req);
                 if (!initiate_request(mask_req)) {
                     log_info("sending '%s' signal failed (AutoMIP enabled?)", request_get_type(mask_req));
@@ -385,7 +385,7 @@ static void command_loop(struct command_connection *conn)
 
 static void *command_thread(void *arg)
 {
-    struct command_connection *conn = (struct command_connection *)arg;
+    struct CommandConnection *conn = (struct CommandConnection *)arg;
     command_loop(conn);
     struct Thread *thread = conn->thread;
     // the hash delete callback will call thread_stop, but it does nothing to its own thread
@@ -396,7 +396,7 @@ static void *command_thread(void *arg)
 
 void oam_start_command_connection(int fd)
 {
-    struct command_connection *conn = calloc_struct(command_connection);
+    struct CommandConnection *conn = calloc_struct(CommandConnection);
     conn->socket_fd = fd;
     // note: inverse operation is fd=fileno(file)
     conn->cmd_w = fdopen(fd, "w");
@@ -420,7 +420,7 @@ void oam_start_command_connection(int fd)
 static int alert_cb(const char *key, void *value, void *userdata)
 {
     (void)key;
-    struct command_connection *conn = (struct command_connection *)value;
+    struct CommandConnection *conn = (struct CommandConnection *)value;
     char *msg = (char *)userdata;
     FILE *cmd_w = command_connection_get_w(conn);
     if (cmd_w) fprintf(cmd_w, "\n\33[0;33m%s\033[0m\n", msg);
@@ -443,7 +443,7 @@ static int command_connection_delete_cb(const char *key, void *value, void *user
 {
     (void)key; // same as conn->name
     (void)userdata;
-    struct command_connection *conn = (struct command_connection *)value;
+    struct CommandConnection *conn = (struct CommandConnection *)value;
     while (conn->w_users > 0) {
         usleep(1000);
     }

@@ -32,7 +32,7 @@
 #define OAM_PING_TTL 64
 #define OAM_CHANNEL 1 /* Management Communication Channel (MCC), similar format to ours */
 
-struct oam_request {
+struct OamRequest {
     char *conn_name; // NULL if not issued from a command connection
     char *return_ip;
     unsigned return_port;
@@ -57,9 +57,9 @@ struct oam_request {
 DEFAULT_LOGGING_MODULE(OAM, INFO);
 
 // @conn_name will be owned by the request
-static struct oam_request *new_oam_request(const char *type, char *conn_name)
+static struct OamRequest *new_oam_request(const char *type, char *conn_name)
 {
-    struct oam_request *req = calloc_struct(oam_request);
+    struct OamRequest *req = calloc_struct(OamRequest);
 
     req->conn_name = conn_name;
     req->type = type;
@@ -70,7 +70,7 @@ static struct oam_request *new_oam_request(const char *type, char *conn_name)
     return req;
 }
 
-static bool parse_ping_returnif(struct oam_request *ping_req, const char *ifname)
+static bool parse_ping_returnif(struct OamRequest *ping_req, const char *ifname)
 {
     struct Interface *iface = get_oam_interface(ifname);
     if (iface == NULL) {
@@ -93,7 +93,7 @@ static bool parse_ping_returnif(struct oam_request *ping_req, const char *ifname
     return true;
 }
 
-static bool parse_ping_options(struct oam_request *ping_req, const char *options_str, bool allow_num)
+static bool parse_ping_options(struct OamRequest *ping_req, const char *options_str, bool allow_num)
 {
     const char *po = options_str;
     bool opt_err = false;
@@ -167,14 +167,14 @@ static bool parse_ping_options(struct oam_request *ping_req, const char *options
 }
 
 // always returns a request, sets ret->error to an error message
-struct oam_request *parse_ping_command(const char *oam_command, bool allow_returniface, bool allow_num,
+struct OamRequest *parse_ping_command(const char *oam_command, bool allow_returniface, bool allow_num,
         char *conn_name)
 {
     int l;
     char start_name[32];
     char iface_name[64];
 
-    struct oam_request *ping_req = new_oam_request("ping", conn_name);
+    struct OamRequest *ping_req = new_oam_request("ping", conn_name);
 
     if (oam_command[0]=='@') {
         if (!allow_returniface) {
@@ -215,14 +215,14 @@ struct oam_request *parse_ping_command(const char *oam_command, bool allow_retur
 }
 
 // always returns a request, sets ret->error to an error message
-struct oam_request *parse_rping_command(const char *oam_command,
+struct OamRequest *parse_rping_command(const char *oam_command,
         char *conn_name)
 {
     int l;
     char start_name[32];
     char iface_name[32];
 
-    struct oam_request *rping_req = new_oam_request("rping", conn_name);
+    struct OamRequest *rping_req = new_oam_request("rping", conn_name);
 
     if (oam_command[0]=='@') {
         int k = sscanf(oam_command, "@%s %s %s %d%n",
@@ -258,14 +258,14 @@ struct oam_request *parse_rping_command(const char *oam_command,
 }
 
 // always returns a request, sets ret->error to an error message
-struct oam_request *parse_rlist_command(const char *oam_command,
+struct OamRequest *parse_rlist_command(const char *oam_command,
         char *conn_name)
 {
     int l;
     char start_name[32];
     char iface_name[32];
 
-    struct oam_request *rlist_req = new_oam_request("rlist", conn_name);
+    struct OamRequest *rlist_req = new_oam_request("rlist", conn_name);
 
     if (oam_command[0]=='@') {
         int k = sscanf(oam_command, "@%s %s %s %d%n",
@@ -303,9 +303,9 @@ struct oam_request *parse_rlist_command(const char *oam_command,
     return rlist_req;
 }
 
-struct oam_request *parse_mask_command(const char *oam_command, char *conn_name)
+struct OamRequest *parse_mask_command(const char *oam_command, char *conn_name)
 {
-    struct oam_request *mask_req = NULL;
+    struct OamRequest *mask_req = NULL;
     bool new_mask = true;
     char pipename[64] = { 0 };
     int seek = 0;
@@ -341,7 +341,7 @@ struct oam_request *parse_mask_command(const char *oam_command, char *conn_name)
             return mask_req;
         }
 
-        struct command_connection *conn = find_command_connection(conn_name);
+        struct CommandConnection *conn = find_command_connection(conn_name);
         FILE *cmd_w = command_connection_get_w(conn);
         fprintf(cmd_w, "Pipeline '%s' %sed\n", pipename, mask_req->type);
         command_connection_release_w(conn);
@@ -357,7 +357,7 @@ struct oam_request *parse_mask_command(const char *oam_command, char *conn_name)
 }
 
 
-struct oam_request *delete_oam_request(struct oam_request *req)
+struct OamRequest *delete_oam_request(struct OamRequest *req)
 {
     if (req == NULL) return NULL;
     free(req->error);
@@ -368,73 +368,73 @@ struct oam_request *delete_oam_request(struct oam_request *req)
     return NULL;
 }
 
-const char *request_get_type(const struct oam_request *req)
+const char *request_get_type(const struct OamRequest *req)
 {
     return req->type;
 }
 
-void request_set_error(struct oam_request *req, char *error)
+void request_set_error(struct OamRequest *req, char *error)
 {
     req->error = error;
 }
 
-const char *request_get_error(const struct oam_request *req)
+const char *request_get_error(const struct OamRequest *req)
 {
     return req->error;
 }
 
-const char *request_get_stream_name(const struct oam_request *req)
+const char *request_get_stream_name(const struct OamRequest *req)
 {
     return req->mep_start->stream_name;
 }
 
-const char *request_get_start_name(const struct oam_request *req)
+const char *request_get_start_name(const struct OamRequest *req)
 {
     return req->mep_start->name;
 }
 
-const char *request_get_stop_name(const struct oam_request *req)
+const char *request_get_stop_name(const struct OamRequest *req)
 {
     return req->mep_stop;
 }
 
-int request_get_level(const struct oam_request *req)
+int request_get_level(const struct OamRequest *req)
 {
     return req->level;
 }
 
-void request_set_level(struct oam_request *req, int level)
+void request_set_level(struct OamRequest *req, int level)
 {
     req->level = level;
 }
 
-void request_set_count(struct oam_request *req, unsigned count)
+void request_set_count(struct OamRequest *req, unsigned count)
 {
     req->count = count;
 }
 
-void request_set_mepstart(struct oam_request *req, struct MepStart *start)
+void request_set_mepstart(struct OamRequest *req, struct MepStart *start)
 {
     req->mep_start = start;
 }
 
-void request_set_return(struct oam_request *req, char *return_address, int return_port)
+void request_set_return(struct OamRequest *req, char *return_address, int return_port)
 {
     req->return_ip = return_address;
     req->return_port = return_port;
 }
 
-const char *request_get_return_ip(const struct oam_request *req)
+const char *request_get_return_ip(const struct OamRequest *req)
 {
     return req->return_ip;
 }
 
-int request_get_return_port(const struct oam_request *req)
+int request_get_return_port(const struct OamRequest *req)
 {
     return req->return_port;
 }
 
-void request_set_originator(struct oam_request *req, char *stream, unsigned char session_id)
+void request_set_originator(struct OamRequest *req, char *stream, unsigned char session_id)
 {
     req->originator_stream = stream;
     req->originator_session_id = session_id;
@@ -468,7 +468,7 @@ static int add_fixed_headers(struct Packet *packet, unsigned char ttl,
 }
 
 // returns true on success
-static bool send_request(const struct oam_request *req){
+static bool send_request(const struct OamRequest *req){
     struct Packet *packet = new_packet(NULL);
 
     unsigned session_id = req->originator_stream ? req->originator_session_id : req->session_id;
@@ -543,7 +543,7 @@ static bool send_request(const struct oam_request *req){
 
 static void *oam_request_thread(void *arg)
 {
-    struct oam_request *req = (struct oam_request *)arg;
+    struct OamRequest *req = (struct OamRequest *)arg;
     unsigned seq=0;
     struct StreamSessions *stream = get_stream_sessions(req->mep_start->stream_name);
 
@@ -563,9 +563,9 @@ static void *oam_request_thread(void *arg)
     return NULL;
 }
 
-bool initiate_request(struct oam_request *req)
+bool initiate_request(struct OamRequest *req)
 {
-    struct command_connection *conn = find_command_connection(req->conn_name);
+    struct CommandConnection *conn = find_command_connection(req->conn_name);
     FILE *cmd_w = command_connection_get_w(conn);
     if (!req->mep_start) {
         req->error = strdup_printf("mep start not found for '%s' command\n", req->type);

@@ -12,9 +12,9 @@
 #include <stdio.h>
 
 
-struct command_connection;
+struct CommandConnection;
 
-struct oam_request;
+struct OamRequest;
 struct StreamSessions;
 struct Thread;
 
@@ -22,14 +22,14 @@ struct StreamSessions *get_stream_sessions(const char *stream_name);
 
 bool known_stream(const char *stream_name);
 
-int alloc_session_id(struct StreamSessions *stream, struct oam_request *req,
+int alloc_session_id(struct StreamSessions *stream, struct OamRequest *req,
         const char *conn_name, unsigned interval_ms);
 
 int stream_live_session_count(const struct StreamSessions *stream);
 
-void stop_session(const char *stream_name, int session, struct command_connection *conn);
+void stop_session(const char *stream_name, int session, struct CommandConnection *conn);
 
-void stop_all_sessions_of_connection(struct command_connection *conn);
+void stop_all_sessions_of_connection(struct CommandConnection *conn);
 
 int list_sessions_of_stream(struct StreamSessions *stream, FILE *cmd_w);
 
