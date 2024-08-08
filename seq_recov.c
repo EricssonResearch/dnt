@@ -459,14 +459,15 @@ enum ActionResult seq_recovery(struct PipelineObject *r, struct PipelineIterator
         if (oam_rec) {
             uint8_t oam_seq = (seq >> 16) & 0xff;
             accept =  match_seq_recovery(oam_rec, oam_seq);
+            seq = oam_seq;
         }
     }
-    if(!accept){
-        packet_logcat(p, "duplicate drop");
-        packet_printlog(p);
-        return ACR_DONE;
-    } else
-        return ACR_CONTINUE;
+    if (accept){
+        packet_logcat(p, "(%d pass) ", seq);
+    } else {
+        packet_logcat(p, "(%d drop) ", seq);
+    }
+    return accept ? ACR_CONTINUE : ACR_DONE;
 }
 
 static void seq_recovery_reset(struct SequenceRecovery *rec)

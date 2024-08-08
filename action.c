@@ -164,8 +164,8 @@ void create_action_delay(struct Action *a, const struct timespec delay, bool off
 static enum ActionResult action_DROP_execute(struct Action *a, struct PipelineIterator *pi)
 {
     (void)a;
+    (void)pi;
     //struct Packet *p = pi->packet;
-    packet_printlog(pi->packet);
     return ACR_DONE;
 }
 

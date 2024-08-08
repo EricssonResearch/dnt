@@ -51,6 +51,7 @@ struct Packet *delete_packet(struct Packet *p)
         free(p->buf);
         __atomic_fetch_sub(&packet_count, 1, __ATOMIC_RELAXED);
     }
+    packet_printlog(p);
     free(p);
     return NULL;
 }
