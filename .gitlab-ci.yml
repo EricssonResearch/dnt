@@ -104,6 +104,8 @@ pytest_elimination:
   dependencies:
     - build-r2dtwo-debug
   script:
+    - apt update -qy
+    - apt install -y tshark
     - cd test
     - ./sequence.py
   timeout: 3 minutes
@@ -116,6 +118,8 @@ pytest_match:
   dependencies:
     - build-r2dtwo-debug
   script:
+    - apt update -qy
+    - apt install -y python3-scapy
     - cd test
     - ./match.py
   timeout: 1 minutes

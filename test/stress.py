@@ -30,9 +30,11 @@ def disable_logging(node, mgmtip):
 def long_run(net, debug : bool):
     t, l, a, b = [net.get(n) for n in ["t", "l", "a", "b"]]
     switch_netns("a")
-    rtwo1 = exec_bg(f"screen -S r1 -d -m env -i gdb -ex=r --args ../r2dtwo stress/a.ini")
+    # rtwo1 = exec_bg(f"screen -S r1 -d -m env -i gdb -ex=r --args ../r2dtwo stress/a.ini")
+    rtwo1 = exec_bg(f"../r2dtwo stress/a.ini")
     switch_netns("b")
-    rtwo2 = exec_bg(f"screen -S r2 -d -m env -i gdb -ex=r --args ../r2dtwo stress/b.ini")
+    # rtwo2 = exec_bg(f"screen -S r2 -d -m env -i gdb -ex=r --args ../r2dtwo stress/b.ini")
+    rtwo2 = exec_bg(f"../r2dtwo stress/b.ini")
     time.sleep(2)
     if debug:
         print("Debug mode. Press Ctrl+D or Ctrl+C to exit...")
