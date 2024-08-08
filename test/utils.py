@@ -43,7 +43,8 @@ def exec_bg(cmd, out=OUT_NONE):
         "text" : True
     }
     if PY_VER_MAJOR >= 3 and PY_VER_MINOR >= 10:
-        kwargs["pipesize"] = 10000000
+        pass
+        # kwargs["pipesize"] = 10000000
     p = Popen(shlex.split(cmd), **kwargs)
     return p
 
@@ -61,7 +62,8 @@ def exec_fg(cmd, silent=True, timeout=None):
         "timeout" : timeout
     }
     if PY_VER_MAJOR >= 3 and PY_VER_MINOR >= 10:
-        kwargs["pipesize"] = 10000000
+        pass
+        # kwargs["pipesize"] = 10000000
     r = run(shlex.split(cmd), **kwargs)
     return r
 

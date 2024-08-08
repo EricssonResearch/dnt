@@ -36,6 +36,9 @@ configure_networkenv() {
   nxp1 ip link set dev lo up
   nxp2 ip link set dev lo up
 
+  talker ethtool -K eth0 rxvlan off txvlan off tx off rx off
+  listener ethtool -K eth0 rxvlan off txvlan off tx off rx off
+
   talker ip link set eth0 up
   listener ip link set eth0 up
   nxp1 ip link set dev swp0 up

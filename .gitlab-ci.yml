@@ -1,0 +1,188 @@
+# this is based on the C++.gitlab-ci.yml template
+
+# only run automatically on the main branch
+workflow:
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "web"
+
+# this Docker image should contain everything we need
+image: mtmkls/ci-runner:v1
+
+stages:
+  - verify
+  - build
+  - test
+
+verify-ci-config:
+  stage: verify
+  tags:
+    - rosetta-docker
+  script:
+    - gitlab-ci/verify_yaml.pl
+
+build-r2dtwo-debug:
+  stage: build
+  tags:
+    - rosetta-docker
+  script:
+    - CC=gcc make debug -j
+  artifacts:
+    paths:
+      - r2dtwo
+
+build-r2dtwo-release:
+  stage: build
+  tags:
+    - rosetta-docker
+  script:
+    - CC=gcc make release -j
+
+build-r2dtwo-debug-cpp:
+  stage: build
+  tags:
+    - rosetta-docker
+  script:
+    - gitlab-ci/cppize.pl Makefile
+    - make debug -j
+
+build-r2dtwo-release-cpp:
+  stage: build
+  tags:
+    - rosetta-docker
+  script:
+    - gitlab-ci/cppize.pl Makefile
+    - make release -j
+
+build-r2dtwo-debug-clang:
+  stage: build
+  tags:
+    - rosetta-docker
+  script:
+    - CC=clang make debug -j
+
+build-r2dtwo-release-clang:
+  stage: build
+  tags:
+    - rosetta-docker
+  script:
+    - CC=clang make release -j
+
+
+build-unit_test:
+  stage: build
+  tags:
+    - rosetta-docker
+  script:
+    - cd unit_test
+    - mkdir build
+    - cd build
+    - cmake ..
+    - make -j
+  artifacts:
+    paths:
+      - unit_test/build/test_*
+
+
+#TODO run all the python tests
+pytest_oam:
+  stage: test
+  tags:
+    - tsn
+  dependencies:
+    - build-r2dtwo-debug
+  script:
+    - cd test
+    - ./oam.py
+  timeout: 3 minutes
+  allow_failure: true
+
+
+.unit_test.common:
+  stage: test
+  tags:
+    - rosetta-docker
+  dependencies:
+    - build-unit_test
+
+unit_test.conf_utils:
+  extends: .unit_test.common
+  script:
+    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_conf_utils
+
+unit_test.header_api:
+  extends: .unit_test.common
+  script:
+    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_header_api
+
+unit_test.header_compare:
+  extends: .unit_test.common
+  script:
+    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_header_compare
+
+unit_test.header_read:
+  extends: .unit_test.common
+  script:
+    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_header_read
+
+unit_test.header_write:
+  extends: .unit_test.common
+  script:
+    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_header_write
+
+unit_test.if_utils:
+  extends: .unit_test.common
+  script:
+    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_if_utils
+
+unit_test.inet_utils:
+  extends: .unit_test.common
+  script:
+    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_inet_utils
+
+unit_test.json_api:
+  extends: .unit_test.common
+  script:
+    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_json_api
+
+unit_test.json_read:
+  extends: .unit_test.common
+  script:
+    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_json_read
+
+unit_test.json_write:
+  extends: .unit_test.common
+  script:
+    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_json_write
+
+unit_test.packet:
+  extends: .unit_test.common
+  script:
+    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_packet
+
+unit_test.seq_rcvy_match:
+  extends: .unit_test.common
+  script:
+    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_seq_rcvy_match
+
+unit_test.seq_rcvy_vector:
+  extends: .unit_test.common
+  script:
+    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_seq_rcvy_vector
+
+unit_test.thread:
+  extends: .unit_test.common
+  script:
+    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_thread
+
+unit_test.time:
+  extends: .unit_test.common
+  script:
+    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_time
+
+unit_test.utils:
+  extends: .unit_test.common
+  script:
+    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_utils
+
+
