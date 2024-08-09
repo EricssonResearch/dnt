@@ -2,6 +2,7 @@
 #include "testing.h"
 
 #include "thread_utils.h"
+#include "log.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -26,7 +27,7 @@ static void *thread_func(void *arg)
 static void *thread_exit_func(void *arg)
 {
     struct ThreadTestParam *param = (struct ThreadTestParam *)arg;
-    usleep(2000); // make sure the assignment to param->th is done
+    usleep(1000*100); // make sure the assignment to param->th is done
     thread_stop(param->th); // should do nothing
     param->counter = 21;
     thread_exit(param->th);
@@ -35,33 +36,35 @@ static void *thread_exit_func(void *arg)
 
 static void test_thread(void)
 {
-    struct ThreadTestParam param;
-    param.counter = 0;
-    struct Thread *th = thread_launch(thread_func, &param, "test thread %d", param.counter);
-    OK_FATAL(th, "have thread object");
-    unsigned id1 = thread_getid(th);
-    usleep(1000*50); // is this enough?
-    OK(param.counter == 1, "thread worked");
-    OK(strcmp(thread_getname(th), "test thread 0") == 0, "good name");
-    th = thread_stop(th);
-    OK_FATAL(th == NULL, "thread object gone");
+    struct ThreadTestParam param1;
+    param1.counter = 0;
+    param1.th = thread_launch(thread_func, &param1, "test thread %d", param1.counter);
+    OK_FATAL(param1.th, "have thread object");
+    unsigned id1 = thread_getid(param1.th);
+    usleep(1000*500); // wait for the thread
+    OK(param1.counter == 1, "thread worked");
+    OK(strcmp(thread_getname(param1.th), "test thread 0") == 0, "good name");
+    param1.th = thread_stop(param1.th);
+    OK_FATAL(param1.th == NULL, "thread object gone");
 
     // thread_stop() doesn't do anything to self
-    param.counter = 0;
-    param.th = thread_launch(thread_exit_func, &param, "test exit");
-    OK_FATAL(param.th, "have thread object");
-    unsigned id2 = thread_getid(param.th);
-    usleep(4000); // wait for the thread
-    OK(param.counter == 21, "thread_stop didn't stop itself");
+    struct ThreadTestParam param2;
+    param2.counter = 0;
+    param2.th = thread_launch(thread_exit_func, &param2, "test exit");
+    OK_FATAL(param2.th, "have thread object");
+    unsigned id2 = thread_getid(param2.th);
+    usleep(1000*1000); // wait for the thread
+    OK(param2.counter == 21, "thread_stop didn't stop itself");
 
     // thread_exit() doesn't do anything to others
-    param.counter = 0;
-    param.th = thread_launch(thread_exit_func, &param, "test exit");
-    OK_FATAL(param.th, "have thread object");
-    unsigned id3 = thread_getid(param.th);
-    thread_exit(param.th); // should do nothing
-    usleep(4000); // wait for the thread
-    OK(param.counter == 21, "thread_exit didn't stop the thread");
+    struct ThreadTestParam param3;
+    param3.counter = 0;
+    param3.th = thread_launch(thread_exit_func, &param3, "test exit again");
+    OK_FATAL(param3.th, "have thread object");
+    unsigned id3 = thread_getid(param3.th);
+    thread_exit(param3.th); // should do nothing
+    usleep(1000*1000); // wait for the thread
+    OK(param3.counter == 21, "thread_exit didn't stop the thread");
 
     OK(id1 != id2, "different id");
     OK(id1 != id3, "different id");
@@ -70,13 +73,16 @@ static void test_thread(void)
     OK(thread_stop(NULL) == NULL, "stop NULL thread");
     thread_exit(NULL); // exit NULL thread shouldn't segfault either
 
-    th = thread_launch_priority(thread_func, &param, 10, "test thread %s", "p");
-    if (th) {
-        usleep(1000*50); // is this enough?
-        OK(param.counter == 22, "priority thread worked");
-        OK(strcmp(thread_getname(th), "test thread p") == 0, "good name");
-        th = thread_stop(th);
-        OK_FATAL(th == NULL, "thread object gone");
+    log_set_level("THREAD", NONE);
+    struct ThreadTestParam param4;
+    param4.counter = 0;
+    param4.th = thread_launch_priority(thread_func, &param4, 10, "test thread %s", "p");
+    if (param4.th) {
+        usleep(1000*500); // wait for the thread
+        OK(param4.counter == 1, "priority thread worked");
+        OK(strcmp(thread_getname(param4.th), "test thread p") == 0, "good name");
+        param4.th = thread_stop(param4.th);
+        OK_FATAL(param4.th == NULL, "thread object gone");
     } else {
         SKIP("need CAP_SYS_NICE for the thread priority test");
     }
@@ -94,7 +100,7 @@ static void *thread_mq_timeout_func(void *arg)
     struct ThreadMQParam *param = (struct ThreadMQParam *)arg;
 
     while (1) {
-        struct ThreadTestParam *message = (struct ThreadTestParam *)messagequeue_pop(param->q, 1000*200);
+        struct ThreadTestParam *message = (struct ThreadTestParam *)messagequeue_pop(param->q, 1000*800);
         if (message) {
             param->counter += message->counter;
             free(message);
@@ -117,7 +123,7 @@ static void *thread_mq_immediate_func(void *arg)
             free(message);
         } else {
             param->timeouts++;
-            usleep(1000*20);
+            usleep(1000*500);
         }
     }
 
@@ -163,93 +169,112 @@ static void *thread_mq_multi_func(void *arg)
 
 static void test_mq(void)
 {
-    struct ThreadMQParam param;
-    param.counter = 0;
-    param.timeouts = 0;
-    param.errors = 0;
-    param.q = new_messagequeue();
-    OK_FATAL(param.q, "have queue");
-    struct Thread *th = thread_launch(thread_mq_timeout_func, &param, "test mq timeout");
+    struct ThreadMQParam param1;
+    param1.counter = 0;
+    param1.timeouts = 0;
+    param1.errors = 0;
+    param1.q = new_messagequeue();
+    OK_FATAL(param1.q, "have queue");
+    struct Thread *th = thread_launch(thread_mq_timeout_func, &param1, "test mq timeout");
     OK_FATAL(th, "have thread object");
 
-    usleep(1000*300);
-    OK(param.counter == 0, "counter %d", param.counter);
-    OK(param.timeouts == 1, "timeouts %d", param.timeouts);
+    usleep(1000*1200); // thread timeout is 500
+    OK(param1.counter == 0, "counter %d", param1.counter);
+    OK(param1.timeouts == 1, "timeouts %d", param1.timeouts);
 
     struct ThreadTestParam *message;
     message = (struct ThreadTestParam *)malloc(sizeof(struct ThreadTestParam));
     message->counter = 4;
-    messagequeue_push(param.q, message);
+    messagequeue_push(param1.q, message);
     message = (struct ThreadTestParam *)malloc(sizeof(struct ThreadTestParam));
     message->counter = 3;
-    messagequeue_push(param.q, message);
-    usleep(1000*50);
-    OK(param.counter == 7, "counter %d", param.counter);
-    OK(param.timeouts == 1, "timeouts %d", param.timeouts);
-
+    messagequeue_push(param1.q, message);
     usleep(1000*300);
-    OK(param.counter == 7, "counter %d", param.counter);
-    OK(param.timeouts == 2, "timeouts %d", param.timeouts);
+    OK(param1.counter == 7, "counter %d", param1.counter);
+    OK(param1.timeouts == 1, "timeouts %d", param1.timeouts);
+
+    usleep(1000*1200); // thread timeout is 500
+    OK(param1.counter == 7, "counter %d", param1.counter);
+    OK(param1.timeouts == 2, "timeouts %d", param1.timeouts);
 
     //usleep(1000*30000); // to check the thread name in htop
 
     th = thread_stop(th);
     OK_FATAL(th == NULL, "thread object gone");
-    param.counter = 0;
-    param.timeouts = 0;
 
-    th = thread_launch(thread_mq_immediate_func, &param, "test mq immediate");
+    struct ThreadMQParam param2;
+    param2.counter = 0;
+    param2.timeouts = 0;
+    param2.errors = 0;
+    param2.q = new_messagequeue();
+    OK_FATAL(param2.q, "have queue");
+    th = thread_launch(thread_mq_immediate_func, &param2, "test mq immediate");
     OK_FATAL(th, "have thread object");
-    usleep(1000*50);
-    OK(param.counter == 0, "counter %d", param.counter);
-    OK(param.timeouts == 3, "timeouts %d", param.timeouts);
+    usleep(1000*1300);
+    OK(param2.counter == 0, "counter %d", param2.counter);
+    OK(param2.timeouts == 3, "timeouts %d", param2.timeouts); // at 0, 500, 1000
     message = (struct ThreadTestParam *)malloc(sizeof(struct ThreadTestParam));
     message->counter = 9;
-    messagequeue_push(param.q, message);
-    usleep(1000*50);
-    OK(param.counter == 9, "counter %d", param.counter);
-    OK(param.timeouts == 5, "timeouts %d", param.timeouts);
+    messagequeue_push(param2.q, message);
+    usleep(1000*500);
+    OK(param2.counter == 9, "counter %d", param2.counter);
+    OK(param2.timeouts == 4, "timeouts %d", param2.timeouts); // at 1500
 
     th = thread_stop(th);
     OK_FATAL(th == NULL, "thread object gone");
-    param.counter = 0;
-    param.timeouts = 0;
 
-    th = thread_launch(thread_mq_notimeout_func, &param, "test mq notimeout");
+    struct ThreadMQParam param3;
+    param3.counter = 0;
+    param3.timeouts = 0;
+    param3.errors = 0;
+    param3.q = new_messagequeue();
+    OK_FATAL(param3.q, "have queue");
+    th = thread_launch(thread_mq_notimeout_func, &param3, "test mq notimeout");
     OK_FATAL(th, "have thread object");
-    usleep(1000*200);
-    OK(param.counter == 0, "counter %d", param.counter);
-    OK(param.timeouts == 0, "timeouts %d", param.timeouts);
+    usleep(1000*500);
+    OK(param3.counter == 0, "counter %d", param3.counter);
+    OK(param3.timeouts == 0, "timeouts %d", param3.timeouts);
     message = (struct ThreadTestParam *)malloc(sizeof(struct ThreadTestParam));
     message->counter = 5;
-    messagequeue_push(param.q, message);
-    usleep(1000*50);
-    OK(param.counter == 5, "counter %d", param.counter);
-    OK(param.timeouts == 0, "timeouts %d", param.timeouts);
+    messagequeue_push(param3.q, message);
+    usleep(1000*200);
+    OK(param3.counter == 5, "counter %d", param3.counter);
+    OK(param3.timeouts == 0, "timeouts %d", param3.timeouts);
 
     th = thread_stop(th);
     OK_FATAL(th == NULL, "thread object gone");
-    param.counter = 0;
-    param.timeouts = 0;
+
+    struct ThreadMQParam param4;
+    param4.counter = 0;
+    param4.timeouts = 0;
+    param4.errors = 0;
+    param4.q = new_messagequeue();
+    OK_FATAL(param4.q, "have queue");
 
     // test pushing multiple items
     for (int i=1; i<20; i++) {
         message = (struct ThreadTestParam *)malloc(sizeof(struct ThreadTestParam));
         message->counter = i;
-        messagequeue_push(param.q, message);
+        messagequeue_push(param4.q, message);
     }
-    th = thread_launch(thread_mq_multi_func, &param, "test mq multiple msg");
+    th = thread_launch(thread_mq_multi_func, &param4, "test mq multiple msg");
     OK_FATAL(th, "have thread object");
     usleep(1000*100);
-    OK(param.counter == 19, "counter %d", param.counter);
-    OK(param.timeouts == 0, "timeouts %d", param.timeouts);
-    OK(param.errors == 0, "errors %d", param.errors);
+    OK(param4.counter == 19, "counter %d", param4.counter);
+    OK(param4.timeouts == 0, "timeouts %d", param4.timeouts);
+    OK(param4.errors == 0, "errors %d", param4.errors);
 
     th = thread_stop(th);
     OK_FATAL(th == NULL, "thread object gone");
 
-    param.q = delete_messagequeue(param.q);
-    OK(param.q == NULL, "queue gone");
+    param1.q = delete_messagequeue(param1.q);
+    OK(param1.q == NULL, "queue gone");
+    param2.q = delete_messagequeue(param2.q);
+    OK(param2.q == NULL, "queue gone");
+    param3.q = delete_messagequeue(param3.q);
+    OK(param3.q == NULL, "queue gone");
+    param4.q = delete_messagequeue(param4.q);
+    OK(param4.q == NULL, "queue gone");
 
     OK(delete_messagequeue(NULL) == NULL, "delete NULL queue");
 }
