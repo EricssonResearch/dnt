@@ -7,7 +7,7 @@ workflow:
     - if: $CI_PIPELINE_SOURCE == "web"
 
 # this Docker image should contain everything we need
-image: mtmkls/ci-runner:v1
+image: mtmkls/ci-runner:v2
 
 stages:
   - verify
@@ -20,6 +20,7 @@ verify-ci-config:
     - rosetta-docker
   script:
     - gitlab-ci/verify_yaml.pl
+
 
 build-r2dtwo-debug:
   stage: build
@@ -84,94 +85,62 @@ build-unit_test:
       - unit_test/build/test_*
 
 
-#TODO run all the python tests
-pytest_oam:
+.pytest.common:
   stage: test
   tags:
     - tsn
   dependencies:
     - build-r2dtwo-debug
+
+pytest_oam:
+  extends: .pytest.common
   script:
     - cd test
     - ./oam.py
-  timeout: 3 minutes
   allow_failure: true
 
 pytest_elimination:
-  stage: test
-  tags:
-    - tsn
-  dependencies:
-    - build-r2dtwo-debug
+  extends: .pytest.common
   script:
-    - apt update -qy
-    - apt install -y tshark
     - cd test
     - ./sequence.py
-  timeout: 3 minutes
   allow_failure: false
 
 pytest_match:
-  stage: test
-  tags:
-    - tsn
-  dependencies:
-    - build-r2dtwo-debug
+  extends: .pytest.common
   script:
-    - apt update -qy
-    - apt install -y python3-scapy
     - cd test
     - ./match.py
-  timeout: 3 minutes
   allow_failure: false
 
 pytest_mask:
-  stage: test
-  tags:
-    - tsn
-  dependencies:
-    - build-r2dtwo-debug
+  extends: .pytest.common
   script:
     - cd test
     - ./mask.py
-  timeout: 1 minutes
   allow_failure: false
 
 pytest_pof:
-  stage: test
-  tags:
-    - tsn
-  dependencies:
-    - build-r2dtwo-debug
+  extends: .pytest.common
   script:
     - cd test
     - ./pof.py
-  timeout: 2 minutes
   allow_failure: false
 
 pytest_delay:
-  stage: test
-  tags:
-    - tsn
-  dependencies:
-    - build-r2dtwo-debug
+  extends: .pytest.common
   script:
     - cd test
     - ./delay.py
-  timeout: 2 minutes
   allow_failure: false
 
 pytest_stress:
-  stage: test
-  tags:
-    - tsn
-  dependencies:
-    - build-r2dtwo-debug
+  extends: .pytest.common
   script:
     - cd test
     - ./stress.py
-  timeout: 2 minutes
   allow_failure: false
+
 
 .unit_test.common:
   stage: test
