@@ -58,62 +58,62 @@ static void test_window(void)
     OK(pi, "have iterator");
 
     p->sequence = htonl(start);
-    OK(seq_recovery(rec, pi) == ACR_CONTINUE, "in TakeAny");
+    OK(rec->process_packet(rec, pi) == ACR_CONTINUE, "in TakeAny");
     p->sequence = htonl(start+1);
-    OK(seq_recovery(rec, pi) == ACR_CONTINUE, "not duplicate and move window");
+    OK(rec->process_packet(rec, pi) == ACR_CONTINUE, "not duplicate and move window");
     p->sequence = htonl(start-1);
-    OK(seq_recovery(rec, pi) == ACR_CONTINUE, "not duplicate");
+    OK(rec->process_packet(rec, pi) == ACR_CONTINUE, "not duplicate");
     p->sequence = htonl(start);
-    OK(seq_recovery(rec, pi) == ACR_DONE, "duplicate");
+    OK(rec->process_packet(rec, pi) == ACR_DONE, "duplicate");
     p->sequence = htonl(start+1);
-    OK(seq_recovery(rec, pi) == ACR_DONE, "duplicate");
+    OK(rec->process_packet(rec, pi) == ACR_DONE, "duplicate");
     p->sequence = htonl(start-1);
-    OK(seq_recovery(rec, pi) == ACR_DONE, "duplicate");
+    OK(rec->process_packet(rec, pi) == ACR_DONE, "duplicate");
 
     // window center is at start+1 now
 
     p->sequence = htonl(start+1 - history_length);
-    OK(seq_recovery(rec, pi) == ACR_DONE, "window edge outside");
+    OK(rec->process_packet(rec, pi) == ACR_DONE, "window edge outside");
     p->sequence = htonl(start+1 - history_length+1);
-    OK(seq_recovery(rec, pi) == ACR_CONTINUE, "window edge inside");
+    OK(rec->process_packet(rec, pi) == ACR_CONTINUE, "window edge inside");
 
     p->sequence = htonl(start+1 + history_length+1);
-    OK(seq_recovery(rec, pi) == ACR_DONE, "window edge outside");
+    OK(rec->process_packet(rec, pi) == ACR_DONE, "window edge outside");
     p->sequence = htonl(start+1 + history_length);
-    OK(seq_recovery(rec, pi) == ACR_CONTINUE, "window edge inside and move window");
+    OK(rec->process_packet(rec, pi) == ACR_CONTINUE, "window edge inside and move window");
 
     // window center is at start+history_length now
 
     p->sequence = htonl(start+history_length - history_length);
-    OK(seq_recovery(rec, pi) == ACR_DONE, "window edge outside");
+    OK(rec->process_packet(rec, pi) == ACR_DONE, "window edge outside");
     p->sequence = htonl(start+history_length - history_length+1); // we already had start+1
-    OK(seq_recovery(rec, pi) == ACR_DONE, "duplicate");
+    OK(rec->process_packet(rec, pi) == ACR_DONE, "duplicate");
     p->sequence = htonl(start+history_length - history_length+2);
-    OK(seq_recovery(rec, pi) == ACR_CONTINUE, "window edge inside");
+    OK(rec->process_packet(rec, pi) == ACR_CONTINUE, "window edge inside");
 
     // move window center to start+history_length*1.5
     p->sequence = htonl(start+history_length + history_length/2);
-    OK(seq_recovery(rec, pi) == ACR_CONTINUE, "not duplicate and move window");
+    OK(rec->process_packet(rec, pi) == ACR_CONTINUE, "not duplicate and move window");
     p->sequence = htonl(start+history_length*1.5 - history_length);
-    OK(seq_recovery(rec, pi) == ACR_DONE, "window edge outside");
+    OK(rec->process_packet(rec, pi) == ACR_DONE, "window edge outside");
     p->sequence = htonl(start+history_length*1.5 - history_length+1);
-    OK(seq_recovery(rec, pi) == ACR_CONTINUE, "window edge inside");
+    OK(rec->process_packet(rec, pi) == ACR_CONTINUE, "window edge inside");
 
     unsigned newstart = 2000;
     p->sequence = htonl(newstart);
-    OK(seq_recovery(rec, pi) == ACR_DONE, "outside");
+    OK(rec->process_packet(rec, pi) == ACR_DONE, "outside");
     usleep(1000*(reset_ms+30)); //TODO the needed oversleep depends on cpu speed :(
-    OK(seq_recovery(rec, pi) == ACR_CONTINUE, "in TakeAny again");
+    OK(rec->process_packet(rec, pi) == ACR_CONTINUE, "in TakeAny again");
 
     // sequence wrap-around
     usleep(1000*(reset_ms+30));
     newstart = 65535;
     p->sequence = htonl(newstart);
-    OK(seq_recovery(rec, pi) == ACR_CONTINUE, "in TakeAny again");
+    OK(rec->process_packet(rec, pi) == ACR_CONTINUE, "in TakeAny again");
     p->sequence = htonl(20);
-    OK(seq_recovery(rec, pi) == ACR_CONTINUE, "in window");
+    OK(rec->process_packet(rec, pi) == ACR_CONTINUE, "in window");
     p->sequence = htonl(65520);
-    OK(seq_recovery(rec, pi) == ACR_CONTINUE, "in window");
+    OK(rec->process_packet(rec, pi) == ACR_CONTINUE, "in window");
 
     OK(delete_seq_rec(rec) == NULL, "delete object");
     free(pi);
@@ -163,7 +163,7 @@ static void test_single(void)
         for (unsigned i=0; i<ARRAY_SIZE(indices); i++) {
             unsigned d = start + j + indices[i];
             p->sequence = htonl(d);
-            results[d] += seq_recovery(rec, pi) == ACR_CONTINUE;
+            results[d] += rec->process_packet(rec, pi) == ACR_CONTINUE;
         }
     }
     for (unsigned i=0; i<ARRAY_SIZE(results); i++)

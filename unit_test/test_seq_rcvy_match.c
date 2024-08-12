@@ -59,35 +59,35 @@ static void test_duplicates(void)
     OK(pi, "have iterator");
 
     p->sequence = htonl(start);
-    OK(seq_recovery(rec, pi) == ACR_CONTINUE, "in TakeAny");
-    OK(seq_recovery(rec, pi) == ACR_DONE, "duplicate");
+    OK(rec->process_packet(rec, pi) == ACR_CONTINUE, "in TakeAny");
+    OK(rec->process_packet(rec, pi) == ACR_DONE, "duplicate");
     p->sequence = htonl(start+1);
-    OK(seq_recovery(rec, pi) == ACR_CONTINUE, "not duplicate");
-    OK(seq_recovery(rec, pi) == ACR_DONE, "duplicate");
+    OK(rec->process_packet(rec, pi) == ACR_CONTINUE, "not duplicate");
+    OK(rec->process_packet(rec, pi) == ACR_DONE, "duplicate");
     p->sequence = htonl(start);
-    OK(seq_recovery(rec, pi) == ACR_CONTINUE, "not duplicate");
-    OK(seq_recovery(rec, pi) == ACR_DONE, "duplicate");
+    OK(rec->process_packet(rec, pi) == ACR_CONTINUE, "not duplicate");
+    OK(rec->process_packet(rec, pi) == ACR_DONE, "duplicate");
     p->sequence = htonl(start-1);
-    OK(seq_recovery(rec, pi) == ACR_CONTINUE, "not duplicate");
-    OK(seq_recovery(rec, pi) == ACR_DONE, "duplicate");
+    OK(rec->process_packet(rec, pi) == ACR_CONTINUE, "not duplicate");
+    OK(rec->process_packet(rec, pi) == ACR_DONE, "duplicate");
     p->sequence = htonl(start);
-    OK(seq_recovery(rec, pi) == ACR_CONTINUE, "not duplicate");
-    OK(seq_recovery(rec, pi) == ACR_DONE, "duplicate");
+    OK(rec->process_packet(rec, pi) == ACR_CONTINUE, "not duplicate");
+    OK(rec->process_packet(rec, pi) == ACR_DONE, "duplicate");
 
     usleep(1000*(reset_ms+30)); //TODO the needed oversleep depends on cpu speed :(
-    OK(seq_recovery(rec, pi) == ACR_CONTINUE, "in TakeAny again");
-    OK(seq_recovery(rec, pi) == ACR_DONE, "duplicate");
+    OK(rec->process_packet(rec, pi) == ACR_CONTINUE, "in TakeAny again");
+    OK(rec->process_packet(rec, pi) == ACR_DONE, "duplicate");
 
     // test the seq overflow point
     p->sequence = htonl(0xffff);
-    OK(seq_recovery(rec, pi) == ACR_CONTINUE, "not duplicate");
-    OK(seq_recovery(rec, pi) == ACR_DONE, "duplicate");
+    OK(rec->process_packet(rec, pi) == ACR_CONTINUE, "not duplicate");
+    OK(rec->process_packet(rec, pi) == ACR_DONE, "duplicate");
     p->sequence = htonl(0);
-    OK(seq_recovery(rec, pi) == ACR_CONTINUE, "not duplicate");
-    OK(seq_recovery(rec, pi) == ACR_DONE, "duplicate");
+    OK(rec->process_packet(rec, pi) == ACR_CONTINUE, "not duplicate");
+    OK(rec->process_packet(rec, pi) == ACR_DONE, "duplicate");
     p->sequence = htonl(0xffff);
-    OK(seq_recovery(rec, pi) == ACR_CONTINUE, "not duplicate");
-    OK(seq_recovery(rec, pi) == ACR_DONE, "duplicate");
+    OK(rec->process_packet(rec, pi) == ACR_CONTINUE, "not duplicate");
+    OK(rec->process_packet(rec, pi) == ACR_DONE, "duplicate");
 
     OK(delete_seq_rec(rec) == NULL, "delete object");
     free(pi);
@@ -115,7 +115,7 @@ static void test_single(void)
     for (unsigned i=0; i<iterations; i++) {
         unsigned seq = start + rand() % interval;
         p->sequence = htonl(seq);
-        enum ActionResult result = seq_recovery(rec, pi);
+        enum ActionResult result = rec->process_packet(rec, pi);
         enum ActionResult good = last != seq ? ACR_CONTINUE : ACR_DONE;
         OK(result == good, "match %u last %u seq %u result %d", i, last, seq, result);
         last = seq;
