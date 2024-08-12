@@ -59,35 +59,6 @@ char *seq_gen_sprintf_state_json(struct JsonValue *json, const char *record_sep,
     }
 }
 
-struct PipelineObject *new_seq_gen(const char *name, bool use_reset_flag, bool use_init_flag, unsigned init_seq_start)
-{
-    struct SequenceGenerator *ret = calloc_struct(SequenceGenerator);
-    ret->base.type = PO_SEQGEN;
-    ret->base.name = strdup(name);
-    ret->base.get_state = get_state_json;
-    ret->base.process_packet = seq_generator;
-    ret->base.reference_count = 1;
-
-    ret->use_reset_flag = use_reset_flag;
-    ret->use_init_flag = use_init_flag;
-    ret->init_seq_start = init_seq_start;
-
-    ret->gen_seq_num = 0;
-    ret->init_gen_seq_num = init_seq_start;
-    ret->reset_flag = use_reset_flag;
-    ret->use_init_seq_space = use_init_flag;
-
-    return (struct PipelineObject *)ret;
-}
-
-struct PipelineObject *delete_seq_gen(struct PipelineObject *gen)
-{
-    //TODO throw if gen->type is not PO_SEQGEN
-    free(gen->name);
-    free(gen);
-    return NULL;
-}
-
 
 static void sequence_generation_reset(struct SequenceGenerator *gen)
 {
@@ -143,7 +114,7 @@ static unsigned sequence_generation(struct SequenceGenerator *gen)
     return seq;
 }
 
-enum ActionResult seq_generator(struct PipelineObject *gen, struct PipelineIterator *pi)
+static enum ActionResult seq_generator(struct PipelineObject *gen, struct PipelineIterator *pi)
 {
     struct SequenceGenerator *g = (struct SequenceGenerator *)gen;
     unsigned new_seq = sequence_generation(g);
@@ -151,4 +122,32 @@ enum ActionResult seq_generator(struct PipelineObject *gen, struct PipelineItera
     return ACR_CONTINUE;
 }
 
+struct PipelineObject *new_seq_gen(const char *name, bool use_reset_flag, bool use_init_flag, unsigned init_seq_start)
+{
+    struct SequenceGenerator *ret = calloc_struct(SequenceGenerator);
+    ret->base.type = PO_SEQGEN;
+    ret->base.name = strdup(name);
+    ret->base.get_state = get_state_json;
+    ret->base.process_packet = seq_generator;
+    ret->base.reference_count = 1;
+
+    ret->use_reset_flag = use_reset_flag;
+    ret->use_init_flag = use_init_flag;
+    ret->init_seq_start = init_seq_start;
+
+    ret->gen_seq_num = 0;
+    ret->init_gen_seq_num = init_seq_start;
+    ret->reset_flag = use_reset_flag;
+    ret->use_init_seq_space = use_init_flag;
+
+    return (struct PipelineObject *)ret;
+}
+
+struct PipelineObject *delete_seq_gen(struct PipelineObject *gen)
+{
+    //TODO throw if gen->type is not PO_SEQGEN
+    free(gen->name);
+    free(gen);
+    return NULL;
+}
 

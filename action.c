@@ -230,7 +230,7 @@ struct ElimData {
 static enum ActionResult action_ELIM_execute(struct Action *a, struct PipelineIterator *pi)
 {
     struct ElimData *ed = (struct ElimData *)a->action_private;
-    return seq_recovery(ed->rcvy, pi);
+    return ed->rcvy->process_packet(ed->rcvy, pi);
 }
 
 static void action_ELIM_del(void *action_private)
@@ -291,7 +291,7 @@ struct PofData {
 static enum ActionResult action_POF_execute(struct Action *a, struct PipelineIterator *pi)
 {
     struct PofData *pd = (struct PofData *)a->action_private;
-    return pof_insert(pd->pof, pi);
+    return pd->pof->process_packet(pd->pof, pi);
 }
 
 static void action_POF_del(void *action_private)
@@ -379,7 +379,7 @@ static enum ActionResult action_REPL_execute(struct Action *a, struct PipelineIt
 
     if (rd->replobj) {
         list = replicate_get_pipes(rd->replobj);
-        replicate_packet_passed(rd->replobj, pi);
+        rd->replobj->process_packet(rd->replobj, pi);
     }
 
     // extract the packet from our iterator
@@ -487,7 +487,7 @@ struct SeqgenData {
 static enum ActionResult action_SEQGEN_execute(struct Action *a, struct PipelineIterator *pi)
 {
     struct SeqgenData *sd = (struct SeqgenData *)a->action_private;
-    return seq_generator(sd->gen, pi);
+    return sd->gen->process_packet(sd->gen, pi);
 }
 
 static void action_SEQGEN_del(void *action_private)

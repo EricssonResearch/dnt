@@ -55,6 +55,16 @@ char *repl_sprintf_state_json(struct JsonValue *json, const char *record_sep, co
     }
 }
 
+static enum ActionResult replicate_packet_passed(struct PipelineObject *rep, struct PipelineIterator *pi)
+{
+    struct Replicate *r = (struct Replicate *)rep;
+    __atomic_fetch_add(&r->packets_passed, 1, __ATOMIC_RELAXED);
+    //TODO this is not correct if a header was deleted, but
+    //      summing the header lengths would be too slow
+    __atomic_fetch_add(&r->octets_passed, pi->packet->len + pi->packet->scratch_len, __ATOMIC_RELAXED);
+    return ACR_CONTINUE;
+}
+
 struct PipelineObject *new_replicate(const char *name)
 {
     struct Replicate *ret = calloc_struct(Replicate);
@@ -71,16 +81,6 @@ struct PipelineObject *delete_replicate(struct PipelineObject *rep)
     free(rep->name);
     free(rep);
     return NULL;
-}
-
-enum ActionResult replicate_packet_passed(struct PipelineObject *rep, struct PipelineIterator *pi)
-{
-    struct Replicate *r = (struct Replicate *)rep;
-    __atomic_fetch_add(&r->packets_passed, 1, __ATOMIC_RELAXED);
-    //TODO this is not correct if a header was added and then deleted, but
-    //      summing the header lengths would be too slow
-    __atomic_fetch_add(&r->octets_passed, pi->packet->len + pi->packet->scratch_len, __ATOMIC_RELAXED);
-    return ACR_CONTINUE;
 }
 
 void store_replication_pipelines(struct PipelineObject *obj, struct PipelineList *pipes)

@@ -16,10 +16,6 @@ struct PipelineObject *new_pof(const char *name, unsigned pof_max_delay, unsigne
 // always returns NULL
 struct PipelineObject *delete_pof(struct PipelineObject *pof);
 
-// Insert a packet into the buffer of the given POF instance.
-// If the buffer is full, return false, otherwise true
-enum ActionResult pof_insert(struct PipelineObject *pof, struct PipelineIterator *pi);
-
 // use sprintf_state_json() instead of this
 char *pof_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep);
 

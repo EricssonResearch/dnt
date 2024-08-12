@@ -47,6 +47,11 @@ enum SequenceRecoveryAlgorithm {
     RCVY_SeamlessVector,
 };
 
+// use sprintf_state_json() instead of this
+char *seq_rec_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep);
+
+void seq_rec_set_latent_error_paths(struct PipelineObject *obj, int paths);
+
 /*
  * Create a new Sequence Recovery instance
  * @algo: the algorithm for seq recovery: match, seamless, vector
@@ -62,14 +67,5 @@ struct PipelineObject *new_seq_rec(const char *name, enum SequenceRecoveryAlgori
 
 // always returns NULL
 struct PipelineObject *delete_seq_rec(struct PipelineObject *rec);
-
-// @returns ACR_CONTINUE or ACR_DONE whether @pi has a duplicate packet, based on @pi->packet->sequence
-// automatically handles OAM packets with temporary recovery objects
-enum ActionResult seq_recovery(struct PipelineObject *rec, struct PipelineIterator *pi);
-
-// use sprintf_state_json() instead of this
-char *seq_rec_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep);
-
-void seq_rec_set_latent_error_paths(struct PipelineObject *obj, int paths);
 
 #endif // R2_SEQ_RECOV_H

@@ -61,9 +61,6 @@ struct Pof {
     struct timespec pof_last_recv_ts;
 };
 
-static void *pof_thread(void *);
-static void pof_reset(struct Pof *pof);
-
 static inline __attribute__((unused)) void pof_debug(const struct Pof *pof)
 {
     if (pof->queue_len < 0) {
@@ -113,58 +110,6 @@ char *pof_sprintf_state_json(struct JsonValue *json, const char *record_sep, con
     }
 }
 
-struct PipelineObject *new_pof(const char *name, unsigned pof_max_delay, unsigned pof_take_any_time, unsigned queue_max_len)
-{
-    struct Pof *ret = calloc_struct(Pof);
-    if (ret == NULL) {
-        log_perror("calloc");
-        return NULL;
-    }
-    ret->base.type = PO_POF;
-    ret->base.name = strdup(name);
-    ret->base.get_state = get_state_json;
-    ret->base.process_packet = pof_insert;
-    ret->base.reference_count = 1;
-
-    timespec_from_msec(&ret->pof_max_delay, pof_max_delay);
-    timespec_from_msec(&ret->pof_take_any_time, pof_take_any_time);
-    ret->queue_max_len = queue_max_len;
-    ret->queue_len = 0;
-    ret->take_any = true;
-    ret->evfd = eventfd(0, EFD_NONBLOCK);
-    if (ret->evfd < 0) {
-        log_perror("eventfd");
-        goto err_evfd;
-    }
-    if (pthread_mutex_init(&ret->lock, NULL)) {
-        log_perror("pthread_mutex_init");
-        goto err_thread;
-    }
-    if (pthread_create(&ret->thread_id, NULL, pof_thread, ret) != 0) {
-        log_perror("pthread_create");
-        goto err_thread;
-    }
-    return (struct PipelineObject*)ret;
-
-err_thread:
-    close(ret->evfd);
-err_evfd:
-    free(ret->base.name);
-    free(ret);
-    return NULL;
-}
-
-struct PipelineObject *delete_pof(struct PipelineObject *p)
-{
-    struct Pof *pof = (struct Pof*)p;
-    pthread_cancel(pof->thread_id);
-    pthread_join(pof->thread_id, NULL);
-    pthread_mutex_destroy(&pof->lock);
-    pof_reset(pof);
-    free(p->name);
-    free(p);
-    return NULL;
-}
 
 static struct PofElem *new_pof_elem(struct Pof *pof, struct PipelineIterator *pi)
 {
@@ -178,7 +123,7 @@ static struct PofElem *new_pof_elem(struct Pof *pof, struct PipelineIterator *pi
     return ret;
 }
 
-enum ActionResult pof_insert(struct PipelineObject *p, struct PipelineIterator *pi)
+static enum ActionResult pof_insert(struct PipelineObject *p, struct PipelineIterator *pi)
 {
     struct Pof *pof = (struct Pof*)p;
 
@@ -366,4 +311,56 @@ out:
     return NULL;
 }
 
+struct PipelineObject *new_pof(const char *name, unsigned pof_max_delay, unsigned pof_take_any_time, unsigned queue_max_len)
+{
+    struct Pof *ret = calloc_struct(Pof);
+    if (ret == NULL) {
+        log_perror("calloc");
+        return NULL;
+    }
+    ret->base.type = PO_POF;
+    ret->base.name = strdup(name);
+    ret->base.get_state = get_state_json;
+    ret->base.process_packet = pof_insert;
+    ret->base.reference_count = 1;
+
+    timespec_from_msec(&ret->pof_max_delay, pof_max_delay);
+    timespec_from_msec(&ret->pof_take_any_time, pof_take_any_time);
+    ret->queue_max_len = queue_max_len;
+    ret->queue_len = 0;
+    ret->take_any = true;
+    ret->evfd = eventfd(0, EFD_NONBLOCK);
+    if (ret->evfd < 0) {
+        log_perror("eventfd");
+        goto err_evfd;
+    }
+    if (pthread_mutex_init(&ret->lock, NULL)) {
+        log_perror("pthread_mutex_init");
+        goto err_thread;
+    }
+    if (pthread_create(&ret->thread_id, NULL, pof_thread, ret) != 0) {
+        log_perror("pthread_create");
+        goto err_thread;
+    }
+    return (struct PipelineObject*)ret;
+
+err_thread:
+    close(ret->evfd);
+err_evfd:
+    free(ret->base.name);
+    free(ret);
+    return NULL;
+}
+
+struct PipelineObject *delete_pof(struct PipelineObject *p)
+{
+    struct Pof *pof = (struct Pof*)p;
+    pthread_cancel(pof->thread_id);
+    pthread_join(pof->thread_id, NULL);
+    pthread_mutex_destroy(&pof->lock);
+    pof_reset(pof);
+    free(p->name);
+    free(p);
+    return NULL;
+}
 

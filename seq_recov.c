@@ -110,8 +110,6 @@ static struct SequenceRecovery *get_oam_rcvy(char *session_id)
     return rec;
 }
 
-static void *reset_thread(void *arg);
-
 static void reset_ticks(struct SequenceRecovery *rec)
 {
     rec->remaining_ticks = ((rec->reset_msec * FRER_TICKS_PER_SEC) + 999) / 1000;
@@ -211,54 +209,6 @@ char *seq_rec_sprintf_state_json(struct JsonValue *json, const char *record_sep,
     } else {
         return strdup("<invalid seq_rec state>");
     }
-}
-
-struct PipelineObject *new_seq_rec(const char *name, enum SequenceRecoveryAlgorithm algo,
-        bool use_reset_flag, bool use_init_flag,
-        unsigned history_length, unsigned reset_msec,
-        const struct RecoveryDiagnosticConf *diag)
-{
-    struct SequenceRecovery *ret = calloc_struct(SequenceRecovery);
-
-    ret->base.type = PO_SEQREC;
-    ret->base.name = strdup(name);
-    ret->base.get_state = get_state_json;
-    ret->base.process_packet = seq_recovery;
-    ret->base.reference_count = 1;
-
-    ret->algorithm = algo;
-    ret->use_reset_flag = use_reset_flag;
-    ret->use_init_flag = use_init_flag;
-    ret->history_length = history_length;
-    ret->reset_msec = reset_msec;
-    if (diag) {
-        ret->diag = *diag;
-    }
-    ret->history = (char *)calloc(history_length, sizeof(char)); //TODO not if algo==Match
-    ret->init_history = (char *)calloc(history_length, sizeof(char)); //TODO we only need this when algo==Seamless
-    ret->take_any = true;
-    ret->init_take_any = true;
-    ret->session_id = NULL;
-
-    ret->reset_thread = thread_launch(reset_thread, ret, "seq reset %s", name);
-    if (ret->reset_thread == NULL) {
-        log_error("cant't create reset thread for %s", name);
-        return delete_seq_rec((struct PipelineObject *)ret);
-    }
-
-    return (struct PipelineObject *)ret;
-}
-
-struct PipelineObject *delete_seq_rec(struct PipelineObject *r)
-{
-    struct SequenceRecovery *rec = (struct SequenceRecovery *)r;
-    thread_stop(rec->reset_thread);
-    free(rec->history);
-    free(rec->init_history);
-    free(rec->session_id);
-    free(r->name);
-    free(rec);
-    return NULL;
 }
 
 static void shift_seq_history(struct SequenceRecovery *rec, char *history,  unsigned new_zero)
@@ -433,7 +383,7 @@ static void seamless_seq_recovery_reset(struct SequenceRecovery *rec)
 }
 
 //TODO: race condition
-enum ActionResult seq_recovery(struct PipelineObject *r, struct PipelineIterator *pi)
+static enum ActionResult seq_recovery(struct PipelineObject *r, struct PipelineIterator *pi)
 {
     struct SequenceRecovery *rec = (struct SequenceRecovery *)r;
     struct Packet *p = pi->packet;
@@ -629,4 +579,52 @@ void seq_rec_set_latent_error_paths(struct PipelineObject *obj, int paths)
     rec->diag.latent_error_paths = paths;
     rec->diag.invalid = true;
     latent_error_reset(rec);
+}
+
+struct PipelineObject *new_seq_rec(const char *name, enum SequenceRecoveryAlgorithm algo,
+        bool use_reset_flag, bool use_init_flag,
+        unsigned history_length, unsigned reset_msec,
+        const struct RecoveryDiagnosticConf *diag)
+{
+    struct SequenceRecovery *ret = calloc_struct(SequenceRecovery);
+
+    ret->base.type = PO_SEQREC;
+    ret->base.name = strdup(name);
+    ret->base.get_state = get_state_json;
+    ret->base.process_packet = seq_recovery;
+    ret->base.reference_count = 1;
+
+    ret->algorithm = algo;
+    ret->use_reset_flag = use_reset_flag;
+    ret->use_init_flag = use_init_flag;
+    ret->history_length = history_length;
+    ret->reset_msec = reset_msec;
+    if (diag) {
+        ret->diag = *diag;
+    }
+    ret->history = (char *)calloc(history_length, sizeof(char)); //TODO not if algo==Match
+    ret->init_history = (char *)calloc(history_length, sizeof(char)); //TODO we only need this when algo==Seamless
+    ret->take_any = true;
+    ret->init_take_any = true;
+    ret->session_id = NULL;
+
+    ret->reset_thread = thread_launch(reset_thread, ret, "seq reset %s", name);
+    if (ret->reset_thread == NULL) {
+        log_error("cant't create reset thread for %s", name);
+        return delete_seq_rec((struct PipelineObject *)ret);
+    }
+
+    return (struct PipelineObject *)ret;
+}
+
+struct PipelineObject *delete_seq_rec(struct PipelineObject *r)
+{
+    struct SequenceRecovery *rec = (struct SequenceRecovery *)r;
+    thread_stop(rec->reset_thread);
+    free(rec->history);
+    free(rec->init_history);
+    free(rec->session_id);
+    free(r->name);
+    free(rec);
+    return NULL;
 }
