@@ -248,7 +248,7 @@ struct PipelineIterator *parsetree_identify(struct ParseTree *pt, struct Packet 
         log_debug("trying %s", s->pipe->name);
 
         while (h) {
-            const struct Protocol *proto = &protocol_list[h->id];
+            const struct Protocol *proto = protocol_from_id(h->id);
             // if a header fails to match, we dont check the next one
             if (!packet_identify_header(p, h->id, offset, proto->bytelength)) {
                 full_stream_match = false;
@@ -271,8 +271,8 @@ struct PipelineIterator *parsetree_identify(struct ParseTree *pt, struct Packet 
             packet_logcat(p, "%s ", s->pipe->name);
             for (unsigned i=0; i<p->header_count; i++) {
                 log_packet("  header %u is %s at %u len %u", i,
-                        protocol_list[p->headers[i].type].name, p->headers[i].start, p->headers[i].len);
-                packet_logcat(p, "|%s", protocol_list[p->headers[i].type].name);
+                        protocol_from_id(p->headers[i].type)->name, p->headers[i].start, p->headers[i].len);
+                packet_logcat(p, "|%s", protocol_from_id(p->headers[i].type)->name);
             }
             packet_logcat(p, "| ");
 

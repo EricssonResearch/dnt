@@ -676,7 +676,7 @@ static bool process_token(char *token, void *userdata)
                 if (!valid) {
                     THROW("type is invalid for new header'%s'", token);
                 }
-                newaction->add.len = protocol_list[newaction->add.id].bytelength;
+                newaction->add.len = protocol_from_id(newaction->add.id)->bytelength;
             } else {
                 char *lhs, *rhs;
                 struct ConfAssignment *a = calloc_struct(ConfAssignment);
@@ -991,7 +991,7 @@ static struct ConfAssignment *assign_nexthdrid_from_header_type(const char *acti
         const struct HeaderDescriptor *typeheader)
 {
     uint16_t nexthdrnum;
-    const struct Protocol *dstpr = &protocol_list[dstheader->id];
+    const struct Protocol *dstpr = protocol_from_id(dstheader->id);
     const struct ProtocolField *dstf = protocol_get_field_by_type(dstheader->id, FT_NEXTHEADER);
     if (!dstpr->get_nexthdr(&nexthdrnum, typeheader->id)) {
         return NULL;
@@ -1021,9 +1021,9 @@ static struct ConfAssignment *assign_nexthdrid_copy_from_srcheader(const char *a
         const struct HeaderDescriptor *dstheader, unsigned dstpos,
         const struct HeaderDescriptor *srcheader, unsigned srcpos)
 {
-    const struct Protocol *dstpr = &protocol_list[dstheader->id];
+    const struct Protocol *dstpr = protocol_from_id(dstheader->id);
     const struct ProtocolField *dstf = protocol_get_field_by_type(dstheader->id, FT_NEXTHEADER);
-    const struct Protocol *srcpr = &protocol_list[srcheader->id];
+    const struct Protocol *srcpr = protocol_from_id(srcheader->id);
     const struct ProtocolField *srcf = protocol_get_field_by_type(srcheader->id, FT_NEXTHEADER);
     if (dstpr->get_nexthdr != srcpr->get_nexthdr) {
         log_error("nexthdr field type mismatch");
@@ -1190,28 +1190,29 @@ static bool process_action(struct StageState *stst)
             struct ConfAction *edit = new_confaction(stst, CA_EDIT,
                     strdup_printf("assignments for %s", newaction->text));
 
-                    // set default value if there is one
-                    if (protocol_list[newheader->id].default_value) {
-                        struct ConfAssignment *a = calloc_struct(ConfAssignment);
-                        a->text = strdup_printf("add sets default value");
-                        //TODO this part is a bit hacky because we are not writing a defined header field
-                        init_confvariable_full(&a->lhs, CVT_FIELD, FT_NUMBER, 0, protocol_list[newheader->id].default_value_len*8);
-                        init_confvariable_full(&a->rhs, CVT_CONST, FT_NUMBER, 0, protocol_list[newheader->id].default_value_len*8);
-                        a->rhs.value.value = memdup(protocol_list[newheader->id].default_value,
-                                protocol_list[newheader->id].default_value_len);
-                        struct HeaderField *dsthf = calloc_struct(HeaderField);
-                        dsthf->header_idx = pos_idx;
-                        dsthf->bitoffset = 0;
-                        dsthf->bitcount = protocol_list[newheader->id].default_value_len*8;
-                        a->lhs.v.header.field = dsthf;
-                        a->write = header_get_field_writer(dsthf, &a->rhs.value);
+            // set default value if there is one
+            const struct Protocol *newproto = protocol_from_id(newheader->id);
+            if (newproto->default_value) {
+                struct ConfAssignment *a = calloc_struct(ConfAssignment);
+                a->text = strdup_printf("add sets default value");
+                //TODO this part is a bit hacky because we are not writing a defined header field
+                init_confvariable_full(&a->lhs, CVT_FIELD, FT_NUMBER, 0, newproto->default_value_len*8);
+                init_confvariable_full(&a->rhs, CVT_CONST, FT_NUMBER, 0, newproto->default_value_len*8);
+                a->rhs.value.value = memdup(newproto->default_value,
+                        newproto->default_value_len);
+                struct HeaderField *dsthf = calloc_struct(HeaderField);
+                dsthf->header_idx = pos_idx;
+                dsthf->bitoffset = 0;
+                dsthf->bitcount = newproto->default_value_len*8;
+                a->lhs.v.header.field = dsthf;
+                a->write = header_get_field_writer(dsthf, &a->rhs.value);
 
-                        a->next = edit->edit.assignments;
-                        edit->edit.assignments = a;
-                    }
+                a->next = edit->edit.assignments;
+                edit->edit.assignments = a;
+            }
 
             // set the nexthdr field of newheader either by nextheader's type or by copying from prevheader
-            if (protocol_list[newheader->id].get_nexthdr != NULL) {
+            if (newproto->get_nexthdr != NULL) {
                 struct ConfAssignment *a = NULL;
                 if (nextheader) {
                     a = assign_nexthdrid_from_header_type("add", newheader, pos_idx, nextheader);
@@ -1235,7 +1236,7 @@ static bool process_action(struct StageState *stst)
             }
 
             // set nexthdr of prevheader with newheader's type
-            if (prevheader && protocol_list[prevheader->id].get_nexthdr != NULL) {
+            if (prevheader && protocol_from_id(prevheader->id)->get_nexthdr != NULL) {
                 struct ConfAssignment *a = assign_nexthdrid_from_header_type("add", prevheader, pos_idx-1, newheader);
                 if (a == NULL) {
                     THROW("header type %s cannot have type %s as next header",
@@ -1310,7 +1311,7 @@ static bool process_action(struct StageState *stst)
             // handle the nexthdr field of prev
             struct ConfAssignment *a = NULL;
             if (prev) {
-                if (protocol_list[prev->id].get_nexthdr) {
+                if (protocol_from_id(prev->id)->get_nexthdr) {
                     if (del->next) {
                         a = assign_nexthdrid_from_header_type("del", prev, idx-1, del->next);
                         if (a == NULL) {

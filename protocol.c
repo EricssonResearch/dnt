@@ -288,6 +288,7 @@ static const struct ProtocolField oam_fields[] = {
     {"session",    60,  4, FT_NUMBER},
 };
 
+// the internal id of the protocols is their index in this array
 //TODO autogenerate this list
 const struct Protocol protocol_list[] = {
     {"payload", payload_fields, 0, 0, NULL, NULL, NULL, 0},
@@ -311,6 +312,10 @@ const struct Protocol protocol_list[] = {
 
 const unsigned protocol_count = ARRAY_SIZE(protocol_list);
 
+const struct Protocol *protocol_from_id(enum ProtocolID id)
+{
+    return &protocol_list[id];
+}
 
 const char *fieldtype_name_from_type(enum ProtocolFieldType type)
 {

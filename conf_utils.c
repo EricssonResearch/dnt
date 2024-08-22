@@ -263,10 +263,11 @@ bool read_constant(struct Value *val, enum ProtocolID proto, enum ProtocolFieldT
             return read_constant(val, proto, FT_NUMBER, string);
         case FT_NEXTHEADER: {
             if (protocol_type_valid(string)) {
-                if (protocol_list[proto].get_nexthdr) {
+                const struct Protocol *pr = protocol_from_id(proto);
+                if (pr->get_nexthdr) {
                     enum ProtocolID val_id = protocol_id_from_type(string);
                     uint16_t nexthdr;
-                    if (protocol_list[proto].get_nexthdr(&nexthdr, val_id)) {
+                    if (pr->get_nexthdr(&nexthdr, val_id)) {
                         if (prepare_constant_number(val, nexthdr)) {
                             return true;
                         } else {

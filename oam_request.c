@@ -444,10 +444,8 @@ static int add_fixed_headers(struct Packet *packet, unsigned char ttl,
                              unsigned char seq, unsigned short channel, unsigned short nodeid,
                              unsigned char level, unsigned char session)
 {
-    enum ProtocolID proto_id = PROTO_ID_MPLS;
-    packet_add_header(packet, 0, proto_id, protocol_list[proto_id].bytelength);
-    proto_id = PROTO_ID_OAM;
-    packet_add_header(packet, 1, proto_id, protocol_list[proto_id].bytelength);
+    packet_add_header(packet, 0, PROTO_ID_MPLS, protocol_from_id(PROTO_ID_MPLS)->bytelength);
+    packet_add_header(packet, 1, PROTO_ID_OAM, protocol_from_id(PROTO_ID_OAM)->bytelength);
 
     unsigned char *mpls = packet->buf + packet->headers[0].start;
     mpls[0] = 0;
