@@ -56,11 +56,13 @@ Take a look into the `[interfaces]` section, this is where this scenario differs
 ```
 [interfaces]
 uni = eth iface=swp2
-uni:streams = compound
+uni:streams = prio-compound compound
+
 nni1_in = udp-in iface=swp0 ipv=4
-nni1_in:streams = members
+nni1_in:streams = member1 prio-members
 nni2_in = udp-in iface=swp1 ipv=4
-nni2_in:streams = members
+nni2_in:streams = member2 prio-members
+
 nni1_out = udp-out iface=swp0 dstip=192.168.55.2
 nni2_out = udp-out iface=swp1 dstip=192.168.66.2
 ```
@@ -68,6 +70,11 @@ nni2_out = udp-out iface=swp1 dstip=192.168.66.2
 As one can see there are separate interfaces defined for egress (`nni1_out` and `nni2_out`) and ingress (`nni1_in` and `nni2_in`) DetNet traffic.
 Notice that on the egress interfaces there are no streams defined.
 This makes sense since those interfaces cannot be used to receive traffic, they only send the encapsulated traffic to their counterparts.
+
+We expect two streams on both UNI and NNI interfaces.
+One stream matching for every layer 2 traffic (`cvlan vid=0`).
+The other matches on priority tagged packets (VLAN `pcp=6`), which identified as a separate stream.
+
 
 The `[objects]` section is very similar to Scenario #1.
 That is because the same semantics can be applied to sequence number generation, replication and elimination.
@@ -80,7 +87,16 @@ We also have a sequence generator object called `gen`.
 prf = Replicate
 gen = SeqGen InitSeqStart=0
 pef = SeqRcvy
+
+genprio = SeqGen InitSeqStart=0
+prfprio = Replicate
+pefprio = SeqRcvy
 ```
+
+We have two compound streams `compound` and `prio-compound` and good practice to use separate sequence number space for both.
+Therefore we defined separate sequence generator, PRF and PEF objects to the `prio-compound` stream as well.
+
+#### Stream configuration
 
 The `[streams]` section looks like the following:
 
@@ -93,9 +109,14 @@ compound:actions = gen, edit cvlan.vid=99, before eth add mpls, after mpls add d
 prf-member1 = edit mpls.label=100 mpls.bos=1, send nni1_out
 prf-member2 = edit mpls.label=200 mpls.bos=1, send nni2_out
 
-members:packet = mpls, dcw, eth, cvlan
-members:match = cvlan vid=99
-members:actions = readseq dcw, pef pef-compound
+member1:packet = mpls, dcw, eth, cvlan
+member1:match = mpls label=100
+member1:actions = readseq dcw, pef pef-compound
+
+member2:packet = mpls, dcw, eth, cvlan
+member2:match = mpls label=200
+member2:actions = readseq dcw, pef pef-compound
+
 pef-compound = del dcw, del mpls, del cvlan, send uni
 ```
 
@@ -105,7 +126,7 @@ Right now, the packets matching in `compound` stream will be processed as descri
 
 0. The switch receives a packet on `swp2` interface, and since its an ethernet interface, R2DTWO applies a VLAN 0 tag (named as `cvlan` in the config) on it by default
 1. The `gen` action gives a unique sequence number for each packet. R2DTWO smart enough to guess the action type from the object type.
-2. We change the VLAN ID to 99, so at the PEF side we can match to that regardless of the paths. This is an R2DTWO extra feature, normally one can define two NNI streams and match to the outer MPLS labels: `edit cvlan.vid=99`
+2. We change the VLAN ID to 99, while this is not necessary for the operation, in Wireshark we can confirm the packet belongs to the stream.
 3. Now we have to prepare the DetNet encapsulation. For that we will add an MPLS header `before eth add mpls` and a DetNet control word `after mpls add dcw`.
 4. Optional, but might be useful to show: `writeseq dcw` will write the sequence number of the packet (given from `gen`) into the `dcw` header. R2DTWO is smart enough to do that if we push new DetNet CW header.
 5. That was the common part of the pipeline. Now we perform a branching with the `prf prf-member1 prf-member2` action, and continue the execution of the pipeline differently with two copies of the packet.
@@ -114,19 +135,30 @@ Before the sending we also set the MPLS Bottom of Stack bit to 1, since we dont 
 
 Now let's see the NNI part, where we process the incoming packets from the member streams.
 The NNIs currently UDP sockets for both ingress and egress: we will check it with `tshark` later.
-Right now we only defined one NNI stream for purpose: regardless of the ingress NNI interfaces, we only match the VLAN ID 99, which is set at step 2. of the `compound` action pipeline.
+We defined two NNI streams: `member1` and `member2`.
+The `:match` statements of the NNI streams identify the packets based to the MPLS labels (100 and 200).
+No other identification needed, the labels 
 
 In the NNI `:packet` line we have to define the expected encapsulation, which is `mpls, dcw, eth, cvlan`.
 __Important__: as you can see, the packet header definition does not contain the underlying network's encapsulation (Ethernet, IP, UDP).
 That's because we are only interested in the traffic in the pseudowires.
 
-The steps in `members`:
+The steps in `member1` and `member2`:
 
 1. After the matching of VLAN ID 99 we will read the DetNet CW sequence number: `readseq dcw`. That is required for the PEF
-2. Now we can do the elimination with the PEF, which is performed by the `pef` action. Notice that `pef` is defined in the `[objects]` section, but until their names are not ambiguous we can use an object name in the action pipeline and the action type implicitly guessed by the R2DTWO.
+2. Now we can do the elimination with the PEF, which is performed by the `pef` action.
+Notice that `pef` is defined in the `[objects]` section, but until their names are not ambiguous we can use an object name in the action pipeline and the action type implicitly guessed by the R2DTWO.
 3. The PEF drop the replica packets and the one passing packet's processing continues on the `pef-compound` action pipeline.
-4. Now we decapsulate the headers until the Layer2 payload, as received by the UNI, since the `talker` will expect the same encapsulation that it used when sent the packet. So right now we will delete the MPLS, DetNet CW and VLAN headers: `del dcw, del mpls, del cvlan`.
+4. Now we decapsulate the headers until the Layer2 payload, as received by the UNI, since the `talker` will expect the same encapsulation that it used when sent the packet.
+So right now we will delete the MPLS, DetNet CW and VLAN headers: `del dcw, del mpls, del cvlan`.
 5. Then in the last action of the pipeline, we send the decapsulated packet on the UNI for the `talker`: `send uni`.
+
+
+Another stream `prio-compound` defined similarly to `compound`.
+It has its own stream definitions for UNI and NNI.
+R2DTWO tries to match the streams sequentially: the `compound` not matched if `prio-compound` matches on the packet.
+It might worth to mention, there are no separate member streams defined, since we identify the stream with the same label (500) on both paths.
+So `prio-members` stream is enough for the identification, it must be configured on both NNI interfaces.
 
 As mentioned before, the `nxp2.ini` is very similar however, the UNI is connected to the `listener` in that case.
 
@@ -345,36 +377,73 @@ For example we use it on `nxp1`:
 ```
 nxp1 r2dtwo nxp1.ini -v PACKETTRACE:DEBUG
 Info: Logging to standard output.
-2024.03.18 08:47:34 [MAIN] [INFO] R2DTWO - Reliable & Robust Deterministic Tool for netWOrking 6.3
-2024.03.18 08:47:34 [MAIN] [INFO] Reading config 'nxp1.ini'
-2024.03.18 08:47:34 [INTERFACE] [INFO] Udp-out interface nni1_out on device swp0
-2024.03.18 08:47:34 [INTERFACE] [INFO] Udp-out interface nni2_out on device swp1
-2024.03.18 08:47:34 [INTERFACE] [INFO] Udp-in interface nni2_in on device swp1
-2024.03.18 08:47:34 [INTERFACE] [INFO] Udp-in interface nni1_in on device swp0
-2024.03.18 08:47:34 [INTERFACE] [INFO] Eth interface uni on device swp2
-2024.03.18 08:47:37 [PACKETTRACE] [PACKET] [id=1 oid=0] uni 102 compound |eth|cvlan|payload| SeqGen Edit Add Add WriteSeq WriteSeq Replicate Edit Send nni1_out 
-2024.03.18 08:47:37 [PACKETTRACE] [PACKET] [id=0 oid=0] uni 102 compound |eth|cvlan|payload| SeqGen Edit Add Add WriteSeq WriteSeq Replicate Edit Send nni2_out 
-2024.03.18 08:47:37 [PACKETTRACE] [PACKET] [id=2 oid=2] nni1_in 110 members |mpls|dcw|eth|cvlan|payload| TTLReduce ReadSeq Eliminate FilterOAM Del Del Edit Del Send uni 
-2024.03.18 08:47:38 [PACKETTRACE] [PACKET] [id=5 oid=4] uni 102 compound |eth|cvlan|payload| SeqGen Edit Add Add WriteSeq WriteSeq Replicate Edit Send nni1_out 
-2024.03.18 08:47:38 [PACKETTRACE] [PACKET] [id=4 oid=4] uni 102 compound |eth|cvlan|payload| SeqGen Edit Add Add WriteSeq WriteSeq Replicate Edit Send nni2_out 
-2024.03.18 08:47:38 [PACKETTRACE] [PACKET] [id=6 oid=6] nni1_in 110 members |mpls|dcw|eth|cvlan|payload| TTLReduce ReadSeq Eliminate FilterOAM Del Del Edit Del Send uni 
-2024.03.18 08:47:39 [PACKETTRACE] [PACKET] [id=9 oid=8] uni 102 compound |eth|cvlan|payload| SeqGen Edit Add Add WriteSeq WriteSeq Replicate Edit Send nni1_out 
-2024.03.18 08:47:39 [PACKETTRACE] [PACKET] [id=8 oid=8] uni 102 compound |eth|cvlan|payload| SeqGen Edit Add Add WriteSeq WriteSeq Replicate Edit Send nni2_out 
-2024.03.18 08:47:39 [PACKETTRACE] [PACKET] [id=10 oid=10] nni1_in 110 members |mpls|dcw|eth|cvlan|payload| TTLReduce ReadSeq Eliminate FilterOAM Del Del Edit Del Send uni 
-2024.03.18 08:47:40 [PACKETTRACE] [PACKET] [id=13 oid=12] uni 102 compound |eth|cvlan|payload| SeqGen Edit Add Add WriteSeq WriteSeq Replicate Edit Send nni1_out 
-2024.03.18 08:47:40 [PACKETTRACE] [PACKET] [id=12 oid=12] uni 102 compound |eth|cvlan|payload| SeqGen Edit Add Add WriteSeq WriteSeq Replicate Edit Send nni2_out 
-2024.03.18 08:47:40 [PACKETTRACE] [PACKET] [id=14 oid=14] nni1_in 110 members |mpls|dcw|eth|cvlan|payload| TTLReduce ReadSeq Eliminate FilterOAM Del Del Edit Del Send uni 
-2024.03.18 08:47:42 [PACKETTRACE] [PACKET] [id=17 oid=16] uni 46 compound |eth|cvlan|payload| SeqGen Edit Add Add WriteSeq WriteSeq Replicate Edit Send nni1_out 
-2024.03.18 08:47:42 [PACKETTRACE] [PACKET] [id=16 oid=16] uni 46 compound |eth|cvlan|payload| SeqGen Edit Add Add WriteSeq WriteSeq Replicate Edit Send nni2_out 
-2024.03.18 08:47:42 [PACKETTRACE] [PACKET] [id=18 oid=18] nni1_in 54 members |mpls|dcw|eth|cvlan|payload| TTLReduce ReadSeq Eliminate FilterOAM Del Del Edit Del Send uni 
-2024.03.18 08:47:42 [PACKETTRACE] [PACKET] [id=20 oid=20] nni1_in 54 members |mpls|dcw|eth|cvlan|payload| TTLReduce ReadSeq Eliminate FilterOAM Del Del Edit Del Send uni 
-2024.03.18 08:47:42 [PACKETTRACE] [PACKET] [id=23 oid=22] uni 46 compound |eth|cvlan|payload| SeqGen Edit Add Add WriteSeq WriteSeq Replicate Edit Send nni1_out 
-2024.03.18 08:47:42 [PACKETTRACE] [PACKET] [id=22 oid=22] uni 46 compound |eth|cvlan|payload| SeqGen Edit Add Add WriteSeq WriteSeq Replicate Edit Send nni2_out 
+2024.08.23 09:57:17 [MAIN] [INFO] R2DTWO - Reliable & Robust Deterministic Tool for netWOrking 6.3
+2024.08.23 09:57:17 [MAIN] [INFO] Reading config 'nxp1.ini'
+2024.08.23 09:57:17 [STATE] [INFO] adding stream member1 to interface nni1_in
+2024.08.23 09:57:17 [STATE] [INFO]   compiling new pipeline
+2024.08.23 09:57:17 [STATE] [INFO] adding stream member2 to interface nni2_in
+2024.08.23 09:57:17 [STATE] [INFO]   compiling new pipeline
+2024.08.23 09:57:17 [STATE] [INFO] adding stream compound to interface uni
+2024.08.23 09:57:17 [STATE] [INFO]   compiling new pipeline
+2024.08.23 09:57:17 [INTERFACE] [INFO] Udp-out interface nni1_out on device swp0 destination 192.168.55.2 port 6635
+2024.08.23 09:57:17 [INTERFACE] [INFO] Udp-out interface nni2_out on device swp1 destination 192.168.66.2 port 6635
+2024.08.23 09:57:17 [INTERFACE] [INFO] Udp-in interface nni2_in on device swp1 ip 192.168.66.1 port 6635
+2024.08.23 09:57:17 [INTERFACE] [INFO] Udp-in interface nni1_in on device swp0 ip 192.168.55.1 port 6635
+2024.08.23 09:57:17 [INTERFACE] [INFO] iface address monitoring nni1_in ifname swp0 ifindex 3
+2024.08.23 09:57:17 [INTERFACE] [INFO] iface address monitoring nni2_in ifname swp1 ifindex 4
+2024.08.23 09:57:17 [INTERFACE] [INFO] Eth interface uni on device swp2
+2024.08.23 10:03:36 [PACKETTRACE] [PACKET] [id=1 oid=0] uni 102 compound |eth|cvlan|payload| SeqGen Edit Add Add WriteSeq WriteSeq Replicate Edit Send nni1_out 
+2024.08.23 10:03:36 [PACKETTRACE] [PACKET] [id=0 oid=0] uni 102 compound |eth|cvlan|payload| SeqGen Edit Add Add WriteSeq WriteSeq Replicate Edit Send nni2_out 
+2024.08.23 10:03:36 [PACKETTRACE] [PACKET] [id=2 oid=2] nni1_in 110 member1 |mpls|dcw|eth|cvlan|payload| TTLReduce ReadSeq Eliminate (0 pass) FilterOAM Del Del Edit Del Send uni 
+2024.08.23 10:03:36 [PACKETTRACE] [PACKET] [id=3 oid=3] nni2_in 110 member2 |mpls|dcw|eth|cvlan|payload| TTLReduce ReadSeq Eliminate (0 drop) 
+2024.08.23 10:03:37 [PACKETTRACE] [PACKET] [id=5 oid=4] uni 102 compound |eth|cvlan|payload| SeqGen Edit Add Add WriteSeq WriteSeq Replicate Edit Send nni1_out 
+2024.08.23 10:03:37 [PACKETTRACE] [PACKET] [id=4 oid=4] uni 102 compound |eth|cvlan|payload| SeqGen Edit Add Add WriteSeq WriteSeq Replicate Edit Send nni2_out 
+2024.08.23 10:03:37 [PACKETTRACE] [PACKET] [id=6 oid=6] nni1_in 110 member1 |mpls|dcw|eth|cvlan|payload| TTLReduce ReadSeq Eliminate (1 pass) FilterOAM Del Del Edit Del Send uni 
+2024.08.23 10:03:37 [PACKETTRACE] [PACKET] [id=7 oid=7] nni2_in 110 member2 |mpls|dcw|eth|cvlan|payload| TTLReduce ReadSeq Eliminate (1 drop) 
+2024.08.23 10:03:38 [PACKETTRACE] [PACKET] [id=9 oid=8] uni 102 compound |eth|cvlan|payload| SeqGen Edit Add Add WriteSeq WriteSeq Replicate Edit Send nni1_out 
+2024.08.23 10:03:38 [PACKETTRACE] [PACKET] [id=8 oid=8] uni 102 compound |eth|cvlan|payload| SeqGen Edit Add Add WriteSeq WriteSeq Replicate Edit Send nni2_out 
+2024.08.23 10:03:38 [PACKETTRACE] [PACKET] [id=10 oid=10] nni1_in 110 member1 |mpls|dcw|eth|cvlan|payload| TTLReduce ReadSeq Eliminate (2 pass) FilterOAM Del Del Edit Del Send uni 
+2024.08.23 10:03:38 [PACKETTRACE] [PACKET] [id=11 oid=11] nni2_in 110 member2 |mpls|dcw|eth|cvlan|payload| TTLReduce ReadSeq Eliminate (2 drop) 
+2024.08.23 10:03:39 [PACKETTRACE] [PACKET] [id=13 oid=12] uni 102 compound |eth|cvlan|payload| SeqGen Edit Add Add WriteSeq WriteSeq Replicate Edit Send nni1_out 
+2024.08.23 10:03:39 [PACKETTRACE] [PACKET] [id=12 oid=12] uni 102 compound |eth|cvlan|payload| SeqGen Edit Add Add WriteSeq WriteSeq Replicate Edit Send nni2_out 
+2024.08.23 10:03:39 [PACKETTRACE] [PACKET] [id=14 oid=14] nni1_in 110 member1 |mpls|dcw|eth|cvlan|payload| TTLReduce ReadSeq Eliminate (3 pass) FilterOAM Del Del Edit Del Send uni 
+2024.08.23 10:03:39 [PACKETTRACE] [PACKET] [id=15 oid=15] nni2_in 110 member2 |mpls|dcw|eth|cvlan|payload| TTLReduce ReadSeq Eliminate (3 drop) 
+2024.08.23 10:03:41 [PACKETTRACE] [PACKET] [id=17 oid=16] uni 46 compound |eth|cvlan|payload| SeqGen Edit Add Add WriteSeq WriteSeq Replicate Edit Send nni1_out 
+2024.08.23 10:03:41 [PACKETTRACE] [PACKET] [id=16 oid=16] uni 46 compound |eth|cvlan|payload| SeqGen Edit Add Add WriteSeq WriteSeq Replicate Edit Send nni2_out 
+2024.08.23 10:03:41 [PACKETTRACE] [PACKET] [id=18 oid=18] nni1_in 54 member1 |mpls|dcw|eth|cvlan|payload| TTLReduce ReadSeq Eliminate (4 pass) FilterOAM Del Del Edit Del Send uni 
+2024.08.23 10:03:41 [PACKETTRACE] [PACKET] [id=19 oid=19] nni2_in 54 member2 |mpls|dcw|eth|cvlan|payload| TTLReduce ReadSeq Eliminate (4 drop) 
 ```
 
 As one can see, this print one line per packet, summarizing the processing of it.
 It shows an internal ID of the packet, ingress interface, size, the matching stream (if any), header stack and the executed actions, finally the egress interface if send action exists.
+One can examine the decision of the `Eliminate` action if it drop or pass the packet (also the sequence number of the packet).
 __Important to note__: the output can be differs in future versions of R2DTWO. Also, R2DTWO can insert implicit actions, generated automatically. These actions not defined in the config file.
+
+To generate traffic matching on the `prio-compound` stream, there is a small python script prepared.
+The script generate one packet with VLAN ID 0 and PCP 6.
+After starting R2DTWOs execute the script:
+
+```
+talker ./traffic.py
+```
+
+If R2DTWO packet trace logging enabled, the output could look like the following:
+
+```
+# on nxp1
+...
+2024.08.23 13:32:39 [PACKETTRACE] [PACKET] [id=1 oid=0] uni 54 prio-compound |eth|cvlan|payload| SeqGen Edit Add Add WriteSeq WriteSeq Replicate Edit Send nni1_out 
+2024.08.23 13:32:39 [PACKETTRACE] [PACKET] [id=0 oid=0] uni 54 prio-compound |eth|cvlan|payload| SeqGen Edit Add Add WriteSeq WriteSeq Replicate Edit Send nni2_out
+
+# on nxp2
+...
+2024.08.23 13:32:39 [PACKETTRACE] [PACKET] [id=0 oid=0] nni1_in 62 prio-members |mpls|dcw|eth|cvlan|payload| TTLReduce ReadSeq Eliminate (0 pass) FilterOAM Del Del Edit Send uni 
+2024.08.23 13:32:39 [PACKETTRACE] [PACKET] [id=1 oid=1] nni2_in 62 prio-members |mpls|dcw|eth|cvlan|payload| TTLReduce ReadSeq Eliminate (0 drop)
+```
+
+As visible in the output, the packet from the UNI matches to the `prio-compound` stream and replicated with MPLS label 500.
+At `nxp2` both packet identified by the same `prio-compound` stream, one passed and one eliminated.
+
 
 ## Optional: Cleanup (if running locally, not on physical NXP boards)
 
