@@ -257,13 +257,14 @@ static struct MustWriteField *copy_mustwrite_list(const struct StageState *stst,
     return ret;
 }
 
-static void delete_must_write_list(struct MustWriteField *must_write)
+static struct MustWriteField *delete_must_write_list(struct MustWriteField *must_write)
 {
     while (must_write) {
         struct MustWriteField *del = must_write;
         must_write = must_write->next;
         free(del);
     }
+    return NULL;
 }
 
 // @returns the position of @pos in the linked list @headers
@@ -918,6 +919,10 @@ static bool process_token(char *token, void *userdata)
                     CLEANUP_PSTST(pstst);
                     THROW("no actions in pipeline '%s'", token);
                 }
+                if (pstst.must_write) {
+                    CLEANUP_PSTST(pstst);
+                    THROW("pipeline '%s' has no EDIT label and no SEND", token);
+                }
                 REVERSE_LIST(pstst.actions);
                 if (newaction->repl.replobj && newaction->repl.replobj->auto_mip_level > 0
                         && oam_mip_autoconfig(stst, &pstst) == false) {
@@ -1498,6 +1503,8 @@ static bool process_action(struct StageState *stst)
             if (newaction->repl.replobj && newaction->repl.replobj->auto_mip_level > 0 && !oam_mip_autoconfig(stst, NULL))
                 log_warning("cannot generate MIP for '%s'", newaction->repl.replobj->name);
             REVERSE_LIST(newaction->repl.pipelines);
+            // we already checked that the branches are correctly writing the fields
+            stst->must_write = delete_must_write_list(stst->must_write);
             stst->had_final = true;
             break;
         case CA_SEND: {
@@ -1634,14 +1641,17 @@ struct ConfAction *parse_actions_line(const char *stream, const char *line,
 
     //TODO in stst.actions set all pointers to stst.headers to NULL
 
-    delete_header_list(stst.headers);
-
     if (stst.must_write) {
         // strange edge case...
-        log_warning("there was a MEP-START, no EDIT label, no SEND");
+        log_warning("stream %s has a MEP-START, but no EDIT label and no SEND", stream);
+        for (struct MustWriteField *mw=stst.must_write; mw; mw=mw->next) {
+            log_warning("must write field %s:%s",
+                    mw->header->name, mw->field->name);
+        }
         delete_must_write_list(stst.must_write);
     }
 
+    delete_header_list(stst.headers);
     return stst.actions;
 }
 
