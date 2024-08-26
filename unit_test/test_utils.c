@@ -2,6 +2,7 @@
 #include "testing.h"
 
 #include "utils.h"
+#include "inifile/hashmap.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -101,10 +102,51 @@ static void test_strdup_printf(void)
     free(unicode);
 }
 
+static void test_hashmap_foreach_nocb(void)
+{
+    struct HashMap *h = new_hashmap(11, NULL, NULL);
+    OK_FATAL(h != NULL, "have hash");
+    hashmap_insert(h, strdup("key1"), strdup("val1"));
+    hashmap_insert(h, strdup("key2"), strdup("val2"));
+    hashmap_insert(h, strdup("key3"), strdup("val3"));
+
+    unsigned count = 0;
+    hashmap_foreach_nocb(h, char) {
+        count++;
+        OK_FATAL(key != NULL, "have key");
+        OK_FATAL(value != NULL, "have value");
+        unsigned n;
+        char err;
+        OK(sscanf(key, "key%u%c", &n, &err) == 1, "key string '%s'", key);
+        char *val = strdup_printf("val%u", n);
+        OK(strcmp(value, val) == 0, "value string '%s'", value);
+        free(val);
+    }
+    OK(count == 3, "count %u", count);
+    delete_hashmap(h);
+
+    // test with no value
+    h = new_hashmap(11, NULL, NULL);
+    OK_FATAL(h != NULL, "have hash");
+    hashmap_insert(h, strdup("key1"), NULL);
+    hashmap_insert(h, strdup("key2"), NULL);
+    hashmap_insert(h, strdup("key3"), NULL);
+
+    count = 0;
+    hashmap_foreach_nocb(h, char) {
+        OK(key != NULL, "no key");
+        OK(value == NULL, "value");
+        count++;
+    }
+    OK(count == 3, "count %u", count);
+    delete_hashmap(h);
+}
+
 TEST_CASES = {
     {"divceil", test_divceil},
     {"reverse list", test_reverse_list},
     {"memdup", test_memdup},
     {"strdup_printf", test_strdup_printf},
+    {"hashmap_foreach_nocb", test_hashmap_foreach_nocb},
     {NULL, NULL}
 };

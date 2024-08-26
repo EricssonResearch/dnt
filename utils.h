@@ -43,7 +43,7 @@ char *strdup_printf(const char *format, ...)
 // @_valuetype is the type of the objects stored in the hashmap
 // Two local scoped variables provided by this macro:
 //   const char *key //hashmap key
-//   _valuetype value //hashmap value for that key
+//   _valuetype *value //hashmap value for that key
 // TODO: HashMap version check compile-time and error on mismatch
 struct __HashBucket {
     const char *key;
@@ -64,7 +64,7 @@ struct __HashMap {
     for (struct __HashMap *_hm = (struct __HashMap *)_hash; i < _hm->bucketcount; ++i)          \
             if (_hm->buckets[i].key)                                                            \
                 for (struct __HashBucket *_hb = (struct __HashBucket *)&_hm->buckets[i];        \
-                        _hb && (key=_hb->key, value=(_valuetype *)_hb->value); _hb = _hb->next)
+                        _hb && (value=(_valuetype *)_hb->value, key=_hb->key); _hb = _hb->next)
 
 
 #endif // R2_UTILS_H

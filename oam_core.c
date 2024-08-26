@@ -220,6 +220,7 @@ static void *mask_checker_thread_fn(void *arg)
 
         clock_gettime(CLOCK_REALTIME, &now);
         hashmap_foreach_nocb(target->meps, char) {
+            (void)value;
             if (strstr(key, "_pre-")) {
                 path_count += 1;
                 if (is_masked(find_mep_start(key), &now)) {

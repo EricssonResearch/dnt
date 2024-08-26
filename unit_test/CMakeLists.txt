@@ -121,7 +121,7 @@ endfunction()
 add_test_thread(test_thread)
 
 function(add_test_util name)
-    add_executable(${name} ../utils.c ${name}.c)
+    add_executable(${name} ../utils.c ../inifile/hashmap.c ${name}.c)
     target_compile_definitions(${name} PUBLIC TESTING)
 endfunction()
 
