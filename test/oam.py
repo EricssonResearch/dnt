@@ -329,7 +329,7 @@ def run_tests(net, test):
     if auto_mip_test():
         success += 1
     print(f"Successful tests: {success}/{len(test) + 1}") # +1 is the auto MIP test
-    if success == len(test):
+    if success == len(test) + 1: # +1 the auto MIP test
         return True
     return False
 
