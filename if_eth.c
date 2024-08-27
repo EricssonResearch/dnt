@@ -202,21 +202,12 @@ static bool eth_open(struct Interface *iface)
                 return false;
             }
 
-            // Block all PACKET_OUTGOING packets sent on other priority sockets from
-            // coming back on socket 0
-            struct sock_filter filter[] = {
-                BPF_STMT(BPF_LD|BPF_B|BPF_ABS, (uint32_t)(SKF_AD_OFF + SKF_AD_PKTTYPE)),
-                BPF_JUMP(BPF_JMP|BPF_K|BPF_JEQ, PACKET_OUTGOING, 0, 0x1),
-                BPF_STMT(BPF_RET|BPF_K, 0x00000000),
-                BPF_STMT(BPF_RET|BPF_K, 0x0000ffff)
-            };
-            struct sock_fprog bpf = {
-                .len = (unsigned short) (sizeof(filter) / sizeof(filter[0])),
-                .filter = filter
-            };
-            if (setsockopt(sock, SOL_SOCKET, SO_ATTACH_FILTER, &bpf, sizeof(bpf)) < 0) {
-                log_perror("setsockopt attach eBPF filter");
-                return false;
+            // Ignore outgoing packets sent on other priority sockets (since Linux 4.20)
+            int true_flag = 1;
+            if (setsockopt(sock, SOL_PACKET, PACKET_IGNORE_OUTGOING, &true_flag, sizeof(i)) < 0) {
+                log_perror("setsockopt PACKET_IGNORE_OUTGOING");
+                close(sock);
+                return false; //TODO cleanup on error
             }
         } else {
             // set socket receive buffer to minimum (setting to zero will set it to minimum)
