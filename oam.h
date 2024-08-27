@@ -52,6 +52,12 @@ struct OamEndPoint *oam_create_endpoint(const char *name, const char *stream, in
 // always returns NULL
 struct OamEndPoint *oam_delete_endpoint(struct OamEndPoint *end);
 
+// the name of the stream can change within an action pipeline (by jump, replicate, eliminate)
+// @parse_actions_line uses this to report the names seen in the pipeline
+// this is needed to correctly associate monitoring points with streams
+// only the keys of the hash are processed
+void oam_stream_names_in_pipeline(struct HashMap *names);
+
 bool set_oam_cmd_if(struct Interface *iface);
 void add_oam_if(struct Interface *iface);
 

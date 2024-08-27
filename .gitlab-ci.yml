@@ -97,7 +97,6 @@ pytest_oam:
   script:
     - cd test
     - ./oam.py
-  allow_failure: true
 
 pytest_elimination:
   extends: .pytest.common

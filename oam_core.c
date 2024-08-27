@@ -30,6 +30,13 @@ static struct Interface *oam_cmd_iface = NULL;
 
 static struct HashMap *mep_starts = NULL; // name -> struct MEPStart
 
+struct StreamNameAssociation {
+    struct HashMap *names;
+    struct StreamNameAssociation *next;
+};
+
+static struct StreamNameAssociation *stream_names = NULL;
+
 static bool oam_initialized = false;
 
 bool set_oam_cmd_if(struct Interface *iface)
@@ -166,8 +173,11 @@ int print_mep_start(const struct MepStart *start, FILE *cmd_w)
 
 bool mep_start_in_stream(const struct MepStart *start, const char *stream)
 {
-    //TODO what is considered "same stream"?
-    return strcmp(start->stream_name, stream) == 0;
+    for (struct StreamNameAssociation *s=stream_names; s; s=s->next) {
+        if (hashmap_contains(s->names, start->stream_name) && hashmap_contains(s->names, stream))
+            return 1;
+    }
+    return 0;
 }
 
 struct OamEndPoint *oam_create_endpoint(const char *name, const char *stream, int level, bool stop)
@@ -286,6 +296,33 @@ struct OamEndPoint *oam_delete_endpoint(struct OamEndPoint *end)
     return NULL;
 }
 
+static int copy_streamname(const char *key, void *value, void *userdata)
+{
+    struct HashMap *snames = (struct HashMap *)userdata;
+    hashmap_insert(snames, strdup(key), value); // value is NULL
+    return 1;
+}
+
+void oam_stream_names_in_pipeline(struct HashMap *names)
+{
+    for (struct StreamNameAssociation *s=stream_names; s; s=s->next) {
+        hashmap_foreach_nocb(names, void) {
+            (void)value;
+            if (hashmap_contains(s->names, key)) {
+                hashmap_foreach(names, copy_streamname, s->names);
+                return;
+            }
+        }
+    }
+
+    // no existing stream set has a common subset with @names
+    struct StreamNameAssociation *sa = calloc_struct(StreamNameAssociation);
+    sa->names = new_hashmap(11, NULL, NULL);
+    hashmap_foreach(names, copy_streamname, sa->names);
+    sa->next = stream_names;
+    stream_names = sa;
+}
+
 bool oam_start_background_ping(const char *name, const char *command)
 {
     if (oam_initialized == false) {
@@ -349,5 +386,13 @@ void finish_oam(void)
     finish_msg_module();
     delete_hashmap(mep_starts);
     delete_hashmap(oam_ifaces);
+
+    for (struct StreamNameAssociation *s=stream_names; s;) {
+        struct StreamNameAssociation *d = s;
+        s = s->next;
+        delete_hashmap(d->names);
+        free(d);
+    }
+
     log_info("Stopped OAM functionality");
 }

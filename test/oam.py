@@ -161,14 +161,12 @@ testcases = [
 
     (
         'n1', 'rlist s1n1-e4-01 any 4',
-        ['OAM request rlist session 9 seq 0, s1n1-e4-01 -> any level 4 count 1 interval 1000, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n', 'Rlist result from s1n3-i4-23:\ns1n3-i4-23\ns1n3-i4-34\n\nRlist result from s1n3-i4-34:\ns1n3-i4-23\ns1n3-i4-34\n\nRlist result from s1n4-i4-34:\ns1n4-i4-34\n\nRlist result from s1n4-e4-40:\ns1n4-i4-34\n\nRlist result from s1n3-i4-13:\ns1n3-i4-34\ns1n3-i4-13\n\nRlist result from s1n4-i4-24:\ns1n4-i4-24\n\n']
-        # ['OAM packet rlist session 9 seq 0, s1:s1n1-e4-01 -> any, level 4, count 1 interval 1000, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n', 'Rlist result from s1n3-i4-23:\nrx123:s1n3-i4-23\nrx123:s1n3-i4-34\nRlist result from s1n3-i4-34:\nrx123:s1n3-i4-23\nrx123:s1n3-i4-34\nRlist result from s1n4-i4-34:\nrx134:s1n4-i4-34\nRlist result from s1n4-e4-40:\nrx134:s1n4-i4-34\nRlist result from s1n3-i4-13:\nrx113:s1n3-i4-34\nrx113:s1n3-i4-13\nRlist result from s1n4-i4-24:\nrx124:s1n4-i4-24\n']
+        ['OAM request rlist session 9 seq 0, s1n1-e4-01 -> any level 4 count 1 interval 1000, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n', 'Rlist result from s1n3-i4-23:\ns1n3-i4-13\ns1n3-i4-23\ns1n3-i4-34\n\nRlist result from s1n3-i4-34:\ns1n3-i4-13\ns1n3-i4-23\ns1n3-i4-34\n\nRlist result from s1n4-i4-34:\ns1n4-i4-24\ns1n4-i4-34\n\nRlist result from s1n4-e4-40:\ns1n4-i4-24\ns1n4-i4-34\n\nRlist result from s1n3-i4-13:\ns1n3-i4-13\ns1n3-i4-23\ns1n3-i4-34\n\nRlist result from s1n4-i4-24:\ns1n4-i4-24\ns1n4-i4-34\n\n']
     ),
 
     (
         'n1', 'rlist s1n1-e4-01 any 3',
-        # ['OAM packet rlist session 10 seq 0, s1:s1n1-e4-01 -> any, level 3, count 1 interval 1000, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n', 'Rlist result from s1n2-i3-12:\nrx12:s1n2-i3-12\nRlist result from s1n3-e3-23:\nrx123:s1n3-i4-23\nrx123:s1n3-i4-34\nRlist result from s1n4-e3-24:\nrx124:s1n4-i4-24\n']
-        ['OAM request rlist session 10 seq 0, s1n1-e4-01 -> any level 3 count 1 interval 1000, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n', 'Rlist result from s1n2-i3-12:\ns1n2-i3-12\n\nRlist result from s1n3-e3-23:\ns1n3-i4-23\ns1n3-i4-34\n\nRlist result from s1n4-e3-24:\ns1n4-i4-24\n\n']
+        ['OAM request rlist session 10 seq 0, s1n1-e4-01 -> any level 3 count 1 interval 1000, rr: no os: no\t[reply to ip: 10.0.0.1, port: 6634]\n', 'Rlist result from s1n2-i3-12:\ns1n2-i3-12\n\nRlist result from s1n3-e3-23:\ns1n3-i4-13\ns1n3-i4-23\ns1n3-i4-34\n\nRlist result from s1n4-e3-24:\ns1n4-i4-24\ns1n4-i4-34\n\n']
     ),
     (
         'n1', 'rping s1n1-e4-01 s1n3-i4-13 4 s1n3-i4-13 any 4',

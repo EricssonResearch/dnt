@@ -192,6 +192,7 @@ struct StageState {
     bool ttl_set; // true if we had an action that sets packet->ttl
     struct HeaderDescriptor *needs_ttlcheck; // points to the header we automatically put a TTLReduce on
     struct MustWriteField *must_write;
+    struct HashMap *stream_names;
     unsigned depth; // limit recursion depth with JUMP and REPLICATE
 };
 
@@ -931,6 +932,7 @@ static bool process_token(char *token, void *userdata)
                 }
                 CLEANUP_PSTST(pstst);
                 replicatelist_push(&newaction->repl.pipelines, strdup(token), pstst.actions, masked);
+                hashmap_insert(stst->stream_names, strdup(token), NULL);
             }
             break; }
         case CA_SEND:
@@ -1423,6 +1425,7 @@ static bool process_action(struct StageState *stst)
                 if (jstst.actions == NULL) {
                     THROW("no actions in pipeline '%s'", newaction->jump.pipename);
                 }
+                hashmap_insert(stst->stream_names, strdup(newaction->jump.pipename), NULL);
 
                 // replace jump with the newly read action list
                 struct ConfAction *jump = newaction;
@@ -1605,6 +1608,7 @@ struct ConfAction *parse_actions_line(const char *stream, const char *line,
         .ttl_set = false,
         .needs_ttlcheck = NULL,
         .must_write = NULL,
+        .stream_names = new_hashmap(11, NULL, NULL),
         .depth = 0,
     };
 
@@ -1618,12 +1622,14 @@ struct ConfAction *parse_actions_line(const char *stream, const char *line,
         stst.needs_ttlcheck = stst.headers;
     }
 
+    hashmap_insert(stst.stream_names, strdup(stream), NULL);
     char *aline = strdup(line);
     if (!foreach_stages(aline, process_stage, &stst)) {
         log_error("failed to process actions line for stream '%s'", stream);
         free(aline);
         delete_header_list(stst.headers);
         delete_confaction_list(stst.actions);
+        delete_hashmap(stst.stream_names);
         return NULL;
     }
     free(aline);
@@ -1631,6 +1637,7 @@ struct ConfAction *parse_actions_line(const char *stream, const char *line,
     if (stst.actions == NULL) {
         log_error("no actions in actions line for stream '%s'", stream);
         delete_header_list(stst.headers);
+        delete_hashmap(stst.stream_names);
         return NULL;
     }
 
@@ -1652,6 +1659,10 @@ struct ConfAction *parse_actions_line(const char *stream, const char *line,
     }
 
     delete_header_list(stst.headers);
+
+    oam_stream_names_in_pipeline(stst.stream_names);
+    delete_hashmap(stst.stream_names);
+
     return stst.actions;
 }
 
