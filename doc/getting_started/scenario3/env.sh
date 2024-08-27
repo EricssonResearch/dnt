@@ -21,21 +21,6 @@ if [ ! -f "/usr/local/bin/r2dtwo" ]; then
   return -2
 fi
 
-# TODO: netns separation not enough, process namespace required too
-# Unused here, Linux TC used instead
-configure_ovs() {
-  echo "configure OvS on $1"
-  mkdir -p /var/run/openvswitch$1
-  ovsdb-tool create /var/run/openvswitch$1/conf.db /usr/share/openvswitch/vswitch.ovsschema
-  ovsdb-server /var/run/openvswitch$1/conf.db \
-    --remote=punix:/var/run/openvswitch$1/db.sock \
-    --private-key=db:Open_vSwitch,SSL,private_key \
-    --certificate=db:Open_vSwitch,SSL,certificate \
-    --bootstrap-ca-cert=db:Open_vSwitch,SSL,ca_cert \
-    --pidfile=/var/run/openvswitch$1/ovsdb-server.pid --detach -voff
-  ovs-vsctl --db=unix:/var/run/openvswitch$1/db.sock --no-wait init
-  ovs-vswitchd unix:/var/run/openvswitch$1/db.sock --pidfile=/var/run/openvswitch$1/ovs-vswitchd.pid --detach -voff
-}
 
 function configure_tc() {
 
@@ -46,6 +31,7 @@ function configure_tc() {
   nxp1 tc qdisc add dev swp2 handle ffff: ingress
   # red irect IP egress traffic to R2DTWO
   nxp1 tc filter add dev swp2 parent ffff: protocol ip flower src_ip 10.0.100.11 dst_ip 10.0.200.22 action mirred egress redirect dev r2eth0
+  nxp1 tc filter add dev swp2 parent ffff: protocol ipv6 flower src_ip 2001::11 dst_ip 2002::22 action mirred egress redirect dev r2eth0
   # redirect R2DTWO UNI traffic back to the node (talker) if no suitable UNI interface with IP address
   # nxp1 tc qdisc add dev r2eth0 handle 0: root prio
   # nxp1 tc filter add dev r2eth0 parent 0: matchall action mirred egress redirect dev swp2
@@ -56,6 +42,7 @@ function configure_tc() {
   nxp2 tc qdisc add dev swp2 handle ffff: ingress
   # redirect IP egress traffic to R2DTWO
   nxp2 tc filter add dev swp2 parent ffff: protocol ip flower src_ip 10.0.200.22 dst_ip 10.0.100.11 action mirred egress redirect dev r2eth0
+  nxp2 tc filter add dev swp2 parent ffff: protocol ipv6 flower src_ip 2002::22 dst_ip 2001::11 action mirred egress redirect dev r2eth0
   # direct R2DTWO UNI traffic back to the node (listener) if no suitable UNI interface with IP address
   # nxp2 tc qdisc add dev r2eth0 handle 0: root prio
   # nxp2 tc filter add dev r2eth0 parent 0: matchall action mirred egress redirect dev swp2
@@ -95,23 +82,38 @@ configure_networkenv() {
   #nxp1 sysctl -w net.ipv4.ip_no_pmtu_disc=1
   #nxp2 sysctl -w net.ipv4.ip_no_pmtu_disc=1
 
-  # Configure the addresses
+  # Configure the addresses, IPv4 and IPv6
   talker ip address add 10.0.100.11/24 dev eth0
+  talker ip address add 2001::11/64 dev eth0
+
   listener ip address add 10.0.200.22/24 dev eth0
+  listener ip address add 2002::22/64 dev eth0
 
   nxp1 ip address add 192.168.55.1/24 dev swp0
   nxp1 ip address add 192.168.66.1/24 dev swp1
   nxp1 ip address add 10.0.100.1/24 dev swp2
+  nxp1 ip address add fc0a::1/64 dev swp0
+  nxp1 ip address add fc0b::1/64 dev swp1
+  nxp1 ip address add 2001::1/64 dev swp2
 
   nxp2 ip address add 192.168.55.2/24 dev swp0
   nxp2 ip address add 192.168.66.2/24 dev swp1
   nxp2 ip address add 10.0.200.1/24 dev swp2
+  nxp2 ip address add fc0a::2/64 dev swp0
+  nxp2 ip address add fc0b::2/64 dev swp1
+  nxp2 ip address add 2002::2/64 dev swp2
+
+  # Enable IP forwarding
+  nxp1 sysctl -w net.ipv4.ip_forward=1
+  nxp1 sysctl -w net.ipv6.conf.all.forwarding=1
+  nxp2 sysctl -w net.ipv4.ip_forward=1
+  nxp2 sysctl -w net.ipv6.conf.all.forwarding=1
 
   # Configure routing
-  nxp1 sysctl -w net.ipv4.ip_forward=1
-  nxp2 sysctl -w net.ipv4.ip_forward=1
   talker ip route add default via 10.0.100.1
+  talker ip -6 route add default via 2001::1
   listener ip route add default via 10.0.200.1
+  listener ip -6 route add default via 2002::2
 }
 
 # This is totally unsafe
@@ -136,9 +138,6 @@ if [ $cntvalue -eq 1 ]; then #last bash instance in the env, do cleanup
   ip netns del listener 2>/dev/null
   ip netns del nxp1 2>/dev/null
   ip netns del nxp2 2>/dev/null
-  # killall ovsdb-server
-  # killall ovs-vswitchd
-  # rm -rf /var/run/openvswitchnxp[12]
 else
   newvalue=`expr $cntvalue - 1`
   echo $newvalue > $CNTFILE
