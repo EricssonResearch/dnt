@@ -5,9 +5,6 @@ We developed a universal value passing architecture to have a universal `edit` a
 
 This value transfer architecture was designed to be more generic than a simple header read/write. In the original design of R2DTWO one could transfer values to/from packet header fields, packet property (metadata) slots, stateful objects, interface properties etc. Currently R2DTWO doesn't fully utilize the possible capabilities, just reads and writes packet headers.
 
-The scope of the `edit` action was reduced with commit 9e4c5ab95 (March 2023) to read/write header fields only, in favor of dedicated actions (e.g. `readseq`/`writeseq`) handling the packet property slots. This document also describes the removed features (and the planned but never realized ones), but for completeness' sake only.
-
-
 ## Producer-Consumer model
 
 The value passing is based on a Producer-Consumer model, both of them are functions.
@@ -69,16 +66,6 @@ In `header.h` the function `header_get_field_writer()` returns a Consumer functi
 
 The state for the returned function should be the same *target*. The `HeaderField` structure for *target* can be created from a *ProtocolField* and a header index with `new_headerfield()`. To get a *ProtocolField* see e.g. `protocol_get_field_by_name()` in `protocol.h`.
 
-### Object (never implemented)
-
-The stateful pipeline object receives its input by having a method act as a Consumer function. Possible candidates for value Consumer: Sequence Recovery, Delay, POF. In the current design these objects use the packet property slots as their input.
-
-### Packet property (removed)
-
-Currently the `Packet` structure has two property slots: `timestamp` and `sequence`. In the original design they could be accessed by the `edit` action, and in `packet.h` there were helper functions for getting the respective Consumer and Producer functions for them. R2DTWO currently has dedicated actions (e.g. `readseq`/`writeseq`) handling the packet property slots.
-
-The `ttl` property of the packet needs special treatment (see the `ttlcheck` and `ttlreduce` actions), it was never meant to be accessed by the `edit` action. The `ttl` field of a header can be read/written by an `edit` action if necessary.
-
 
 ## Producer
 
@@ -106,14 +93,6 @@ In `header.h` the function `header_get_field_reader()` returns a Producer functi
 ### Interface property
 
 Interfaces can have read-only properties (e.g. MAC address, IP address) that assignments in `edit` actions can use as data source. The optional `get_property_reader()` virtual method returns the appropriate value Producer for the properties based on their names, and checks compatibility with the given target where the produced value is intended to be stored.
-
-### Object (never implemented)
-
-The stateful pipeline object generates its data, and it is fed to a Consumer as an assignment in an `edit` action. Possible candidate for value Producer: Sequence Generator. In the current design the Sequence Generator writes into the packet property slot `sequence`.
-
-### Packet property (removed)
-
-Similarly to the property reader, this capability of the `edit` action was removed in favor of dedicated actions for accessing the packet property slots.
 
 
 ## Value comparison

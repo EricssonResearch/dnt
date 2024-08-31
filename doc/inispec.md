@@ -17,23 +17,23 @@ The examples for each section together form a complete configuration for a DetNe
 
 List of interfaces where we can send/receive packets. The keys of the items are the names of the interfaces, actions refer to interfaces by their names, and not by the hardware interface names. The values of the items are in the form of `iftype parameter=value [parameter=value]`. The *iftype* is mandatory. The valid parameters depend on the *iftype* of the interface. The currently supported interface types with their parameters are the following (parameters without a default value are mandatory):
 
-* `eth` raw Ethernet interface intended to be a TSN UNI and NNI, valid parameters:
+* `eth` Ethernet-level send/receive interface intended to be a TSN UNI or NNI, valid parameters:
     * `iface` the name of the hardware interface
-* `ip` outgoing UNI for IP-over-DetNet (cannot receive packets), valid parameters:
+* `ip` IP-level send/receive interface intended to be a DetNet UNI, valid parameters:
     * `iface` the name of the hardware interface
 * `udp-in` receiving end of an UDP tunnel (intended for PseudoWire), cannot send packets, valid parameters:
     * `iface` the name of the hardware interface
     * `port` the UDP port to listen on (default: 6635)
     * `ipv` the IP version, can be 4 or 6 (default: 4)
-    * `senders` optional list of nodes that send to this udp-in, they will be notified about ip address changes on the receiving interface; must specify the ip:port of the OAM return interface and the name of the udp-out interface on those nodes (format: `ipv4,udpoutname,ipv4:port,udpoutname,ipv6,udpoutname,[ipv6]:port,udpoutname`)
+    * `senders` used by the Dynamic IP feature (optional); a list of udp-out interfaces that send to this udp-in, the listed nodes will be notified about ip address changes on the receiving interface; must specify the `ip:port` of the OAM return interface (default `port` is 6634) and the name of the udp-out interface on those nodes (format: `ipv4,udpoutname,ipv4:port,udpoutname,ipv6,udpoutname,[ipv6]:port,udpoutname`)
 * `udp-out` sending end of an UDP tunnel (intended for PseudoWire), cannot receive packets, valid parameters:
     * `iface` the name of the hardware interface
     * `srcport` the UDP source port of the sent packets (default: let Linux choose)
     * `dstport` the UDP port to send to (default: 6635)
     * `dstip` the IP address to send to, `ipv4` and `ipv6` mean the address will be specified later (can't send until a valid destination is set, see `senders` parameter on udp-in)
     * `prio` the IPv4 TOS or IPv6 Traffic Class for the sent packets (default: 0)
-* `internal` a virtual interface within R2DTWO, useful for stream re-classification in decapsulating scenarios, no parameters
-* `oam` receives OAM reply messages out-of-band, can have multiple, default one is the first one in alphabetic order
+* `internal` a virtual interface within R2DTWO that can send and receive packets, useful for stream re-classification in decapsulating scenarios, no parameters
+* `oam` receives OAM reply messages out-of-band, can have any number of these, the default one is the first one in alphabetic order
     * `ip` return address to listen on (required)
     * `port` return port (default: 6634)
 * `oam_cmd` OAM command interface, can have only one, use `telnet` to connect to it, use the `help` command
@@ -54,9 +54,7 @@ The OAM interfaces never send/receive data plane traffic, and they have no reada
 
 The packets received on an `eth` interface always have a VLAN tag. If the incoming packet didn't have a 802.1Q or 802.1AD tag (`cvlan` and `svlan` in our terminology) after the Ethernet header, then the interface automatically adds a null `cvlan` header. This is meant to simplify the [packet matching](#match) rules, if it is not needed, it can be removed with a `del` [action](#actions).
 
-Dynamic IP address allocation is possible for UDP PseudoWire tunnels: the receiving end of the UDP tunnel can have dynamically allocated address (e.g. via DHCP, ICMPv6). This implementation reuses the OAM framework for processing the address change notifications: on the sender node, where the `udp-out` interface is, there has to be an `oam` interface to receive notifications. These must be listed on the `udp-in` interface with the `senders` parameter: the address of the `oam` interface, and the name of the `udp-out` interface that sends traffic to this `udp-in`. The `udp-out` interfaces can be configured to an initial target address, or just `ipv4` or `ipv6`, which means the target address will be known from notifications sent by the target `udp-in`. Note that the IP version of the tunnel cannot be changed dynamically.
-
-Example for a DetNet scenario:
+Example for a DetNet scenario with Dynamic IP configuration:
 
 ```ini
 [interfaces]
@@ -72,6 +70,16 @@ ifNNIin:streams = tunnel_in
 cmd0 = oam_cmd
 oam0 = oam ip=10.0.0.1
 ```
+
+### Dynamic IP configuration
+
+Dynamic IP address allocation is possible for UDP PseudoWire tunnels: when the receiving end of the UDP tunnel has dynamically allocated address (e.g. via DHCP, ICMPv6), R2DTWO can notify the sending endpoints about its address.
+
+This implementation reuses the OAM framework for receiving and processing the address change notifications. On the UDP tunnel sender endpoint node, where the `udp-out` interface is, there has to be an `oam` interface to receive notifications, and it must be reachable from the node that has the `udp-in` interface.
+
+On the UDP tunnel terminating endpoint the `senders` parameter of the `udp-in` interface lists the sender endpoints that must be notified. The value of this parameter is a comma-separated list of address and interface name pairs. The address must be the IP address (and port) of the `oam` interface on the sender endpoint. The interface name is the name of the `udp-out` interface on the sender endpoint that has to send traffic to this `udp-in` interface. There is no limit on the number of senders to be notified.
+
+The `udp-out` interfaces can be configured to an initial target address, or just `ipv4` or `ipv6`, which means the target address will be known from notifications sent by the target `udp-in`. Note that the IP version of the tunnel cannot be changed dynamically.
 
 ## streams
 
@@ -139,17 +147,21 @@ The available actions are the following:
 
 In these actions `header` refers to any header in the *packet* list by name, using the identifier suffix if there is one. The `newheader` in `add` can also have an identifier suffix. Later actions can refer to newly added headers by their names.
 
+When the parameter of an action is a header field, it is given in the form `headername.fieldname`, except for the `add` action, which can only edit the fields of the newly added header. Some actions only need the header name, and they automatically select the correct field by its type (e.g. `readseq`).
+
 It is possible to define action pipelines in the *streams* section that are not tied to streams received on interfaces, rather, they are referenced by `replicate`, `eliminate` and `jump` actions. The names of these pipelines can be arbitrary, but must be unique.
 
 Some actions process the name of the pipeline they are in. When jumping to another pipeline (`replicate`, `eliminate` and `jump` actions) the name of the pipeline changes to the target of the jump. The `mip` actions that reside in pipelines with the same name (typically after jumping to the same pipeline from multiple places) are considered to be the same monitoring point.
 
-When the parameter of an action is a header field, it is given in the form `headername.fieldname`, except for the `add` action, which can only edit the fields of the newly added header. Some actions only need the header name, and they automatically select the correct field by its type (e.g. `readseq`).
-
 For actions that use stateful objects the name of the action can be omitted, because the type of the object determines the type of the action. These actions are the following: `eliminate` (sequence recovery object), `pof` (pof object), `replicate` (replicate object), `seqgen` (sequence generator object). Similarly, the `jump` action can be used by only specifying the name of the action pipeline to jump to.
 
-When adding a header that has *TSNSEQ* or *TSNTSTAMP* field, an action that fills that field (`writeseq`/`writetstamp`) is automatically created. The default timestamp is the time the packet was received, the sequence number must be manually created (`readseq` or `seqgen` actions).
+The Packet structure stores sequence number and timestamp properties (metadata fields). The `readseq` and `readtstamp` actions fill these properties from the given packet headers, and the `writeseq` and `writetstamp` actions write the metadata into the given header. The `seqgen` action generates the sequence number into the metadata field, and the `eliminate` action uses the sequence number in the metadata field.
 
-If the first header in the `:packet` line has a *TTL* field, a `ttlreduce` action is automatically created for it at the beginning of the action pipeline. A `ttlcheck` action is also automatically created before the first `send` action, unless the header has been deleted.
+The default timestamp metadata is the time the packet was received, the sequence number is initially undefined. The config is invalid, if `eliminate` or `writeseq` is used on undefined sequence number.
+
+When adding a header that has *TSNSEQ* or *TSNTSTAMP* field type, an action that fills that field (`writeseq`/`writetstamp`) is automatically created.
+
+If the first header in the `:packet` line has a *TTL* field, a `ttlreduce` action is automatically created for it at the beginning of the action pipeline. A `ttlcheck` action is also automatically created before the first `send` action, unless the header has been deleted. These actions can also be created manually.
 
 The OAM Monitoring points (`mep-start`, `mep-stop`, `mip`) are only allowed in the action pipeline, where the header structure of the packet starts with `mpls` and `dcw`. The mpls label must be written *after* the start point that injects monitoring packets into the stream.
 
@@ -183,7 +195,7 @@ The object instantiation is in this format: `name = type parameter=value [parame
     * `frerSeqRcvyAlgorithm` can be Vector (default), SeamlessVector, Match
     * `frerSeqRcvyHistoryLength` size of the history window (default: 2)
     * `frerSeqRcvyLatentErrorPaths` elimination path count (default: 2)
-    * `frerSeqRcvyResetMSec` silence detection timeout (default: 2000)
+    * `frerSeqRcvyResetMSec` timeout when no packet has been received (default: 2000)
     * `InitSeqFlag` whether to use the Init flag for seamless mode (default: off)
     * `ResetFlag` use the Reset flag for seamless mode (default: off)
     * `frerSeqRcvyLatentErrorPeriod` run latent error check and root cause detection (default: 0)
@@ -230,8 +242,8 @@ global_connectivity_check = ping s1:mepn1s1 any 4 -r -o
 For a self-explanatory configuration file and proper OAM operation, the following naming rules are recommended. The naming is also important for [automatically generated OAM points](oam.md#automatic-mip-generation). Note that the `mip`s will be automatically generated only if `AutoMIP` is specified for the replication/elimination object.
 
 * session names should identify the session. For example, s1 or s2, or m1 and m2 for member streams. Compound streams can be c1, c2.
-* for a replication pipeline R1, for each action stream after the replication the name should be R1-<stream name>
-* for an elimination pipeline E1, for the action stream after the elimination the name should be E1-<stream name>
+* for a replication pipeline R1, for each action stream after the replication the name should be r1-{stream name}
+* for an elimination pipeline E1, for the action stream after the elimination the name should be e1-{stream name}
 
 * for an elimination pipeline, the elimination should be placed in the action pipeline of each individual stream (but with the same object name).This ensures that a `mip` will be automatically generated for each stream.
 * action pipeline names after replication or jump should also hint the stream name, as it will be used as the automatically generated `mip` name if there is a replication/elimination in this pipeline.
@@ -255,14 +267,15 @@ e1-c1 = ..., send if1
 A more complex scenario with replication/elimination of compound streams:
 
 ```
-     s1----E1------ E1-M2
-           / R1-M1
+     s1-----E1------ e1-c1
+            /
+           / r1-m1
      s2--R1
-          \_______ R1-M3
+          \_______ r1-m3
 
 s1:actions = ..., eliminate E1 e1-c1
 s2:actions = ..., replicate R1 r1-m1 r1-m3
-r1-m3 = ..., send if2
 r1-m1 = ..., eliminate E1 e1-c1
+r1-m3 = ..., send if2
 e1-c1 = ..., send if3
 ```

@@ -1,8 +1,8 @@
 # Dynamic IP test
 
-This scenario has 5 nodes in a chain: *na* and *ne* are the endpoints, there is an IP-in-PseudoWire tunnel between *nb* and *nd*. The IPv4 traffic goes in an IPv4 tunnel, the IPv6 traffic goes in an IPv6 tunnel.
+This scenario has 5 nodes in a chain: *na* and *ne* are the endpoints, their default gateways are *nb* and *nd*, respectively. The traffic between *na* and *nd* is intercepted by R2DTWO on *nb* and *nd*, and forwarded in an IP-in-PseudoWire tunnel. The IPv4 traffic goes in an IPv4 tunnel, the IPv6 traffic goes in an IPv6 tunnel.
 
-Node *nc* provides IP address for *nd* with a DHCP server or ICMPv6 Router Advertisement.
+Node *nd* has no IP address on its *ethDC* interface. Node *nc* provides IP address for *nd* with a DHCP server or ICMPv6 Router Advertisement.
 
 ```
 ┌────────────────┐  ┌────────────────┐
@@ -119,6 +119,6 @@ Start CoreDHCP like this:
 coredhcp -c coredhcp.yaml
 ```
 
-**TODO the v6 lease doesn't work (and it doesn't support setting lease time)**
+This configuration is supposed to lease IPv4 and IPv6 addresses toward node *nd*, but for some reason only the IPv4 lease works, so it's not a complete alternative for Kea.
 
 
