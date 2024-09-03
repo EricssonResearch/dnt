@@ -118,6 +118,7 @@ static enum ActionResult seq_generator(struct PipelineObject *gen, struct Pipeli
 {
     struct SequenceGenerator *g = (struct SequenceGenerator *)gen;
     unsigned new_seq = sequence_generation(g);
+    packet_logcat(pi->packet, "(%u) ", new_seq & 0xffff);
     pi->packet->sequence = htonl(new_seq);
     return ACR_CONTINUE;
 }
