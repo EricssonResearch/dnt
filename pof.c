@@ -225,7 +225,8 @@ static struct timespec *get_next_deadline(struct Pof *pof)
 static void pof_forward(struct PofElem *pe)
 {
     struct Pof *pof = pe->pof;
-    pof->pof_last_sent = pe->seq;
+    if (pe->seq > pof->pof_last_sent)
+        pof->pof_last_sent = pe->seq;
     pe->pi->pos += 1; // advance in the pipeline
     /* printf("POF: last_sent=%d forward=%d take_any=%d\n", pof->pof_last_sent, pe->seq, pof->take_any); */
     pipe_iterator_run(pe->pi);
