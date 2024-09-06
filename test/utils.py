@@ -1,5 +1,6 @@
 from subprocess import Popen, run, run, PIPE, DEVNULL
 from pyroute2.netns import setns
+from select import *
 from socket import *
 import platform
 import shlex
@@ -115,21 +116,44 @@ class Telnet:
             _ = self.sock.recv(1000)
         time.sleep(0.1)
 
-    def recv(self) -> str:
-        if self.auto_recv:
-            print("Telnet warning: auto recv enabled, exiting...")
-            return
-        msg = self.sock.recv(10000)
-        if not msg:
-            return None
-        if msg[0] == b'\x1B':
-            msg = msg[1:]
-        time.sleep(0.1)
-        return msg.decode()
+    def recv(self, timeout : float = 0.1, aggregate : bool = False) -> str:
+        """
+        @timeout: if no message received, timeout and return with empty msg
+        @aggregate: collect and concatenate messages until timeout and return
+                    as one message
+        retuns: the received message or message aggregate
+        """
+        start = time.time()
+        self.sock.setblocking(False)
+
+        msgstr = ""
+        while True:
+            incoming, _, _ = select([self.sock], [], [], timeout)
+            for sock in incoming:
+                msg = sock.recv(10000)
+                if not msg:
+                    continue
+                msgstr += msg.decode()
+            if start + timeout < time.time():
+                break
+            if not aggregate:
+                break
+
+        self.sock.setblocking(True)
+        return msgstr
 
     def close(self) -> None:
         try:
+            self.sock.setblocking(True)
             self.sock.send(b"\x04")
             self.sock.close()
+            time.sleep(0.1)
         except:
+            time.sleep(0.1)
             pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
