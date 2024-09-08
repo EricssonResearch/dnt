@@ -1,9 +1,6 @@
 // Copyright (c) 2023, Ericsson AB and Ericsson Telecommunication Hungary
 // All rights reserved.
 
-#ifndef _GNU_SOURCE /* stupid g++ implicitly defines this */
-#define _GNU_SOURCE /* for pthread_setname_np */
-#endif
 
 #include "action.h"
 #include "delay.h"
@@ -41,7 +38,6 @@ static void *delay_thread(void *arg)
 {
     (void)arg;
     log_info("Delay thread starting");
-    pthread_setname_np(pthread_self(), "delay thread");
 
     struct timespec time_now;
     int ret;
@@ -108,9 +104,9 @@ bool init_delay(void)
     }
 
     //delay_queue = calloc_struct(DelayQueue);
-    thread = thread_launch_priority(delay_thread, NULL, 97, "delay_thread");
+    thread = thread_launch_priority(delay_thread, NULL, 97, "delay thread");
     if (thread == NULL) {
-        thread = thread_launch(delay_thread, NULL, "delay_thread");
+        thread = thread_launch(delay_thread, NULL, "delay thread");
         if (thread == NULL) {
             log_error("Could not create delay thread");
             return false;

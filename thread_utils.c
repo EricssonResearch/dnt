@@ -39,14 +39,14 @@ static struct Thread *launch_with_attr(const char *name, void* (*thread_fn)(void
 
     errno = pthread_create(&ret->tid, attr, thread_fn, thread_arg);
     if (errno != 0) {
-        log_perror("failed to start thread %s", name);
+        log_perror("failed to start thread '%s'", name);
         free(ret->name);
         free(ret);
         return NULL;
     }
     pthread_setname_np(ret->tid, name);
 
-    log_debug("started thread %s", name);
+    log_debug("started thread '%s'", name);
     return ret;
 }
 
@@ -96,7 +96,7 @@ struct Thread *thread_stop(struct Thread *thread)
 {
     if (thread == NULL) return NULL;
     if (thread->tid == pthread_self()) return NULL;
-    log_debug("stopping thread %s", thread->name);
+    log_debug("stopping thread '%s'", thread->name);
     pthread_cancel(thread->tid);
     pthread_join(thread->tid, NULL);
     free(thread->name);
@@ -108,7 +108,7 @@ void thread_exit(struct Thread *thread)
 {
     if (thread == NULL) return;
     if (thread->tid != pthread_self()) return;
-    log_debug("thread %s exiting", thread->name);
+    log_debug("thread '%s' exiting", thread->name);
     pthread_t tid = thread->tid;
     free(thread->name);
     free(thread);

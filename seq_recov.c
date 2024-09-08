@@ -608,7 +608,7 @@ struct PipelineObject *new_seq_rec(const char *name, enum SequenceRecoveryAlgori
     ret->init_take_any = true;
     ret->session_id = NULL;
 
-    ret->reset_thread = thread_launch(reset_thread, ret, "seq reset %s", name);
+    ret->reset_thread = thread_launch(reset_thread, ret, "sqrst %s", name);
     if (ret->reset_thread == NULL) {
         log_error("cant't create reset thread for %s", name);
         return delete_seq_rec((struct PipelineObject *)ret);

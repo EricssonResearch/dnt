@@ -3,6 +3,7 @@
 
 
 #include "object.h"
+#include "log.h"
 #include "pof.h"
 #include "replicate.h"
 #include "seq_gen.h"
@@ -12,15 +13,18 @@
 #include <stdlib.h>
 #include <string.h>
 
+DEFAULT_LOGGING_MODULE(OBJECT, INFO);
 
 void pipeline_object_ref(struct PipelineObject *obj)
 {
-    __atomic_add_fetch(&obj->reference_count, 1, __ATOMIC_RELAXED);
+    int refcount = __atomic_add_fetch(&obj->reference_count, 1, __ATOMIC_RELAXED);
+    log_debug("%s ref refcount %d", obj->name, refcount);
 }
 
 void pipeline_object_unref(struct PipelineObject *obj)
 {
     int refcount = __atomic_sub_fetch(&obj->reference_count, 1, __ATOMIC_RELAXED);
+    log_debug("%s unref refcount %d", obj->name, refcount);
 
     if (refcount == 0) {
         delete_hashmap(obj->meps);

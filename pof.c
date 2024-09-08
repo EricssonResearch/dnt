@@ -167,6 +167,7 @@ static enum ActionResult pof_insert(struct PipelineObject *p, struct PipelineIte
         log_perror("write");
     }
     pthread_mutex_unlock(&pof->lock); // TODO: check if OK
+    log_packet("pof insert %u queue len %u", pe->seq, pof->queue_len);
     return ACR_HOLD;
 }
 
@@ -224,6 +225,7 @@ static struct timespec *get_next_deadline(struct Pof *pof)
 
 static void pof_forward(struct PofElem *pe)
 {
+    log_packet("forward %u", pe->seq);
     struct Pof *pof = pe->pof;
     if (pe->seq > pof->pof_last_sent)
         pof->pof_last_sent = pe->seq;
@@ -236,9 +238,11 @@ static void pof_try_forward(struct Pof *pof, int event)
 {
     struct PofElem *pkt_to_send = pof->q_head;
     if ((event & POF_TIMEOUT) && pof->take_any == false) {
+        log_packet("timeout, next to forward %u", pof->next_to_forward->seq);
         if (pof->next_to_forward)
             pkt_to_send = pof->next_to_forward;
     }
+    log_packet("try forward, to send %u last sent %u", pkt_to_send->seq, pof->pof_last_sent);
     while (pof->queue_len > 0) {
         if ((pkt_to_send->seq == pof->pof_last_sent + 1) || (event & POF_TIMEOUT)) {
             if (pof->take_any)
