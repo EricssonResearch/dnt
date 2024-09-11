@@ -167,8 +167,8 @@ static void stream_stop_session(struct StreamSessions *stream, int session, stru
 
 void stop_session(const char *stream_name, int session, struct CommandConnection *conn)
 {
-    pthread_mutex_lock(&session_lock);
     struct StreamSessions *stream = get_stream_sessions(stream_name);
+    pthread_mutex_lock(&session_lock);
     if (session==-1)
         session = stream->last_session;
     FILE *cmd_w = command_connection_get_w(conn);
