@@ -1,3 +1,13 @@
+---
+urlcolor: blue
+header-includes: |
+  \usepackage{fancyhdr}
+  \usepackage{fvextra}
+  \fvset{breaklines=true}
+include-before:
+- '`\newpage{}`{=latex}'
+---
+
 # R2DTWO: Reliable & Robust Deterministic Tool for netWOrking
 
 R2DTWO is a generic userspace deterministic networking toolbox.
@@ -7,11 +17,15 @@ Highlighted features:
 * Portable with minimal external dependencies
 * Layer 2 TSN virtual switch with IEEE 802.1CB (FRER) support
 * Layer 3 DetNet virtual router with PREOF support
-* DetNet OAM support and built-in command-line interface
+* DetNetSRv6 experimental support
+* DetNet OAM support and built-in telnet command-line interface
 * Generic header matching & editing for many protocols (Ethernet, S-VLAN, C-VLAN, MPLS, IPv4, IPv6, etc.)
 * Extensions to the FRER/PREOF standards for better cloud-native operation support (seamless FRER/PREOF, delay function)
-* Supporting Ethernet, IPv4, IPv6 and MPLS pseudo-wire interfaces for sending/receiving
+* Supporting Ethernet, IPv4, IPv6, SRv6 and MPLS pseudo-wire interfaces for sending/receiving
+* Hardware offload support for delay function (hardware support required)
+* Dynamic address configuration for tunnel endpoints on DHCP and NDP configured interfaces
 * Extensible architecture, well defined interfaces for new protocols and functions
+* Many more...
 
 ## Installation
 
@@ -103,7 +117,10 @@ The unit tests use the same infrastructure as the unit tests that come with the 
 
 ### Integration tests
 
-These are in the `test` directory. They test R2DTWO as a whole by running it with certain configurations. They need python3 to run, and most of them also need python3-scapy. __TODO more documentation on this__
+There are integration selftests intended for CI/CD use.
+They supposed to find regressions in R2DTWOs behavior.
+Additionally, these tests are (partially) documented and they have many configuration file examples.
+The examples can be used as building blocks other configurations as well.
 
 ### Debugging tests
 
@@ -120,5 +137,8 @@ With questions regarding to R2DTWO bugs/usage, please contact [Ferenc Fejes \<fe
 
 Team:
 
-* Ericsson: Balázs Varga, Ferenc Fejes, János Farkas
+* Ericsson: Balázs Varga, Ferenc Fejes, Ferenc Orosi, János Farkas
 * BME: István Moldován, Miklós Máté
+
+\newpage{}
+

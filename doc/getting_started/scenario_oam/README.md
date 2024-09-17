@@ -1,4 +1,4 @@
-# Scenario #5: R2DTWO Operation, Administration and Maintenance (OAM)
+# Scenario: R2DTWO Operation, Administration and Maintenance (OAM)
 
 __Important: this scenario assumes background knowledge of the first three scenarios.
 Please take a look into Scenarios TSN, TSNoDetNet and IP46oDetNet scenarios if you have not already.__

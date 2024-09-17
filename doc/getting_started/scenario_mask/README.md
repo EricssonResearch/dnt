@@ -1,4 +1,4 @@
-# Scenario #6: Replication path masking
+# Scenario: Replication path masking
 
 __Important: this scenario assumes background knowledge from scenarios TSN, TSNoDetNet, IP46oDetNet and OAM.
 Please follow the instructions of those if you have not already.__

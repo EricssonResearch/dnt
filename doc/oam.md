@@ -45,9 +45,9 @@ The available commands are:
 * `returns` list return interfaces
 * `sessions [stream]` list active sessions for stream, lists all sessions if no 'stream' is specified
 * `[un]mask <replication pipeline>` mask/unmask a replication pipeline
-* `rlist[@if] <stream:mep-start/mip> <mep-stop/mip/any> <level>` list monitoring start points of the remote node
-* `ping[@if] <stream:mep-start> <mep-stop/mip/any> <level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]` sends a ping request inside a stream, the reply will come out-of-band to @if
-    * `<stream:mep-start>` sets the position in the action pipeline where the ping starts
+* `rlist[@if] <mep-start/mip> <mep-stop/mip/any> <level>` list monitoring start points of the remote node
+* `ping[@if] <mep-start> <mep-stop/mip/any> <level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]` sends a ping request inside a stream, the reply will come out-of-band to @if
+    * `<mep-start>` sets the position in the action pipeline where the ping starts
     * `<mep-stop/mip/any>` is the name of the destination of the ping
     * `<level>` is the OAM level of the session, can be 0..7
     * `-r` ask for route record

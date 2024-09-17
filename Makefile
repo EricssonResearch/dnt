@@ -75,15 +75,19 @@ clean:
 .PHONY: doc
 doc:
 	/usr/bin/echo -e '---\ntitle: R2DTWO\n...\n' > /tmp/r2dtwo.md
-	cat doc/getting_started/README.md >> /tmp/r2dtwo.md
-	cat doc/getting_started/scenario1/README.md >> /tmp/r2dtwo.md
-	cat doc/getting_started/scenario2/README.md >> /tmp/r2dtwo.md
-	cat doc/getting_started/scenario3/README.md >> /tmp/r2dtwo.md
-	cat doc/logging.md >> /tmp/r2dtwo.md
-	cat doc/oam.md >> /tmp/r2dtwo.md
-	cat doc/inispec.md >> /tmp/r2dtwo.md
-	doc/protocolfields.pl protocol.c > doc/protocols.md
-	cat doc/protocols.md >> /tmp/r2dtwo.md
-	pandoc --toc --pdf-engine=xelatex -V 'monofontoptions: Color=0070c0,Scale=0.7' \
+	cat doc/getting_started/README.md >> /tmp/r2dtwo.md; echo '\n\\newpage{}' >> /tmp/r2dtwo.md
+	cat doc/getting_started/scenario1/README.md >> /tmp/r2dtwo.md; echo '\n\\newpage{}' >> /tmp/r2dtwo.md
+	cat doc/getting_started/scenario2/README.md >> /tmp/r2dtwo.md; echo '\n\\newpage{}' >> /tmp/r2dtwo.md
+	cat doc/getting_started/scenario3/README.md >> /tmp/r2dtwo.md; echo '\n\\newpage{}' >> /tmp/r2dtwo.md
+	cat doc/getting_started/scenario_oam/README.md >> /tmp/r2dtwo.md; echo '\n\\newpage{}' >> /tmp/r2dtwo.md
+	cat doc/getting_started/scenario_mask/README.md >> /tmp/r2dtwo.md; echo '\n\\newpage{}' >> /tmp/r2dtwo.md
+	cat doc/logging.md >> /tmp/r2dtwo.md; echo '\n\\newpage{}' >> /tmp/r2dtwo.md
+	cat doc/oam.md >> /tmp/r2dtwo.md; echo '\n\\newpage{}' >> /tmp/r2dtwo.md
+	cat doc/srv6.md >> /tmp/r2dtwo.md; echo '\n\\newpage{}' >> /tmp/r2dtwo.md
+	cat doc/inispec.md >> /tmp/r2dtwo.md; echo '\n\\newpage{}' >> /tmp/r2dtwo.md
+	doc/protocolfields.pl protocol.c > doc/protocols.md; echo '\n\\newpage{}' >> /tmp/r2dtwo.md
+	cat doc/protocols.md >> /tmp/r2dtwo.md; echo '\n\\newpage{}' >> /tmp/r2dtwo.md
+	#monofont options listed in https://ctan.org/pkg/fontspec
+	pandoc --toc --pdf-engine=xelatex -V 'monofontoptions: Color=0070c0,Scale=0.6' \
 		-V monofont="Noto Sans Mono" -V fontsize=12pt -V geometry:margin=1.5cm /tmp/r2dtwo.md -o readme.pdf
 	rm /tmp/r2dtwo.md

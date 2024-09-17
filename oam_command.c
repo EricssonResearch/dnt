@@ -95,9 +95,9 @@ static const char help_str[] =
     "returns - list return interfaces\n"
     "sessions [stream] - list active sessions for stream, lists all sessions if no 'stream' is specified\n"
     "[un]mask <replication pipeline> - mask/unmask a replication pipeline\n"
-    "rlist[@if] <stream:mep-start/mip> <mep-stop/mip/any> <level> - list monitoring start points of the remote node\n"
-    "ping[@if] <stream:mep-start/mip> <mep-stop/mip/any> <level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]\n"
-    "rping[@if] <stream:mep-start/mip> <mep-stop/mip> <level> <remote stream:mep-start/mip> <remote mep-stop/mip/any> <remote level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]\n"
+    "rlist[@if] <mep-start/mip> <mep-stop/mip/any> <level> - list monitoring start points of the remote node\n"
+    "ping[@if] <mep-start/mip> <mep-stop/mip/any> <level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]\n"
+    "rping[@if] <mep-start/mip> <mep-stop/mip> <level> <remote mep-start/mip> <remote mep-stop/mip/any> <remote level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]\n"
     "stop [stream session_id] - stop a running OAM session identified by 'stream:session_id', without parameter it stops the last session\n"
     ;
 

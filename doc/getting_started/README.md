@@ -4,6 +4,7 @@
 
 R2DTWO currently only supports GNU/Linux environments.
 A fairly up-to-date GNU/Linux distribution like Ubuntu, Debian, Fedora, RHEL, Arch, etc. should works.
+Python 3 package also required.
 Install the dependencies for the compilation and run the project.
 
 On Ubuntu/Debian based distros:
@@ -77,5 +78,8 @@ There are three scenarios, you can find the details (`README.md`s) and relevant 
 
 * `scenario1` - this is the recommended starting point, using R2DTWO as a Layer2 Ethernet swtich with 802.1CB extension [scenario1/README.md](scenario1/README.md)
 * `scenario2` - TSN over DetNet scenario, where Layer2 Ethernet traffic encapsulated into DetNet MPLS pseudowires and handled with PREF extension [scenario2/README.md](scenario2/README.md)
-* `scenario3` - IP over DetNet scenario, where regular Layer3 IP traffic encapsulated into DetNet MPLS pseudowires and handled with PREF extension [scenario3/README.md](scenario3/README.md)
+* `scenario3` - IPv46 over DetNet scenario, where regular Layer3 IP traffic encapsulated into DetNet MPLS pseudowires and handled with PREF extension [scenario3/README.md](scenario3/README.md)
+* `scenario4` - Ladder topology with DetNet implementing the IEEE 802.1CB's ladder redundancy example [scenario4/README.md](scenario4/README.md)
+* `scenario_oam` - IPv4 over DetNet scenario with additional Operation Administration and Maintenance (OAM) extension [scenario_oam/README.md](scenario_oam/README.md)
+* `scenario_mask` - Scenario presenting the path masking functionality of the replication object [scenario_mask/README.md](scenario_mask/README.md)
 
