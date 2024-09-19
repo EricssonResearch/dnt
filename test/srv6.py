@@ -50,17 +50,30 @@ def setup_network():
     # add vrf interfaces
     r2.cmd("ip link add name vrf1 type vrf table 10")
     r2.cmd("ip link set vrf1 mtu 2000 up")
-    r2.cmd("ip -6 rule del priority 1000")
-    r2.cmd("ip -6 rule add type blackhole l3mdev to fd00:be1a:0:2::/64 priority 1000")   # prevent loop
-    r2.cmd("ip -6 rule add table local priority 2000")
-    r2.cmd("ip -6 addr add fd00:be12::2/64 dev vrf1")
+    #r2.cmd("ip -6 rule del priority 1000")
+    #r2.cmd("ip -6 rule add type blackhole l3mdev to fd00:be1a:0:2::/64 priority 1000")   # prevent loop
+    #r2.cmd("ip -6 rule add table local priority 2000")
+    r2.cmd("ip -6 addr add fd00:be12::2/64 dev vrf1")   # used for sending, this IP will be used as source for outer IPv6 source
+
+    r2.cmd("ip link add name ve1 type veth peer name ve2")
+    r2.cmd("ip link set ve1 mtu 2000 up")
+    r2.cmd("ip link set ve2 mtu 2000 up")
+    r2.cmd("ip -6 addr add fd00:be13::2/64 dev ve1")
+    r2.cmd("ip -6 addr add fd00:be14::2/64 dev ve2")   # R2DTWO requires that IP type interfaces must have IP address
+
 
     r4.cmd("ip link add name vrf1 type vrf table 10")
     r4.cmd("ip link set vrf1 mtu 2000 up")
-    r4.cmd("ip -6 rule del priority 1000")
-    r4.cmd("ip -6 rule add type blackhole l3mdev to fd00:be1a:0:4::/64 priority 1000")   # prevent loop
-    r4.cmd("ip -6 rule add table local priority 2000")
+    #r4.cmd("ip -6 rule del priority 1000")
+    #r4.cmd("ip -6 rule add type blackhole l3mdev to fd00:be1a:0:4::/64 priority 1000")   # prevent loop
+    #r4.cmd("ip -6 rule add table local priority 2000")
     r4.cmd("ip -6 addr add fd00:be12::4/64 dev vrf1")
+
+    r4.cmd("ip link add name ve1 type veth peer name ve2")
+    r4.cmd("ip link set ve1 mtu 2000 up")
+    r4.cmd("ip link set ve2 mtu 2000 up")
+    r4.cmd("ip -6 addr add fd00:be13::4/64 dev ve1")
+    r4.cmd("ip -6 addr add fd00:be14::4/64 dev ve2")   # R2DTWO requires that IP type interfaces must have IP address
 
 
     # add dummy loopback interfaces for local SIDs (loopback interfaces do not work with SRv6)
@@ -137,8 +150,12 @@ def setup_network():
 
     r2.cmd("ip -6 route add fd00:be1a:0:4:0::/80 encap seg6 mode encap segs fd14:fade:0:0:1:: dev eth_r2r4")
     r2.cmd("ip -6 route add fd00:be1a:0:4:1::/80 encap seg6 mode encap segs fd13:fade::0,fd14:fade:0:0:1:: dev eth_r2r3")
-    r4.cmd("ip -6 route add fd00:be1a:0:4::/64 dev vrf1")
-    r4.cmd("ip -6 route add fd14:fade:0:0:1::/128 encap seg6local action End.DT6 table 254 dev vrf1")
+
+    r4.cmd("ip -6 neigh add fd00:be13::99 lladdr 02:01:02:03:04:05 dev ve1")
+    r4.cmd("ip -6 route add fd00:be1a:0:4::/64 via fd00:be13::99 table 10 dev ve1")
+    r4.cmd("ip -6 route add fd14:fade:0:0:1::/128 encap seg6local action End.DT6 count table 10 dev ve1")
+
+
 
     # set up reverse tunnel
     r4.cmd("tc qdisc add dev eth_r4l5 handle ffff: ingress")
@@ -147,8 +164,10 @@ def setup_network():
 
     r4.cmd("ip -6 route add fd00:be1a:0:2:0::/80 encap seg6 mode encap segs fd12:fade:0:0:1:: dev eth_r4r2")
     r4.cmd("ip -6 route add fd00:be1a:0:2:1::/80 encap seg6 mode encap segs fd13:fade::0,fd12:fade:0:0:1:: dev eth_r4r3")
-    r2.cmd("ip -6 route add fd00:be1a:0:2::/64  dev vrf1")
-    r2.cmd("ip -6 route add fd12:fade:0:0:1::/128 encap seg6local action End.DT6 table 254 dev vrf1")
+
+    r2.cmd("ip -6 neigh add fd00:be13::99 lladdr 02:01:02:03:04:05 dev ve1")
+    r2.cmd("ip -6 route add fd00:be1a:0:2::/64 via fd00:be13::99 table 10 dev ve1")
+    r2.cmd("ip -6 route add fd12:fade:0:0:1::/128 encap seg6local action End.DT6 count table 10 dev ve1")
 
     info('*** Starting network\n')
     net.start()
@@ -359,6 +378,7 @@ if __name__ == '__main__':
     setLogLevel('info')
     net = setup_network()
 
+    ret = 0
     if debug:
         print("R2DTWO SRv6 debug")
         info(f"*** Starting R2DTWOs, scenario {scenario}\n")
@@ -367,10 +387,9 @@ if __name__ == '__main__':
         CLI(net)
         print("Cleanup...")
         exec_fg("killall r2dtwo")
-
+        tests = []
     else:
         print("R2DTWO SRv6 test")
-        ret = 0
         tests = [test_ipv6, test_ipv4, test_tsn]
         for test in tests:
             result = test()
@@ -386,4 +405,5 @@ if __name__ == '__main__':
 
     if ret == len(tests):
         exit(0)
+
     exit(1)
