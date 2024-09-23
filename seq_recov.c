@@ -512,7 +512,7 @@ static void latent_error_reset(struct SequenceRecovery *rec)
     rec->skip_loss_after_reset_guard = rec->history_length - 1;
 }
 
-static bool decrement_ticks(struct SequenceRecovery *rec)
+static void decrement_ticks(struct SequenceRecovery *rec)
 {
     rec->latent_reset_counter += 1000 / FRER_TICKS_PER_SEC;
     if (rec->latent_reset_counter >= rec->diag.latent_reset_period) {
@@ -525,16 +525,13 @@ static bool decrement_ticks(struct SequenceRecovery *rec)
         rec->latent_error_counter = 0;
     }
     if (rec->remaining_ticks == 0)
-        return true;
+        return;
     rec->remaining_ticks -= 1;
     if (rec->remaining_ticks == 0) {
         seq_recovery_reset(rec);
-        if (rec->session_id) {
+        if (rec->session_id)
             hashmap_remove(oam_seq_recoveries, rec->session_id);
-            return false;
-        }
     }
-    return true;
 }
 
 // This thread decrement the @remaining_ticks periodically
@@ -553,8 +550,7 @@ static void *reset_thread(void *arg)
     delta.tv_nsec = tick_ns % NSEC_PER_SEC;
     clock_gettime(CLOCK_REALTIME, &now);
     timespecadd(&now, &delta, &sleep_until);
-    bool should_run = true;
-    while (should_run) {
+    while (true) {
         clock_nanosleep(CLOCK_REALTIME, TIMER_ABSTIME, &sleep_until, NULL);
         clock_gettime(CLOCK_REALTIME, &now);
         if (timespeccmp(&now, &sleep_until, <)) {
@@ -562,7 +558,7 @@ static void *reset_thread(void *arg)
             // Unlikely early wake up, continue with sleeping
             continue;
         }
-        should_run = decrement_ticks(rec);
+        decrement_ticks(rec);
         timespecadd(&now, &delta, &sleep_until);
     }
     return rec;
