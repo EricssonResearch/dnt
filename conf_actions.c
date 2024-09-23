@@ -1418,10 +1418,12 @@ static bool process_action(struct StageState *stst)
                     free(pipestring);
                     free(jumpname);
                     delete_confaction_list(jstst.actions);
+                    stst->headers = jstst.headers;
                     THROW("failed to process pipeline '%s'", newaction->jump.pipename);
                 }
                 free(pipestring);
                 free(jumpname);
+                stst->headers = jstst.headers;
                 if (jstst.actions == NULL) {
                     THROW("no actions in pipeline '%s'", newaction->jump.pipename);
                 }
@@ -1433,7 +1435,6 @@ static bool process_action(struct StageState *stst)
                 jump->next = NULL;
                 delete_confaction_list(jump);
 
-                stst->headers = jstst.headers;
                 // normally this list is empty, but get it back from jstst anyway
                 stst->must_write = jstst.must_write;
                 stst->had_final = true;
