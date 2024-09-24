@@ -529,8 +529,11 @@ static void decrement_ticks(struct SequenceRecovery *rec)
     rec->remaining_ticks -= 1;
     if (rec->remaining_ticks == 0) {
         seq_recovery_reset(rec);
-        if (rec->session_id)
+        if (rec->session_id) {
+            thread_exit(rec->reset_thread);
+            rec->reset_thread = NULL;
             hashmap_remove(oam_seq_recoveries, rec->session_id);
+        }
     }
 }
 
@@ -621,6 +624,7 @@ struct PipelineObject *delete_seq_rec(struct PipelineObject *r)
 {
     struct SequenceRecovery *rec = (struct SequenceRecovery *)r;
     thread_stop(rec->reset_thread);
+    rec->reset_thread = NULL;
     free(rec->history);
     free(rec->init_history);
     free(rec->session_id);
