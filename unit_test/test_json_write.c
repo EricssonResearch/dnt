@@ -433,9 +433,9 @@ static void test_realloc_pretty(void)
 
 
 TEST_CASES = {
-    {"Write", test_write},
-    {"Write pretty", test_write_pretty},
-    {"Realloc", test_realloc},
-    {"Realloc pretty", test_realloc_pretty},
+    {"write", test_write},
+    {"write pretty", test_write_pretty},
+    {"realloc", test_realloc},
+    {"realloc pretty", test_realloc_pretty},
     {NULL, NULL}
 };

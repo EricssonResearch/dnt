@@ -289,8 +289,8 @@ static void test_readback(void)
 }
 
 TEST_CASES = {
-    {"Read Good", test_read_good},
-    {"Read Bad", test_read_bad},
-    {"Readback", test_readback},
+    {"read good", test_read_good},
+    {"read bad", test_read_bad},
+    {"readback", test_readback},
     {NULL, NULL}
 };

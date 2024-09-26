@@ -68,4 +68,12 @@ struct PipelineObject *new_seq_rec(const char *name, enum SequenceRecoveryAlgori
 // always returns NULL
 struct PipelineObject *delete_seq_rec(struct PipelineObject *rec);
 
+#ifdef TESTING
+
+char *oam_session_id(const struct Packet *p);
+
+struct SequenceRecovery *get_oam_rcvy(const char *session_id);
+
+#endif
+
 #endif // R2_SEQ_RECOV_H

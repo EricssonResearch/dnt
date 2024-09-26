@@ -194,8 +194,8 @@ static void test_object(void)
 }
 
 TEST_CASES = {
-    {"Simple", test_simple},
-    {"Array", test_array},
-    {"Object", test_object},
+    {"simple", test_simple},
+    {"array", test_array},
+    {"object", test_object},
     {NULL, NULL}
 };

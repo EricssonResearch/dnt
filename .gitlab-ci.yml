@@ -208,6 +208,11 @@ unit_test.seq_rcvy_match:
   script:
     - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_seq_rcvy_match
 
+unit_test.seq_rcvy_oam:
+  extends: .unit_test.common
+  script:
+    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_seq_rcvy_oam
+
 unit_test.seq_rcvy_vector:
   extends: .unit_test.common
   script:

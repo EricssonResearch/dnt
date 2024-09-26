@@ -208,7 +208,7 @@ static void test_common_recv(void)
 }
 
 TEST_CASES = {
-    {"Common send", test_common_send},
-    {"Common recv", test_common_recv},
+    {"common send", test_common_send},
+    {"common recv", test_common_recv},
     {NULL, NULL}
 };

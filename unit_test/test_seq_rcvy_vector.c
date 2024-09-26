@@ -10,7 +10,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <unistd.h>
 #include <arpa/inet.h>
 
 TEST_INIT("Sequence Recovery: Vector");
@@ -51,11 +50,11 @@ static void test_window(void)
 
     unsigned start = 200;
     struct Packet *p = new_packet(NULL);
-    OK(p, "have packet");
+    OK_FATAL(p, "have packet");
     struct Pipeline *pl = new_pipeline("test");
-    OK(pl, "have pipeline");
+    OK_FATAL(pl, "have pipeline");
     struct PipelineIterator *pi = new_pipe_iterator(pl, p);
-    OK(pi, "have iterator");
+    OK_FATAL(pi, "have iterator");
 
     p->sequence = htonl(start);
     OK(rec->process_packet(rec, pi) == ACR_CONTINUE, "in TakeAny");
@@ -129,11 +128,11 @@ static void test_single(void)
     srand(2020); // this seed looks nice
 
     struct Packet *p = new_packet(NULL);
-    OK(p, "have packet");
+    OK_FATAL(p, "have packet");
     struct Pipeline *pl = new_pipeline("test");
-    OK(pl, "have pipeline");
+    OK_FATAL(pl, "have pipeline");
     struct PipelineIterator *pi = new_pipe_iterator(pl, p);
-    OK(pi, "have iterator");
+    OK_FATAL(pi, "have iterator");
 
     enum {
         start = history_length * 3,
@@ -186,8 +185,8 @@ static void test_multi(void)
 }
 
 TEST_CASES = {
-    {"Window", test_window},
-    {"Stress Single-Thread", test_single},
-    {"Stress Multi-Thread", test_multi},
+    {"window", test_window},
+    {"stress single-thread", test_single},
+    {"stress multi-thread", test_multi},
     {NULL, NULL}
 };

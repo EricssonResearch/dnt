@@ -20,6 +20,12 @@
 
 #define OAM_RCVY_RESET_MS 5000
 
+#ifdef TESTING
+#define TESTABLE
+#else
+#define TESTABLE static
+#endif
+
 DEFAULT_LOGGING_MODULE(RCVY, WARNING);
 LOGGING_MODULE(DIAGNOSTIC, WARNING);
 
@@ -70,7 +76,7 @@ struct SequenceRecovery {
 // currently the only state of the session is the seq recovery
 static struct HashMap *oam_seq_recoveries = NULL; // session_id -> struct SequenceRecovery
 
-static char *oam_session_id(const struct Packet *p)
+TESTABLE char *oam_session_id(const struct Packet *p)
 {
     // TODO: we can assume headers[1] indentified?
     /* g_ach[4]; //node ID MSB */
@@ -91,7 +97,7 @@ static int oam_rcvy_del_cb(const char *key, void *value, void *userdata)
     return 1;
 }
 
-static struct SequenceRecovery *get_oam_rcvy(char *session_id)
+TESTABLE struct SequenceRecovery *get_oam_rcvy(const char *session_id)
 {
     if (oam_seq_recoveries == NULL)
         oam_seq_recoveries = new_hashmap(5, oam_rcvy_del_cb, NULL);
@@ -408,6 +414,7 @@ static enum ActionResult seq_recovery(struct PipelineObject *r, struct PipelineI
         struct SequenceRecovery *oam_rec = get_oam_rcvy(session_id);
         if (oam_rec) {
             uint8_t oam_seq = (seq >> 16) & 0xff;
+            log_packet("oam recovery session '%s' seq %d", session_id, oam_seq);
             accept =  match_seq_recovery(oam_rec, oam_seq);
             seq = oam_seq;
         }

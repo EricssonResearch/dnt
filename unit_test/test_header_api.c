@@ -65,8 +65,8 @@ static void test_comparator(void)
 }
 
 TEST_CASES = {
-    {"Writer", test_writer},
-    {"Reader", test_reader},
-    {"Comparator", test_comparator},
+    {"writer", test_writer},
+    {"reader", test_reader},
+    {"comparator", test_comparator},
     {NULL, NULL}
 };

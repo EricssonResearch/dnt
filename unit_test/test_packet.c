@@ -399,10 +399,10 @@ static void test_logbuf(void)
 }
 
 TEST_CASES = {
-    {"Create", test_create},
-    {"Identify header", test_identify},
-    {"Add/del header", test_add_del},
-    {"Copy", test_copy},
-    {"Logbuf", test_logbuf},
+    {"create", test_create},
+    {"identify header", test_identify},
+    {"add/del header", test_add_del},
+    {"copy", test_copy},
+    {"logbuf", test_logbuf},
     {NULL, NULL}
 };

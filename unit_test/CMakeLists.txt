@@ -19,6 +19,7 @@ function(add_test_seqrcvy name)
 endfunction()
 
 add_test_seqrcvy(test_seq_rcvy_match)
+add_test_seqrcvy(test_seq_rcvy_oam)
 add_test_seqrcvy(test_seq_rcvy_vector)
 #TODO seamless
 

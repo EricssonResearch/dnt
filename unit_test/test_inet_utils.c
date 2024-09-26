@@ -144,7 +144,7 @@ static void test_ether_pton(void)
 }
 
 TEST_CASES = {
-    {"IP Port", test_ip_port},
-    {"Ether Pton", test_ether_pton},
+    {"parse_ip_port", test_ip_port},
+    {"ether_pton", test_ether_pton},
     {NULL, NULL}
 };

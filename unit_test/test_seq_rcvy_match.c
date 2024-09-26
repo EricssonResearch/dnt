@@ -2,7 +2,6 @@
 #include "testing.h"
 
 #include "seq_recov.h"
-#include "action.h"
 #include "packet.h"
 #include "pipeline.h"
 #include "utils.h"
@@ -10,7 +9,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <unistd.h>
 #include <arpa/inet.h>
 
 TEST_INIT("Sequence Recovery: Match");
@@ -52,11 +50,11 @@ static void test_duplicates(void)
 
     unsigned start = 200;
     struct Packet *p = new_packet(NULL);
-    OK(p, "have packet");
+    OK_FATAL(p, "have packet");
     struct Pipeline *pl = new_pipeline("test");
-    OK(pl, "have pipeline");
+    OK_FATAL(pl, "have pipeline");
     struct PipelineIterator *pi = new_pipe_iterator(pl, p);
-    OK(pi, "have iterator");
+    OK_FATAL(pi, "have iterator");
 
     p->sequence = htonl(start);
     OK(rec->process_packet(rec, pi) == ACR_CONTINUE, "in TakeAny");
@@ -107,11 +105,11 @@ static void test_single(void)
     const unsigned iterations = 10000;
     unsigned last = start-1;
     struct Packet *p = new_packet(NULL);
-    OK(p, "have packet");
+    OK_FATAL(p, "have packet");
     struct Pipeline *pl = new_pipeline("test");
-    OK(pl, "have pipeline");
+    OK_FATAL(pl, "have pipeline");
     struct PipelineIterator *pi = new_pipe_iterator(pl, p);
-    OK(pi, "have iterator");
+    OK_FATAL(pi, "have iterator");
     for (unsigned i=0; i<iterations; i++) {
         unsigned seq = start + rand() % interval;
         p->sequence = htonl(seq);
@@ -135,8 +133,8 @@ static void test_multi(void)
 }
 
 TEST_CASES = {
-    {"Duplicates", test_duplicates},
-    {"Stress Single-Thread", test_single},
-    {"Stress Multi-Thread", test_multi},
+    {"duplicates", test_duplicates},
+    {"stress single-thread", test_single},
+    {"stress multi-thread", test_multi},
     {NULL, NULL}
 };
