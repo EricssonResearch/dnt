@@ -410,7 +410,7 @@ static int obj_print_pretty_cb(const char *key, void *value, void *userdata)
     }
     unsigned c = strlen(key);
     CHECK_BUF_OBJ(op->indent + c + 6);
-    sprintf(buf+*slen, "%*c\"%s\" :%c", op->indent, ' ', key, after_colon);
+    sprintf(buf+*slen, "%*s\"%s\" :%c", op->indent, "", key, after_colon);
     *slen += op->indent + c + 5;
 
     buf = serialize_value_pretty(val, buf, buflen, slen, val_indent, op->increment);
@@ -428,11 +428,10 @@ static int obj_print_pretty_cb(const char *key, void *value, void *userdata)
 static char *serialize_value_pretty(const struct JsonValue *json, char *buf, unsigned *buflen, unsigned *slen,
         unsigned indent, unsigned increment)
 {
-    //TODO if indent=0 sprintf prints " " and reverts it with '\0' so we must have space for 2 characters (glibc bug?)
 #define PRINT_INDENT                            \
     do {                                        \
-        CHECK_BUF(indent+2);                    \
-        sprintf(buf+*slen, "%*c", indent, ' '); \
+        CHECK_BUF(indent+1);                    \
+        sprintf(buf+*slen, "%*s", indent, "");  \
         *slen += indent;                        \
     } while (0)
 

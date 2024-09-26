@@ -1953,42 +1953,42 @@ struct Pipeline *assemble_actions(const char *stream_name, const struct ConfActi
 void confactions_print(const struct ConfAction *ca_list, unsigned indent)
 {
     for (const struct ConfAction *ca = ca_list; ca; ca=ca->next) {
-        log_info("%*cConfAction %s '%s'", indent, ' ',
+        log_info("%*sConfAction %s '%s'", indent, "",
                 confaction_name_from_type(ca->type), ca->text);
         switch (ca->type) {
             case CA_UNDEF:
                 break;
             case CA_ADD:
-                log_debug("%*cnew name %s id %d type %s len %u index %u", indent+2, ' ',
+                log_debug("%*snew name %s id %d type %s len %u index %u", indent+2, "",
                         ca->add.newname, ca->add.id,
                         protocol_type_from_id(ca->add.id),
                         ca->add.len, ca->add.pos_idx);
                 break;
             case CA_DEL:
-                log_debug("%*cindex %u", indent+2, ' ', ca->del.idx);
+                log_debug("%*sindex %u", indent+2, "", ca->del.idx);
                 break;
             case CA_DELAY:
-                log_debug("%*cdelaying %f ms", indent+2, ' ', ca->delay.delay_value);
+                log_debug("%*sdelaying %f ms", indent+2, "", ca->delay.delay_value);
                 break;
             case CA_DROP:
                 break;
             case CA_EDIT:
                 for (struct ConfAssignment *a=ca->edit.assignments; a; a=a->next) {
-                    log_debug("%*c%s", indent+2, ' ', a->text);
-                    log_debug("%*cread %p write %p", indent+3, ' ', a->read, a->write);
-                    log_debug("%*clhs type %s valuetype %s bitoffset %u bitcount %u", indent+3, ' ',
+                    log_debug("%*s%s", indent+2, "", a->text);
+                    log_debug("%*sread %p write %p", indent+3, "", a->read, a->write);
+                    log_debug("%*slhs type %s valuetype %s bitoffset %u bitcount %u", indent+3, "",
                             variabletype_name_from_type(a->lhs.type),
                             fieldtype_name_from_type(a->lhs.value_type),
                             a->lhs.value.bitoffset, a->lhs.value.bitcount);
                     if (a->lhs.type == CVT_FIELD) {
-                        log_debug("%*cindex %u", indent+4, ' ', a->lhs.v.header.field->header_idx);
+                        log_debug("%*sindex %u", indent+4, "", a->lhs.v.header.field->header_idx);
                     }
-                    log_debug("%*crhs type %s valuetype %s bitoffset %u bitcount %u", indent+3, ' ',
+                    log_debug("%*srhs type %s valuetype %s bitoffset %u bitcount %u", indent+3, "",
                             variabletype_name_from_type(a->rhs.type),
                             fieldtype_name_from_type(a->rhs.value_type),
                             a->rhs.value.bitoffset, a->rhs.value.bitcount);
                     if (a->rhs.type == CVT_FIELD) {
-                        log_debug("%*cindex %u", indent+4, ' ', a->rhs.v.header.field->header_idx);
+                        log_debug("%*sindex %u", indent+4, "", a->rhs.v.header.field->header_idx);
                     } else if (a->rhs.type == CVT_CONST) {
                         unsigned bytes = DIVCEIL(a->rhs.value.bitoffset + a->rhs.value.bitcount, 8);
                         unsigned char *cst = (unsigned char *)a->rhs.value.value;
@@ -2000,53 +2000,53 @@ void confactions_print(const struct ConfAction *ca_list, unsigned indent)
                                 b_off += snprintf(b_str+b_off, sizeof(b_str)-b_off, " 0x%.2x", cst[i]);
                             }
                         }
-                        log_debug("%*cconstant:%s", indent+4, ' ', b_str);
+                        log_debug("%*sconstant:%s", indent+4, "", b_str);
                     }
                 }
                 break;
             case CA_ELIM:
-                log_debug("%*cobject %s", indent+2, ' ', ca->elim.rec->name);
+                log_debug("%*sobject %s", indent+2, "", ca->elim.rec->name);
                 break;
             case CA_FILTEROAM:
-                log_debug("%*cfield idx %u bitoffset %u bitcount %u", indent+2, ' ',
+                log_debug("%*sfield idx %u bitoffset %u bitcount %u", indent+2, "",
                         ca->filteroam.field->header_idx, ca->filteroam.field->bitoffset,
                         ca->filteroam.field->bitcount);
                 break;
             case CA_JUMP:
-                log_debug("%*c%s", indent+2, ' ', ca->jump.pipename);
+                log_debug("%*s%s", indent+2, "", ca->jump.pipename);
                 break;
             case CA_POF:
-                log_debug("%*cobject %s", indent+2, ' ', ca->pof.pof->name);
+                log_debug("%*sobject %s", indent+2, "", ca->pof.pof->name);
                 break;
             case CA_READSEQ:
             case CA_READTSTAMP:
             case CA_WRITESEQ:
             case CA_WRITETSTAMP:
-                log_debug("%*cfield idx %u bitoffset %u bitcount %u", indent+2, ' ',
+                log_debug("%*sfield idx %u bitoffset %u bitcount %u", indent+2, "",
                         ca->meta.field->header_idx, ca->meta.field->bitoffset, ca->meta.field->bitcount);
                 break;
             case CA_REPL:
                 for (struct ReplicateList *p=ca->repl.pipelines; p; p=p->next) {
-                    log_info("%*cbranch %s", indent+2, ' ', p->name);
+                    log_info("%*sbranch %s", indent+2, "", p->name);
                     confactions_print(p->actions, indent+4);
                 }
                 break;
             case CA_SEND:
-                log_debug("%*ciface %s", indent+2, ' ', ca->send.iface ? ca->send.iface->name : "UNKNOWN");
+                log_debug("%*siface %s", indent+2, "", ca->send.iface ? ca->send.iface->name : "UNKNOWN");
                 break;
             case CA_SEQGEN:
-                log_debug("%*cobject %s", indent+2, ' ', ca->seq.gen->name);
+                log_debug("%*sobject %s", indent+2, "", ca->seq.gen->name);
                 break;
             case CA_TTLCHECK:
                 break;
             case CA_TTLREDUCE:
-                log_debug("%*cfield idx %u bitoffset %u bitcount %u", indent+2, ' ',
+                log_debug("%*sfield idx %u bitoffset %u bitcount %u", indent+2, "",
                         ca->ttl.field->header_idx, ca->ttl.field->bitoffset, ca->ttl.field->bitcount);
                 break;
             case CA_MEPSTART:
             case CA_MEPSTOP:
             case CA_MIP:
-                log_debug("%*cname %s level %d object %s", indent+2, ' ',
+                log_debug("%*sname %s level %d object %s", indent+2, "",
                         ca->oam.name, ca->oam.level, ca->oam.obj?ca->oam.obj->name:"<none>");
                 break;
         }
