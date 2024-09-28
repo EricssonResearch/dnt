@@ -48,32 +48,26 @@ def setup_network():
     net.build()
 
     # add vrf interfaces
-    r2.cmd("ip link add name vrf1 type vrf table 10")
+    r2.cmd("ip link add name vrf1 type vrf table 254")
     r2.cmd("ip link set vrf1 mtu 2000 up")
-    #r2.cmd("ip -6 rule del priority 1000")
-    #r2.cmd("ip -6 rule add type blackhole l3mdev to fd00:be1a:0:2::/64 priority 1000")   # prevent loop
-    #r2.cmd("ip -6 rule add table local priority 2000")
-    r2.cmd("ip -6 addr add fd00:be12::2/64 dev vrf1")   # used for sending, this IP will be used as source for outer IPv6 source
+    r2.cmd("ip -6 addr add fd00:a2d2:0:0:0:1::2/96 dev vrf1")  # used for sending, this IP will be used as source for outer IPv6 source
 
     r2.cmd("ip link add name ve1 type veth peer name ve2")
     r2.cmd("ip link set ve1 mtu 2000 up")
     r2.cmd("ip link set ve2 mtu 2000 up")
-    r2.cmd("ip -6 addr add fd00:be13::2/64 dev ve1")
-    r2.cmd("ip -6 addr add fd00:be14::2/64 dev ve2")   # R2DTWO requires that IP type interfaces must have IP address
+    r2.cmd("ip -6 addr add fd00:a2d2:0:0:0:2::2/96 dev ve1")
+    r2.cmd("ip -6 addr add fd00:a2d2:0:0:0:3::2/96 dev ve2")   # R2DTWO requires that IP type interfaces must have IP address
 
 
-    r4.cmd("ip link add name vrf1 type vrf table 10")
+    r4.cmd("ip link add name vrf1 type vrf table 254")
     r4.cmd("ip link set vrf1 mtu 2000 up")
-    #r4.cmd("ip -6 rule del priority 1000")
-    #r4.cmd("ip -6 rule add type blackhole l3mdev to fd00:be1a:0:4::/64 priority 1000")   # prevent loop
-    #r4.cmd("ip -6 rule add table local priority 2000")
-    r4.cmd("ip -6 addr add fd00:be12::4/64 dev vrf1")
+    r4.cmd("ip -6 addr add fd00:a2d2:0:0:0:1::4/96 dev vrf1")
 
     r4.cmd("ip link add name ve1 type veth peer name ve2")
     r4.cmd("ip link set ve1 mtu 2000 up")
     r4.cmd("ip link set ve2 mtu 2000 up")
-    r4.cmd("ip -6 addr add fd00:be13::4/64 dev ve1")
-    r4.cmd("ip -6 addr add fd00:be14::4/64 dev ve2")   # R2DTWO requires that IP type interfaces must have IP address
+    r4.cmd("ip -6 addr add fd00:a2d2:0:0:0:2::4/96 dev ve1")
+    r4.cmd("ip -6 addr add fd00:a2d2:0:0:0:3::4/96 dev ve2")   # R2DTWO requires that IP type interfaces must have IP address
 
 
     # add dummy loopback interfaces for local SIDs (loopback interfaces do not work with SRv6)
@@ -148,13 +142,12 @@ def setup_network():
     r2.cmd("tc filter add dev eth_r2t1 parent ffff: protocol ipv6 flower dst_ip fd05:a1fa::5 action mirred egress redirect dev veth0")
     r2.cmd("tc filter add dev eth_r2t1 parent ffff: protocol ip flower dst_ip 10.0.5.1 action mirred egress redirect dev veth0")
 
-    r2.cmd("ip -6 route add fd00:be1a:0:4:0::/80 encap seg6 mode encap segs fd14:fade:0:0:1:: dev eth_r2r4")
-    r2.cmd("ip -6 route add fd00:be1a:0:4:1::/80 encap seg6 mode encap segs fd13:fade::0,fd14:fade:0:0:1:: dev eth_r2r3")
+    r2.cmd("ip -6 route add fd00:a2d2:0:4:1::/80 encap seg6 mode encap segs fd14:fade:0:0:1:: dev eth_r2r4")
+    r2.cmd("ip -6 route add fd00:a2d2:0:4:2::/80 encap seg6 mode encap segs fd13:fade::0,fd14:fade:0:0:1:: dev eth_r2r3")
 
-    r4.cmd("ip -6 neigh add fd00:be13::99 lladdr 02:01:02:03:04:05 dev ve1")
-    r4.cmd("ip -6 route add fd00:be1a:0:4::/64 via fd00:be13::99 table 10 dev ve1")
-    r4.cmd("ip -6 route add fd14:fade:0:0:1::/128 encap seg6local action End.DT6 count table 10 dev ve1")
-
+    r4.cmd("ip -6 neigh add fd00:a2d2:0:0:0:2::99 lladdr 04:01:02:03:04:05 dev ve1")
+    r4.cmd("ip -6 route add fd00:a2d2:0:4::/64 via fd00:a2d2:0:0:0:2::99 table 254 dev ve1")
+    r4.cmd("ip -6 route add fd14:fade:0:0:1::/128 encap seg6local action End.DT6 count table 254 dev ve1")
 
 
     # set up reverse tunnel
@@ -162,12 +155,12 @@ def setup_network():
     r4.cmd("tc filter add dev eth_r4l5 parent ffff: protocol ipv6 flower dst_ip fd01:a1fa::1 action mirred egress redirect dev veth0")
     r4.cmd("tc filter add dev eth_r4l5 parent ffff: protocol ip flower dst_ip 10.0.1.1 action mirred egress redirect dev veth0")
 
-    r4.cmd("ip -6 route add fd00:be1a:0:2:0::/80 encap seg6 mode encap segs fd12:fade:0:0:1:: dev eth_r4r2")
-    r4.cmd("ip -6 route add fd00:be1a:0:2:1::/80 encap seg6 mode encap segs fd13:fade::0,fd12:fade:0:0:1:: dev eth_r4r3")
+    r4.cmd("ip -6 route add fd00:a2d2:0:2:1::/80 encap seg6 mode encap segs fd12:fade:0:0:1:: dev eth_r4r2")
+    r4.cmd("ip -6 route add fd00:a2d2:0:2:2::/80 encap seg6 mode encap segs fd13:fade::0,fd12:fade:0:0:1:: dev eth_r4r3")
 
-    r2.cmd("ip -6 neigh add fd00:be13::99 lladdr 02:01:02:03:04:05 dev ve1")
-    r2.cmd("ip -6 route add fd00:be1a:0:2::/64 via fd00:be13::99 table 10 dev ve1")
-    r2.cmd("ip -6 route add fd12:fade:0:0:1::/128 encap seg6local action End.DT6 count table 10 dev ve1")
+    r2.cmd("ip -6 neigh add fd00:a2d2:0:0:0:2::99 lladdr 02:01:02:03:04:05 dev ve1")
+    r2.cmd("ip -6 route add fd00:a2d2:0:2::/64 via fd00:a2d2:0:0:0:2::99 table 254 dev ve1")
+    r2.cmd("ip -6 route add fd12:fade:0:0:1::/128 encap seg6local action End.DT6 table 254 count dev ve1")
 
     info('*** Starting network\n')
     net.start()
@@ -260,6 +253,13 @@ def test_ipv6():
         print(f"found {r} log lines instead of {PING_NUM}")
         retval=0
 
+    switch_netns("r4")
+    print(" stats...", end=" ")
+    statcmd = exec_fg(f"ip -6 -s route show dev ve1")
+    if statcmd.stdout and f"packets {num_pings*4}" not in statcmd.stdout:
+        print(statcmd.stdout)   # should be 2x (bkg+prio) + 2x (2 paths)
+        retval=0
+
     #clean up logfiles
     for n in ['r2', 'r4']:
         os.remove(pids[n])
@@ -269,6 +269,16 @@ def test_ipv6():
 def test_ipv4():
     pids={}
     retval=1
+
+    switch_netns("r4")
+    statcmd = exec_fg(f"ip -6 -s route show dev ve1")   # get current stat value
+    if statcmd.stdout:
+        match = re.search(r'packets (\d+)', statcmd.stdout)
+        if match:
+            stat_packets = int(match.group(1))
+        else:
+            stat_packets = 0
+
     try:
         print("Test SRv6 with IPv4 UNI ", end=" ")
         # start r2DTWOs
@@ -290,7 +300,7 @@ def test_ipv4():
         print(" DetNet traffic...", end=" ")
         pingcmd = exec_fg(f"ping 10.0.5.1 -Q 0xc0 -i {PING_INTERVAL_SEC} -c {num_pings}")
         if pingcmd.stdout and f", {num_pings} received," not in pingcmd.stdout:
-            print(pingcmd.stdout)
+            print(pingcmd.stdout)   # should be 2x (bkg+prio) + 2x (2 paths)
             retval=0
 
     except Exception as e:
@@ -311,6 +321,13 @@ def test_ipv4():
         print(f"found {r} log lines instead of {PING_NUM}")
         retval=0
 
+    switch_netns("r4")
+    print(" stats...", end=" ")
+    statcmd = exec_fg(f"ip -6 -s route show dev ve1")
+    if statcmd.stdout and f"packets {stat_packets+num_pings*4}" not in statcmd.stdout:
+        print(statcmd.stdout)
+        retval=0
+
     #clean up logfiles
     for n in ['r2', 'r4']:
         os.remove(pids[n])
@@ -320,6 +337,16 @@ def test_ipv4():
 def test_tsn():
     pids={}
     retval=1
+
+    switch_netns("r4")
+    statcmd = exec_fg(f"ip -6 -s route show dev ve1")   # get current stat value
+    if statcmd.stdout:
+        match = re.search(r'packets (\d+)', statcmd.stdout)
+        if match:
+            stat_packets = int(match.group(1))
+        else:
+            stat_packets = 0
+
     try:
         print("Test SRv6 with TSN  UNI ", end=" ")
         # start r2DTWOs
@@ -361,6 +388,19 @@ def test_tsn():
         print(f"found {r} log lines instead of {PING_NUM}")
         retval=0
 
+    switch_netns("r4")
+    print(" stats...", end=" ")
+    statcmd = exec_fg(f"ip -6 -s route show dev ve1")
+    if statcmd.stdout:
+        match = re.search(r'packets (\d+)', statcmd.stdout)
+        if match:
+            if int(match.group(1)) < stat_packets + PING_NUM*4:
+                print(statcmd.stdout)    # should be 2x (bkg+prio) + 2x (2 paths)
+                retval=0
+        else:
+            print(statcmd.stdout)
+            retval=0
+
     #clean up logfiles
     for n in ['r2', 'r4']:
         os.remove(pids[n])
@@ -376,6 +416,7 @@ if __name__ == '__main__':
             scenario=sys.argv[2]
 
     setLogLevel('info')
+#    setLogLevel('debug')
     net = setup_network()
 
     ret = 0
