@@ -50,7 +50,7 @@ def setup_network():
     # add vrf interfaces
     r2.cmd("ip link add name vrf1 type vrf table 254")
     r2.cmd("ip link set vrf1 mtu 2000 up")
-    r2.cmd("ip -6 addr add fd00:a2d2:0:0:0:1::2/96 dev vrf1")  # used for sending, this IP will be used as source for outer IPv6 source
+    r2.cmd("ip -6 addr add fd00:a2d2:0:0:0:1::2/96 dev vrf1")  # used for sending, this IP will be used as source for inner IPv6 source
 
     r2.cmd("ip link add name ve1 type veth peer name ve2")
     r2.cmd("ip link set ve1 mtu 2000 up")

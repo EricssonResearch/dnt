@@ -10,7 +10,7 @@ There are 3 test cases differentiated:
 * TSN UNI - the incoming traffic is TSN
 For each test case there is an R2DTWO configuration pair in this directory, named <nodename>_<test>.cfg.
 
-## Running the srv6 script
+## Running the srv6.py script
 
 The script needs to be run with root privilege, as mininet requires it. Running the self-tests can be done with the following command:
 
@@ -20,17 +20,22 @@ The script sets up the network, and runs the test cases sequentially. If everyth
 ```
 ...
 R2DTWO SRv6 test
-Test SRv6 with IPv6 UNI   Background traffic...  DetNet traffic...  packet sizes... ✔
-Test SRv6 with IPv4 UNI   Background traffic...  DetNet traffic...  packet sizes... ✔
-Test SRv6 with TSN  UNI   Background traffic...  TSN    traffic...  packet sizes... ✔
+Test SRv6 with IPv6 UNI   Background traffic...  DetNet traffic...  packet sizes...  stats... ✔
+Test SRv6 with IPv4 UNI   Background traffic...  DetNet traffic...  packet sizes...  stats... ✔
+Test SRv6 with TSN  UNI   Background traffic...  TSN    traffic...  packet sizes...  stats... ✔
 ```
+
+The script tests the connectivity over the SRv6 tunnels for backgroung and TSN/DetNet traffic types, checks the correct packet sizes and also the Linux SRv6 tunnel statistics.
+
 For TSN test scenaio, there may be "size mismatch" type extra messages, as other packets are also generated. If the check mark in the end is displayed, these mismatches can be ignored.
+
+After running the tests, the generated logfiles are removed.
 
 For debugging a scenario, the script must be started with two more parameters: 'debug' and the scenario name. For example the TSN scenaric can be started with the following command:
 
 $ sudo python3 srv6.py debug tsn
 
-Possible scenarios are `ipv6`, `ipv4` and `tsn`. The default is `ipv6`, so if `debug` is specified only, ipv6 scenario is supposed.
+Possible scenarios are `ipv6`, `ipv4` and `tsn`. The default is `ipv6`, so if `debug` is specified only, ipv6 scenario is supposed. After running the debug scenario, a mininet prompt is presented and the traffic can be generated manually. Note that in debug mode the generated R2DTWO logfiles are not removed, they must be removed manually.
 
 ## Network topology
 
