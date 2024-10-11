@@ -84,7 +84,7 @@ doc:
 	cat doc/logging.md >> /tmp/r2dtwo.md; echo '\n\\newpage{}' >> /tmp/r2dtwo.md
 	cat doc/oam.md >> /tmp/r2dtwo.md; echo '\n\\newpage{}' >> /tmp/r2dtwo.md
 	cat doc/srv6.md >> /tmp/r2dtwo.md; echo '\n\\newpage{}' >> /tmp/r2dtwo.md
-	cat doc/inispec.md >> /tmp/r2dtwo.md; echo '\n\\newpage{}' >> /tmp/r2dtwo.md
+	cat doc/config_format.md >> /tmp/r2dtwo.md; echo '\n\\newpage{}' >> /tmp/r2dtwo.md
 	doc/protocolfields.pl protocol.c > doc/protocols.md; echo '\n\\newpage{}' >> /tmp/r2dtwo.md
 	cat doc/protocols.md >> /tmp/r2dtwo.md; echo '\n\\newpage{}' >> /tmp/r2dtwo.md
 	#monofont options listed in https://ctan.org/pkg/fontspec
