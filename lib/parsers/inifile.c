@@ -22,7 +22,7 @@
 
 #include "inifile.h"
 #include "hashmap.h"
-#include "iniutils.h"
+#include "parserutils.h"
 
 #include <stdio.h>
 #include <stdlib.h>

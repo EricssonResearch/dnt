@@ -2,7 +2,7 @@
 #include "testing.h"
 
 #include "json.h"
-#include "utils.h"
+#include "parserutils.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -36,7 +36,7 @@ static void test_simple(void)
     js = json_delete(js);
     OK_FATAL(js == NULL, "delete returns null");
 
-    char *str = strdup("jawa script");
+    char *str = u_strdup("jawa script");
     js = json_string(str); // this is supposed to make a copy of str
     free(str);
     OK_FATAL(js, "have value");

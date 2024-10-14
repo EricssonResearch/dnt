@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-// compile: gcc -Wall -g -I../inifile jslint.c ../json.c ../inifile/hashmap.c -o jslint -lm
+// compile: gcc -Wall -g jslint.c ../json.c ../hashmap.c -o jslint -lm
 
 int main(int argc, char **argv)
 {
@@ -43,13 +43,13 @@ int main(int argc, char **argv)
         fclose(jsf);
 
         struct JsonValue *js = json_parse(jsb, len);
+        free(jsb);
         if (js == NULL) {
             printf("\033[31mJSON is invalid\033[0m\n");
         } else {
             printf("\033[32mJSON is valid\033[0m\n");
         }
         json_delete(js);
-
     }
 
     return EXIT_SUCCESS;

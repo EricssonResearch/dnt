@@ -2,7 +2,7 @@
 #include "testing.h"
 
 #include "json.h"
-#include "utils.h"
+#include "parserutils.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -15,7 +15,7 @@ static void test_read_good(void)
 #define TEST_TYPE(s)                                        \
     for (unsigned i=0; (s)[i]; i++) {                       \
         unsigned _len = strlen((s)[i]);                     \
-        char *_js = (char*)memdup((s)[i], _len);            \
+        char *_js = (char*)u_memdup((s)[i], _len);          \
         struct JsonValue *j = json_parse(_js, _len);        \
         free(_js);                                          \
         OK_FATAL(j != NULL, "json string %u should be valid", i);
@@ -259,7 +259,7 @@ static void test_read_bad(void)
 
     for (unsigned i=0; strings[i]; i++) {
         unsigned len = strlen(strings[i]);
-        char *js = (char*)memdup(strings[i], len);
+        char *js = (char*)u_memdup(strings[i], len);
         struct JsonValue *j = json_parse(js, len);
         free(js);
         OK(j == NULL, "string %u should be invalid", i);
@@ -270,14 +270,14 @@ static void test_readback(void)
 {
     const char *orig = "[[],[1],[1,2],null,true,false,\"string\",{},{\"key\":\"val\"},{\"k1\":42,\"k2\":false}]";
     unsigned len = strlen(orig);
-    char *trim = (char*)memdup(orig, len); // trim null-termination
+    char *trim = (char*)u_memdup(orig, len); // trim null-termination
     struct JsonValue *j = json_parse(trim, len);
     free(trim);
     OK_FATAL(j != NULL, "original string is valid");
     char *pretty = json_serialize_pretty(j, &len, 5);
     json_delete(j);
     OK_FATAL(pretty != NULL, "pretty serialization ok");
-    trim = (char*)memdup(pretty, len);
+    trim = (char*)u_memdup(pretty, len);
     free(pretty);
     j = json_parse(trim, len);
     free(trim);

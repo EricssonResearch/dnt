@@ -4,7 +4,7 @@ project(INI_Testing)
 
 include_directories(../)
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O0 -std=c99 -Wall -Wextra -Wstrict-prototypes -Wmissing-declarations -Wwrite-strings -Wshadow -Wvla -Werror")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O0 -std=c99 -Wall -Wextra -Wstrict-prototypes -Wmissing-declarations -Wwrite-strings -Wshadow -Wvla -Wc++-compat -Werror")
 
 #set(MY_EXECUTABLES "")
 
@@ -27,4 +27,14 @@ endfunction()
 
 add_test_inifile(inifile)
 
+function(add_test_json name)
+    add_executable(${name} ../json.c ../hashmap.c ${name}.c)
+    target_link_libraries(${name} m)
+    target_include_directories(${name} PUBLIC ../inifile)
+    target_compile_definitions(${name} PUBLIC TESTING)
+endfunction()
+
+add_test_json(json_api)
+add_test_json(json_read)
+add_test_json(json_write)
 
