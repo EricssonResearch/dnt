@@ -4,7 +4,12 @@
 
 #include "hashmap.h"
 
+//TODO copyright header, documentation
 //TODO support escaping/unescaping strings
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 enum JsonType {
     JSON_NULL,
@@ -117,5 +122,9 @@ struct JsonValue *json_object_get_string(struct JsonValue *object, const char *k
 struct JsonValue *json_object_get_array(struct JsonValue *object, const char *key);
 struct JsonValue *json_object_get_object(struct JsonValue *object, const char *key);
 struct JsonValue *json_object_get_any(struct JsonValue *object, const char *key);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // JSON_H

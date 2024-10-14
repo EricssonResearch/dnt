@@ -1,5 +1,6 @@
 
 #include "json.h"
+#include "parserutils.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -38,7 +39,7 @@ static char *get_string(const char *text, unsigned length, unsigned *i)
         return NULL;
     }
 
-    char *ret = strndup(text + *i, len);
+    char *ret = u_strndup(text + *i, len);
     *i += len + 1;
     return ret;
 }
@@ -60,7 +61,7 @@ static char *get_number_str(const char *text, unsigned length, unsigned *i)
             break;
         }
     }
-    return strndup(text + *i, nlen);
+    return u_strndup(text + *i, nlen);
 }
 
 static struct JsonValue *parse_value(const char *text, unsigned length, unsigned *i)
@@ -585,7 +586,7 @@ struct JsonValue *json_string(const char *s)
 {
     struct JsonValue *ret = calloc_struct(JsonValue);
     ret->type = JSON_STRING;
-    ret->v.string = strdup(s);
+    ret->v.string = u_strdup(s);
     return ret;
 }
 
@@ -677,7 +678,7 @@ unsigned json_array_size(const struct JsonValue *array)
 
 void json_object_insert(struct JsonValue *object, const char *key, struct JsonValue *value)
 {
-    hashmap_insert(object->v.object, strdup(key), value);
+    hashmap_insert(object->v.object, u_strdup(key), value);
 }
 
 int json_object_remove(struct JsonValue *object, const char *key)

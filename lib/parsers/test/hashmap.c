@@ -23,7 +23,7 @@
 #include "testing.h"
 
 #include "hashmap.h"
-#include "iniutils.h"
+#include "parserutils.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -40,7 +40,7 @@ static int nofree_cb(const char *key, void *value, void *userdata)
 
 static int abcverify_cb(const char *key, void *value, void *userdata)
 {
-    int *abcverify = userdata;
+    int *abcverify = (int*)userdata;
     OK(key == value, "key==value");
     int v = *key - 'a';
     *abcverify |= 1<<v;
@@ -50,7 +50,7 @@ static int abcverify_cb(const char *key, void *value, void *userdata)
 
 static int abcverify_order_cb(const char *key, void *value, void *userdata)
 {
-    int *abcverify = userdata;
+    int *abcverify = (int*)userdata;
     OK(key == value, "key==value");
     int v = *key - 'a';
     OK(v > *abcverify, "next char");
@@ -61,7 +61,7 @@ static int abcverify_order_cb(const char *key, void *value, void *userdata)
 
 static int abcverify_interrupt_cb(const char *key, void *value, void *userdata)
 {
-    int *abcverify = userdata;
+    int *abcverify = (int*)userdata;
     OK(key == value, "key==value");
     int v = *key - 'a';
     *abcverify |= 1<<v;
@@ -73,7 +73,7 @@ static int abcverify_interrupt_cb(const char *key, void *value, void *userdata)
 
 static int abcverify_order_interrupt_cb(const char *key, void *value, void *userdata)
 {
-    int *abcverify = userdata;
+    int *abcverify = (int*)userdata;
     OK(key == value, "key==value");
     int v = *key - 'a';
     OK(v > *abcverify, "next char");
@@ -180,17 +180,17 @@ static void test_change(void)
     OK(hashmap_usedbuckets(hash) == 1, "one bucket");
     OK(hashmap_insert(hash, u_strdup("another key"), u_strdup("value")) == 1, "new item");
     OK(hashmap_usedbuckets(hash) == 2, "two buckets"); // or the hash function is garbage
-    OK(strcmp(hashmap_find(hash, "key"), "value") == 0, "find");
+    OK(strcmp((char*)hashmap_find(hash, "key"), "value") == 0, "find");
     OK(hashmap_insert(hash, u_strdup("key"), u_strdup("some other value")) == 0, "overwrite");
     OK(hashmap_usedbuckets(hash) == 2, "two buckets");
-    OK(strcmp(hashmap_find(hash, "key"), "some other value") == 0, "find overwritten value");
-    OK(strcmp(hashmap_find(hash, "another key"), "value") == 0, "find unchanged value");
+    OK(strcmp((char*)hashmap_find(hash, "key"), "some other value") == 0, "find overwritten value");
+    OK(strcmp((char*)hashmap_find(hash, "another key"), "value") == 0, "find unchanged value");
 
     // overwrite value in the hash without inserting with the same key
-    float *f = malloc(sizeof(float));
+    float *f = (float*)malloc(sizeof(float));
     *f = 3.14;
     OK(hashmap_insert(hash, u_strdup("float"), f) == 1, "new item");
-    float *hf = hashmap_find(hash, "float");
+    float *hf = (float*)hashmap_find(hash, "float");
     OK(hf, "found float");
     *hf = 0.5; // float can represent this value exactly
     OK(*f == 0.5, "value overwrite %f", *f);
@@ -268,7 +268,7 @@ static void test_rehash(void)
     for (unsigned i=0; i<m; i++) {
         for (unsigned j=0; j<n; j++) {
             sprintf(buf, "hash %u %u", i, j);
-            char *val = hashmap_find(hash, buf);
+            char *val = (char*)hashmap_find(hash, buf);
             OK(val != NULL, "missing '%s'", buf);
             OK(strcmp(val, buf) == 0, "key '%s' value '%s'", buf, val);
         }
@@ -279,7 +279,7 @@ static void test_rehash(void)
     for (unsigned i=0; i<m; i++) {
         for (unsigned j=0; j<n; j++) {
             sprintf(buf, "hash %u %u", i, j);
-            char *val = hashmap_find(hash, buf);
+            char *val = (char*)hashmap_find(hash, buf);
             OK(val != NULL, "missing '%s'", buf);
             OK(strcmp(val, buf) == 0, "key '%s' value '%s'", buf, val);
         }

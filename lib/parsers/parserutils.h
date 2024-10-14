@@ -20,14 +20,28 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef INI_UTILS_H
-#define INI_UTILS_H
+#ifndef PARSER_UTILS_H
+#define PARSER_UTILS_H
 
 #include <string.h>
 #include <stdlib.h>
 
+// returns a newly allocated duplicate of the memory pointed by @src
+static inline
+    __attribute__((warn_unused_result))
+    __attribute__((nonnull(1)))
+void *u_memdup(const void *src, unsigned size)
+{
+    void *ret = malloc(size);
+    memcpy(ret, src, size);
+    return ret;
+}
+
+
 // unlike the real strdup() this one @returns NULL if @s is NULL
-static inline char *u_strdup(const char *s)
+static inline
+    __attribute__((warn_unused_result))
+char *u_strdup(const char *s)
 {
     if (s == NULL) return NULL;
     unsigned len = strlen(s) + 1;
@@ -40,7 +54,9 @@ static inline char *u_strdup(const char *s)
 // if @s1 is NULL, returns a copy of @s2
 // if @s2 is NULL, returns a copy of @s1
 // if both are NULL, returns NULL
-static inline char *u_strcat(const char *s1, const char *s2)
+static inline
+    __attribute__((warn_unused_result))
+char *u_strcat(const char *s1, const char *s2)
 {
     if (s1 == NULL) return u_strdup(s2);
     if (s2 == NULL) return u_strdup(s1);
@@ -52,5 +68,18 @@ static inline char *u_strcat(const char *s1, const char *s2)
     return ret;
 }
 
+// unlike the real strndup() this one @returns NULL if @s is NULL
+static inline
+    __attribute__((warn_unused_result))
+char *u_strndup(const char *s, unsigned maxlen)
+{
+    if (s == NULL) return NULL;
+    unsigned slen = strlen(s) + 1;
+    unsigned len = slen < maxlen ? slen : maxlen;
+    char *ret = (char *)malloc(len*sizeof(char));
+    memcpy(ret, s, len);
+    ret[len] = 0;
+    return ret;
+}
 
-#endif // INI_UTILS_H
+#endif // PARSER_UTILS_H

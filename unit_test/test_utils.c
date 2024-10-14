@@ -2,7 +2,7 @@
 #include "testing.h"
 
 #include "utils.h"
-#include "inifile/hashmap.h"
+#include "hashmap.h"
 
 #include <stdlib.h>
 #include <string.h>

@@ -23,7 +23,7 @@
 #include "testing.h"
 
 #include "inifile.h"
-#include "iniutils.h"
+#include "parserutils.h"
 
 #include <string.h>
 #include <stdlib.h>

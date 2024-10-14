@@ -8,7 +8,7 @@ CFLAGS += -g -std=gnu99
 #TODO clang ignores -Wmissing-declarations
 CFLAGS += -Wall -Wextra -Wshadow -Wstrict-prototypes -Wmissing-declarations -Wwrite-strings -Wvla -Wc++-compat
 CFLAGS += -Werror
-CFLAGS += -Iinifile
+CFLAGS += -Ilib/parsers
 CFLAGS += -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=3
 #CFLAGS += -fanalyzer
 
@@ -25,18 +25,16 @@ OBJECTS += log.o inet_utils.o thread_utils.o utils.o
 OBJECTS += if_eth.o if_internal.o if_ip.o if_oam.o if_oam_cmd.o if_udp_in.o if_udp_out.o if_utils.o
 OBJECTS += pof.o replicate.o seq_gen.o seq_recov.o
 OBJECTS += oam_command.o oam_core.o oam_message.o oam_request.o
-OBJECTS += json.o
 OBJECTS += configfile.o conf_actions.o conf_interface.o conf_object.o conf_packet.o conf_streams.o conf_oam.o conf_utils.o
-OBJECTS += inifile/hashmap.o inifile/inifile.o
+OBJECTS += lib/parsers/hashmap.o lib/parsers/inifile.o lib/parsers/json.o
 
 HEADERS = action.h delay.h header.h interface.h object.h packet.h parsetree.h pipeline.h protocol.h state.h value.h
 HEADERS += log.h inet_utils.h thread_utils.h time_utils.h utils.h version.h
 HEADERS += if_eth.h if_internal.h if_ip.h if_udp_in.h if_udp_out.h if_utils.h if_oam.h if_oam_cmd.h
 HEADERS += seq_gen.h seq_recov.h pof.h replicate.h
 HEADERS += oam.h oam_command.h oam_core.h oam_message.h oam_request.h
-HEADERS += json.h
 HEADERS += configfile.h conf_actions.h conf_interface.h conf_object.h conf_packet.h conf_streams.h conf_oam.h conf_utils.h
-HEADERS += inifile/hashmap.h inifile/inifile.h inifile/iniutils.h
+HEADERS += lib/parsers/hashmap.h lib/parsers/inifile.h lib/parsers/json.h lib/parsers/parserutils.h
 
 EXE = r2dtwo
 
@@ -54,8 +52,8 @@ __deb:
 debug: __deb $(EXE)
 
 
-inifile/%.o : inifile/%.c $(HEADERS) Makefile
-	cd inifile && $(CC) $(CFLAGS) -c $(<F)
+lib/parsers/%.o : lib/parsers//%.c $(HEADERS) Makefile
+	cd lib/parsers && $(CC) $(CFLAGS) -c $(<F)
 
 %.o : %.c $(HEADERS) Makefile
 	$(CC) $(CFLAGS) -c $<
@@ -69,7 +67,7 @@ install: $(EXE)
 .PHONY: clean
 clean:
 	rm -f *.o
-	rm -f inifile/*.o
+	rm -f lib/parsers/*.o
 	rm -f $(EXE)
 
 .PHONY: doc

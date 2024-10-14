@@ -183,21 +183,6 @@ unit_test.inet_utils:
   script:
     - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_inet_utils
 
-unit_test.json_api:
-  extends: .unit_test.common
-  script:
-    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_json_api
-
-unit_test.json_read:
-  extends: .unit_test.common
-  script:
-    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_json_read
-
-unit_test.json_write:
-  extends: .unit_test.common
-  script:
-    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_json_write
-
 unit_test.packet:
   extends: .unit_test.common
   script:
