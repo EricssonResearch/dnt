@@ -19,7 +19,7 @@ verify-ci-config:
   tags:
     - rosetta-docker
   script:
-    - gitlab-ci/verify_yaml.pl
+    - .gitlab-ci/verify_yaml.pl
 
 
 build-r2dtwo-debug:
@@ -44,7 +44,7 @@ build-r2dtwo-debug-cpp:
   tags:
     - rosetta-docker
   script:
-    - gitlab-ci/cppize.pl Makefile
+    - .gitlab-ci/cppize.pl Makefile
     - make debug -j
 
 build-r2dtwo-release-cpp:
@@ -52,7 +52,7 @@ build-r2dtwo-release-cpp:
   tags:
     - rosetta-docker
   script:
-    - gitlab-ci/cppize.pl Makefile
+    - .gitlab-ci/cppize.pl Makefile
     - make release -j
 
 build-r2dtwo-debug-clang:
