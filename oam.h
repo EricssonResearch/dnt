@@ -63,4 +63,6 @@ void add_oam_if(struct Interface *iface);
 
 bool oam_start_background_ping(const char *name, const char *command);
 
+void oam_count_packet(struct OamEndPoint *oam, struct Packet *p);
+
 #endif // R2_OAM_H

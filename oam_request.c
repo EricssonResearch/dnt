@@ -473,6 +473,7 @@ static bool send_request(const struct OamRequest *req){
     add_fixed_headers(packet, req->ttl, req->seq, OAM_CHANNEL,
                       req->node_id, req->level, session_id);
     packet->ttl = req->ttl;
+    req->mep_start->oam_packets_passed += 1;
 
     struct JsonValue *js = json_object();
     json_object_insert(js, "type", json_string(req->type));
@@ -495,7 +496,13 @@ static bool send_request(const struct OamRequest *req){
             json_object_insert(js, "rr", jrr);
         }
         if(req->object_state){
+            struct JsonValue *jmepstate = json_object();
+            json_object_insert(jmepstate, "packets_passed", json_number(req->mep_start->packets_passed));
+            json_object_insert(jmepstate, "octets_passed", json_number(req->mep_start->octets_passed));
+            json_object_insert(jmepstate, "oam_packets_passed", json_number(req->mep_start->oam_packets_passed));
+            json_object_insert(jmepstate, "name", json_string(req->mep_start->name));
             json_object_insert(js, "object", json_true());
+            json_object_insert(js, "source", jmepstate);
         }
         if(req->delay){
             json_object_insert(js, "delay", json_true());

@@ -604,6 +604,14 @@ static bool process_ping_request(struct OamEndPoint *oam, struct Packet *p, stru
             struct JsonValue *objinfo = mep->target->get_state(mep->target);
             json_object_insert(j, "object", objinfo);
         }
+        if (mep) {
+            struct JsonValue *jmepstate = json_object();
+            json_object_insert(jmepstate, "packets_passed", json_number(mep->packets_passed));
+            json_object_insert(jmepstate, "octets_passed", json_number(mep->octets_passed));
+            json_object_insert(jmepstate, "oam_packets_passed", json_number(mep->oam_packets_passed));
+            json_object_insert(jmepstate, "name", json_string(mep->name));
+            json_object_insert(j, "target", jmepstate);
+        }
     }
 
     json_object_remove(j, "return");
@@ -997,6 +1005,9 @@ static void *request_thread_fn(void *arg)
 
     while (1) {
         struct request_msg *msg = (struct request_msg *)messagequeue_pop(request_q, -1);
+        struct MepStart *mep = find_mep_start(msg->oam->name);
+        if (mep)
+            mep->oam_packets_passed += 1;
         if (process_request(msg->oam, msg->pi->packet)) {
             log_packet("%s forwarding request", msg->oam->name);
             msg->pi->pos += 1;
@@ -1017,6 +1028,11 @@ void oam_recv_request(struct OamEndPoint *oam, struct PipelineIterator *pi)
     msg->oam = oam;
     msg->pi = pi;
     messagequeue_push(request_q, msg);
+}
+
+void oam_count_packet(struct OamEndPoint *oam, struct Packet *p)
+{
+    mep_start_count_passed(find_mep_start(oam->name), p);
 }
 
 void init_msg_module(bool have_command_iface, bool have_reply_iface)
