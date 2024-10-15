@@ -1,6 +1,5 @@
-#!/bin/bash
-
-CNTFILE=/tmp/r2dtwo_test_envs_tsnodn.count
+CNTFILE=/tmp/r2dtwo_test_env.count
+SCENNAME="scenario4"
 NETNSES="A B C D E F talker listener"
 function A() { ip netns exec A $@ ; }
 function B() { ip netns exec B $@ ; }
@@ -24,15 +23,15 @@ if [ $(id -u) -ne 0 ]; then
   return -1
 fi
 
-if [ ! -f "/usr/local/bin/r2dtwo" ]; then
+if which r2dtwo > /dev/null ; then true ; else
   echo "r2dtwo executable not found."
-  echo "Compile r2dtwo and copy to /usr/local/bin"
+  echo "Compile and install r2dtwo first."
   return -2
 fi
 
 configure_networkenv() {
   echo "Initialize r2dtwo test environment"
-  
+
   for item in $NETNSES; do
     ip netns add $item 2>/dev/null
     ip netns exec $item ip link set dev lo up
@@ -52,12 +51,12 @@ configure_networkenv() {
   ip link add e3 netns E type veth peer f2 netns F
 
   IFACES="A,a1;10.0.12.1 A,a2;10.0.13.1 A,eth0;192.168.1.2
-  B,b1;10.0.12.2 B,b2;10.0.23.2 B,b3;10.0.24.2 
-  C,c1;10.0.13.3 C,c2;10.0.23.3 C,c3;10.0.35.3 
-  D,d1;10.0.24.4 D,d2;10.0.45.4 D,d3;10.0.46.4 
-  E,e1;10.0.35.5 E,e2;10.0.45.5 E,e3;10.0.56.5 
-  F,f1;10.0.46.6 F,f2;10.0.56.6 F,eth0;192.168.2.1 
-  talker,eth0;192.168.1.1 
+  B,b1;10.0.12.2 B,b2;10.0.23.2 B,b3;10.0.24.2
+  C,c1;10.0.13.3 C,c2;10.0.23.3 C,c3;10.0.35.3
+  D,d1;10.0.24.4 D,d2;10.0.45.4 D,d3;10.0.46.4
+  E,e1;10.0.35.5 E,e2;10.0.45.5 E,e3;10.0.56.5
+  F,f1;10.0.46.6 F,f2;10.0.56.6 F,eth0;192.168.2.1
+  talker,eth0;192.168.1.1
   listener,eth0;192.168.2.2"
   for i in $IFACES; do
     ns=${i%,*}
@@ -81,17 +80,21 @@ configure_networkenv() {
 # This is totally unsafe
 # TODO: use flock to avoid races
 if [ -f "$CNTFILE" ]; then
-  cntvalue=`cat $CNTFILE`
+  read scenname cntvalue < $CNTFILE
+  if [ "$scenname" != "$SCENNAME" ] ; then
+    echo "scenario '$scenname' is already running, stop it before starting $SCENNAME"
+    return -2
+  fi
   newvalue=`expr $cntvalue + 1`
-  echo $newvalue > $CNTFILE
+  echo "$SCENNAME $newvalue" > $CNTFILE
 else
+  echo "$SCENNAME 1" > $CNTFILE
   configure_networkenv
-  echo "1" > $CNTFILE
 fi
 
 /bin/bash --init-file <(echo "PS1='(ladder redundancy) \u:\W# '")
 
-cntvalue=`cat $CNTFILE`
+read scenname cntvalue < $CNTFILE
 if [ $cntvalue -eq 1 ]; then #last bash instance in the env, do cleanup
   echo "Cleanup r2dtwo test environment"
   rm $CNTFILE
@@ -101,5 +104,5 @@ if [ $cntvalue -eq 1 ]; then #last bash instance in the env, do cleanup
   done
 else
   newvalue=`expr $cntvalue - 1`
-  echo $newvalue > $CNTFILE
+  echo "$SCENNAME $newvalue" > $CNTFILE
 fi

@@ -189,7 +189,7 @@ For that we need at least three terminal windows: one for generating traffic (`t
 After opening the terminals, switch to `root` user and do the network config in each with the `source env.sh` command:
 
 ```
-sudo su
+sudo -s
 
 source env.sh
 ```

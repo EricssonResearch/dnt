@@ -1,6 +1,5 @@
-#!/bin/bash
-
-CNTFILE=/tmp/r2dtwo_test_envs_mask.count
+CNTFILE=/tmp/r2dtwo_test_env.count
+SCENNAME="scenario_mask"
 function talker() { ip netns exec talker $@ ; }
 function listener() { ip netns exec listener $@ ; }
 function admin() { ip netns exec admin $@ ; }
@@ -17,12 +16,11 @@ if [ $(id -u) -ne 0 ]; then
   return -1
 fi
 
-if [ ! -f "/usr/local/bin/r2dtwo" ]; then
+if which r2dtwo > /dev/null ; then true ; else
   echo "r2dtwo executable not found."
-  echo "Compile r2dtwo and copy to /usr/local/bin"
+  echo "Compile and install r2dtwo first."
   return -2
 fi
-
 
 function configure_tc() {
 
@@ -110,17 +108,21 @@ configure_networkenv() {
 # This is totally unsafe
 # TODO: use flock to avoid races
 if [ -f "$CNTFILE" ]; then
-  cntvalue=`cat $CNTFILE`
+  read scenname cntvalue < $CNTFILE
+  if [ "$scenname" != "$SCENNAME" ] ; then
+    echo "scenario '$scenname' is already running, stop it before starting $SCENNAME"
+    return -2
+  fi
   newvalue=`expr $cntvalue + 1`
-  echo $newvalue > $CNTFILE
+  echo "$SCENNAME $newvalue" > $CNTFILE
 else
+  echo "$SCENNAME 1" > $CNTFILE
   configure_networkenv
-  echo "1" > $CNTFILE
 fi
 
 /bin/bash --init-file <(echo "PS1='(mask) \u:\W# '")
 
-cntvalue=`cat $CNTFILE`
+read scenname cntvalue < $CNTFILE
 if [ $cntvalue -eq 1 ]; then #last bash instance in the env, do cleanup
   echo "Cleanup r2dtwo test environment"
   rm $CNTFILE
@@ -132,5 +134,5 @@ if [ $cntvalue -eq 1 ]; then #last bash instance in the env, do cleanup
   ip netns del nxp2 2>/dev/null
 else
   newvalue=`expr $cntvalue - 1`
-  echo $newvalue > $CNTFILE
+  echo "$SCENNAME $newvalue" > $CNTFILE
 fi

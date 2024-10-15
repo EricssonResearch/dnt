@@ -44,7 +44,7 @@ For that, we need at least eight terminal windows: one for generating traffic (`
 After opening the terminals, switch to `root` user and do the network config in each with the `source env.sh` command:
 
 ```
-sudo su
+sudo -s
 source env.sh
 ```
 

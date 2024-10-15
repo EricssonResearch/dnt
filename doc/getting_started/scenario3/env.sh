@@ -1,6 +1,5 @@
-#!/bin/bash
-
-CNTFILE=/tmp/r2dtwo_test_envs_tsnodn.count
+CNTFILE=/tmp/r2dtwo_test_env.count
+SCENNAME="scenario3"
 function talker() { ip netns exec talker $@ ; }
 function listener() { ip netns exec listener $@ ; }
 function nxp1() { ip netns exec nxp1 $@ ; }
@@ -15,12 +14,11 @@ if [ $(id -u) -ne 0 ]; then
   return -1
 fi
 
-if [ ! -f "/usr/local/bin/r2dtwo" ]; then
+if which r2dtwo > /dev/null ; then true ; else
   echo "r2dtwo executable not found."
-  echo "Compile r2dtwo and copy to /usr/local/bin"
+  echo "Compile and install r2dtwo first."
   return -2
 fi
-
 
 function configure_tc() {
 
@@ -29,7 +27,7 @@ function configure_tc() {
   nxp1 ip link set dev r2eth1 up
   # by default no ingress filtering
   nxp1 tc qdisc add dev swp2 handle ffff: ingress
-  # red irect IP egress traffic to R2DTWO
+  # redirect IP egress traffic to R2DTWO
   nxp1 tc filter add dev swp2 parent ffff: protocol ip flower src_ip 10.0.100.11 dst_ip 10.0.200.22 action mirred egress redirect dev r2eth0
   nxp1 tc filter add dev swp2 parent ffff: protocol ipv6 flower src_ip 2001::11 dst_ip 2002::22 action mirred egress redirect dev r2eth0
   # redirect R2DTWO UNI traffic back to the node (talker) if no suitable UNI interface with IP address
@@ -119,17 +117,21 @@ configure_networkenv() {
 # This is totally unsafe
 # TODO: use flock to avoid races
 if [ -f "$CNTFILE" ]; then
-  cntvalue=`cat $CNTFILE`
+  read scenname cntvalue < $CNTFILE
+  if [ "$scenname" != "$SCENNAME" ] ; then
+    echo "scenario '$scenname' is already running, stop it before starting $SCENNAME"
+    return -2
+  fi
   newvalue=`expr $cntvalue + 1`
-  echo $newvalue > $CNTFILE
+  echo "$SCENNAME $newvalue" > $CNTFILE
 else
+  echo "$SCENNAME 1" > $CNTFILE
   configure_networkenv
-  echo "1" > $CNTFILE
 fi
 
 /bin/bash --init-file <(echo "PS1='(ip over detnet) \u:\W# '")
 
-cntvalue=`cat $CNTFILE`
+read scenname cntvalue < $CNTFILE
 if [ $cntvalue -eq 1 ]; then #last bash instance in the env, do cleanup
   echo "Cleanup r2dtwo test environment"
   rm $CNTFILE
@@ -140,5 +142,5 @@ if [ $cntvalue -eq 1 ]; then #last bash instance in the env, do cleanup
   ip netns del nxp2 2>/dev/null
 else
   newvalue=`expr $cntvalue - 1`
-  echo $newvalue > $CNTFILE
+  echo "$SCENNAME $newvalue" > $CNTFILE
 fi

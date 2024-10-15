@@ -171,7 +171,7 @@ For that we need at least three terminal window: one for generate traffic (`talk
 After opening the terminals, switch to `root` user and do the network config in each with the `source env.sh` command:
 
 ```
-sudo su
+sudo -s
 
 source env.sh
 ```
