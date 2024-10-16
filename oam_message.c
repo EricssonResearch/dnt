@@ -1035,7 +1035,9 @@ void oam_recv_request(struct OamEndPoint *oam, struct PipelineIterator *pi)
 
 void oam_count_packet(struct OamEndPoint *oam, struct Packet *p)
 {
-    mep_start_count_passed(find_mep_start(oam->name), p);
+    struct MepStart *mep = find_mep_start(oam->name);
+    if (mep)
+        mep_start_count_passed(mep, p);
 }
 
 void init_msg_module(bool have_command_iface, bool have_reply_iface)
