@@ -495,7 +495,14 @@ static bool send_request(const struct OamRequest *req){
             json_object_insert(js, "rr", jrr);
         }
         if(req->object_state){
+            struct JsonValue *jmepstate = json_object();
+            json_object_insert(jmepstate, "packets_passed", json_number(req->mep_start->packets_passed));
+            json_object_insert(jmepstate, "octets_passed", json_number(req->mep_start->octets_passed));
+            json_object_insert(jmepstate, "oam_packets_passed", json_number(req->mep_start->oam_packets_passed));
+            json_object_insert(jmepstate, "oam_octets_passed", json_number(req->mep_start->oam_octets_passed));
+            json_object_insert(jmepstate, "name", json_string(req->mep_start->name));
             json_object_insert(js, "object", json_true());
+            json_object_insert(js, "source", jmepstate);
         }
         if(req->delay){
             json_object_insert(js, "delay", json_true());
@@ -536,6 +543,8 @@ static bool send_request(const struct OamRequest *req){
 
     struct PipelineIterator *pi = new_pipe_iterator(req->mep_start->pipe, packet);
     pi->pos = req->mep_start->pipe_pos_idx;
+    req->mep_start->oam_packets_passed += 1;
+    req->mep_start->oam_octets_passed += packet_length(packet);
 
     pipe_iterator_run(pi);
     return true;

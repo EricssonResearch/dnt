@@ -11,11 +11,17 @@
 
 #include <time.h>
 
+struct Packet;
+
 //TODO can we make this private? oam_message.c uses it heavily
 struct MepStart {
     char *name;
     char *stream_name;
     struct Pipeline *pipe;
+    unsigned packets_passed;
+    unsigned octets_passed;
+    unsigned oam_packets_passed;
+    unsigned oam_octets_passed;
     int pipe_pos_idx;
     int level;
     struct PipelineObject *target; // PRF, PEF, POF, etc.
@@ -42,5 +48,7 @@ int print_mep_start(const struct MepStart *start, FILE *cmd_w);
 bool mep_start_in_stream(const struct MepStart *start, const char *stream);
 
 void mep_start_wakeup_mask_checker(struct MepStart *start);
+
+void mep_start_count_passed(struct MepStart *start, struct Packet *pkt);
 
 #endif // R2_OAM_CORE_H

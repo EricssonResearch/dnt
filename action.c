@@ -625,6 +625,7 @@ static enum ActionResult action_MEP_execute(struct Action *a, struct PipelineIte
         oam_recv_request(md->oam, pi);
         return ACR_HOLD;
     } else {
+        oam_count_packet(md->oam, p);
         return ACR_CONTINUE;
     }
 }
