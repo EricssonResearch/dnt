@@ -18,43 +18,24 @@ def ping_check_out_of_order(ping_output):
     seqs = [int(s.split(" ")[4].split("=")[1]) for s in seqs_str]
     return all(s == s_prev + 1 for s_prev, s in zip(seqs, seqs[1:]))
 
-def disable_logging(node, mgmtip):
-    switch_netns(node)
-    with socket(AF_INET, SOCK_STREAM, 0) as sock:
-        sock.connect((mgmtip, 8000))
-        sock.sendall(f"log ALL NONE".encode())
-        _ = sock.recv(10000)
-        time.sleep(0.1)
-
-
 def long_run(net, debug : bool):
     t, l, a, b = [net.get(n) for n in ["t", "l", "a", "b"]]
     switch_netns("a")
     # rtwo1 = exec_bg(f"screen -S r1 -d -m env -i gdb -ex=r --args ../r2dtwo stress/a.ini")
-    rtwo1 = exec_bg(f"../r2dtwo stress/a.ini")
+    rtwo1 = exec_bg(f"../r2dtwo -vALL:NONE stress/a.ini")
     switch_netns("b")
     # rtwo2 = exec_bg(f"screen -S r2 -d -m env -i gdb -ex=r --args ../r2dtwo stress/b.ini")
-    rtwo2 = exec_bg(f"../r2dtwo stress/b.ini")
+    rtwo2 = exec_bg(f"../r2dtwo -vALL:NONE stress/b.ini")
     time.sleep(2)
     if debug:
         print("Debug mode. Press Ctrl+D or Ctrl+C to exit...")
         CLI(net)
+        # For debug mode, we done
         return 1
-    disable_logging("a", "10.0.0.1")
-    disable_logging("b", "10.0.0.2")
     switch_netns("t")
-    # For debug mode, we done
     ping = exec_bg("ping 192.168.1.2 -q -A", out=OUT_PIPE)
     switch_netns("a")
-    with socket(AF_INET, SOCK_STREAM, 0) as sock:
-        sock.connect(("10.0.0.1", 8000))
-        now = time.time()
-        stop = now + LONG_RUN_DURATION_SEC
-        while now < stop:
-            sock.sendall("ping s1:start1 any 4 -r -o".encode())
-            _ = sock.recv(10000)
-            time.sleep(2)
-            now = time.time()
+    time.sleep(LONG_RUN_DURATION_SEC)
 
     ping.send_signal(signal.SIGINT)
     rtwo1.terminate()
@@ -69,8 +50,6 @@ def long_run(net, debug : bool):
             if abs(sent - recvd) >= 2:
                 return 0
     return 1
-
-
 
 def create_net():
     net = Mininet(autoStaticArp=True)
