@@ -357,7 +357,7 @@ bool oam_start_background_ping(const char *name, const char *command)
 void mep_start_count_passed(struct MepStart *start, struct Packet *pkt)
 {
     start->packets_passed += 1;
-    start->octets_passed += pkt->len;
+    start->octets_passed += packet_length(pkt);
 }
 
 

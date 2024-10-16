@@ -609,6 +609,7 @@ static bool process_ping_request(struct OamEndPoint *oam, struct Packet *p, stru
             json_object_insert(jmepstate, "packets_passed", json_number(mep->packets_passed));
             json_object_insert(jmepstate, "octets_passed", json_number(mep->octets_passed));
             json_object_insert(jmepstate, "oam_packets_passed", json_number(mep->oam_packets_passed));
+            json_object_insert(jmepstate, "oam_octets_passed", json_number(mep->oam_octets_passed));
             json_object_insert(jmepstate, "name", json_string(mep->name));
             json_object_insert(j, "target", jmepstate);
         }
@@ -1005,9 +1006,11 @@ static void *request_thread_fn(void *arg)
 
     while (1) {
         struct request_msg *msg = (struct request_msg *)messagequeue_pop(request_q, -1);
-        struct MepStart *mep = find_mep_start(msg->oam->name);
-        if (mep)
+        struct MepStart *mep = msg->oam->mep;
+        if (mep) {
             mep->oam_packets_passed += 1;
+            mep->oam_octets_passed += packet_length(msg->pi->packet);
+        }
         if (process_request(msg->oam, msg->pi->packet)) {
             log_packet("%s forwarding request", msg->oam->name);
             msg->pi->pos += 1;

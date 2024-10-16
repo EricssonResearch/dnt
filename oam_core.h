@@ -21,6 +21,7 @@ struct MepStart {
     unsigned packets_passed;
     unsigned octets_passed;
     unsigned oam_packets_passed;
+    unsigned oam_octets_passed;
     int pipe_pos_idx;
     int level;
     struct PipelineObject *target; // PRF, PEF, POF, etc.
