@@ -97,49 +97,49 @@ pytest_oam:
   extends: .pytest.common
   script:
     - cd test
-    - python -m oam.oam
+    - python3 -m oam.oam
   allow_failure: false
 
 pytest_elimination:
   extends: .pytest.common
   script:
     - cd test
-    - python -m sequence.sequence
+    - python3 -m sequence.sequence
   allow_failure: false
 
 pytest_match:
   extends: .pytest.common
   script:
     - cd test
-    - python -m match.match
+    - python3 -m match.match
   allow_failure: false
 
 pytest_mask:
   extends: .pytest.common
   script:
     - cd test
-    - python -m mask.mask
+    - python3 -m mask.mask
   allow_failure: false
 
 pytest_pof:
   extends: .pytest.common
   script:
     - cd test
-    - python -m pof.pof
+    - python3 -m pof.pof
   allow_failure: false
 
 pytest_delay:
   extends: .pytest.common
   script:
     - cd test
-    - python -m delay.delay
+    - python3 -m delay.delay
   allow_failure: false
 
 pytest_stress:
   extends: .pytest.common
   script:
     - cd test
-    - python -m stress.stress_ping
+    - python3 -m stress.stress_ping
   allow_failure: false
 
 
