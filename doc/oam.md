@@ -9,9 +9,51 @@ The OAM functionality requires the following pre-requisites:
 * Add `mep-start`, `mip` and `mep-stop` actions to the stream actions
 * optionally add OAM background commands in the config
 
-Examples and naming convention for the interface and command parameters can be found in **inispec.md**.
-
 The OAM CLI can be reached via `telnet` command to the address:port specified for the `oam_cmd` interface.
+
+Examples and naming convention for the interface and command parameters can be found below.
+
+## Naming convention
+
+For a self-explanatory configuration file and proper OAM operation, there are recommended naming rules.
+The naming is also important for [automatically generated OAM points](#automatic-mip-generation) discussed later.
+Note that the `mip`s will be automatically generated only if `AutoMIP` is specified for the replication/elimination object.
+
+* to identify the streams one can use `s1` or `s2` names, or `m1` and `m2` for member streams. Compound streams can be `c1`, `c2`.
+* in case of replication `R1` object, each of its stream/pipeline can be named as `r1-{stream name}`
+* in case of elimination `E1` object, its pipeline should named as `e1-{stream name}`
+
+For example, a replication pipeline should look like:
+
+```ini
+s1:actions = ..., replicate r1-m1 r1-m2
+r1-m1 = ..., send if1
+r1-m2 = ..., send if2
+```
+
+An elimination pipeline should look like:
+
+```ini
+s1:actions = ..., E1 e1-c1
+s2:actions = ..., E1 e1-c1
+e1-c1 = ..., send if1
+```
+
+A more complex scenario with replication/elimination of compound streams:
+
+```
+     s1-----E1------ e1-c1
+            /
+           / r1-m1
+     s2--R1
+          \_______ r1-m3
+
+s1:actions = ..., eliminate E1 e1-c1
+s2:actions = ..., replicate R1 r1-m1 r1-m3
+r1-m1 = ..., eliminate E1 e1-c1
+r1-m3 = ..., send if2
+e1-c1 = ..., send if3
+```
 
 ## Automatic MIP generation
 
@@ -96,6 +138,11 @@ Json
  * delay - if true, requests delay measurement (the target writes its receive timestamp anyways)
  * send_s - timestamp seconds
  * send_ns - timestamp nanoseconds
+ * source - source MIP statistics if "-o" option given
+    * packets_passed - data packets seen by the MIP
+    * packets_passed - data packets seen by the MIP
+    * octets_passed - aggregate size of OAM packet generated/seen by the MEPStart/MIP
+    * octets_passed - aggregate size of OAM packet generated/seen by the MEPStart/MIP
 
 ### ping reply
 
@@ -104,7 +151,11 @@ Json returns everything as-is, except "return". Also adds info received in the f
  * type = "ping"
  * code = "reply"
  * stream - returned unchanged
- * target - returned unchanged
+ * target - returned unchanged or with stats (below) of "-o" given
+    * packets_passed - data packets seen by the MIP
+    * packets_passed - data packets seen by the MIP
+    * octets_passed - aggregate size of OAM packet generated/seen by the MEPStart/MIP
+    * octets_passed - aggregate size of OAM packet generated/seen by the MEPStart/MIP
  * delay - returned unchanged
  * level - from fixed header
  * nodeid - from fixed header
@@ -116,6 +167,11 @@ Json returns everything as-is, except "return". Also adds info received in the f
  * objects - returned, object state filled
  * recv_s - timestamp seconds
  * recv_ns - timestamp nanoseconds
+ * source - source MIP statistics if "-o" option given
+    * packets_passed - data packets seen by the MIP
+    * packets_passed - data packets seen by the MIP
+    * octets_passed - aggregate size of OAM packet generated/seen by the MEPStart/MIP
+    * octets_passed - aggregate size of OAM packet generated/seen by the MEPStart/MIP
 
 ### rping request
 

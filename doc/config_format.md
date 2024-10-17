@@ -37,7 +37,7 @@ List of interfaces where we can send/receive packets. The keys of the items are 
     * `ip` return address to listen on (required)
     * `port` return port (default: 6634)
 * `oam_cmd` OAM command interface, can have only one, use `telnet` to connect to it, use the `help` command
-    * `ip` address (optional)
+    * `ip` address (optional, accept incoming telnet connections on any address if not given)
     * `port` listening port (default: 8000)
 
 Each interface can have an accompanying line with key `ifname:streams` that defines the streams received on that interface. The value for this key is a list of stream names separated by space. The ordering of the streams in this line determines the matching order when a received packet is processed. The interface drops all incoming packets if no streams are defined on it. One stream can be listed on multiple interfaces.
@@ -223,7 +223,9 @@ seq_rcvy2 = SeqRcvy frerSeqRcvyAlgorithm=Vector frerSeqRcvyHistoryLength=1993
 
 ## oam
 
-This optional section instantiates OAM commands. The format of the commands is `name = command with parameters`, where the command is in the same format as it would be given on the CLI. Refer to the [oam documentation](oam.md) for reference on the commands.
+This optional section instantiates OAM commands.
+The format of the commands is `name = command with parameters`, where the command is in the same format as it would be given on the CLI.
+Refer to the [oam documentation](oam.md) for reference on the commands.
 
 The currently supported OAM commands in this section are:
 
@@ -233,49 +235,5 @@ Example for a DetNet scenario:
 
 ```ini
 [oam]
-
-global_connectivity_check = ping s1:mepn1s1 any 4 -r -o
-```
-
-## naming convention
-
-For a self-explanatory configuration file and proper OAM operation, the following naming rules are recommended. The naming is also important for [automatically generated OAM points](oam.md#automatic-mip-generation). Note that the `mip`s will be automatically generated only if `AutoMIP` is specified for the replication/elimination object.
-
-* session names should identify the session. For example, s1 or s2, or m1 and m2 for member streams. Compound streams can be c1, c2.
-* for a replication pipeline R1, for each action stream after the replication the name should be r1-{stream name}
-* for an elimination pipeline E1, for the action stream after the elimination the name should be e1-{stream name}
-
-* for an elimination pipeline, the elimination should be placed in the action pipeline of each individual stream (but with the same object name).This ensures that a `mip` will be automatically generated for each stream.
-* action pipeline names after replication or jump should also hint the stream name, as it will be used as the automatically generated `mip` name if there is a replication/elimination in this pipeline.
-
-For example, a replication pipeline should look like:
-
-```
-s1:actions = ..., replicate r1-m1 r1-m2
-r1-m1 = ..., send if1
-r1-m2 = ..., send if2
-```
-
-An elimination pipeline should look like:
-
-```
-s1:actions = ..., E1 e1-c1
-s2:actions = ..., E1 e1-c1
-e1-c1 = ..., send if1
-```
-
-A more complex scenario with replication/elimination of compound streams:
-
-```
-     s1-----E1------ e1-c1
-            /
-           / r1-m1
-     s2--R1
-          \_______ r1-m3
-
-s1:actions = ..., eliminate E1 e1-c1
-s2:actions = ..., replicate R1 r1-m1 r1-m3
-r1-m1 = ..., eliminate E1 e1-c1
-r1-m3 = ..., send if2
-e1-c1 = ..., send if3
+global_connectivity_check = ping mepn1s1 any 4 -r -o
 ```
