@@ -1,5 +1,7 @@
 #!/usr/bin/python
 
+import sys
+sys.path.append("..")
 from mininet.net import Mininet
 from mininet.node import Host, Node
 from mininet.cli import CLI
@@ -7,7 +9,6 @@ from mininet.log import setLogLevel, info
 from functools import partial
 from utils import *
 import time
-import sys
 import re
 
 PATH_DELAY_MS = 30
@@ -173,10 +174,10 @@ def start_r2dtwos(net, scenario, debug):
         node = net.get(n)
         if debug:
             # For debug! Spawns 4 r2dtwo windows in gdb
-            node.popen(f"xterm -T {n} -e env -i gdb -nx --args ../r2dtwo srv6/{n}-{scenario}.cfg -v ALL:ALL")
+            node.popen(f"xterm -T {n} -e env -i gdb -nx --args ../../r2dtwo {n}-{scenario}.cfg -v ALL:ALL")
         else:
-            node.popen(f"../r2dtwo -of srv6/{n}-{scenario}.cfg -v PACKETTRACE:PACKET")    # in general this is enough for debug
-            #node.popen(f"../r2dtwo -of srv6/{n}.cfg -v  ALL:ALL")             # but sometimes we need all logs...
+            node.popen(f"../../r2dtwo -of {n}-{scenario}.cfg -v PACKETTRACE:PACKET")    # in general this is enough for debug
+            #node.popen(f"../r2dtwo -of {n}.cfg -v  ALL:ALL")             # but sometimes we need all logs...
 
 def stop_r2dtwos():
         switch_netns()
@@ -217,7 +218,7 @@ def test_ipv6():
         # start r2DTWOs
         for n in ['r2', 'r4']:
             node = net.get(n)
-            p=node.popen(f"../r2dtwo -of srv6/{n}-ipv6.cfg -v PACKETTRACE:PACKET")    # in general this is enough for debug
+            p=node.popen(f"../../r2dtwo -of {n}-ipv6.cfg -v PACKETTRACE:PACKET")    # in general this is enough for debug
             pids[n]=f"r2dtwo-{n}-ipv6-{p.pid}.log"
 
         time.sleep(2)
@@ -284,7 +285,7 @@ def test_ipv4():
         # start r2DTWOs
         for n in ['r2', 'r4']:
             node = net.get(n)
-            p=node.popen(f"../r2dtwo -of srv6/{n}-ipv4.cfg -v PACKETTRACE:PACKET")    # in general this is enough for debug
+            p=node.popen(f"../../r2dtwo -of {n}-ipv4.cfg -v PACKETTRACE:PACKET")    # in general this is enough for debug
             pids[n]=f"r2dtwo-{n}-ipv4-{p.pid}.log"
 
         time.sleep(2)
@@ -352,7 +353,7 @@ def test_tsn():
         # start r2DTWOs
         for n in ['r2', 'r4']:
             node = net.get(n)
-            p=node.popen(f"../r2dtwo -of srv6/{n}-tsn.cfg -v PACKETTRACE:PACKET")    # in general this is enough for debug
+            p=node.popen(f"../../r2dtwo -of {n}-tsn.cfg -v PACKETTRACE:PACKET")    # in general this is enough for debug
             pids[n]=f"r2dtwo-{n}-tsn-{p.pid}.log"
 
         time.sleep(2)
