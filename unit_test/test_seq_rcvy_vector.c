@@ -101,7 +101,7 @@ static void test_window(void)
     unsigned newstart = 2000;
     p->sequence = htonl(newstart);
     OK(rec->process_packet(rec, pi) == ACR_DONE, "outside");
-    usleep(1000*(reset_ms+30)); //TODO the needed oversleep depends on cpu speed :(
+    usleep(1000*(reset_ms+100)); //TODO the needed oversleep depends on cpu speed :(
     OK(rec->process_packet(rec, pi) == ACR_CONTINUE, "in TakeAny again");
 
     // sequence wrap-around

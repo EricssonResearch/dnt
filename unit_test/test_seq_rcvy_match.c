@@ -72,7 +72,7 @@ static void test_duplicates(void)
     OK(rec->process_packet(rec, pi) == ACR_CONTINUE, "not duplicate");
     OK(rec->process_packet(rec, pi) == ACR_DONE, "duplicate");
 
-    usleep(1000*(reset_ms+30)); //TODO the needed oversleep depends on cpu speed :(
+    usleep(1000*(reset_ms+100)); //TODO the needed oversleep depends on cpu speed :(
     OK(rec->process_packet(rec, pi) == ACR_CONTINUE, "in TakeAny again");
     OK(rec->process_packet(rec, pi) == ACR_DONE, "duplicate");
 
