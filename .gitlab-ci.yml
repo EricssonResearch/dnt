@@ -142,6 +142,12 @@ pytest_stress:
     - python3 -m stress.stress_ping
   allow_failure: false
 
+pytest_srv6:
+  extends: .pytest.common
+  script:
+    - cd test
+    - python3 -m srv6.srv6
+  allow_failure: false
 
 .unit_test.common:
   stage: test
@@ -219,5 +225,3 @@ unit_test.utils:
   extends: .unit_test.common
   script:
     - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_utils
-
-
