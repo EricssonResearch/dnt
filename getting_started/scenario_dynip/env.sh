@@ -50,8 +50,10 @@ configure_networkenv() {
   gateway1 ip link set dev swp1 mtu 1600 up
   gateway2 ip link set dev swp0 mtu 1600 up
   gateway2 ip link set dev swp1 mtu 1600 up
-  server ip link set vrf0 up
-  mobile ip link set vrf0 up
+  server ip link set vrf0 mtu 1500 up
+  mobile ip link set vrf0 mtu 1500 up
+  server ethtool -K vrf0 tx off rx off
+  mobile ethtool -K vrf0 tx off rx off
 
   # Configure the addresses
   server ip address add fd11::2/64 dev eth0
@@ -61,8 +63,8 @@ configure_networkenv() {
 
   gateway1 ip address add fd12::1/64 dev swp1
   gateway2 ip address add fd22::1/64 dev swp1
-  mobile ip address add fd12::2/64 dev wwan0
-  mobile ip address add fd22::2/64 dev wwan1
+  #mobile ip address add fd12::2/64 dev wwan0
+  #mobile ip address add fd22::2/64 dev wwan1
 
   server ip address add fd55::1/64 dev vrf0
   mobile ip address add fd66::1/64 dev vrf0
@@ -76,8 +78,8 @@ configure_networkenv() {
   # Configure routing
   server ip route add fd10::/12 via fd11::1 dev eth0
   server ip route add fd20::/12 via fd21::1 dev eth1
-  mobile ip route add fd10::/12 via fd12::1 dev wwan0
-  mobile ip route add fd20::/12 via fd22::1 dev wwan1
+  #mobile ip route add fd10::/12 via fd12::1 dev wwan0
+  #mobile ip route add fd20::/12 via fd22::1 dev wwan1
 
   server ip route add fd66::/64 dev vrf0
   mobile ip route add fd55::/64 dev vrf0
