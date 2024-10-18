@@ -1,6 +1,6 @@
-# Scenario #2: R2DTWO TSN over DetNet
+# Scenario TSN over DetNet: R2DTWO TSN over DetNet
 
-__Important: this scenario assumes background knowledge of the basics from Scenario #1. Please take a look into Scenario #1 if you have not already.__ [Scenario #1](../scenario1/README.md)
+__Important: this scenario assumes background knowledge of the basics from Scenario TSN. Please take a look into Scenario TSN if you have not already.__ [Scenario TSN](../scenario_tsn/README.md)
 
 In the following, we will use R2DTWO as a DetNet router.
 The Layer2 traffic of `talker` and `listener` nodes will be encapsulated in MPLS DetNet pseudowires, then sent through a PREF (Packet Replication and Elimination Functions).
@@ -35,7 +35,7 @@ We will use the following topology, which consists:
 ```
 As you can see, there are redundant paths between **nxp1** and **nxp2**.
 These paths will be utilized by R2DTWO for redundancy.
-What is important here, unlike in the Layer2 TSN case (Scenario #1) now R2DTWO operates at Layer3 and the replicated packets will be routed to the DetNet peer.
+What is important here, unlike in the Layer2 TSN case (Scenario TSN) now R2DTWO operates at Layer3 and the replicated packets will be routed to the DetNet peer.
 
 In the scenario above however the routing is very simple, but the same configuration would work even when there are multiple routers between `nxp1` and `nxp2`.
 
@@ -49,7 +49,7 @@ This is required because even if the topology is symmetrical, we have different 
 
 For full details, please take a look at the R2DTWO documentation.
 Right now we are only explaining the actions in the `nxp1.ini` file, but everything except the addresses apply to the `nxp2.ini` too obviously.
-Like before in Scenario #1, this config also consists of three main sections: `[interfaces]`, `[objects]` and `[streams]`.
+Like before in Scenario TSN, this config also consists of three main sections: `[interfaces]`, `[objects]` and `[streams]`.
 
 Take a look into the `[interfaces]` section, this is where this scenario differs mostly.
 
@@ -76,7 +76,7 @@ One stream matching for every layer 2 traffic (`cvlan vid=0`).
 The other matches on priority tagged packets (VLAN `pcp=6`), which identified as a separate stream.
 
 
-The `[objects]` section is very similar to Scenario #1.
+The `[objects]` section is very similar to Scenario TSN.
 That is because the same semantics can be applied to sequence number generation, replication and elimination.
 In DetNet terminology, we use __PRF__ to replication and __PEF__ to elimination.
 We use the `prf` and `pef` names accordingly.
@@ -176,7 +176,7 @@ sudo -s
 source env.sh
 ```
 
-If everything OK, the prompt should be changed to `(tsn over detnet) root:scenario2# ` which tells right now we are in the test network environment.
+If everything OK, the prompt should be changed to `(tsn over detnet) root:scenario_tsn_over_detnet# ` which tells right now we are in the test network environment.
 Now we should have all the networking (nodes, interfaces and IP addresses) configured and helper commands to execute commands on the nodes.
 To run a command on a node (e.g. `talker` or `nxp1`, etc.) just prefix the command with its name:
 

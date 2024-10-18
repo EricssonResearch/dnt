@@ -5,4 +5,8 @@ tags
 build*
 .cache
 compile_commands.json
-test/__pycache__
+**/__pycache__/
+**.pdf
+
+#auto generated
+doc/protocols.md

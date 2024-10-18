@@ -1,6 +1,6 @@
-# Scenario #3: R2DTWO IPv4/IPv6 over DetNet PseudoWire
+# Scenario IP over DetNet: R2DTWO IPv4/IPv6 over DetNet PseudoWire
 
-__Important: this scenario assumes background knowledge of the basics from Scenario #1 and #2. Please take a look into Scenarios #1 and #2 if you have not already.__ [Scenario #1](../scenario1/README.md), [Scenario #2](../scenario2/README.md)
+__Important: this scenario assumes background knowledge of the basics from Scenario TSN and #2. Please take a look into Scenarios #1 and #2 if you have not already.__ [Scenario TSN](../scenario_tsn/README.md), [Scenario TSN over DetNet](../scenario_tsn_over_detnet/README.md)
 
 In the following, we will use R2DTWO as a DetNet router.
 The Layer3 traffic of `talker` and `listener` nodes will be encapsulated in MPLS DetNet pseudowires, then sent through a PREF (Packet Replication and Elimination Functions).
@@ -40,7 +40,7 @@ These paths will be utilized by R2DTWO for redundancy.
 
 As one can notice, now the talker and listener are placed into different subnets, so __nxp1__ and __nxp2__ must act as a router.
 
-Unlike in the TSN over DetNet case (Scenario #2) now R2DTWO operates at Layer3 on __both UNI and NNI__ interfaces.
+Unlike in the TSN over DetNet case (Scenario TSN over DetNet) now R2DTWO operates at Layer3 on __both UNI and NNI__ interfaces.
 That means the IP packets from the talker will be encapsulated into MPLS DetNet PW and routed towards the PEF.
 The PEF handles the duplicates, then after decapsulating the packet __until the IPv4 or IPv6 header__ sent by the talker, it will send the packet to the listener over a native IP interface.
 The reverse path from listener to talker is similar.
@@ -61,7 +61,7 @@ In the following we only take a closer look to `nxp1.ini` since `nxp2.ini` almos
 
 ### Explanation of the configuration
 
-Most of the configuration is similar to the TSN over DetNet case (Scenario #2).
+Most of the configuration is similar to the TSN over DetNet case (Scenario TSN over DetNet).
 
 One difference is right now we use IPv4 and IPv6 underlay network for the DetNet PWs.
 As one can see on the topology every interface has IPv4 and IPv6 addresses assigned.
@@ -112,7 +112,7 @@ At the end of the section, there are two streams defined on the `uni_in`.
 We use the trick of R2DTWO's implicit VLAN tag, where the _tag protocol identifier_ (`cvlan.tpid`) filled correctly with IPv4 or IPv6 ethertype.
 Therefore in `compound4` we match IPv4 and with `compound6` we match IPv6 traffic.
 
-The `[objects]` section is similar as we seen in Scenario #2.
+The `[objects]` section is similar as we seen in Scenario TSN over DetNet.
 There we had separate PREF objects for the two TSN streams, here we have for the IPv4 and IPv6 streams.
 
 
@@ -194,7 +194,7 @@ sudo -s
 source env.sh
 ```
 
-If everything OK, the prompt should be changed to `(ip over detnet) root:scenario3# ` which tells right now we are in the test network environment.
+If everything OK, the prompt should be changed to `(ip over detnet) root:scenario_ip_over_detnet# ` which tells right now we are in the test network environment.
 Now we should have all the networking (nodes, interfaces, IP addresses and routing) configured and helper commands to execute commands on the nodes.
 
 Now we can start the R2DTWO instances on `nxp1` and `nxp2`:
@@ -274,14 +274,14 @@ This can be visualized in the figure below:
 To do that in this particular scenario there is a predefined shell function `configure_tc` for convenience:
 
 ```
-(ip over detnet) root:scenario3# configure_tc
+(ip over detnet) root:scenario_ip_over_detnet# configure_tc
 ```
 
 This function setup the veth interfaces and apply the Linux TC filters and redirections.
 We can check the commands with the `declare -f configure_tc` command:
 
 ```
-(ip over detnet) root:scenario3# declare -f configure_tc
+(ip over detnet) root:scenario_ip_over_detnet# declare -f configure_tc
 configure_tc () 
 { 
     ip netns exec nxp1 ip link add r2eth0 type veth peer name r2eth1;
@@ -329,10 +329,10 @@ A workaround without including TC filters and creation of new UNI interface is a
 In our example, this looks like the following (__note:__ before that, please restart the test environment, to delete the TC redirection rules):
 
 ```
-(ip over detnet) root:scenario3# nxp1 ip route add blackhole 10.0.200.0/24
-(ip over detnet) root:scenario3# nxp1 ip route add blackhole 2002::/64
-(ip over detnet) root:scenario3# nxp2 ip route add blackhole 10.0.200.0/24
-(ip over detnet) root:scenario3# nxp2 ip route add blackhole 2002::/64
+(ip over detnet) root:scenario_ip_over_detnet# nxp1 ip route add blackhole 10.0.200.0/24
+(ip over detnet) root:scenario_ip_over_detnet# nxp1 ip route add blackhole 2002::/64
+(ip over detnet) root:scenario_ip_over_detnet# nxp2 ip route add blackhole 10.0.200.0/24
+(ip over detnet) root:scenario_ip_over_detnet# nxp2 ip route add blackhole 2002::/64
 ```
 
 With this, we cant see any network unreachable errors on the `talker`.
@@ -348,7 +348,7 @@ So the recommended way to pre-filter streams for R2DTWO if there are background 
 With that workaround, or the TC pre-filtering, we should see the following ping outputs:
 
 ```
-(ip over detnet) root:scenario3# talker ping -c 4 10.0.200.22
+(ip over detnet) root:scenario_ip_over_detnet# talker ping -c 4 10.0.200.22
 PING 10.0.200.22 (10.0.200.22) 56(84) bytes of data.
 64 bytes from 10.0.200.22: icmp_seq=1 ttl=64 time=0.390 ms
 64 bytes from 10.0.200.22: icmp_seq=2 ttl=64 time=0.382 ms
@@ -360,7 +360,7 @@ PING 10.0.200.22 (10.0.200.22) 56(84) bytes of data.
 rtt min/avg/max/mdev = 0.374/0.442/0.624/0.104 ms
 
 
-(ip over detnet) root:scenario3# talker ping -c 4 2002::22
+(ip over detnet) root:scenario_ip_over_detnet# talker ping -c 4 2002::22
 PING 2002::22 (2002::22) 56 data bytes
 64 bytes from 2002::22: icmp_seq=1 ttl=64 time=0.483 ms
 64 bytes from 2002::22: icmp_seq=2 ttl=64 time=0.845 ms

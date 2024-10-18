@@ -1,4 +1,4 @@
-# Scenario #1: R2DTWO TSN operation, layer 2 bridge mode
+# Scenario TSN: R2DTWO TSN operation, layer 2 bridge mode
 
 In the following, we will use R2DTWO as a Layer2 TSN switch with IEEE 802.1CB function.
 
@@ -212,7 +212,7 @@ sudo -s
 source env.sh
 ```
 
-If everything OK, the prompt should be changed to `(tsn test) root:scenario1# ` which tells right now we are in the test network environment.
+If everything OK, the prompt should be changed to `(tsn test) root:scenario_tsn# ` which tells right now we are in the test network environment.
 Now we should have all the networking (nodes, interfaces and IP addresses) configured and helper commands to execute commands on the nodes.
 To run a command on a node (e.g. `talker` or `nxp1`, etc.) just prefix the command with its name:
 

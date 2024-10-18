@@ -1,5 +1,5 @@
 CNTFILE=/tmp/r2dtwo_test_env.count
-SCENNAME="scenario2"
+SCENNAME="scenario_tsn_over_detnet"
 alias talker="ip netns exec talker"
 alias listener="ip netns exec listener"
 alias nxp1="ip netns exec nxp1"

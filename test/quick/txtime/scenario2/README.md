@@ -2,7 +2,7 @@
 
 **This scenario and configuration focuses on Ethernet frame sending using ETF qdisc to create delay.**
 
-This scenario is the same as you can find in the `doc/getting_started/scenario1` folder. The difference is that we want to use `ETF` qdisc to send packets with delay.
+This scenario is the same as you can find in the `getting_started/scenario_tsn` folder. The difference is that we want to use `ETF` qdisc to send packets with delay.
 
 ```
   talker              nxp1                         nxp2              listener

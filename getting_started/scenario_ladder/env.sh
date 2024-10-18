@@ -1,5 +1,5 @@
 CNTFILE=/tmp/r2dtwo_test_env.count
-SCENNAME="scenario4"
+SCENNAME="scenario_ladder"
 NETNSES="A B C D E F talker listener"
 function A() { ip netns exec A $@ ; }
 function B() { ip netns exec B $@ ; }

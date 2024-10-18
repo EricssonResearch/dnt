@@ -4,6 +4,7 @@
 
 R2DTWO currently only supports GNU/Linux environments.
 A fairly up-to-date GNU/Linux distribution like Ubuntu, Debian, Fedora, RHEL, Arch, etc. should work.
+__Important:__ Linux kernel version 4.20 or later is required!
 To build R2DTWO only a C compiler and Make are required, there are no other dependencies.
 
 Installing the build dependencies on Ubuntu/Debian based distros:
@@ -25,8 +26,8 @@ CONFIG_VETH=m
 If `CONFIG_VETH` is `=m` or `=y` that means your kernel has `veth` support.
 If `veth` is not supported, consider switching to a recent major GNU/Linux distro.
 
-__In order to run the selftests (optional, but recommended), Python 3.10 or more recent version required.__
-Also, the _ping_ application is required for the tests, from the `iputils-ping` package.
+For connectivity check the _ping_ application from the `iputils-ping` package required.
+To trace traffic on the interfaces, `wireshark` and `tshark` packages are required.
 
 ## Compilation and install of R2DTWO
 
@@ -63,11 +64,15 @@ Usage: r2dtwo [OPTION...] CONFIGFILE
 
 Mandatory or optional arguments to long options are also mandatory or optional
 for any corresponding short options.
+r2dtwo: Config file required!
+Try `r2dtwo --help' or `r2dtwo --usage' for more information.
 ```
 
 # Test R2DTWO in a simple network environments
 
 For simplicity, in this guide we use standard Linux tools to test R2DTWO in a sandbox network.
+Some scenarios with more complex network we use `mininet` network emulator.
+
 These sandboxes are built to mimic the environment with NXP boards.
 Advanced users can use real network topology, however, make sure the NXP boards are properly initialized.
 
@@ -76,10 +81,10 @@ But every scenario described here focuses on running R2DTWO on a single machine 
 
 These are the scenarios, you can find detailed descriptions and relevant configs (network setup scripts and R2DTWO configs) in their subfolders:
 
-* [scenario1](scenario1/README.md) - this is the recommended starting point, using R2DTWO as a Layer2 Ethernet swtich with 802.1CB extension
-* [scenario2](scenario2/README.md) - TSN over DetNet scenario, where Layer2 Ethernet traffic encapsulated into DetNet MPLS pseudowires and handled with PREF extension
-* [scenario3](scenario3/README.md) - IPv46 over DetNet scenario, where regular Layer3 IP traffic encapsulated into DetNet MPLS pseudowires and handled with PREF extension
-* [scenario4](scenario4/README.md) - Ladder topology with DetNet implementing the IEEE 802.1CB's ladder redundancy example
+* [scenario_tsn](scenario_tsn/README.md) - this is the recommended starting point, using R2DTWO as a Layer2 Ethernet swtich with 802.1CB extension
+* [scenario_tsn_over_detnet](scenario_tsn_over_detnet/README.md) - TSN over DetNet scenario, where Layer2 Ethernet traffic encapsulated into DetNet MPLS pseudowires and handled with PREF extension
+* [scenario_ip_over_detnet](scenario_ip_over_detnet/README.md) - IPv46 over DetNet scenario, where regular Layer3 IP traffic encapsulated into DetNet MPLS pseudowires and handled with PREF extension
+* [scenario_ladder](scenario_ladder/README.md) - Ladder topology with DetNet implementing the IEEE 802.1CB's ladder redundancy example
 * [scenario_dynip](scenario_dynip/README.md) - Dynamic IP configuration for a mobile endpoint
 * [scenario_oam](scenario_oam/README.md) - IPv4 over DetNet scenario with additional Operation Administration and Maintenance (OAM) extension
 * [scenario_mask](scenario_mask/README.md) - Scenario presenting the path masking functionality of the replication object

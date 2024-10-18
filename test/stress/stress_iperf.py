@@ -8,7 +8,7 @@ import os
 def start_network():
     net = Mininet()
 
-    # network is based on getting_started/scenario1
+    # network is based on getting_started/scenario_tsn
 
     talker = net.addHost('talker', ip=None)
     listener = net.addHost('listener', ip=None)

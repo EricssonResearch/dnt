@@ -1,13 +1,3 @@
----
-urlcolor: blue
-header-includes: |
-  \usepackage{fancyhdr}
-  \usepackage{fvextra}
-  \fvset{breaklines=true}
-include-before:
-- '`\newpage{}`{=latex}'
----
-
 # R2DTWO: Reliable & Robust Deterministic Tool for netWOrking
 
 R2DTWO is a generic userspace deterministic networking toolbox.
@@ -42,8 +32,7 @@ On Fedora/RHEL and derivates:
 ```
 sudo dnf groupinstall @development-tools @development-libraries
 ```
-
-A fairly up-to-date Linux kernel is also required.
+The minimal required Linux version is 4.20.
 Kernel versions shipped with major GNU/Linux distributions in the past ~5 years should be fine.
 
 __Compile and (optionally) install R2DTWO__
@@ -64,14 +53,15 @@ sudo make install
 
 ## Usage
 
-To get started with R2DTWO there is a detailed [Getting started](doc/getting_started/README.md) guide.
-This shows three common practical use-cases (Layer 2 TSN, Layer 3 TSN over Detnet and IP over Detnet) supported by R2DTWO.
+To get started with R2DTWO there is a detailed [Getting started](getting_started/README.md) guide.
+This presents common practical use-cases (TSN, DetNet, OAM and more) supported by R2DTWO.
 To try them no special hardware equipment is required, however the scenarios are crafted such that the configs can be run on NXP switches without modifications.
 
 R2DTWO comes with detailed documentation included in the release package.
 The documentation shows various scenarios and configuration examples.
 
 __Important:__ the recommended way to run R2DTWO is to use root privileges.
+Unpriviliged operation also supported, but for Layer2 operation (RAW Ethernet/IP sockets) `CAP_NET_RAW` capability must be granted.
 
 ### Running the application
 
@@ -98,38 +88,17 @@ Try `r2dtwo --help' or `r2dtwo --usage' for more information.
 
 ## Tests
 
-R2DTWO comes with a few different tests to verify its correct operation.
+R2DTWO comes with various self-tests to verify its correct operation.
+These tests designed to be run automatically by part of a CI pipeline.
+There are debugging tests as well, for rapid development.
+For more information check their [documentation](./test/README.md)
 
-### Unit tests
+## Documentation
 
-These are in the `unit_test` directory. They need `cmake` to build, and it's recommended to build them in a separate directory. For example:
+As mentioned before, the entry point of R2DTWO usage are the [getting started](./getting_started/README.md) guides.
+All available configuration options are listed in the [config specification](./doc/config_format.md).
+Other topics such as the supported protocols, SRv6, OAM, logging, etc. documented in the [doc](./doc/) folder.
 
-```
-cd unit_test
-mkdir build
-cd build
-cmake ..
-make
-./test_seq_rcvy_vector
-```
-
-The unit tests use the same infrastructure as the unit tests that come with the INI parser library used by R2DTWO (see inifile/test). The exit code of the tests is 0 if all the test cases passed.
-
-### Integration tests
-
-There are integration selftests intended for CI/CD use.
-They supposed to find regressions in R2DTWOs behavior.
-Additionally, these tests are (partially) documented and they have many configuration file examples.
-The examples can be used as building blocks other configurations as well.
-
-### Debugging tests
-
-These were used to debug R2DTWO during development. They are not systematic, not comprehensive, and not well-documented, but may be useful for showing some of the capabilities of R2DTWO. They need python3 and mininet to run.
-
-* *quicktest* is a mess that was used to test various R2DTWO functionalities during development. It contains configs for TSN and DetNet scenarios. Start the network with quicknet.py, and consult the comment lines in that script to see how to start R2DTWO and run the traffic.
-* *stresstest* is a scenario for testing the POF and Delay functions of R2DTWO: it replicates the traffic on two paths, one path has a substantial packet loss, the other one is delayed. Running this scenario is similar to running *quicktest*.
-
-It is recommended to start xterm terminals from mininet on the virtual nodes, and run the commands in those terminals.
 
 ## Support
 
@@ -139,6 +108,4 @@ Team:
 
 * Ericsson: Balázs Varga, Ferenc Fejes, Ferenc Orosi, János Farkas
 * BME: István Moldován, Miklós Máté
-
-\newpage{}
 

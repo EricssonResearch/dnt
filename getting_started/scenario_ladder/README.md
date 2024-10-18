@@ -48,7 +48,7 @@ sudo -s
 source env.sh
 ```
 
-If everything is OK, the prompt will change to `(ladder redundancy) root:scenario4# ` which tells us, we are in the test network environment.
+If everything is OK, the prompt will change to `(ladder redundancy) root:scenario_ladder# ` which tells us, we are in the test network environment.
 Now we should have all the networking (nodes, interfaces, IP addresses, and routing) configured and helper commands to execute commands on the nodes.
 
 Now we can start the R2DTWO instances in different namespaces: `A`, `B`, `C`, `D`, `E`, and `F`:

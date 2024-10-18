@@ -1,5 +1,5 @@
 CNTFILE=/tmp/r2dtwo_test_env.count
-SCENNAME="scenario3"
+SCENNAME="scenario_ip_over_detnet"
 function talker() { ip netns exec talker $@ ; }
 function listener() { ip netns exec listener $@ ; }
 function nxp1() { ip netns exec nxp1 $@ ; }

@@ -2,7 +2,7 @@
 
 **This scenario and configuration focuses on UDP packet sending using ETF qdisc to create delay.**
 
-This scenario is the same as you can find in the `doc/getting_started/scenario2` folder. The difference is that we removed one route and we want to use `ETF` qdisc to send packets with delay. To achieve this, we set up every interface with 4 tx queues in the `env.sh`. The second queue is the `ETF`'s queue. If we want to send packets into this queue, we need to set the packet's priority to 1. We can do this in the `ini` file:
+This scenario is the same as you can find in the `getting_started/scenario_tsn_over_detnet` folder. The difference is that we removed one route and we want to use `ETF` qdisc to send packets with delay. To achieve this, we set up every interface with 4 tx queues in the `env.sh`. The second queue is the `ETF`'s queue. If we want to send packets into this queue, we need to set the packet's priority to 1. We can do this in the `ini` file:
 
 ```
 nni1_out = udp-out iface=swp0 dstip=192.168.55.2 prio=1
