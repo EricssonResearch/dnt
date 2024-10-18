@@ -50,8 +50,8 @@ Linux and R2DTWO interaction in the context of SRv6 requires several internal in
 * First of all, all NNI interfaces need IPv6 addresses to work. For this, we use IP addresses in the `a1fa` range. Also, the routing should also use these addresses.
 * All nodes should also have a loopback interface, in our case `sr0`, which should have an address from the `fade` range. Since the default loopback interface does not work with SRv6 processing, we use `dummy` interface for loopback.
 * At the UNI interface, a TC filter should intercept the DetNet/TSN traffic and direct it to the vet1/2 veth interface pair. This is needed because the UNI interface holds the IP address, and it answers any ARP/NDP requests. (Note that this is not needed for Ethernet/TSN traffic, as explained later.)
-* R2DTWO uses a vrf interface to send IP packets to NNI interfaces. The choice for VRF type interface was that it behaves as an IP interface, not requiring ARP/NDP support. SRv6 routing entries will be used to direct traffic from the VRF interface towards the tunnels. The VRF interface must also have an IPv6 address, from range `fd00:a2d2:0:0:0:1::0/96`. This has local meaning, a routing entry will use it to route the /64 PREOF SID range through this interface to SRv6 tunnels (H.Encap).
-* R2DTWO uses an additional `veth` interface pair (`ve1` and `ve2`) to receive the decapsulated IP packets. Interface `ve1` is configured with an address from range `fd00:a2d2:0:0:0:2::0/96`. To match the PREOF SIDs a /64 prefix network route is added to the routing table with a next hop in the `fd00:a2d2:0:0:0:2::0/96` range, for example `fd00:a2d2:0:0:0:2::99`. Therefore all traffic exiting the End.DT6 function will be routed through the `ve1` interface. Since `ve1` is an Ethernet type interface, a static neighbor entry is needed for the next hop `fd00:a2d2:0:0:0:2::99`. This is needed to resolve the MAC address of the next hop, and also helps to avoid local L2 loops as this MAC address is not a local address. At the same time, the R2DTWO listens on the `ve2` interface at IP level. The R2DTWO `ip` interface type requires that `ve2` has an IP address. To fulfill this, `ve2` is equipped with an address from `fd00:a2d2:0:0:0:3::0/96` range. (This IP is not used, so any local IP will do here.)
+* R2DTWO uses a vrf interface to send IP packets to NNI interfaces. The choice for VRF type interface was that it behaves as an IP interface, not requiring ARP/NDP support. SRv6 routing entries will be used to direct traffic from the VRF interface towards the tunnels. The VRF interface must also have an IPv6 address, from range `fd00:a2d2:0:0:0:1::/96`. This has local meaning, a routing entry will use it to route the /64 PREOF SID range through this interface to SRv6 tunnels (H.Encap).
+* R2DTWO uses an additional `veth` interface pair (`ve1` and `ve2`) to receive the decapsulated IP packets. Interface `ve1` is configured with an address from range `fd00:a2d2:0:0:0:2::/96`. To match the PREOF SIDs a /64 prefix network route is added to the routing table with a next hop in the `fd00:a2d2:0:0:0:2::/96` range, for example `fd00:a2d2:0:0:0:2::99`. Therefore all traffic exiting the End.DT6 function will be routed through the `ve1` interface. Since `ve1` is an Ethernet type interface, a static neighbor entry is needed for the next hop `fd00:a2d2:0:0:0:2::99`. This is needed to resolve the MAC address of the next hop, and also helps to avoid local L2 loops as this MAC address is not a local address. At the same time, the R2DTWO listens on the `ve2` interface at IP level. The R2DTWO `ip` interface type requires that `ve2` has an IP address. To fulfill this, `ve2` is equipped with an address from `fd00:a2d2:0:0:0:3::/96` range. (This IP is not used, so any local IP will do here.)
 
 
 ```
@@ -65,14 +65,14 @@ Linux and R2DTWO interaction in the context of SRv6 requires several internal in
         ┗━━━━━━┃    ┃━━━━━━━┃    ┃━━━━━━━━━━━━┛                   ┗━━━━━━━━━━━━━━━━┃    ┃━━━━━━━━━━┿━━━━━━━━┛      
         ╔══════┃vet2┃═══════┃vrf1┃════════════╗                   ╔════════════════┃ve2 ┃══════════╪════════╗      
         ║      ┃    ┃       ┃    ┃            ║                   ║                ┃    ┃          │        ║      
-        ║      ┗━━━━┛       ┗━┯━━┛            ║                   ║                ┗━━━━┛          │        ║      
-        ║                  fd00:a2d2:0:0:0:1::║                   ║fd00:a2d2:0:0:0:2::             │        ║              
-        ║      ┏━━━━┓         │               ║                   ║                ┏━━━━┓          │        ║      
+        ║      ┗━━━━┛       ┗━┯━━┛            ║                   ║                ┗━━┯━┛          │        ║      
+        ║               fd00:a2d2:0:2:0:1::/96║                   ║fd00:a2d2:0:4:0:2::/96          │        ║              
+        ║      ┏━━━━┓         │               ║                   ║                ┏━━┷━┓          │        ║      
         ║      ┃    ┃         │               ║                   ║                ┃    ┃          │        ║      
         ║      ┃vet1┃         │               ║                   ║                ┃ve1 ┃          │        ║      
         ║      ┃    ┃         │               ║                   ║                ┃    ┃          │        ║      
         ║      ┗━━▲━┛         │               ║                   ║                ┗━━▲━┛          │        ║      
-        ║         │           │               ║                   ║fd00:a2d2:0:0:0:3::│            │        ║      
+        ║         │           │               ║                   ║fd00:a2d2:0:4:0:3::/96          │        ║      
         ║         │        Routing            ║                   ║                   │            │        ║      
         ║         │           │               ║                   ║                   │            │        ║      
         ║         │           │               ║                   ║                Routing         │        ║      
@@ -88,8 +88,8 @@ Linux and R2DTWO interaction in the context of SRv6 requires several internal in
   ┗━━━━━━━━━━┛            └───────┘    ┗━━━━━━━━━━┛        ┗━━━━━━━━━━┛           └───────┘           ┗━━━━━━━━━━┛
     UNI ║fd01:a1fa::2/64       fd03:a1fa::2/64║ NNI           NNI ║fd03:a1fa::4/64           fd05:a1fa::4/64║ UNI
         ║                                     ║                   ║                                         ║      
-        ║ PREOF.SID: fd00:a2d2:0002::     R2  ║                   ║ PREOF.SID: fd00:a2d2:0004::        R4   ║      
-        ║ Local SID: fd12:fade::0/64    Linux ║                   ║ Local SID: fd14:fade::0/64       Linux  ║      
+        ║ PREOF.SID: fd00:a2d2:0:2::/64   R2  ║                   ║ PREOF.SID: fd00:a2d2:0:4::/64      R4   ║      
+        ║ Local SID: fd12:fade::/64     Linux ║                   ║ Local SID: fd14:fade::/64        Linux  ║      
         ╚═════════════════════════════════════╝                   ╚═════════════════════════════════════════╝      
 ```
 The operation is the following: the incoming IP traffic from talker t1 is identified by the TC filter, and it is redirected to the veth interface. As the `t1r2` interface has IP address, it handles the ARP/NDP messages locally. The R2DTWO listens on the veth interface, and receives the packets.  After flow identification + any Replication/Elimination/Ordering/Delay (R/E/O/D) functions, R2DTWO encapsulates the packet by adding the outer IPv6 header which has the destination address the PREOF SID containing the `locator`, `func`, `flowid` and `seq` fields. The encapsulated packet is sent on the VRF interface.
@@ -114,13 +114,13 @@ In case of a transit node (consider a topology where a node R3 is connected to R
               ┃                   ┏━┷━━┓         ┏━━▼━┓                ┃
               ┗━━━━━━━━━━━━━━━━━━━┃    ┃━━━━━━━━━┃    ┃━━━━━━━━━━━━━━━━┛   
               ╔═══════════════════┃ve2 ┃═════════┃vrf1┃════════════════╗       
-              ║fd00:a2d2:0:0:0:2::┃    ┃         ┃    ┃                ║
-              ║                   ┗━━━━┛         ┗━┯━━┛                ║     
-              ║                   ┏━━━━┓           │fd00:a2d2:0:0:0:1::║     
-              ║                   ┃    ┃           │                   ║      
+              ║fd00:a2d2:0:3:0:2::┃    ┃         ┃    ┃                ║
+              ║       /96         ┗━━━━┛         ┗━┯━━┛                ║     
+              ║                   ┏━━━━┓           │fd00:a2d2:0:3:0:1::║     
+              ║                   ┃    ┃           │       /96         ║      
               ║                   ┃ve1 ┃           │                   ║      
-              ║fd00:a2d2:0:0:0:3::┃    ┃           │                   ║      
-              ║                   ┗━━▲━┛           │                   ║      
+              ║fd00:a2d2:0:3:0:3::┃    ┃           │                   ║      
+              ║       /96         ┗━━▲━┛           │                   ║      
               ║                      │          Routing                ║      
               ║                      │             │                   ║      
               ║                      │             │                   ║      
@@ -137,7 +137,7 @@ In case of a transit node (consider a topology where a node R3 is connected to R
         ┗━━━━━━━━━━┛             └───────┘     └───────┘         ┗━━━━━━━━━━┛   
           NNI ║                                                        ║ NNI
               ║                                                        ║      
-              ║    PREOF.SID: fd00:a2d2:0003::                   R3    ║      
+              ║    PREOF.SID: fd00:a2d2:0:3::/64                 R3    ║      
               ║    Local SID: fd13:fade::0/64                   Linux  ║      
               ╚════════════════════════════════════════════════════════╝      
 ```
