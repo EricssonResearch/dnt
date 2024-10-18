@@ -1,11 +1,13 @@
 #!/usr/bin/python
 
-import sys
+import sys, os
+from pyroute2.netns import setns
 from mininet.net import Mininet
 from mininet.node import Host, Node
 from mininet.cli import CLI
 from mininet.log import setLogLevel, info
 from functools import partial
+from subprocess import Popen, run
 import time
 import re
 
@@ -178,8 +180,15 @@ def start_r2dtwos(net, scenario, debug):
             #node.popen(f"../r2dtwo -of {n}.cfg -v  ALL:ALL")             # but sometimes we need all logs...
 
 def stop_r2dtwos():
-        switch_netns()
-        exec_fg("killall r2dtwo")
+    pid = 1
+    setns(f"/proc/{pid}/ns/net")
+    os.environ['LC_ALL']='C'
+    kwargs = {
+        "text" : True,
+        "capture_output" : True,
+        "timeout" : None
+    }
+    run(['killall', 'r2dtwo'], **kwargs)
 
 def stop_network(net):
     info('*** Stopping network')
