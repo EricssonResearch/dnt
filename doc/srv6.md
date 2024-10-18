@@ -22,7 +22,7 @@ To support the PREOF SID structure, the following header fields have been added 
 * `func`, as a 16 bit Functon
 * `argument`, consisting of
     * `flowid` as a 20 bit Flow Id
-    * `seq`, as a 28 bit DetNet sequence field.
+    * `seq`, as a 16 bit sequence number + 4 bit flags + reserved bits
 
 The DetNet sequence field is similar to the TSN or DetNet sequence field, but it's only 28 bits.
 ```
@@ -36,9 +36,9 @@ At the egress node, incoming packets will be directed to an End.DT6 termination,
 ## Linux configuration for SRv6
 
 In our example we use several IP address ranges:
-* a1fa: infrastructure IPv6 addresses
-* fade: SID addresses used for Linux SRv6 tunnels
-* fd00:a2d2:             PREOF.SID IPv6 addresses block
+* fd0N:a1fa::M/64  infrastructure IPv6 addresses, where M is the originating node ID, and N is the destination node ID
+* fd1N:fade::0/64  SID addresses used for Linux SRv6 tunnels, where N is the router node ID
+* fd00:a2d2:0:000N/64    PREOF.SID IPv6 addresses block, where N is the destination node ID
 * fd00:a2d2:0000::/80    reserved IPv6 address range, used for R2DTWO
   * fd00:a2d2:0:0:0:1::1/96 internal address for the vrf interface, also used as source for inner IPv6 source
   * fd00:a2d2:0:0:0:2::2/96 internal address for the ve1 interface. This will be used as gateway for the PREOF.SID prefix range.
@@ -55,90 +55,91 @@ Linux and R2DTWO interaction in the context of SRv6 requires several internal in
 
 
 ```
-        ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓                        ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓      
-        ┃                             R2DTWO ┃                        ┃ R2DTWO                                ┃      
-        ┃     R/E/O/D   H.Encap IPv6 outer   ┃                        ┃   End.Decap IPv6 outer    R/E/O/D     ┃      
-        ┃       ┌───┐  ┌─────┐               ┃                        ┃                  ┌─────┐   ┌───┐      ┃      
-        ┃       │   ├──▶█████│─┐             ┃                        ┃                ┌─▶█████│───▶   │      ┃      
-        ┃       └─▲─┘  └─────┘ │             ┃                        ┃                │ └─────┘   └─┬─┘      ┃      
-        ┃      ┏━━┷━┓       ┏━━▼━┓           ┃                        ┃              ┏━┷━━┓          │        ┃      
-        ┗━━━━━━┃    ┃━━━━━━━┃    ┃━━━━━━━━━━━┛                        ┗━━━━━━━━━━━━━━┃    ┃━━━━━━━━━━┿━━━━━━━━┛      
-        ╔══════┃vet2┃═══════┃vrf1┃═══════════╗                        ╔══════════════┃ve2 ┃══════════╪════════╗      
-        ║      ┃    ┃       ┃    ┃           ║                        ║a2d2:0:0:0:2::┃    ┃          │        ║      
-        ║      ┗━━━━┛       ┗━┯━━┛           ║                        ║              ┗━━━━┛          │        ║      
-        ║      ┏━━━━┓         │a2d2:0:0:0:1::║                        ║              ┏━━━━┓          │        ║      
-        ║      ┃    ┃         │              ║                        ║              ┃    ┃          │        ║      
-        ║      ┃vet1┃         │              ║                        ║              ┃ve1 ┃          │        ║      
-        ║      ┃    ┃         │              ║                        ║a2d2:0:0:0:3::┃    ┃          │        ║      
-        ║      ┗━━▲━┛         │              ║                        ║              ┗━━▲━┛          │        ║      
-        ║         │           │              ║                        ║                 │            │        ║      
-        ║         │        Routing           ║                        ║              Routing         │        ║      
-        ║         │           │              ║                        ║                 │            │        ║      
-        ║         │           │              ║                        ║                 │            │        ║      
-        ║         │           │              ║                        ║                 │            │        ║      
-        ║  TC filter          │              ║a1fa/NNI        a1fa/NNI║                 │            │        ║      
-        ║         │       ┌───▼───┐    ┏━━━━━━━━━━┓             ┏━━━━━━━━━━┓        ┌───┴───┐        │        ║      
-        ║         │       │███████│ ┌──▶   r2r3   ┃             ┃   r4r3   ┠───┐    │███████│        │        ║      
-        ║         │       │███████├─┘  ┗━━━━━━━━━━┛             ┗━━━━━━━━━━┛   └────▶███████│        │        ║      
-        ║         │       │H.Encap│          ║                        ║             │End.DT6│        │        ║      
-        ║         │       │███████│          ║                        ║             │███████│        │        ║      
-  ┏━━━━━━━━━━┓    │       │███████├─┐  ┏━━━━━━━━━━┓             ┏━━━━━━━━━━┓   ┌────▶███████│        │  ┏━━━━━━━━━━┓
-  ┃   t1r2   ┠────┘       │███████│ └──▶   r2r4   ┃             ┃   r4r2   ┠───┘    │███████│        └──▶   r4l5   ┃
-  ┗━━━━━━━━━━┛            └───────┘    ┗━━━━━━━━━━┛             ┗━━━━━━━━━━┛        └───────┘           ┗━━━━━━━━━━┛
-a1fa/UNI║                                    ║a1fa/NNI        a1fa/NNI║                                       ║a1fa/UNI
-        ║                                    ║                        ║                                       ║      
-        ║    PREOF.SID: fd00:a2d2:0000::     ║                        ║    PREOF.SID: fd00:a2d2:0000::        ║      
-        ║    Local SID: fade         Linux   ║                        ║    Local SID: fade             Linux  ║      
-        ╚════════════════════════════════════╝                        ╚═══════════════════════════════════════╝      
+        ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓                   ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓      
+        ┃                              R2DTWO ┃                   ┃ R2DTWO                                  ┃      
+        ┃     R/E/O/D   H.Encap IPv6 outer    ┃                   ┃     End.Decap IPv6 outer    R/E/O/D     ┃      
+        ┃       ┌───┐  ┌─────┐                ┃                   ┃                    ┌─────┐   ┌───┐      ┃      
+        ┃       │   ├──▶█████│─┐              ┃                   ┃                  ┌─▶█████│───▶   │      ┃      
+        ┃       └─▲─┘  └─────┘ │              ┃                   ┃                  │ └─────┘   └─┬─┘      ┃      
+        ┃      ┏━━┷━┓       ┏━━▼━┓            ┃                   ┃                ┏━┷━━┓          │        ┃      
+        ┗━━━━━━┃    ┃━━━━━━━┃    ┃━━━━━━━━━━━━┛                   ┗━━━━━━━━━━━━━━━━┃    ┃━━━━━━━━━━┿━━━━━━━━┛      
+        ╔══════┃vet2┃═══════┃vrf1┃════════════╗                   ╔════════════════┃ve2 ┃══════════╪════════╗      
+        ║      ┃    ┃       ┃    ┃            ║                   ║                ┃    ┃          │        ║      
+        ║      ┗━━━━┛       ┗━┯━━┛            ║                   ║                ┗━━━━┛          │        ║      
+        ║                  fd00:a2d2:0:0:0:1::║                   ║fd00:a2d2:0:0:0:2::             │        ║              
+        ║      ┏━━━━┓         │               ║                   ║                ┏━━━━┓          │        ║      
+        ║      ┃    ┃         │               ║                   ║                ┃    ┃          │        ║      
+        ║      ┃vet1┃         │               ║                   ║                ┃ve1 ┃          │        ║      
+        ║      ┃    ┃         │               ║                   ║                ┃    ┃          │        ║      
+        ║      ┗━━▲━┛         │               ║                   ║                ┗━━▲━┛          │        ║      
+        ║         │           │               ║                   ║fd00:a2d2:0:0:0:3::│            │        ║      
+        ║         │        Routing            ║                   ║                   │            │        ║      
+        ║         │           │               ║                   ║                   │            │        ║      
+        ║         │           │               ║                   ║                Routing         │        ║      
+        ║         │           │               ║                   ║                   │            │        ║      
+        ║    TC filter        |fd02:a1fa::2/64║ NNI           NNI ║fd04:a1fa::4/64    │            │        ║      
+        ║         │       ┌───▼───┐    ┏━━━━━━━━━━┓        ┏━━━━━━━━━━┓           ┌───┴───┐        │        ║      
+        ║         │       │███████│ ┌──▶   r2r3   ┃        ┃   r4r3   ┠─────┐     │███████│        │        ║      
+        ║         │       │███████├─┘  ┗━━━━━━━━━━┛        ┗━━━━━━━━━━┛     └─────▶███████│        │        ║      
+        ║         │       │H.Encap│           ║                   ║               │End.DT6│        │        ║      
+        ║         │       │███████│           ║                   ║               │███████│        │        ║      
+  ┏━━━━━━━━━━┓    │       │███████├─┐  ┏━━━━━━━━━━┓        ┏━━━━━━━━━━┓     ┌─────▶███████│        │  ┏━━━━━━━━━━┓
+  ┃   t1r2   ┠────┘       │███████│ └──▶   r2r4   ┃        ┃   r4r2   ┠─────┘     │███████│        └──▶   r4l5   ┃
+  ┗━━━━━━━━━━┛            └───────┘    ┗━━━━━━━━━━┛        ┗━━━━━━━━━━┛           └───────┘           ┗━━━━━━━━━━┛
+    UNI ║fd01:a1fa::2/64       fd03:a1fa::2/64║ NNI           NNI ║fd03:a1fa::4/64           fd05:a1fa::4/64║ UNI
+        ║                                     ║                   ║                                         ║      
+        ║ PREOF.SID: fd00:a2d2:0002::     R2  ║                   ║ PREOF.SID: fd00:a2d2:0004::        R4   ║      
+        ║ Local SID: fd12:fade::0/64    Linux ║                   ║ Local SID: fd14:fade::0/64       Linux  ║      
+        ╚═════════════════════════════════════╝                   ╚═════════════════════════════════════════╝      
 ```
 The operation is the following: the incoming IP traffic from talker t1 is identified by the TC filter, and it is redirected to the veth interface. As the `t1r2` interface has IP address, it handles the ARP/NDP messages locally. The R2DTWO listens on the veth interface, and receives the packets.  After flow identification + any Replication/Elimination/Ordering/Delay (R/E/O/D) functions, R2DTWO encapsulates the packet by adding the outer IPv6 header which has the destination address the PREOF SID containing the `locator`, `func`, `flowid` and `seq` fields. The encapsulated packet is sent on the VRF interface.
 The SRv6 tunnels encap rules defined in the Linux (H.Encaps) identifies the incoming packet, and further encapsulate into an IPv6 packet with SRH headers set accordingly.  
 At the NNI interfaces we need to support multiple disjoint paths (on different NNI interfaces) for the PREOF functionality. These paths are created by different Linux SRv6 TE tunnels. In the R2DTWO config, the `func` field of the PREOF SID is used to direct the traffic to different SRv6 tunnels: for a given DetNet flow the `locator` is the same, but the PREOF SID `func` value varies to select different outgoing tunnels. The tunnel endpoint IP addresses are the Linux tunnel SIDs, belonging to the `fade` address range.
 Besides the PREOF SID `func` field, the `argument` field is also used. The `argument.flowid` is used for flow identification at the NNI ingress. Each member flow has an unique `flowid`, making flow identification simple.
 
-The `seq` field is also filled with the generated PREOF sequence number. The `writeseq <header>` command must be used to write the sequence number to the `seq` field.
+The `argument.seq` field is also filled with the generated PREOF sequence number. The `writeseq <header>` command must be used to write the sequence number to the `argument.seq` field.
 
 On the other end, packets are received at the NNI interfaces. The Linux SRv6 endpoint rules identify these packets, and perform an End.DT6 decapsulation. A routing rule with /64 prefix matches on the `locator`, and forwards the packet to the next hop, through the `ve1` interface.
 These packets will be received on the `ve2` interface by R2DTWO, where End.Decap of the outer IPv6 packet is performed with other (optional) R/E/O/D functions, and forwarded to the UNI interface.
 
-In case of a transit node, the operation is shown on the figure below. The packet enters on an NNI interface, and the Linux SRv6 terminates the TE tunnel with and End.DT6 function. The decapsulated packet is then sent to the R2DTWO via the `ve1`-`ve2` interface pair. The R2DTWO performs the R/E/O/D operations needed, and sends the packet back to the `vrf1` interface. The Linux routing will select the outgoing SRv6 TE tunnel, and sends the packet encapsulating with a H.Encap function.
+In case of a transit node (consider a topology where a node R3 is connected to R1 and R2 on one side, and R4 and R5 on the other side), the operation is shown on the figure below. The packet enters on an NNI interface, and the Linux SRv6 terminates the TE tunnel with and End.DT6 function. The decapsulated packet is then sent to the R2DTWO via the `ve1`-`ve2` interface pair. The R2DTWO performs the R/E/O/D operations needed, and sends the packet back to the `vrf1` interface. The Linux routing will select the outgoing SRv6 TE tunnel, and sends the packet encapsulating with a H.Encap function.
 
 ```
-              ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━═━━━━━━━━━━━━━━━━┓      
-              ┃ R2DTWO                                       ┃      
-              ┃                     R/E/O/D                  ┃      
-              ┃     End.Decap┌───┐  ┌─────┐  ┌───┐ H.Encap   ┃      
-              ┃    IPv6 outer│███├──▶     │──▶███│ IPv6 outer┃    
-              ┃              └─▲─┘  └─────┘  └─┬─┘           ┃      
-              ┃              ┏━┷━━┓         ┏━━▼━┓           ┃
-              ┗━━━━━━━━━━━━━━┃    ┃━━━━━━━━━┃    ┃━━━━━━━━━━━┛   
-              ╔══════════════┃ve2 ┃═════════┃vrf1┃═══════════╗       
-              ║a2d2:0:0:0:2::┃    ┃         ┃    ┃           ║
-              ║              ┗━━━━┛         ┗━┯━━┛           ║     
-              ║              ┏━━━━┓           │a2d2:0:0:0:1::║     
-              ║              ┃    ┃           │              ║      
-              ║              ┃ve1 ┃           │              ║      
-              ║a2d2:0:0:0:3::┃    ┃           │              ║      
-              ║              ┗━━▲━┛           │              ║      
-              ║                 │          Routing           ║      
-              ║                 │             │              ║      
-              ║                 │             │              ║      
-              ║              Routing          │              ║      
-              ║                 │             │              ║      
-      a1fa/NNI║                 │             │              ║a1fa/NNI    
-        ┏━━━━━━━━━━┓        ┌───┴───┐     ┌───▼───┐    ┏━━━━━━━━━━┓  
-        ┃   r4r3   ┠───┐    │███████│     │███████│ ┌──▶   r2r3   ┃
-        ┗━━━━━━━━━━┛   └────▶███████│     │███████├─┘  ┗━━━━━━━━━━┛   
-              ║             │End.DT6│     │H.Encap│          ║                        
-              ║             │███████│     │███████│          ║
-        ┏━━━━━━━━━━┓   ┌────▶███████│     │███████├─┐  ┏━━━━━━━━━━┓
-        ┃   r4r2   ┠───┘    │███████│     │███████│ └──▶   r2r4   ┃
-        ┗━━━━━━━━━━┛        └───────┘     └───────┘    ┗━━━━━━━━━━┛   
-      a1fa/NNI║                                              ║a1fa/NNI
-              ║                                              ║      
-              ║    PREOF.SID: fd00:a2d2:0000::               ║      
-              ║    Local SID: fade                    Linux  ║      
-              ╚══════════════════════════════════════════════╝      
+              ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━═━━━━━━━━━━━━━━━━┓      
+              ┃ R2DTWO                                                 ┃      
+              ┃                          R/E/O/D                       ┃      
+              ┃          End.Decap┌───┐  ┌─────┐  ┌───┐ H.Encap        ┃      
+              ┃         IPv6 outer│███├──▶     │──▶███│ IPv6 outer     ┃    
+              ┃                   └─▲─┘  └─────┘  └─┬─┘                ┃      
+              ┃                   ┏━┷━━┓         ┏━━▼━┓                ┃
+              ┗━━━━━━━━━━━━━━━━━━━┃    ┃━━━━━━━━━┃    ┃━━━━━━━━━━━━━━━━┛   
+              ╔═══════════════════┃ve2 ┃═════════┃vrf1┃════════════════╗       
+              ║fd00:a2d2:0:0:0:2::┃    ┃         ┃    ┃                ║
+              ║                   ┗━━━━┛         ┗━┯━━┛                ║     
+              ║                   ┏━━━━┓           │fd00:a2d2:0:0:0:1::║     
+              ║                   ┃    ┃           │                   ║      
+              ║                   ┃ve1 ┃           │                   ║      
+              ║fd00:a2d2:0:0:0:3::┃    ┃           │                   ║      
+              ║                   ┗━━▲━┛           │                   ║      
+              ║                      │          Routing                ║      
+              ║                      │             │                   ║      
+              ║                      │             │                   ║      
+              ║                   Routing          │                   ║      
+              ║                      │             │                   ║      
+          NNI ║                      │             │                   ║ NNI    
+        ┏━━━━━━━━━━┓             ┌───┴───┐     ┌───▼───┐         ┏━━━━━━━━━━┓  
+        ┃   r2r3   ┠──────┐      │███████│     │███████│    ┌────▶   r3r4   ┃
+        ┗━━━━━━━━━━┛      └──────▶███████│     │███████├────┘    ┗━━━━━━━━━━┛   
+              ║                  │End.DT6│     │H.Encap│               ║                        
+              ║                  │███████│     │███████│               ║
+        ┏━━━━━━━━━━┓      ┌──────▶███████│     │███████├────┐    ┏━━━━━━━━━━┓
+        ┃   r1r3   ┠──────┘      │███████│     │███████│    └────▶   r3r5   ┃
+        ┗━━━━━━━━━━┛             └───────┘     └───────┘         ┗━━━━━━━━━━┛   
+          NNI ║                                                        ║ NNI
+              ║                                                        ║      
+              ║    PREOF.SID: fd00:a2d2:0003::                   R3    ║      
+              ║    Local SID: fd13:fade::0/64                   Linux  ║      
+              ╚════════════════════════════════════════════════════════╝      
 ```
 
 For Ethernet/TSN over SRv6, the configuration is simpler, as the UNI interfaces do not need IP addresses, and also they do not need to answer any ARP/NDP requests. Thus the veth interface pair is not needed. In this case, the R2DTWO uses the UNI interface as the ingress directly, without directing the traffic with TC filter actions. The Ethernet frame is encpsulated in an IPv6 packet, and at the NNI side it is handled similarly to the IP/IPv6 case.
@@ -148,7 +149,7 @@ For Ethernet/TSN over SRv6, the configuration is simpler, as the UNI interfaces 
 The Linux SRv6 implementation supports counters associated with each SRv6 SID. By default, these counters are disabled, the `count` parameter must be added to the End.DT6 routing entry, for example:
 
 ```
-ip -6 route add fd12:fade:0:0:1::/128 encap seg6local action End.DT6 count table 10 dev ve1
+ip -6 route add fd12:fade:0:0:1::/128 encap seg6local action End.DT6 count table 254 dev ve1
 ```
 
 If `count` parameter is configured, the `ip -6 -s route show dev ve1` command can be used to display the statistics. For example:
@@ -156,7 +157,7 @@ If `count` parameter is configured, the `ip -6 -s route show dev ve1` command ca
 ```
 $ ip -6 -s route show dev ve1
 fd00:a2d2::/64 proto kernel metric 256 pref medium
-fd14:fade:0:0:1::  encap seg6local action End.DT6 table 10 packets 20 bytes 4320 errors 0 metric 1024 pref medium
+fd14:fade:0:0:1::  encap seg6local action End.DT6 table 254 packets 20 bytes 4320 errors 0 metric 1024 pref medium
 fe80::/64 proto kernel metric 256 pref medium
 ```
 
