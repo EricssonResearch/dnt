@@ -1,7 +1,6 @@
 #!/usr/bin/python
 
-import sys, os
-from pyroute2.netns import setns
+import sys
 from mininet.net import Mininet
 from mininet.node import Host, Node
 from mininet.cli import CLI
@@ -10,10 +9,6 @@ from functools import partial
 from subprocess import Popen, run
 import time
 import re
-
-PATH_DELAY_MS = 30
-PING_INTERVAL_SEC = 0.05
-PING_NUM = 10
 
 def setup_network():
     """
@@ -168,30 +163,26 @@ def setup_network():
 
     return net
 
-def start_r2dtwos(net, scenario, debug):
+def start_r2dtwos(net, scenario):
     # start r2DTWOs
+    info(f"*** Starting R2DTWOs\n")
+    r2dtwos = []
     for n in ['r2', 'r4']:
         node = net.get(n)
-        if debug:
-            # For debug! Spawns 4 r2dtwo windows in gdb
-            node.popen(f"xterm -T {n} -e env -i gdb -nx --args r2dtwo {n}-{scenario}.cfg -v ALL:ALL")
-        else:
-            node.popen(f"r2dtwo -of {n}-{scenario}.cfg -v PACKETTRACE:PACKET")    # in general this is enough for debug
-            #node.popen(f"../r2dtwo -of {n}.cfg -v  ALL:ALL")             # but sometimes we need all logs...
+        proc = node.popen(f"r2dtwo -of {n}-{scenario}.cfg -v PACKETTRACE:PACKET")    # in general this is enough for debug
+        #proc = node.popen(f"r2dtwo -of {n}-{scenario}.cfg -v  ALL:ALL")             # but sometimes we need all logs...
+        r2dtwos.append(proc)
+    return r2dtwos
 
-def stop_r2dtwos():
-    pid = 1
-    setns(f"/proc/{pid}/ns/net")
-    os.environ['LC_ALL']='C'
-    kwargs = {
-        "text" : True,
-        "capture_output" : True,
-        "timeout" : None
-    }
-    run(['killall', 'r2dtwo'], **kwargs)
+def stop_r2dtwos(r2dtwos):
+    info('*** Stopping r2DTWOs\n')
+    for p in r2dtwos:
+        p.terminate()
+        # Wait for the process to completely terminate and clean up
+        p.wait()
 
 def stop_network(net):
-    info('*** Stopping network')
+    info('*** Stopping network\n')
     net.stop()
 
 if __name__ == '__main__':
@@ -203,14 +194,13 @@ if __name__ == '__main__':
 #    setLogLevel('debug')
     net = setup_network()
 
-    print("R2DTWO SRv6 debug")
-    info(f"*** Starting R2DTWOs, scenario {scenario}\n")
-    #sstart_r2dtwos(net, debug)
-    start_r2dtwos(net, scenario, False)
+    info(f"SRv6 scenario: {scenario}\n")
+    r2s = start_r2dtwos(net, scenario)
+
     CLI(net)
 
     print("Cleanup...")
-    stop_r2dtwos()
+    stop_r2dtwos(r2s)
     stop_network(net)
 
     exit(0)
