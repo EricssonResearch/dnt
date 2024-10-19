@@ -7,6 +7,8 @@ declare -a getting_started=(
     "ip_over_detnet"
     "oam"
     "mask"
+    "dynip"
+    "srv6"
 )
 
 # documentations

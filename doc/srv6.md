@@ -4,17 +4,17 @@
 SRv6 support makes possible the use of SRv6 as transport for DetNet tunnels.
 The R2DTWO support for SRv6 relies on the Linux SRv6 functions. As currently the Linux SRv6 implementation does not support DetNet SID as defined in [Deterministic Networking specific SID](https://datatracker.ietf.org/doc/draft-varga-spring-preof-sid/ "DetNet SID") and  [Deterministic Networking SRv6 Data Plane](https://datatracker.ietf.org/doc/draft-varga-detnet-srv6-data-plane/ "SRv6 data plane"), we use an outer IPv6 encapsulation which uses a PREOF SID as destination address. This encapsulation is done by the R2DTWO. This IPv6 encapsulated packet will be directed into a predefined Linux SRv6 TE-Tunnel.
 ```
-┌─────────────────────────────────────┐                                  
-│ Original packet (IPv6, IPv4 or TSN) │                                  
-└─────────────────────────────────────┘                                  
+┌─────────────────────────────────────┐
+│ Original packet (IPv6, IPv4 or TSN) │
+└─────────────────────────────────────┘
 
-┌────────────────────────────┬─────────────────────────────────────┐                                  
-│IPv6 header, dest=PREOF.SID │ Original packet (IPv6, IPv4 or TSN) │    R2DTWO: IPv6 encap with PREOF.SID                        
-└────────────────────────────┴─────────────────────────────────────┘                                  
+┌────────────────────────────┬─────────────────────────────────────┐
+│IPv6 header, dest=PREOF.SID │ Original packet (IPv6, IPv4 or TSN) │    R2DTWO: IPv6 encap with PREOF.SID
+└────────────────────────────┴─────────────────────────────────────┘
 
-┌──────────────────────┬────────────────────────────┬─────────────────────────────────────┐                                
-│IPv6 header + SRH     │IPv6 header, dest=PREOF.SID │ Original packet (IPv6, IPv4 or TSN) │    Linux: SRv6 TE-Tunnel        
-└──────────────────────┴────────────────────────────┴─────────────────────────────────────┘                                 
+┌──────────────────────┬────────────────────────────┬─────────────────────────────────────┐
+│IPv6 header + SRH     │IPv6 header, dest=PREOF.SID │ Original packet (IPv6, IPv4 or TSN) │    Linux: SRv6 TE-Tunnel
+└──────────────────────┴────────────────────────────┴─────────────────────────────────────┘
 ```
 To support the PREOF SID structure, the following header fields have been added to the IPv6 header:
 
@@ -25,28 +25,32 @@ To support the PREOF SID structure, the following header fields have been added 
     * `seq`, as a 16 bit sequence number + 4 bit flags + reserved bits
 
 The DetNet sequence field is similar to the TSN or DetNet sequence field, but it's only 28 bits.
+
 ```
-┌──────────────┬──────────────┬────────────────────────────────────────┐                       
-│ 4 bit flags  │8 bit reserved│           16 bit sequence number       │                       
-└──────────────┴──────────────┴────────────────────────────────────────┘                       
+┌──────────────┬──────────────┬────────────────────────────────────────┐
+│ 4 bit flags  │8 bit reserved│           16 bit sequence number       │
+└──────────────┴──────────────┴────────────────────────────────────────┘
 ```
+
 At the UNI interface, the incoming traffic will be identified and directed to R2DTWO. R2DTWO will encapsulate the incoming packet (which can be IPv6, IPv4 or Ethernet/TSN), and sets the destination PREOF SID. The encapsulated packet will be routed to an SRv6 TE-Tunnel created by Linux using H.Encaps functionality, which encapsulates again the packet within a new IPv6 header containing the SRH.
 At the egress node, incoming packets will be directed to an End.DT6 termination, which decapsulates the SRv6 headers. The decapsulated IPv6 packet containing the PREOF SID will be routed to the R2DTWO. The R2DTWO performs identification, elimination, and decapsulates the original packet to send out on the UNI.
 
 ## Linux configuration for SRv6
 
 In our example we use several IP address ranges:
-* fd0N:a1fa::M/64  infrastructure IPv6 addresses, where M is the originating node ID, and N is the destination node ID
-* fd1N:fade::0/64  SID addresses used for Linux SRv6 tunnels, where N is the router node ID
-* fd00:a2d2:0:000N/64    PREOF.SID IPv6 addresses block, where N is the destination node ID
-* fd00:a2d2:0000::/80    reserved IPv6 address range, used for R2DTWO
-  * fd00:a2d2:0:0:0:1::1/96 internal address for the vrf interface, also used as source for inner IPv6 source
-  * fd00:a2d2:0:0:0:2::2/96 internal address for the ve1 interface. This will be used as gateway for the PREOF.SID prefix range.
-  * fd00:a2d2:0:0:0:3::3/96 internal address for the ve2 interface. This is only needed for R2DTWO IP interface.
 
-From the fd00:a2d2: SID range we reserve the first block fd00:a2d2:0000::/80 as reserved IPv6 range for internal use on vrf and veth interfaces.
+* `fd0N:a1fa::M/64` -  infrastructure IPv6 addresses, where M is the originating node ID, and N is the destination node ID
+* `fd1N:fade::0/64 ` - SID addresses used for Linux SRv6 tunnels, where N is the router node ID
+* `fd00:a2d2:0:000N/64` - PREOF.SID IPv6 addresses block, where N is the destination node ID
+* `fd00:a2d2:0000::/80` - reserved IPv6 address range, used for R2DTWO
+  * `fd00:a2d2:0:0:0:1::1/96` - internal address for the vrf interface, also used as source for inner IPv6 source
+  * `fd00:a2d2:0:0:0:2::2/96` - internal address for the ve1 interface. This will be used as gateway for the PREOF.SID prefix range.
+  * `fd00:a2d2:0:0:0:3::3/96` - internal address for the ve2 interface. This is only needed for R2DTWO IP interface.
+
+From the `fd00:a2d2:` SID range we reserve the first block `fd00:a2d2:0000::/80` as reserved IPv6 range for internal use on vrf and veth interfaces.
 
 Linux and R2DTWO interaction in the context of SRv6 requires several internal interfaces:
+
 * First of all, all NNI interfaces need IPv6 addresses to work. For this, we use IP addresses in the `a1fa` range. Also, the routing should also use these addresses.
 * All nodes should also have a loopback interface, in our case `sr0`, which should have an address from the `fade` range. Since the default loopback interface does not work with SRv6 processing, we use `dummy` interface for loopback.
 * At the UNI interface, a TC filter should intercept the DetNet/TSN traffic and direct it to the vet1/2 veth interface pair. This is needed because the UNI interface holds the IP address, and it answers any ARP/NDP requests. (Note that this is not needed for Ethernet/TSN traffic, as explained later.)
@@ -93,7 +97,8 @@ Linux and R2DTWO interaction in the context of SRv6 requires several internal in
         ╚═════════════════════════════════════╝                   ╚═════════════════════════════════════════╝      
 ```
 The operation is the following: the incoming IP traffic from talker t1 is identified by the TC filter, and it is redirected to the veth interface. As the `t1r2` interface has IP address, it handles the ARP/NDP messages locally. The R2DTWO listens on the veth interface, and receives the packets.  After flow identification + any Replication/Elimination/Ordering/Delay (R/E/O/D) functions, R2DTWO encapsulates the packet by adding the outer IPv6 header which has the destination address the PREOF SID containing the `locator`, `func`, `flowid` and `seq` fields. The encapsulated packet is sent on the VRF interface.
-The SRv6 tunnels encap rules defined in the Linux (H.Encaps) identifies the incoming packet, and further encapsulate into an IPv6 packet with SRH headers set accordingly.  
+The SRv6 tunnels encap rules defined in the Linux (H.Encaps) identifies the incoming packet, and further encapsulate into an IPv6 packet with SRH headers set accordingly.
+
 At the NNI interfaces we need to support multiple disjoint paths (on different NNI interfaces) for the PREOF functionality. These paths are created by different Linux SRv6 TE tunnels. In the R2DTWO config, the `func` field of the PREOF SID is used to direct the traffic to different SRv6 tunnels: for a given DetNet flow the `locator` is the same, but the PREOF SID `func` value varies to select different outgoing tunnels. The tunnel endpoint IP addresses are the Linux tunnel SIDs, belonging to the `fade` address range.
 Besides the PREOF SID `func` field, the `argument` field is also used. The `argument.flowid` is used for flow identification at the NNI ingress. Each member flow has an unique `flowid`, making flow identification simple.
 
@@ -166,6 +171,7 @@ fe80::/64 proto kernel metric 256 pref medium
 The R2DTWO configuration must be aware of the outer PREOF.SID locators, and also the flow IP addresses at the UNI if IP address based identification is used for flow separation.
 
 In the `[interfaces]` section the following interfaces are needed:
+
 * `eth` interface for the incoming traffic on UNI
 * `ip` interface for outgoing traffic on UNI (in case of DetNet traffic, not needed for TSN traffic)
 * `ip` interface for outgoing NNI traffic, opened on the VRF interface (`vrf1`).
@@ -175,6 +181,7 @@ No further interfaces are needed, as for all SRv6 tunnels the packets will be se
 If replication/elimination is used, the objects must be created in the usual way.
 
 In the `[streams]` section we need
+
 * one entry per incoming flow
 * one entry per flow and per member stream
 
