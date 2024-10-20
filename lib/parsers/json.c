@@ -64,7 +64,7 @@ static char *get_number_str(const char *text, unsigned length, unsigned *i)
     return u_strndup(text + *i, nlen);
 }
 
-static struct JsonValue *parse_value(const char *text, unsigned length, unsigned *i)
+static struct JsonValue *parse_value(const char *text, unsigned length, unsigned *i, unsigned depth)
 {
 #define THROW(msg, ...)                                 \
     do {                                                \
@@ -76,6 +76,8 @@ static struct JsonValue *parse_value(const char *text, unsigned length, unsigned
 #define SKIP_WS while (*i < length && isspace(text[*i])) *i += 1
 
     struct JsonValue *ret = NULL;
+    if (depth > JSON_MAX_RECURSION_DEPTH) THROW("maximum recursion depth reached");
+
     SKIP_WS;
     if (*i == length) return NULL; // no value
 
@@ -106,7 +108,7 @@ static struct JsonValue *parse_value(const char *text, unsigned length, unsigned
             SKIP_WS;
             if (*i == length) { free(key); THROW("object is unfinished"); }
 
-            struct JsonValue *val = parse_value(text, length, i);
+            struct JsonValue *val = parse_value(text, length, i, depth+1);
             if (val == NULL) { free(key); THROW("object value is invalid"); }
             hashmap_insert(ret->v.object, key, val);
 
@@ -140,7 +142,7 @@ static struct JsonValue *parse_value(const char *text, unsigned length, unsigned
         }
 
         while (1) {
-            struct JsonValue *val = parse_value(text, length, i);
+            struct JsonValue *val = parse_value(text, length, i, depth+1);
             if (val == NULL) {
                 THROW("array item is invalid");
             }
@@ -198,7 +200,7 @@ struct JsonValue *json_parse(const char *text, unsigned length)
 {
     unsigned i = 0;
 
-    struct JsonValue *ret = parse_value(text, length, &i);
+    struct JsonValue *ret = parse_value(text, length, &i, 0);
     if (ret == NULL) {
         return NULL;
     }

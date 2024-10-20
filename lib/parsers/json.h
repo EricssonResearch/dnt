@@ -11,6 +11,8 @@
 extern "C" {
 #endif
 
+#define JSON_MAX_RECURSION_DEPTH 50
+
 enum JsonType {
     JSON_NULL,
     JSON_STRING,
