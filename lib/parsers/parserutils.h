@@ -69,14 +69,16 @@ char *u_strcat(const char *s1, const char *s2)
 }
 
 // unlike the real strndup() this one @returns NULL if @s is NULL
+// also, it doesn't assume @s to be 0-terminated when it's longer than @maxlen
 static inline
     __attribute__((warn_unused_result))
 char *u_strndup(const char *s, unsigned maxlen)
 {
     if (s == NULL) return NULL;
-    unsigned slen = strlen(s) + 1;
+    unsigned slen = 0;
+    while (slen < maxlen && s[slen] != 0) slen++;
     unsigned len = slen < maxlen ? slen : maxlen;
-    char *ret = (char *)malloc(len*sizeof(char));
+    char *ret = (char *)malloc((len+1)*sizeof(char));
     memcpy(ret, s, len);
     ret[len] = 0;
     return ret;
