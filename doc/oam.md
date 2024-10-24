@@ -138,7 +138,7 @@ Json
  * delay - if true, requests delay measurement (the target writes its receive timestamp anyways)
  * send_s - timestamp seconds
  * send_ns - timestamp nanoseconds
- * source - source MIP statistics if "-o" option given
+ * source_info - source MIP statistics if "-o" option given
     * packets_passed - data packets seen by the MIP
     * packets_passed - data packets seen by the MIP
     * octets_passed - aggregate size of OAM packet generated/seen by the MEPStart/MIP
@@ -151,7 +151,8 @@ Json returns everything as-is, except "return". Also adds info received in the f
  * type = "ping"
  * code = "reply"
  * stream - returned unchanged
- * target - returned unchanged or with stats (below) of "-o" given
+ * target - returned unchanged
+ * target_info - returned unchanged or with stats (below) of "-o" given
     * packets_passed - data packets seen by the MIP
     * packets_passed - data packets seen by the MIP
     * octets_passed - aggregate size of OAM packet generated/seen by the MEPStart/MIP
@@ -167,7 +168,7 @@ Json returns everything as-is, except "return". Also adds info received in the f
  * objects - returned, object state filled
  * recv_s - timestamp seconds
  * recv_ns - timestamp nanoseconds
- * source - source MIP statistics if "-o" option given
+ * source_info - source MIP statistics if "-o" option given
     * packets_passed - data packets seen by the MIP
     * packets_passed - data packets seen by the MIP
     * octets_passed - aggregate size of OAM packet generated/seen by the MEPStart/MIP

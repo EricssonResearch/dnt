@@ -502,7 +502,7 @@ static bool send_request(const struct OamRequest *req){
             json_object_insert(jmepstate, "oam_octets_passed", json_number(req->mep_start->oam_octets_passed));
             json_object_insert(jmepstate, "name", json_string(req->mep_start->name));
             json_object_insert(js, "object", json_true());
-            json_object_insert(js, "source", jmepstate);
+            json_object_insert(js, "source_info", jmepstate);
         }
         if(req->delay){
             json_object_insert(js, "delay", json_true());

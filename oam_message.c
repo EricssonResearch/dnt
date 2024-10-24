@@ -611,7 +611,7 @@ static bool process_ping_request(struct OamEndPoint *oam, struct Packet *p, stru
             json_object_insert(jmepstate, "oam_packets_passed", json_number(mep->oam_packets_passed));
             json_object_insert(jmepstate, "oam_octets_passed", json_number(mep->oam_octets_passed));
             json_object_insert(jmepstate, "name", json_string(mep->name));
-            json_object_insert(j, "target", jmepstate);
+            json_object_insert(j, "target_info", jmepstate);
         }
     }
 
