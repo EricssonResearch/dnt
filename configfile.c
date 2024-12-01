@@ -104,13 +104,15 @@ struct StateTransaction *read_config_file(const char *filename)
         log_error("config '%s' error: " msg,                        \
                  filename, ##__VA_ARGS__);                          \
         delete_inisection(ini);                                     \
+        free(error);                                                \
         return delete_transaction(ret);                             \
     } while (0)
 
     struct StateTransaction *ret = new_transaction(filename);
-    struct IniSection *ini = read_inifile(filename);
+    char *error = NULL;
+    struct IniSection *ini = read_inifile(filename, &error);
     if (ini == NULL) {
-        THROW("failed to read the ini file");
+        THROW("failed to read the config file: %s", error);
     }
     remove_comments_from_values(ini);
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 Miklós Máté
+ * Copyright (c) 2022 Miklós Máté
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -54,30 +54,34 @@ static int section_verify_cb(const char *key, void *value, void *userdata)
 
 static void test_read(void)
 {
-    struct IniSection *ini_empty = read_inifile(SAMPLES_DIR "/good_empty.ini");
+    char *error;
+    struct IniSection *ini_empty = read_inifile(SAMPLES_DIR "/good_empty.ini", &error);
     OK_FATAL(ini_empty != NULL, "empty file is valid");
-    delete_inisection(ini_empty);
-    delete_inisection(NULL);
+    OK(error == NULL, "error '%s'", error);
+    OK(delete_inisection(ini_empty) == NULL, "delete returns null");
 
-    struct IniSection *ini_zero = read_inifile(SAMPLES_DIR "/good_zerolength.ini");
+    OK(delete_inisection(NULL) == NULL, "can delete null");
+
+    struct IniSection *ini_zero = read_inifile(SAMPLES_DIR "/good_zerolength.ini", &error);
     OK_FATAL(ini_zero != NULL, "zero length file is valid");
-    delete_inisection(ini_zero);
+    OK(delete_inisection(ini_zero) == NULL, "delete returns null");
 
-    struct IniSection *ini_nonewline = read_inifile(SAMPLES_DIR "/good_nonewline.ini");
+    struct IniSection *ini_nonewline = read_inifile(SAMPLES_DIR "/good_nonewline.ini", &error);
     OK_FATAL(ini_nonewline != NULL, "no newline at the end is valid");
-    OK(hashmap_count(ini_nonewline->contents) == 1, "item count");
+    OK(inisection_count(ini_nonewline) == 1, "item count %u", inisection_count(ini_nonewline));
     struct KeyValue nonewline_kv[] = {
         {"key", "val"},
         {NULL, NULL},
     };
     hashmap_foreach(ini_nonewline->contents, section_verify_cb, nonewline_kv);
-    delete_inisection(ini_nonewline);
+    OK(delete_inisection(ini_nonewline) == NULL, "delete returns null");
 
-    struct IniSection *ini_nosection = read_inifile(SAMPLES_DIR "/good_nosection.ini");
+    struct IniSection *ini_nosection = read_inifile(SAMPLES_DIR "/good_nosection.ini", &error);
     OK_FATAL(ini_nosection != NULL, "nosection file is valid");
     // check contents against known good contents
     OK(ini_nosection->name == NULL, "no section name");
-    OK(hashmap_count(ini_nosection->contents) == 12, "item count");
+    OK(inisection_sectioncount(ini_nosection) == 1, "one unnamed section");
+    OK(inisection_count(ini_nosection) == 12, "item count %u", inisection_count(ini_nosection));
     struct KeyValue nosection_kv[] = {
         {"key1", "value1"},
         {"key2", "value2"},
@@ -99,13 +103,14 @@ static void test_read(void)
     };
     hashmap_foreach(ini_nosection->contents, section_verify_cb, nosection_kv);
     OK(ini_nosection->next == NULL, "no next section");
-    delete_inisection(ini_nosection);
+    OK(delete_inisection(ini_nosection) == NULL, "delete returns null");
 
-    struct IniSection *ini_nostartsection = read_inifile(SAMPLES_DIR "/good_nostartsection.ini");
+    struct IniSection *ini_nostartsection = read_inifile(SAMPLES_DIR "/good_nostartsection.ini", &error);
     OK_FATAL(ini_nostartsection != NULL, "nostartsection file is valid");
     // check contents against known good contents
     OK(ini_nostartsection->name == NULL, "first section is unnamed");
-    OK(hashmap_count(ini_nostartsection->contents) == 2, "item count");
+    OK(inisection_sectioncount(ini_nostartsection) == 2, "one unnamed, one named");
+    OK(inisection_count(ini_nostartsection) == 2, "item count %u", inisection_count(ini_nostartsection));
     struct KeyValue nostartsection1_kv[] = {
         {"key1", "value1"},
         {"key2", "value2"},
@@ -113,10 +118,10 @@ static void test_read(void)
     };
     hashmap_foreach(ini_nostartsection->contents, section_verify_cb, nostartsection1_kv);
     struct IniSection *ini_nostartsection_sec = ini_nostartsection->next;
-    OK(ini_nostartsection_sec != NULL, "has a named section");
+    OK_FATAL(ini_nostartsection_sec != NULL, "has a named section");
     OK(ini_nostartsection_sec->name != NULL && strcmp(ini_nostartsection_sec->name, "section1") == 0,
             "section name '%s'", ini_nostartsection_sec->name);
-    OK(hashmap_count(ini_nostartsection_sec->contents) == 2, "item count");
+    OK(inisection_count(ini_nostartsection_sec) == 2, "item count %u", inisection_count(ini_nostartsection_sec));
     struct KeyValue nostartsection2_kv[] = {
         {"key3", "value3"},
         {"key4", "value4"},
@@ -124,57 +129,63 @@ static void test_read(void)
     };
     hashmap_foreach(ini_nostartsection_sec->contents, section_verify_cb, nostartsection2_kv);
     OK(ini_nostartsection_sec->next == NULL, "named section has no next");
-    delete_inisection(ini_nostartsection);
+    OK(delete_inisection(ini_nostartsection) == NULL, "delete returns null");
 
-    struct IniSection *ini_sections = read_inifile(SAMPLES_DIR "/good_sections.ini");
+    struct IniSection *ini_sections = read_inifile(SAMPLES_DIR "/good_sections.ini", &error);
     OK_FATAL(ini_sections != NULL, "sections file is valid");
     // check contents against known good contents
     OK(ini_sections->name != NULL && strcmp(ini_sections->name, "section1") == 0, "section1 name '%s'", ini_sections->name);
-    OK(hashmap_count(ini_sections->contents) == 1, "section1 item count");
+    OK(inisection_sectioncount(ini_sections) == 7, "sections count %u", inisection_sectioncount(ini_sections));
+    OK(inisection_count(ini_sections) == 1, "section1 item count %u", inisection_count(ini_sections));
     struct KeyValue sections1_kv[] = {
         {"key1", "value1"},
         {NULL, NULL},
     };
     hashmap_foreach(ini_sections->contents, section_verify_cb, sections1_kv);
     struct IniSection *ini_sections2 = ini_sections->next;
-    OK(ini_sections2 != NULL, "have section 2");
+    OK_FATAL(ini_sections2 != NULL, "have section 2");
     OK(ini_sections2->name != NULL && strcmp(ini_sections2->name, "section2") == 0, "section2 name '%s'", ini_sections2->name);
-    OK(hashmap_count(ini_sections2->contents) == 1, "section2 item count");
+    OK(inisection_count(ini_sections2) == 1, "section2 item count %u", inisection_count(ini_sections2));
     struct KeyValue sections2_kv[] = {
         {"key2", "value2"},
         {NULL, NULL},
     };
     hashmap_foreach(ini_sections2->contents, section_verify_cb, sections2_kv);
     struct IniSection *ini_sections3 = ini_sections2->next;
+    OK_FATAL(ini_sections3 != NULL, "have section 3");
     OK(ini_sections3->name != NULL && strcmp(ini_sections3->name, "section 3") == 0, "section3 name '%s'", ini_sections3->name);
-    OK(hashmap_count(ini_sections3->contents) == 1, "section3 item count");
+    OK(inisection_count(ini_sections3) == 1, "section3 item count %u", inisection_count(ini_sections3));
     struct KeyValue sections3_kv[] = {
         {"key3", "value3"},
         {NULL, NULL},
     };
     hashmap_foreach(ini_sections3->contents, section_verify_cb, sections3_kv);
     struct IniSection *ini_sections4 = ini_sections3->next;
+    OK_FATAL(ini_sections4 != NULL, "have section 4");
     OK(ini_sections4->name != NULL && strcmp(ini_sections4->name, "section name 4") == 0, "section4 name '%s'", ini_sections4->name);
-    OK(hashmap_count(ini_sections4->contents) == 1, "section4 item count");
+    OK(inisection_count(ini_sections4) == 1, "section4 item count %u", inisection_count(ini_sections4));
     struct KeyValue sections4_kv[] = {
         {"key4", "value4"},
         {NULL, NULL},
     };
     hashmap_foreach(ini_sections4->contents, section_verify_cb, sections4_kv);
     struct IniSection *ini_sections5 = ini_sections4->next;
+    OK_FATAL(ini_sections5 != NULL, "have section 5");
     OK(ini_sections5->name != NULL && strcmp(ini_sections5->name, "unicode section name っては結構") == 0, "section5 name '%s'", ini_sections3->name);
-    OK(hashmap_count(ini_sections5->contents) == 0, "section5 item count");
+    OK(inisection_count(ini_sections5) == 0, "section5 item count %u", inisection_count(ini_sections5));
     struct IniSection *ini_sections6 = ini_sections5->next;
+    OK_FATAL(ini_sections6 != NULL, "have section 6");
     OK(ini_sections6->name != NULL && strcmp(ini_sections6->name, "previous section was empty") == 0, "section6 name '%s'", ini_sections6->name);
-    OK(hashmap_count(ini_sections6->contents) == 1, "section6 item count");
+    OK(inisection_count(ini_sections6) == 1, "section6 item count %u", inisection_count(ini_sections6));
     struct KeyValue sections6_kv[] = {
         {"key6", "value 6"},
         {NULL, NULL},
     };
     hashmap_foreach(ini_sections6->contents, section_verify_cb, sections6_kv);
     struct IniSection *ini_sections7 = ini_sections6->next;
+    OK_FATAL(ini_sections7 != NULL, "have section 7");
     OK(ini_sections7->name != NULL && strcmp(ini_sections7->name, "section name with [") == 0, "section7 name '%s'", ini_sections7->name);
-    OK(hashmap_count(ini_sections7->contents) == 1, "section7 item count");
+    OK(inisection_count(ini_sections7) == 1, "section7 item count %u", inisection_count(ini_sections7));
     struct KeyValue sections7_kv[] = {
         {"key7", "value 7"},
         {NULL, NULL},
@@ -190,13 +201,16 @@ static void test_read(void)
     OK(named == NULL, "find none");
     named = inisection_find_section(ini_sections, NULL);
     OK(named == NULL, "find null");
-    delete_inisection(ini_sections);
+    named = inisection_find_section(NULL, NULL);
+    OK(named == NULL, "find null in null");
+    OK(delete_inisection(ini_sections) == NULL, "delete returns null");
 
-    struct IniSection *ini_longline = read_inifile(SAMPLES_DIR "/good_longline.ini");
+    struct IniSection *ini_longline = read_inifile(SAMPLES_DIR "/good_longline.ini", &error);
     OK_FATAL(ini_longline != NULL, "longline file is valid");
     // check that we have one key,val pair in a single unnamed section
     OK(ini_longline->name == NULL, "unnamed");
-    OK(hashmap_count(ini_longline->contents) == 2, "item count");
+    OK(inisection_sectioncount(ini_longline) == 1, "single unnamed section");
+    OK(inisection_count(ini_longline) == 2, "item count %u", inisection_count(ini_longline));
     OK(ini_longline->next == NULL, "no more sections");
     // check that the long value is correct
     const char *longvalue = inisection_get(ini_longline, "somewhatlongkeybutnotaslongastheotheroneinthisfile");
@@ -214,7 +228,7 @@ static void test_read(void)
     // check long key
     char *longkey = u_strdup("verylongline");
     for (unsigned i=0; i<535; i++) {
-        char *newlongkey = u_strcat(longkey, "verylongline");
+        char *newlongkey = u_strdupcat(longkey, "verylongline");
         free(longkey);
         longkey = newlongkey;
     }
@@ -222,38 +236,45 @@ static void test_read(void)
     free(longkey);
     OK(longkeyvalue, "found longkey");
     OK(strcmp(longkeyvalue, "very long key") == 0, "longkey value");
-    delete_inisection(ini_longline);
+    OK(delete_inisection(ini_longline) == NULL, "delete returns null");
 
-    struct IniSection *ini_dosendings = read_inifile(SAMPLES_DIR "/good_dosendings.ini");
+    struct IniSection *ini_dosendings = read_inifile(SAMPLES_DIR "/good_dosendings.ini", &error);
     OK_FATAL(ini_dosendings != NULL, "dosendings file is valid");
     OK(ini_dosendings->name == NULL, "unnamed");
-    OK(hashmap_count(ini_dosendings->contents) == 2, "item count");
+    OK(inisection_sectioncount(ini_dosendings) == 1, "one section");
+    OK(inisection_count(ini_dosendings) == 2, "item count %u", inisection_count(ini_dosendings));
     struct KeyValue doskeyval[] = {
         {"key1", "val1"},
         {"key2", "val2"},
     };
     hashmap_foreach(ini_dosendings->contents, section_verify_cb, doskeyval);
     OK(ini_dosendings->next == NULL, "no more sections");
-    delete_inisection(ini_dosendings);
+    OK(delete_inisection(ini_dosendings) == NULL, "delete returns null");
 }
 
 static void test_read_bad(void)
 {
-    struct IniSection *ini;
-    ini = read_inifile(SAMPLES_DIR "/bad_keyspace.ini");
-    OK(ini == NULL, "key has space");
-    ini = read_inifile(SAMPLES_DIR "/bad_nokey.ini");
-    OK(ini == NULL, "no key");
-    ini = read_inifile(SAMPLES_DIR "/bad_novalue.ini");
-    OK(ini == NULL, "no value");
-    ini = read_inifile(SAMPLES_DIR "/bad_sectionclose.ini");
-    OK(ini == NULL, "section header not cosed");
-    ini = read_inifile(SAMPLES_DIR "/bad_sectionjunk.ini");
-    OK(ini == NULL, "junk after section header");
-    ini = read_inifile(SAMPLES_DIR "/bad_sectionname.ini");
-    OK(ini == NULL, "section has no name");
-    ini = read_inifile(SAMPLES_DIR "/bad_notexisting.ini");
-    OK(ini == NULL, "file doesn't exist");
+    const char *bad_samples[] = {
+        SAMPLES_DIR "/bad_keyspace.ini",
+        SAMPLES_DIR "/bad_nokey.ini",
+        SAMPLES_DIR "/bad_novalue.ini",
+        SAMPLES_DIR "/bad_sectionclose.ini",
+        SAMPLES_DIR "/bad_sectionclose_noname.ini",
+        SAMPLES_DIR "/bad_sectionjunk.ini",
+        SAMPLES_DIR "/bad_sectionname.ini",
+        SAMPLES_DIR "/bad_sectionname_empty.ini",
+        SAMPLES_DIR "/bad_nonexisting.ini",
+        NULL
+    };
+
+    for (unsigned i=0; bad_samples[i]; i++) {
+        char *error = NULL;
+        struct IniSection *ini = read_inifile(bad_samples[i], &error);
+        OK(ini == NULL, "should be invalid INI");
+        OK(error != NULL, "no error string");
+        //printf("ini error '%s'\n", error);
+        free(error);
+    }
 }
 
 // returns 0 if identical
@@ -261,6 +282,9 @@ static int compare_files(const char *name1, const char *name2)
 {
     FILE *f1 = fopen(name1, "r");
     FILE *f2 = fopen(name2, "r");
+
+    if (f1 == NULL || f2 == NULL)
+        return 2;
 
     int done = 0;
     do {
@@ -279,74 +303,168 @@ static int compare_files(const char *name1, const char *name2)
     return 0;
 }
 
+static void test_modify(void)
+{
+    struct IniSection *ini = new_inisection(NULL);
+    OK_FATAL(ini != NULL, "have section");
+
+    OK(inisection_add(ini, "key1", "value1") == 1, "add should succeed");
+    OK(inisection_add(ini, "key1", "value11") == 0, "add should overwrite");
+    OK(inisection_count(ini) == 1, "overwrite");
+    OK(inisection_add(ini, "key2", "value2") == 1, "add should succeed");
+    OK(inisection_add(ini, "key3", NULL) == 0, "NULL value should be invalid");
+    OK(inisection_add(ini, NULL, "value") == 0, "NULL key should be invalid");
+    OK(inisection_add(NULL, "key4", "value4") == 0, "NULL ini should be invalid");
+    OK(inisection_count(ini) == 2, "should have key1 and key2");
+
+    OK(inisection_remove(ini, "key2") == 1, "remove should succeed");
+    OK(inisection_remove(ini, "key2") == 0, "can't remove again");
+    OK(inisection_remove(ini, NULL) == 0, "can't remove NULL");
+    OK(inisection_remove(NULL, "key2") == 0, "can't remove from NULL");
+    OK(inisection_count(ini) == 1, "should have key1");
+
+    OK(delete_inisection(ini) == NULL, "delete returns null");
+}
+
 static void test_write(void)
 {
     // write an ini that starts with some data then a section with some more data
     struct IniSection *ini = new_inisection(NULL);
+    OK_FATAL(ini != NULL, "have section");
     inisection_add(ini, "key1", "value1");
     inisection_add(ini, "key2", "value2");
     ini->next = new_inisection("a really good section");
     struct IniSection *sec = ini->next;
+    OK_FATAL(sec != NULL, "have section");
     inisection_add(sec, "key1", "value1");
     inisection_add(sec, "key2", "value2");
 
-    /* The man page says tmpnam() should never be used, and the linker also issues a warning.
-     * They say we should use tmpfile instead, but that's not good for us, because we want to
-     * read back the file we created. I found no other portable (= in the C99 spec) way of
-     * doing it.
-     * BTW tmpnam() is dangerous from a security point of view, but here we don't really care
-     * about security. Or thread safety.
-     */
-    char *outputname = tmpnam(NULL); // use the internal static buffer ;P
+    const char *outputname = TEMP_DIR "/test_output.ini";
     //printf("output file name '%s'\n", outputname);
-    int result = write_inifile(outputname, ini);
-    OK(result == 0, "write successful");
+    char *error = write_inifile(outputname, ini);
+    OK(error == NULL, "write error '%s'", error);
     OK(compare_files(outputname, SAMPLES_DIR "/write_good1.ini") == 0, "output matches expectation");
     remove(outputname);
-    delete_inisection(ini);
+    OK(delete_inisection(ini) == NULL, "delete returns null");
 
     // write an ini that has more sections
     ini = new_inisection("first section");
+    OK_FATAL(ini != NULL, "have section");
     inisection_add(ini, "key1", "value1");
     inisection_add(ini, "key2", "value2");
     ini->next = new_inisection("a second section");
     sec = ini->next;
+    OK_FATAL(sec != NULL, "have section");
     //inisection_add(sec, "key1", "value1");
     //inisection_add(sec, "key2", "value2");
     sec->next = new_inisection("wow third section");
     sec = sec->next;
+    OK_FATAL(sec != NULL, "have section");
     inisection_add(sec, "key3", "value3");
     inisection_add(sec, "key4", "value4");
 
-    outputname = tmpnam(NULL);
-    result = write_inifile(outputname, ini);
-    OK(result == 0, "write successful");
+    error = write_inifile(outputname, ini);
+    OK(error == NULL, "write error '%s'", error);
     OK(compare_files(outputname, SAMPLES_DIR "/write_good2.ini") == 0, "output matches expectation");
     remove(outputname);
-    delete_inisection(ini);
+    OK(delete_inisection(ini) == NULL, "delete returns null");
 }
 
 static void test_write_bad(void)
 {
-    // try to write an ini that has unnamed not-first section
+#define TRY(_second_valid)                                          \
+    do {                                                            \
+        char *error = inisection_validate(ini);                     \
+        OK(error != NULL, "full ini should be invalid");            \
+        /*printf("error '%s'\n", error);*/                          \
+        free(error);                                                \
+        error = inisection_validate(sec);                           \
+        if (_second_valid) {                                        \
+            OK(error == NULL, "second section should be valid");    \
+        } else {                                                    \
+            OK(error != NULL, "second section should be invalid");  \
+            free(error);                                            \
+        }                                                           \
+        const char *outputname = TEMP_DIR "/test_output.ini";       \
+        error = write_inifile(outputname, ini);                     \
+        OK(error != NULL, "should get write error");                \
+        free(error);                                                \
+        FILE *of = fopen(outputname, "r");                          \
+        OK(of == NULL, "the output file shouldn't exist");          \
+        if (of) {                                                   \
+            fclose(of);                                             \
+            remove(outputname);                                     \
+        }                                                           \
+    } while (0)
+
+    // initial version: second section is unnamed
     struct IniSection *ini = new_inisection("first section");
+    OK_FATAL(ini != NULL, "have section");
     inisection_add(ini, "key1", "value1");
     ini->next = new_inisection(NULL);
     struct IniSection *sec = ini->next;
+    OK_FATAL(sec != NULL, "have section");
     inisection_add(sec, "key1", "value1");
+    TRY(1);
 
-    char *outputname = tmpnam(NULL);
-    int result = write_inifile(outputname, ini);
-    OK(result != 0, "write error");
-    remove(outputname);
-    delete_inisection(ini);
+    // whitespace section name
+    sec->name = u_strdup("      ");
+    TRY(0);
+
+    // ']' in section name
+    free(sec->name);
+    sec->name = u_strdup("section ] name");
+    TRY(0);
+    free(sec->name);
+    sec->name = u_strdup("section name ]");
+    TRY(0);
+
+    // newline in section name
+    free(sec->name);
+    sec->name = u_strdup("section \n name");
+    TRY(0);
+
+    free(ini->name);
+    free(sec->name);
+    sec->name = u_strdup("valid second section name");
+
+    // whitespace section name
+    ini->name = u_strdup("      ");
+    TRY(1);
+
+    // ']' in section name
+    free(ini->name);
+    ini->name = u_strdup("section ] name");
+    TRY(1);
+    free(ini->name);
+    ini->name = u_strdup("section name ]");
+    TRY(1);
+
+    // newline in section name
+    free(ini->name);
+    ini->name = u_strdup("section \n name");
+    TRY(1);
+
+    free(ini->name);
+    ini->name = u_strdup("valid first section name");
+
+    // whitespace in key
+    inisection_add(sec, "key with whitespace", "some value");
+    TRY(0);
+
+    // newline in value
+    inisection_remove(sec, "key with whitespace");
+    inisection_add(sec, "newline_key", "value \n with newline");
+    TRY(0);
+
+    OK(delete_inisection(ini) == NULL, "delete returns null");
+#undef TRY
 }
-
-//TODO multiple sections with the same name shouldn't be allowed
 
 TEST_CASES = {
     {"read", test_read},
     {"read bad", test_read_bad},
+    {"modify", test_modify},
     {"write", test_write},
     {"write bad", test_write_bad},
     {NULL, NULL}

@@ -1,3 +1,24 @@
+/*
+ * Copyright (c) 2023 Miklós Máté
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included
+ * in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+ * DEALINGS IN THE SOFTWARE.
+ */
 
 #include "json.h"
 #include "parserutils.h"
@@ -27,21 +48,198 @@ static int obj_delete_cb(const char *key, void *value, void *userdata)
     return 1;
 }
 
-static char *get_string(const char *text, unsigned length, unsigned *i)
+static int get_hex(const char *text, unsigned count)
 {
+    int ret = 0;
+    for (unsigned i=0; i<count; i++) {
+        char c = text[i];
+        ret <<= 4;
+        if (c >= '0' && c <= '9') {
+            ret += c - '0';
+        } else if (c >= 'a' && c <= 'f') {
+            ret += c - 'a' + 10;
+        } else if (c >= 'A' && c <= 'F') {
+            ret += c - 'A' + 10;
+        } else {
+            return -1;
+        }
+    }
+    return ret;
+}
+
+static unsigned write_utf8(char *text, int code)
+{
+    if (code <= 0x007f) {
+        text[0] = code & 0x7f;
+        return 1;
+    } else if (code <= 0x07ff) {
+        text[0] = 0xc0 + ((code >> 6) & 0x1f);
+        text[1] = 0x80 + ((code >> 0) & 0x3f);
+        return 2;
+    } else if (code <= 0xffff) {
+        text[0] = 0xe0 + ((code >> 12) & 0x0f);
+        text[1] = 0x80 + ((code >>  6) & 0x3f);
+        text[2] = 0x80 + ((code >>  0) & 0x3f);
+        return 3;
+    } else {
+        text[0] = 0xf0 + ((code >> 18) & 0x07);
+        text[1] = 0x80 + ((code >> 12) & 0x3f);
+        text[2] = 0x80 + ((code >>  6) & 0x3f);
+        text[3] = 0x80 + ((code >>  0) & 0x3f);
+        return 4;
+    }
+}
+
+static int utf16_high_surrogate(int u)
+{
+    return u >= 0xd800 && u <= 0xdbff;
+}
+
+static int utf16_low_surrogate(int u)
+{
+    return u >= 0xdc00 && u <= 0xdfff;
+}
+
+// @text is the start of the string, @length is the total length, @i is the current read position
+static char *get_string(const char *text, unsigned length, unsigned *i, char **error)
+{
+#define THROW(msg, ...)                                 \
+    do {                                                \
+        *error = u_strdup_printf("at %d string " msg,   \
+                *i + len, ##__VA_ARGS__);               \
+        free(ret);                                      \
+        return NULL;                                    \
+    } while(0)
+
     if (text[*i] != '"') return NULL;
 
     *i += 1;
+
+    char *ret = NULL;
     unsigned len = 0;
-    while (*i + len < length && text[*i + len] != '"') len++;
-    if (*i + len == length) {
-        fprintf(stderr, "json: at %d string is unterminated\n", *i);
-        return NULL;
+    int in_escape = 0;
+    unsigned escapes = 0;
+    while (*i + len < length) {
+        if (in_escape) {
+            in_escape = 0;
+        } else {
+            if (text[*i + len] == '\\') {
+                in_escape = 1;
+                escapes++;
+            } else if (text[*i + len] == '"') {
+                break;
+            // note: iscntrl() is also true for 0x7f (DEL)
+            } else if ((unsigned char)(text[*i + len]) <= 0x1f) {
+                THROW("contains illegal control character");
+            }
+        }
+        len++;
     }
 
-    char *ret = u_strndup(text + *i, len);
-    *i += len + 1;
+    if (*i + len == length) {
+        THROW("is unterminated");
+    }
+    if (in_escape) {
+        THROW("has unfinished escape sequence");
+    }
+
+    if (escapes == 0) {
+        ret = u_strndup(text + *i, len);
+        *i += len + 1;
+        return ret;
+    }
+
+    // here we assume that unescaping always shortens the string
+    ret = (char*)malloc((len+1)*sizeof(char));
+
+    in_escape = 0;
+    unsigned ilen = 0;
+    unsigned olen = 0;
+    while (*i + ilen < length) {
+        if (in_escape) {
+            if (text[*i + ilen] == '"') {
+                ret[olen++] = '"';
+            } else if (text[*i + ilen] == '\\') {
+                ret[olen++] = '\\';
+            } else if (text[*i + ilen] == 'n') {
+                ret[olen++] = '\n';
+            } else if (text[*i + ilen] == 't') {
+                ret[olen++] = '\t';
+            } else if (text[*i + ilen] == 'r') {
+                ret[olen++] = '\r';
+            } else if (text[*i + ilen] == 'f') {
+                ret[olen++] = '\f';
+            } else if (text[*i + ilen] == 'b') {
+                ret[olen++] = '\b';
+            // our serialization doesn't escape '/' but others may
+            } else if (text[*i + ilen] == '/') {
+                ret[olen++] = '/';
+            } else if (text[*i + ilen] == 'u') {
+                if (*i + ilen + 4 < length) {
+                    int u = get_hex(text + *i + ilen + 1, 4);
+                    if (u < 0) {
+                        THROW("unicode sequence invalid");
+                    }
+
+                    if (utf16_high_surrogate(u)) {
+                        ilen += 4; // point to last hex
+                        if (*i + ilen + 6 < length) {
+                            if (text[*i + ilen + 1] == '\\' && text[*i + ilen + 2] == 'u') {
+                                int v = get_hex(text + *i + ilen + 3, 4);
+                                if (v < 0) {
+                                    THROW("unicode low surrogate invalid");
+                                }
+
+                                if (utf16_low_surrogate(v)) {
+                                    int w = ((u & 0x3ff) << 10) + (v & 0x3ff) + 0x10000;
+                                    //printf("u %04x v %04x w %04x\n", u, v, w);
+                                    olen += write_utf8(ret + olen, w);
+                                    ilen += 6;
+                                } else {
+                                    THROW("unicode low surrogate is not low surrogate");
+                                }
+                            } else {
+                                THROW("unicode surrogate sequence invalid");
+                            }
+                        } else {
+                            THROW("unicode surrogate sequence incomplete");
+                        }
+                    } else if (utf16_low_surrogate(u)) {
+                        THROW("unicode sequence starts with low surrogate");
+                    } else {
+                        olen += write_utf8(ret + olen, u);
+                        ilen += 4; // point to last hex
+                    }
+                } else {
+                    THROW("unicode sequence incomplete");
+                }
+            } else {
+                THROW("undefined control sequence '\\%c'", text[*i + ilen]);
+            }
+            in_escape = 0;
+            ilen++;
+        } else {
+            if (text[*i + ilen] == '\\') {
+                in_escape = 1;
+            } else if (text[*i + ilen] == '"') {
+                break;
+            } else {
+                ret[olen++] = text[*i + ilen];
+            }
+            ilen++;
+        }
+    }
+    ret[olen] = 0;
+
+    if (olen * 2 < ilen) {
+        char *newret = (char*)realloc(ret, (olen+1)*sizeof(char));
+        if (newret)
+            ret = newret;
+    }
+
+    *i += ilen + 1;
     return ret;
+#undef THROW
 }
 
 static int is_numberchar(char c)
@@ -51,6 +249,7 @@ static int is_numberchar(char c)
     return 0;
 }
 
+// @text is the start of the string, @length is the total length, @i is the current read position
 static char *get_number_str(const char *text, unsigned length, unsigned *i)
 {
     int nlen = 0;
@@ -64,13 +263,16 @@ static char *get_number_str(const char *text, unsigned length, unsigned *i)
     return u_strndup(text + *i, nlen);
 }
 
-static struct JsonValue *parse_value(const char *text, unsigned length, unsigned *i, unsigned depth)
+// @text is the start of the string, @length is the total length, @i is the current read position, @depth is recursion depth
+static struct JsonValue *parse_value(const char *text, unsigned length, unsigned *i, unsigned depth, char **error)
 {
-#define THROW(msg, ...)                                 \
-    do {                                                \
-        fprintf(stderr, "json: error at %d: " msg "\n", \
-                *i, ##__VA_ARGS__);                     \
-        return json_delete(ret);                        \
+#define THROW(msg, ...)                             \
+    do {                                            \
+        if (*error == NULL) {                       \
+            *error = u_strdup_printf("at %d: " msg, \
+                    *i, ##__VA_ARGS__);             \
+        }                                           \
+        return json_delete(ret);                    \
     } while (0)
 
 #define SKIP_WS while (*i < length && isspace(text[*i])) *i += 1
@@ -79,7 +281,10 @@ static struct JsonValue *parse_value(const char *text, unsigned length, unsigned
     if (depth > JSON_MAX_RECURSION_DEPTH) THROW("maximum recursion depth reached");
 
     SKIP_WS;
-    if (*i == length) return NULL; // no value
+    if (*i == length) {
+        *error = u_strdup("empty string is not valid");
+        return NULL;
+    }
 
     ret = calloc_struct(JsonValue);
 
@@ -96,7 +301,7 @@ static struct JsonValue *parse_value(const char *text, unsigned length, unsigned
         }
 
         while (1) {
-            char *key = get_string(text, length, i);
+            char *key = get_string(text, length, i, error);
             if (key == NULL)
                 THROW("object key is invalid");
 
@@ -108,11 +313,10 @@ static struct JsonValue *parse_value(const char *text, unsigned length, unsigned
             SKIP_WS;
             if (*i == length) { free(key); THROW("object is unfinished"); }
 
-            struct JsonValue *val = parse_value(text, length, i, depth+1);
+            struct JsonValue *val = parse_value(text, length, i, depth+1, error);
             if (val == NULL) { free(key); THROW("object value is invalid"); }
             hashmap_insert(ret->v.object, key, val);
 
-            if (*i == length) THROW("object is unfinished");
             SKIP_WS;
             if (*i == length) THROW("object is unfinished");
 
@@ -124,7 +328,7 @@ static struct JsonValue *parse_value(const char *text, unsigned length, unsigned
             if (text[*i] != ',')
                 THROW("missing ',' from object");
             *i += 1;
-            if (*i == length) THROW("object is unfinished");
+
             SKIP_WS;
             if (*i == length) THROW("object is unfinished");
         }
@@ -132,7 +336,7 @@ static struct JsonValue *parse_value(const char *text, unsigned length, unsigned
         ret->type = JSON_ARRAY;
         ret->v.array = calloc_struct(JsonArray);
         *i += 1;
-        if (*i == length) THROW("array is unfinished");
+
         SKIP_WS;
         if (*i == length) THROW("array is unfinished");
 
@@ -142,7 +346,7 @@ static struct JsonValue *parse_value(const char *text, unsigned length, unsigned
         }
 
         while (1) {
-            struct JsonValue *val = parse_value(text, length, i, depth+1);
+            struct JsonValue *val = parse_value(text, length, i, depth+1, error);
             if (val == NULL) {
                 THROW("array item is invalid");
             }
@@ -150,6 +354,7 @@ static struct JsonValue *parse_value(const char *text, unsigned length, unsigned
 
             SKIP_WS;
             if (*i == length) THROW("array is unfinished");
+
             if (text[*i] == ']') {
                 *i += 1;
                 return ret;
@@ -158,14 +363,14 @@ static struct JsonValue *parse_value(const char *text, unsigned length, unsigned
             if (text[*i] != ',')
                 THROW("array missing ','");
             *i += 1;
-            if (*i == length) THROW("array is unfinished");
+
             SKIP_WS;
             if (*i == length) THROW("array is unfinished");
         };
     } else if (text[*i] == '"') {
-        char *str = get_string(text, length, i);
+        char *str = get_string(text, length, i, error);
         if (str == NULL)
-            THROW("no closing quote for string");
+            THROW("string is invalid");
         ret->type = JSON_STRING;
         ret->v.string = str;
     } else if ((length - *i >= 4) && strncmp(text+*i, "true", 4) == 0) {
@@ -178,14 +383,23 @@ static struct JsonValue *parse_value(const char *text, unsigned length, unsigned
         ret->type = JSON_NULL;
         *i += 4;
     } else {
-        double num;
         int chars = 0;
         char *num_str = get_number_str(text, length, i);
-        if (sscanf(num_str, "%lf%n", &num, &chars) != 1) {
+        char *num_end;
+        double num = strtod(num_str, &num_end);
+
+        if (!isfinite(num)) {
             free(num_str);
-            THROW("invalid character '%c' at position %d", text[*i], *i);
+            THROW("invalid number");
         }
+
+        if (num_end == num_str) {
+            free(num_str);
+            THROW("invalid character '%c'", text[*i]);
+        }
+        chars = num_end - num_str;
         free(num_str);
+
         ret->type = JSON_NUMBER;
         ret->v.number = num;
         *i += chars;
@@ -196,18 +410,19 @@ static struct JsonValue *parse_value(const char *text, unsigned length, unsigned
 #undef SKIP_WS
 }
 
-struct JsonValue *json_parse(const char *text, unsigned length)
+struct JsonValue *json_parse(const char *text, unsigned length, char **error)
 {
     unsigned i = 0;
+    *error = NULL;
 
-    struct JsonValue *ret = parse_value(text, length, &i, 0);
+    struct JsonValue *ret = parse_value(text, length, &i, 0, error);
     if (ret == NULL) {
         return NULL;
     }
 
     while (i < length && isspace(text[i])) i++;
     if (i < length && text[i] != 0) {
-        fprintf(stderr, "json: extra character '%c' found after the JSON value\n", text[i]);
+        *error = u_strdup_printf("extra character '%c' found after the JSON value", text[i]);
         return json_delete(ret);
     }
 
@@ -276,6 +491,73 @@ struct objparams {
     unsigned increment;
 };
 
+static char *serialize_string(const char *string, char *buf, unsigned *buflen, unsigned *slen)
+{
+    CHECK_BUF(2);
+    buf[*slen] = '\"';
+    *slen += 1;
+
+    // note: '/' can also be escaped (important in "</script>")
+
+    for (const char *c=string; *c; c++) {
+        // note: iscntrl() is also true for 0x7f (DEL) but we don't have to escape it
+        if (*(unsigned char*)c <= 0x1f) {
+            if (*c == '\n') {
+                CHECK_BUF(2);
+                buf[*slen] = '\\';
+                buf[*slen+1] = 'n';
+                *slen += 2;
+            } else if (*c == '\t') {
+                CHECK_BUF(2);
+                buf[*slen] = '\\';
+                buf[*slen+1] = 't';
+                *slen += 2;
+            } else if (*c == '\r') {
+                CHECK_BUF(2);
+                buf[*slen] = '\\';
+                buf[*slen+1] = 'r';
+                *slen += 2;
+            } else if (*c == '\f') {
+                CHECK_BUF(2);
+                buf[*slen] = '\\';
+                buf[*slen+1] = 'f';
+                *slen += 2;
+            } else if (*c == '\b') {
+                CHECK_BUF(2);
+                buf[*slen] = '\\';
+                buf[*slen+1] = 'b';
+                *slen += 2;
+            } else {
+                CHECK_BUF(7);
+                unsigned u = *(unsigned char*)c;
+                sprintf(buf+*slen, "\\u%04x", u);
+                *slen += 6;
+            }
+        } else if (*c == '"') {
+            CHECK_BUF(2);
+            buf[*slen] = '\\';
+            buf[*slen+1] = '\"';
+            *slen += 2;
+        } else if (*c == '\\') {
+            CHECK_BUF(2);
+            buf[*slen] = '\\';
+            buf[*slen+1] = '\\';
+            *slen += 2;
+        } else {
+            CHECK_BUF(1);
+            buf[*slen] = *c;
+            *slen += 1;
+        }
+    }
+
+    CHECK_BUF(2);
+    buf[*slen] = '\"';
+    buf[*slen+1] = 0;
+    *slen += 1;
+
+    return buf;
+}
+
 static char *serialize_value(const struct JsonValue *json, char *buf, unsigned *buflen, unsigned *slen);
 
 static int obj_print_cb(const char *key, void *value, void *userdata)
@@ -286,19 +568,19 @@ static int obj_print_cb(const char *key, void *value, void *userdata)
     unsigned *buflen = op->buflen;
     unsigned *slen = op->slen;
 
-    unsigned c = strlen(key);
-    CHECK_BUF_OBJ(c + 4);
-    sprintf(buf+*slen, "\"%s\":", key);
-    *slen += c + 3;
+    buf = serialize_string(key, buf, buflen, slen);
+
+    CHECK_BUF_OBJ(1);
+    buf[*slen] = ':';
+    *slen += 1;
 
     buf = serialize_value(val, buf, buflen, slen);
 
     CHECK_BUF_OBJ(2);
-    strcpy(buf+*slen, ",");
+    buf[*slen+0] = ',';
+    buf[*slen+1] = 0;
     *slen += 1;
     op->buf = buf;
-    op->buflen = buflen;
-    op->slen = slen;
 
     return 1;
 }
@@ -328,12 +610,9 @@ static char *serialize_value(const struct JsonValue *json, char *buf, unsigned *
             sprintf(buf+*slen, fmt, json->v.number);
             *slen += c;
             break; }
-        case JSON_STRING: {
-            unsigned c = strlen(json->v.string);
-            CHECK_BUF(c+3);
-            sprintf(buf+*slen, "\"%s\"", json->v.string);
-            *slen += c + 2;
-            break; }
+        case JSON_STRING:
+            buf = serialize_string(json->v.string, buf, buflen, slen);
+            break;
         case JSON_OBJECT: {
             CHECK_BUF(2);
             strcpy(buf+*slen, "{");
@@ -411,15 +690,24 @@ static int obj_print_pretty_cb(const char *key, void *value, void *userdata)
         val_indent = op->indent + op->increment;
         after_colon = '\n';
     }
-    unsigned c = strlen(key);
-    CHECK_BUF_OBJ(op->indent + c + 6);
-    sprintf(buf+*slen, "%*s\"%s\" :%c", op->indent, "", key, after_colon);
-    *slen += op->indent + c + 5;
+
+    CHECK_BUF_OBJ(op->indent);
+    for (unsigned i=0; i<op->indent; i++)
+        buf[*slen + i] = ' ';
+    *slen += op->indent;
+    buf = serialize_string(key, buf, buflen, slen);
+    CHECK_BUF_OBJ(3);
+    buf[*slen+0] = ' ';
+    buf[*slen+1] = ':';
+    buf[*slen+2] = after_colon;
+    *slen += 3;
 
     buf = serialize_value_pretty(val, buf, buflen, slen, val_indent, op->increment);
 
     CHECK_BUF_OBJ(3);
-    strcpy(buf+*slen, ",\n");
+    buf[*slen+0] = ',';
+    buf[*slen+1] = '\n';
+    buf[*slen+2] = 0;
     *slen += 2;
     op->buf = buf;
     op->buflen = buflen;
@@ -467,10 +755,7 @@ static char *serialize_value_pretty(const struct JsonValue *json, char *buf, uns
             break; }
         case JSON_STRING: {
             PRINT_INDENT;
-            unsigned c = strlen(json->v.string);
-            CHECK_BUF(c+3);
-            sprintf(buf+*slen, "\"%s\"", json->v.string);
-            *slen += c + 2;
+            buf = serialize_string(json->v.string, buf, buflen, slen);
             break; }
         case JSON_OBJECT: {
             PRINT_INDENT;

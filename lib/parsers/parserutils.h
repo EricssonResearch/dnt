@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 Miklós Máté
+ * Copyright (c) 2022 Miklós Máté
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -25,6 +25,8 @@
 
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
+#include <stdarg.h>
 
 // returns a newly allocated duplicate of the memory pointed by @src
 static inline
@@ -37,7 +39,7 @@ void *u_memdup(const void *src, unsigned size)
     return ret;
 }
 
-
+// strdup is not in C99
 // unlike the real strdup() this one @returns NULL if @s is NULL
 static inline
     __attribute__((warn_unused_result))
@@ -50,24 +52,7 @@ char *u_strdup(const char *s)
     return ret;
 }
 
-// returns a newly allocated string that is the concatenation of @s1 and @s2
-// if @s1 is NULL, returns a copy of @s2
-// if @s2 is NULL, returns a copy of @s1
-// if both are NULL, returns NULL
-static inline
-    __attribute__((warn_unused_result))
-char *u_strcat(const char *s1, const char *s2)
-{
-    if (s1 == NULL) return u_strdup(s2);
-    if (s2 == NULL) return u_strdup(s1);
-    unsigned l1 = strlen(s1);
-    unsigned l2 = strlen(s2);
-    char *ret = (char *)malloc((l1+l2+1)*sizeof(char));
-    memcpy(ret, s1, l1);
-    memcpy(ret+l1, s2, l2+1);
-    return ret;
-}
-
+// strndup is not in C99
 // unlike the real strndup() this one @returns NULL if @s is NULL
 // also, it doesn't assume @s to be 0-terminated when it's longer than @maxlen
 static inline
@@ -81,6 +66,52 @@ char *u_strndup(const char *s, unsigned maxlen)
     char *ret = (char *)malloc((len+1)*sizeof(char));
     memcpy(ret, s, len);
     ret[len] = 0;
+    return ret;
+}
+
+// returns a newly allocated string that is the concatenation of @s1 and @s2
+// if @s1 is NULL, returns a copy of @s2
+// if @s2 is NULL, returns a copy of @s1
+// if both are NULL, returns NULL
+static inline
+    __attribute__((warn_unused_result))
+char *u_strdupcat(const char *s1, const char *s2)
+{
+    if (s1 == NULL) return u_strdup(s2);
+    if (s2 == NULL) return u_strdup(s1);
+    unsigned l1 = strlen(s1);
+    unsigned l2 = strlen(s2);
+    char *ret = (char *)malloc((l1+l2+1)*sizeof(char));
+    memcpy(ret, s1, l1);
+    memcpy(ret+l1, s2, l2+1);
+    return ret;
+}
+
+// creates a new string, and prints into it according to @format
+// returns pointer to the newly created string
+// the format string cannot be NULL
+static inline
+    __attribute__((format(printf, 1, 2)))
+    __attribute__((warn_unused_result))
+    __attribute__((nonnull(1)))
+char *u_strdup_printf(const char *format, ...)
+{
+    va_list args;
+    va_start(args, format);
+    int err = vsnprintf(NULL, 0, format, args);
+    va_end(args);
+    if (err < 0) {
+        return NULL;
+    }
+    int length = err+1;
+    char *ret = (char*)malloc(length*sizeof(char));
+    va_start(args, format);
+    err = vsnprintf(ret, length, format, args);
+    va_end(args);
+    if (err < 0) {
+        free(ret);
+        return NULL;
+    }
     return ret;
 }
 

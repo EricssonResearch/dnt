@@ -268,9 +268,11 @@ static int process_reply(const char *msg)
     }
 
     char reply_str[1400], rr_str[512];
-    struct JsonValue *j = json_parse(msg, strlen(msg));
+    char *jerror;
+    struct JsonValue *j = json_parse(msg, strlen(msg), &jerror);
     if (j == NULL || j->type != JSON_OBJECT) {
-        log_error("JSON in reply is invalid.");
+        log_error("JSON in reply is invalid: %s", jerror);
+        free(jerror);
         return -1;
     }
 
@@ -881,9 +883,11 @@ static bool process_request(struct OamEndPoint *oam, struct Packet *p)
     //log_packet("packet (%s) at [%s level %d], ttl %d nib_ver %x sequence %x channel %x node %x level %x session %x\njson: %s",
     //        protocol_type_from_id(p->headers[1].type), oam->name, oam->level, p->ttl, oam_hdr[0], seq, channel, nodeid, level, session, msg);
 
-    struct JsonValue *j = json_parse(msg, strlen(msg));
+    char *jerror;
+    struct JsonValue *j = json_parse(msg, strlen(msg), &jerror);
     if (j==NULL || j->type != JSON_OBJECT) {
-        log_error("Invalid JSON string in incoming OAM packet");
+        log_error("Invalid JSON string in incoming OAM packet: %s", jerror);
+        free(jerror);
         return false;
     }
 

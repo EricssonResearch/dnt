@@ -1,11 +1,38 @@
+/*
+ * Copyright (c) 2023 Miklós Máté
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included
+ * in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+ * DEALINGS IN THE SOFTWARE.
+ */
 
 #ifndef JSON_H
 #define JSON_H
 
-#include "hashmap.h"
+/**
+ * Read/write JSON data from/to strings.
+ *
+ * The reader doesn't assume the input string to be null-terminated.
+ * The writer null-terminates the output string.
+ *
+ * Compatible with the ECMA 404 standard.
+ */
 
-//TODO copyright header, documentation
-//TODO support escaping/unescaping strings
+#include "hashmap.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -36,10 +63,11 @@ struct JsonValue {
 };
 
 
-// the string has to contain a single value in JSON format
-// @returns NULL on failure
+// @text has to contain a single value in JSON format
 // the input @text doesn't have to be null-terminated
-struct JsonValue *json_parse(const char *text, unsigned length);
+// if @text is null-terminated, @length must not include the null-termination
+// @returns NULL on failure and sets @error to a dynamically allocated error string
+struct JsonValue *json_parse(const char *text, unsigned length, char **error);
 
 // deletes the value, including all contained data
 // @returns NULL
@@ -47,6 +75,7 @@ struct JsonValue *json_delete(struct JsonValue *json);
 
 // @returns a JSON string representation of @js
 // @returns the length of the returned string as @length
+// only @returns NULL on memory allocation failure
 // the result is compact without any whitespace around the items
 // the keys in objects are sorted alphabetically for reproducible results
 // allocates the output buffer, the callee has to free it

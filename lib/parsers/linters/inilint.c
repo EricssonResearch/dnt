@@ -15,12 +15,14 @@ int main(int argc, char **argv)
     for (int i=1; i<argc; i++) {
         printf("loading '%s'\n", argv[i]);
 
-        struct IniSection *sec = read_inifile(argv[i]);
+        char *error = NULL;
+        struct IniSection *sec = read_inifile(argv[i], &error);
 
-        if (sec) {
-            printf("\033[32mINI is valid\033[0m\n");
+        if (sec == NULL) {
+            printf("\033[31mINI is invalid\033[0m '%s'\n", error);
+            free(error);
         } else {
-            printf("\033[31mINI is invalid\033[0m\n");
+            printf("\033[32mINI is valid\033[0m\n");
         }
 
         delete_inisection(sec);
