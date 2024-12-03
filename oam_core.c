@@ -229,8 +229,8 @@ static void *mask_checker_thread_fn(void *arg)
         struct timespec now;
 
         clock_gettime(CLOCK_REALTIME, &now);
-        hashmap_foreach_nocb(target->meps, char) {
-            (void)value;
+        HASHMAP_ITERATE(target->meps, it) {
+            const char *key = hash_iterator_key(&it);
             if (strstr(key, "_pre-")) {
                 path_count += 1;
                 if (is_masked(find_mep_start(key), &now)) {
@@ -306,8 +306,8 @@ static int copy_streamname(const char *key, void *value, void *userdata)
 void oam_stream_names_in_pipeline(struct HashMap *names)
 {
     for (struct StreamNameAssociation *s=stream_names; s; s=s->next) {
-        hashmap_foreach_nocb(names, void) {
-            (void)value;
+        HASHMAP_ITERATE(names, it) {
+            const char *key = hash_iterator_key(&it);
             if (hashmap_contains(s->names, key)) {
                 hashmap_foreach(names, copy_streamname, s->names);
                 return;

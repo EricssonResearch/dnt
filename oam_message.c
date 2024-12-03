@@ -836,11 +836,11 @@ static bool process_mask_request(struct OamEndPoint *oam, struct Packet *p, stru
 
         clock_gettime(CLOCK_REALTIME, &mep->last_mask_heartbeat);
 
-        hashmap_foreach_nocb(mep->target->meps, char) {
+        HASHMAP_ITERATE(mep->target->meps, it) {
             // we updated the elimination pre-MIP's heartbeat timestamp
             // now we can wake up the post-MIP's mask checker thread
             // to calculate the number of masked paths
-            (void)value;
+            const char *key = hash_iterator_key(&it);
             if (strstr(key, "_post-")) {
                 struct MepStart *postmep = find_mep_start(key);
                 mep_start_wakeup_mask_checker(postmep);
