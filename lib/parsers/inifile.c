@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 Miklós Máté
+ * Copyright (c) 2022 Miklós Máté
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -31,7 +31,8 @@
 #include <errno.h>
 
 #define BUFFERSIZE 1024
-//#define INIFILE_QUIET
+
+#define SKIP_WS(_x) while (*_x && isspace(*_x)) _x++
 
 // @end should be the last character before null-termination
 // note: newline is also trimmed
@@ -48,12 +49,12 @@ struct IniSection *new_inisection(const char *name)
     struct IniSection *ret = (struct IniSection *)malloc(sizeof(struct IniSection));
     ret->name = u_strdup(name);
     //TODO what's a good bucket count?
-    ret->contents = new_hashmap(51, NULL, NULL);
+    ret->contents = new_hashmap(17, NULL, NULL);
     ret->next = NULL;
     return ret;
 }
 
-void delete_inisection(struct IniSection *sec)
+struct IniSection *delete_inisection(struct IniSection *sec)
 {
     while (sec) {
         free(sec->name);
@@ -62,24 +63,43 @@ void delete_inisection(struct IniSection *sec)
         sec = sec->next;
         free(del);
     }
+    return NULL;
 }
 
-void inisection_add(struct IniSection *sec, const char *key, const char *value)
+int inisection_add(struct IniSection *sec, const char *key, const char *value)
 {
-    if (!sec) return;
-    hashmap_insert(sec->contents, u_strdup(key), u_strdup(value));
+    if (!sec) return 0;
+    if (!key) return 0;
+    if (!value) return 0;
+    return hashmap_insert(sec->contents, u_strdup(key), u_strdup(value));
 }
 
-void inisection_remove(struct IniSection *sec, const char *key)
+int inisection_remove(struct IniSection *sec, const char *key)
 {
-    if (!sec) return;
-    hashmap_remove(sec->contents, key);
+    if (!sec) return 0;
+    return hashmap_remove(sec->contents, key);
 }
 
 char *inisection_get(const struct IniSection *sec, const char *key)
 {
     if (!sec) return NULL;
     return (char *)hashmap_find(sec->contents, key);
+}
+
+unsigned inisection_count(const struct IniSection *sec)
+{
+    if (!sec) return 0;
+    return hashmap_count(sec->contents);
+}
+
+unsigned inisection_sectioncount(const struct IniSection *sec)
+{
+    unsigned count = 0;
+    while (sec) {
+        count++;
+        sec = sec->next;
+    }
+    return count;
 }
 
 struct IniSection *inisection_find_section(struct IniSection *sec, const char *name)
@@ -94,42 +114,91 @@ struct IniSection *inisection_find_section(struct IniSection *sec, const char *n
     return NULL;
 }
 
-static struct IniSection *read_error(struct IniSection *ret, const char *filename, const char *err, int line)
+char *inisection_validate(const struct IniSection *sec)
 {
-    delete_inisection(ret);
-#ifndef INIFILE_QUIET
-    fprintf(stderr, "read_inifile(%s) error: %s in line %d\n", filename, err, line);
-#else
-    (void)filename;
-    (void)err;
-    (void)line;
-#endif
+    unsigned section = 1;
+
+    while (sec) {
+        if (sec->name) {
+            char *p = sec->name;
+            SKIP_WS(p);
+            if (*p == 0) {
+                return u_strdup_printf("section %u name '%s' is just whitespace", section, sec->name);
+            }
+
+            p = strchr(sec->name, ']');
+            if (p != NULL) {
+                return u_strdup_printf("section %u name '%s' contains ']'", section, sec->name);
+            }
+
+            p = strchr(sec->name, '\n');
+            if (p != NULL) {
+                return u_strdup_printf("section %u name '%s' contains newline", section, sec->name);
+            }
+        } else {
+            if (section > 1) {
+                return u_strdup("only the first section is allowed to be unnamed");
+            }
+        }
+
+        HASHMAP_ITERATE(sec->contents, it) {
+            const char *p = hash_iterator_key(&it);
+            while (*p) {
+                if (isspace(*p)) {
+                    return u_strdup_printf("section %u '%s' key '%s' contains whitespace",
+                            section, sec->name, hash_iterator_key(&it));
+                }
+                p++;
+            }
+
+            p = (const char *)hash_iterator_value(&it);
+            while (*p) {
+                if (*p == '\n') {
+                    return u_strdup_printf("section %u '%s' item '%s' value contains newline",
+                            section, sec->name, hash_iterator_key(&it));
+                }
+                p++;
+            }
+        }
+
+        sec = sec->next;
+        section++;
+    }
+
     return NULL;
 }
 
-struct IniSection *read_inifile(const char *filename)
+struct IniSection *read_inifile(const char *filename, char **error)
 {
+    *error = NULL;
     FILE *f = fopen(filename, "r");
-    //printf("filename '%s'\n", filename);
 
     if (!f) {
-#ifndef INIFILE_QUIET
         //TODO we should be using strerror_r for thread-safety but it's not available
-        fprintf(stderr, "read_inifile() can't open '%s': %s\n", filename, strerror(errno));
-#endif
+        *error = u_strdup_printf("can't open: %s\n", strerror(errno));
         return NULL;
     }
 
+#define THROW(msg, ...)                                 \
+    do {                                                \
+        fclose(f);                                      \
+        delete_inisection(ret);                         \
+        *error = u_strdup_printf("line %d error: " msg, \
+                line, ##__VA_ARGS__);                   \
+        free(linebuf);                                  \
+        return NULL;                                    \
+    } while (0)
+
     struct IniSection *ret = new_inisection(NULL); // points to first section
     struct IniSection *sec = ret; // points to current section
+    int line = 0;
 
     unsigned bufsize = BUFFERSIZE;
     char *linebuf = (char *)malloc(BUFFERSIZE*sizeof(char));
     if (!linebuf) {
-        return read_error(ret, filename, "memory allocation failure", 0);
+        THROW("memory allocation failure");
     }
 
-    int line = 0;
     while (fgets(linebuf, BUFFERSIZE, f)) {
         unsigned len = strlen(linebuf);
         if (len == 0) continue;
@@ -140,8 +209,7 @@ struct IniSection *read_inifile(const char *filename)
             if (newlinebuf) {
                 linebuf = newlinebuf;
             } else {
-                free(linebuf);
-                return read_error(ret, filename, "memory allocation failure", line);
+                THROW("memory allocation failure");
             }
             char *fg = fgets(linebuf+len, BUFFERSIZE, f);
             len = strlen(linebuf);
@@ -152,38 +220,31 @@ struct IniSection *read_inifile(const char *filename)
         }
         char *c = linebuf;
         line++;
-        //printf("line %d '%s'\n", line, c);
 
-        while (*c && isspace(*c)) c++;
+        SKIP_WS(c);
 
         if (*c == 0) continue; // empty line
         if (*c == ';' || *c == '#') continue; // comment line
 
         if (*c == '[') { // section header
             c++;
-            while (*c && isspace(*c)) c++;
+            SKIP_WS(c);
 
-            char *d = c;
-            while (*d && *d != ']') d++;
-            if (*d == 0) {
-                fclose(f);
-                free(linebuf);
-                return read_error(ret, filename, "section header missing ]", line);
+            char *d = strchr(c, ']');
+            if (d == NULL) {
+                THROW("section header missing ]");
             }
-            *d = 0;
+
             char *j = d+1;
-            while (*j && isspace(*j)) j++;
+            SKIP_WS(j);
             if (*j) {
-                fclose(f);
-                free(linebuf);
-                return read_error(ret, filename, "junk after section header", line);
+                THROW("junk after section header");
             }
+
+            *d = 0;
             trim_trailing_spaces(c, d-1);
-            //printf("section title '%s'\n", c);
             if (*c == 0) {
-                fclose(f);
-                free(linebuf);
-                return read_error(ret, filename, "section has no name", line);
+                THROW("section has no name");
             }
 
             if (sec->name == NULL && hashmap_count(sec->contents) == 0) {
@@ -196,56 +257,48 @@ struct IniSection *read_inifile(const char *filename)
         } else {
             // find the equal sign
             if (*c == '=') {
-                fclose(f);
-                free(linebuf);
-                return read_error(ret, filename, "key missing", line);
+                THROW("item key missing");
             }
 
             char *eq = strchr(c, '=');
-            if (eq) {
-                *eq = 0; // close key string
-                trim_trailing_spaces(c, eq-1);
-
-                // check for spaces in key
-                char *ks = c;
-                while (*ks) {
-                    if (isspace(*ks)) {
-                        fclose(f);
-                        free(linebuf);
-                        return read_error(ret, filename, "key contains whitespace", line);
-                    }
-                    ks++;
-                }
-
-                // get value
-                char *v = eq+1;
-                while (*v && isspace(*v)) v++;
-
-                // get rid of newline
-                unsigned vlen = strlen(v);
-                while (vlen && iscntrl(v[vlen])) {
-                    v[vlen] = 0;
-                    vlen--;
-                }
-
-                //printf("key '%s' value '%s'\n", c, v);
-                // duplicate keys: old key and value are freed
-                if (hashmap_find(sec->contents, c)) {
-                    return read_error(ret, filename, "duplicate key", line);
-                } else {
-                    hashmap_insert(sec->contents, u_strdup(c), u_strdup(v));
-                }
-            } else {
-                fclose(f);
-                free(linebuf);
-                return read_error(ret, filename, "no '=' sign found", line);
+            if (eq == NULL) {
+                THROW("no '=' sign found");
             }
+            *eq = 0; // close key string
+            trim_trailing_spaces(c, eq-1);
+
+            // check for spaces in key
+            char *ks = c;
+            while (*ks) {
+                if (isspace(*ks)) {
+                    THROW("item key contains whitespace");
+                }
+                ks++;
+            }
+
+            // get value
+            char *v = eq+1;
+            SKIP_WS(v);
+
+            // get rid of newline
+            unsigned vlen = strlen(v);
+            while (vlen && iscntrl(v[vlen])) {
+                v[vlen] = 0;
+                vlen--;
+            }
+
+            // duplicate keys: old key and value are freed
+            if (hashmap_find(sec->contents, c)) {
+                THROW("duplicate key '%s'", c);
+            }
+            hashmap_insert(sec->contents, u_strdup(c), u_strdup(v));
         }
     }
 
     fclose(f);
     free(linebuf);
     return ret;
+#undef THROW
 }
 
 static int write_one_elem(const char *key, void *value, void *userdata)
@@ -257,39 +310,28 @@ static int write_one_elem(const char *key, void *value, void *userdata)
     return 1;
 }
 
-int write_inifile(const char *filename, const struct IniSection *sec)
+char *write_inifile(const char *filename, const struct IniSection *sec)
 {
+    char *error = inisection_validate(sec);
+    if (error)
+        return error;
+
     FILE *f = fopen(filename, "w");
 
     if (!f) {
-#ifndef INIFILE_QUIET
         //TODO we should be using strerror_r for thread-safety but it's not available
-        fprintf(stderr, "write_inifile() can't open '%s': %s\n", filename, strerror(errno));
-#endif
-        return 1;
+        return u_strdup_printf("can't open: %s", strerror(errno));
     }
 
-    int firstsection = 1;
     while (sec) {
         if (sec->name) {
             fprintf(f, "\n[ %s ]\n\n", sec->name);
-        } else {
-            if (!firstsection) {
-                fclose(f);
-#ifndef INIFILE_QUIET
-                fprintf(stderr, "write_inifile('%s') only the first section is allowed to be unnamed\n", filename);
-#endif
-                return 1;
-            }
         }
-
         hashmap_foreach_sorted(sec->contents, write_one_elem, f);
-
-        firstsection = 0;
         sec = sec->next;
     }
 
     fclose(f);
-    return 0;
+    return NULL;
 }
 

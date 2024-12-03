@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 Miklós Máté
+ * Copyright (c) 2022 Miklós Máté
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -23,12 +23,6 @@
 #ifndef INIFILE_H
 #define INIFILE_H
 
-//TODO support localization: key[lang]=value
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /**
  * Read/write INI files.
  *
@@ -36,12 +30,17 @@ extern "C" {
  * Empty lines are ignored.
  *
  * Data lines are like "key=value". Leading whitespaces and whitespaces around
- * the = sign are ignored, so "  key   = value" is equivalent to the above one.
+ * the = sign are ignored, so "  key   = value" is equivalent to the one above.
  * Keys can contain any non-whitespace character.
+ *
+ * Keys are case-sensitive, which is a slight deviation from the original INI
+ * format. There is no official specification for this format, though.
+ *
+ * Duplicate keys in a section are treated as error.
  *
  * Section headers are supported in the format "[Section name]". Whitespace
  * before and after the [ and ] delimiters are ignored, so " [ Section name ] "
- * is equivalent to he above one. The section name is allowed to contain
+ * is equivalent to the one above. The section name is allowed to contain
  * whitespaces, but has to contain at least one non-whitespace character.
  *
  * In the IniSection structure @name is NULL for unnamed sections. Obviously,
@@ -50,6 +49,10 @@ extern "C" {
 
 #include "hashmap.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct IniSection {
     char *name;
     struct HashMap *contents;
@@ -57,32 +60,55 @@ struct IniSection {
 };
 
 // creates a new ini section
+// duplicates @name
+// @name can be NULL (only for the first one in a chain)
 struct IniSection *new_inisection(const char *name);
 
 // also deletes the next sections in the chain
-void delete_inisection(struct IniSection *sec);
+// always @returns NULL
+struct IniSection *delete_inisection(struct IniSection *sec);
 
-// adds the (key, value) pair to the section, overrides any existing value
+// adds the (key, value) pair to the section
+// neither @key nor @value can be NULL
+// overwrites any existing value
 // the duplicates of the given strings are added to the hash map
-void inisection_add(struct IniSection *sec, const char *key, const char *value);
+// @returns 1 if a new item was inserted
+// @returns 0 on error or an existing item was overwritten
+int inisection_add(struct IniSection *sec, const char *key, const char *value);
 
-// removes the key from the section
-void inisection_remove(struct IniSection *sec, const char *key);
+// removes the item with this @key from the section
+// @returns 1 if an item was deleted, 0 otherwise
+int inisection_remove(struct IniSection *sec, const char *key);
 
 // finds the value for the given key, returns NULL if not found
 char *inisection_get(const struct IniSection *sec, const char *key);
 
+// @returns the number of items in this section
+unsigned inisection_count(const struct IniSection *sec);
+
+// @returns the number of sections (starting with @sec)
+unsigned inisection_sectioncount(const struct IniSection *sec);
+
 // finds the section that has the given name
 struct IniSection *inisection_find_section(struct IniSection *sec, const char *name);
 
-// sections are ordered as they were in the file
-// contents of the sections are ordered by the hash function
-struct IniSection *read_inifile(const char *filename);
+// @returns a dynamically allocated error string if @sec contains invalid data
+//  - whitespace in item key
+//  - newline in section name or value
+//  - ] in section name
+//  - unnamed (or all whitespace) not-first section
+char *inisection_validate(const struct IniSection *sec);
 
-// first section is allowed to have NULL name
-// returns 0 on success or an error code
-// the output file is left incomplete when an error is detected
-int write_inifile(const char *filename, const struct IniSection *sec);
+// section chain is ordered as they were in the file
+// the contents of the sections are unordered
+// @returns a handle to the first section, or NULL on error
+// @error is set to a dynamically allocated error string on error
+struct IniSection *read_inifile(const char *filename, char **error);
+
+// @returns NULL on success, or a dynamically allocated error string
+// the items in the sections are ordered by their keys for reproducible results
+// validates @sec before attempting to write the output
+char *write_inifile(const char *filename, const struct IniSection *sec);
 
 #ifdef __cplusplus
 }

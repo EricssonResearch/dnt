@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 Miklós Máté
+ * Copyright (c) 2022 Miklós Máté
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -347,4 +347,53 @@ void hashmap_rehash(struct HashMap *hash, unsigned bucketcount)
 
     // this doesn't delete items
     delete_hashmap(newhash);
+}
+
+struct HashMapIterator hash_iterator(const struct HashMap *hash)
+{
+    struct HashMapIterator iter = { .hash_ = hash, .i_ = 0, .b_ = NULL };
+    unsigned i = 0;
+    struct HashBucket *b = hash->buckets;
+    // skip until we find a bucket that is not empty
+    while (i < hash->bucketcount && b->key == NULL) {
+        i++;
+        b = hash->buckets + i;
+    }
+    iter.i_ = i;
+    iter.b_ = b;
+    return iter;
+}
+
+const char *hash_iterator_key(const struct HashMapIterator *iter)
+{
+    if (!hash_iterator_valid(iter)) return NULL;
+    struct HashBucket *b = (struct HashBucket *)iter->b_;
+    return b->key;
+}
+
+void *hash_iterator_value(const struct HashMapIterator *iter)
+{
+    if (!hash_iterator_valid(iter)) return NULL;
+    struct HashBucket *b = (struct HashBucket *)iter->b_;
+    return b->value;
+}
+
+int hash_iterator_valid(const struct HashMapIterator *iter)
+{
+    return iter->i_ < iter->hash_->bucketcount;
+}
+
+void hash_iterator_next(struct HashMapIterator *iter)
+{
+    if (!hash_iterator_valid(iter)) return;
+    if (((struct HashBucket *)iter->b_)->next) {
+        iter->b_ = ((struct HashBucket *)iter->b_)->next;
+    } else {
+        // step to next occupied bucket
+        do {
+            iter->i_++;
+        } while ((iter->i_ < iter->hash_->bucketcount)
+                && (iter->hash_->buckets[iter->i_].key == NULL));
+        iter->b_ = iter->hash_->buckets + iter->i_;
+    }
 }

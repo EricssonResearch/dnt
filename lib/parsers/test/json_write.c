@@ -1,3 +1,24 @@
+/*
+ * Copyright (c) 2023 Miklós Máté
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included
+ * in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+ * DEALINGS IN THE SOFTWARE.
+ */
 
 #include "testing.h"
 
@@ -76,6 +97,42 @@ static void test_write(void)
     } while (0);
 
     do {
+        const char *expected = "\"string \\\" contains quote\"";
+        struct JsonValue *val = json_string("string \" contains quote");
+        CHECK;
+    } while (0);
+
+    do {
+        const char *expected = "\"string \\\\ contains reverse solidus\"";
+        struct JsonValue *val = json_string("string \\ contains reverse solidus");
+        CHECK;
+    } while (0);
+
+    do {
+        const char *expected = "\"string \x7f contains DEL\"";
+        struct JsonValue *val = json_string("string \x7f contains DEL");
+        CHECK;
+    } while (0);
+
+    do {
+        const char *expected = "\"string\\n\\\\\\u0013with\\b\\tcontrol\\f\\rcharacters\"";
+        struct JsonValue *val = json_string("string\n\\\x13with\b\tcontrol\f\rcharacters");
+        CHECK;
+    } while (0);
+
+    do {
+        const char *expected = "\"árvíztűrő tükörfúrógép\"";
+        struct JsonValue *val = json_string("árvíztűrő tükörfúrógép");
+        CHECK;
+    } while (0);
+
+    do {
+        const char *expected = "\"日本語\"";
+        struct JsonValue *val = json_string("日本語");
+        CHECK;
+    } while (0);
+
+    do {
         const char *expected = "[]";
         struct JsonValue *val = json_array();
         CHECK;
@@ -116,6 +173,15 @@ static void test_write(void)
         json_object_insert(val, "key2", json_false());
         json_object_insert(val, "something", json_number(-99));
         json_object_insert(val, "key", json_string("value"));
+        CHECK;
+    } while (0);
+
+    do {
+        const char *expected = "{\" ke\\\\y\\n 2\":false,\"key\\u0003\":\"érték\",\"何か\":-99}";
+        struct JsonValue *val = json_object();
+        json_object_insert(val, " ke\\y\n 2", json_false());
+        json_object_insert(val, "何か", json_number(-99));
+        json_object_insert(val, "key\x3", json_string("érték"));
         CHECK;
     } while (0);
 
@@ -165,8 +231,10 @@ static void test_write(void)
 
     do {
         const char *expected = "{\"a\":{},\"key\":13}";
-        struct JsonValue *val = json_parse(" { \"key\" :  13 } ", 17);
+        char *error = NULL;
+        struct JsonValue *val = json_parse(" { \"key\" :  13 } ", 17, &error);
         OK_FATAL(val != NULL, "initial json is valid");
+        OK(error == NULL, "got error '%s'", error);
         json_object_insert(val, "a", json_object());
         CHECK;
     } while (0);
@@ -241,6 +309,42 @@ static void test_write_pretty(void)
     } while (0);
 
     do {
+        const char *expected = "\"string \\\" contains quote\"";
+        struct JsonValue *val = json_string("string \" contains quote");
+        CHECK;
+    } while (0);
+
+    do {
+        const char *expected = "\"string \\\\ contains reverse solidus\"";
+        struct JsonValue *val = json_string("string \\ contains reverse solidus");
+        CHECK;
+    } while (0);
+
+    do {
+        const char *expected = "\"string \x7f contains DEL\"";
+        struct JsonValue *val = json_string("string \x7f contains DEL");
+        CHECK;
+    } while (0);
+
+    do {
+        const char *expected = "\"string\\n\\\\\\u0013with\\b\\tcontrol\\f\\rcharacters\"";
+        struct JsonValue *val = json_string("string\n\\\x13with\b\tcontrol\f\rcharacters");
+        CHECK;
+    } while (0);
+
+    do {
+        const char *expected = "\"árvíztűrő tükörfúrógép\"";
+        struct JsonValue *val = json_string("árvíztűrő tükörfúrógép");
+        CHECK;
+    } while (0);
+
+    do {
+        const char *expected = "\"日本語\"";
+        struct JsonValue *val = json_string("日本語");
+        CHECK;
+    } while (0);
+
+    do {
         const char *expected = "[]";
         struct JsonValue *val = json_array();
         CHECK;
@@ -282,6 +386,16 @@ static void test_write_pretty(void)
         json_object_insert(val, "key2", json_false());
         json_object_insert(val, "something", json_number(-99));
         json_object_insert(val, "key", json_string("value"));
+        CHECK;
+    } while (0);
+
+    do {
+        const char *expected = "{\n   \" ke\\\\y\\n 2\" : false,\n   \"key\\u0003\" : \"érték\",\n"
+            "   \"何か\" : -99\n}";
+        struct JsonValue *val = json_object();
+        json_object_insert(val, " ke\\y\n 2", json_false());
+        json_object_insert(val, "何か", json_number(-99));
+        json_object_insert(val, "key\x3", json_string("érték"));
         CHECK;
     } while (0);
 
@@ -334,8 +448,10 @@ static void test_write_pretty(void)
 
     do {
         const char *expected = "{\n   \"a\" : {},\n   \"key\" : 13\n}";
-        struct JsonValue *val = json_parse(" { \"key\" :   13 } ", 17);
+        char *error = NULL;
+        struct JsonValue *val = json_parse(" { \"key\" :   13 } ", 17, &error);
         OK_FATAL(val != NULL, "initial json is valid");
+        OK(error == NULL, "got error '%s'", error);
         json_object_insert(val, "a", json_object());
         CHECK;
     } while (0);

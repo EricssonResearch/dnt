@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 Miklós Máté
+ * Copyright (c) 2022 Miklós Máté
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -99,7 +99,7 @@ static void test_insert(void)
     OK(hashmap_find(hash, "some key") == NULL, "find in empty");
     OK(hashmap_contains(hash, "some key") == 0, "empty doesn't contain");
 
-    // test foreach
+    // foreach
     char abc[lettercount+1];
     for (unsigned i=0; i<lettercount; i++) {
         abc[i] = 'a' + i;
@@ -127,7 +127,7 @@ static void test_insert(void)
     OK(hashmap_foreach_sorted(hash, NULL, NULL) == 0, "foreach null");
     OK(hashmap_foreach_sorted(NULL, abcverify_order_cb, NULL) == 0, "foreach null");
 
-    // test interrupting foreach
+    // interrupting foreach
     abcverify = 0;
     hashmap_foreach(hash, abcverify_interrupt_cb, &abcverify);
     OK(abcverify < 0x3ffffff, "abcverify 0x%x", abcverify);
@@ -135,6 +135,24 @@ static void test_insert(void)
     abcverify = -1;
     hashmap_foreach_sorted(hash, abcverify_order_interrupt_cb, &abcverify);
     OK(abcverify == 10, "elem count %d %d", abcverify, lettercount);
+
+    // iterator
+    abcverify = 0;
+    HASHMAP_ITERATE(hash, it) {
+        // same as @abcverify_cb
+        OK(hash_iterator_key(&it) == hash_iterator_value(&it), "key==value");
+        int v = *hash_iterator_key(&it) - 'a';
+        abcverify |= 1<<v;
+    }
+    OK(abcverify == 0x3ffffff, "abcverify 0x%x", abcverify);
+    // iterate beyond the hash items
+    struct HashMapIterator hmit = hash_iterator(hash);
+    for (unsigned i=0; i<1000; i++) {
+        hash_iterator_next(&hmit);
+    }
+    OK(hash_iterator_valid(&hmit) == 0, "shouldn't be valid");
+    OK(hash_iterator_key(&hmit) == NULL, "key of invalid");
+    OK(hash_iterator_value(&hmit) == NULL, "value of invalid");
 
     // these literals have different address than the keys
     OK(hashmap_contains(hash, "qrstuvwxyz"), "contains");
@@ -151,6 +169,38 @@ static void test_insert(void)
     OK(delete_hashmap(hash) == NULL, "delete");
     OK(delete_hashmap(NULL) == NULL, "delete null");
 
+    // foreach on sparsely populated hash
+    //   (otherwise the same as the first test in this function)
+    hash = new_hashmap(1023, nofree_cb, NULL);
+    OK_FATAL(hash != NULL, "create hash");
+    for (unsigned i=0; i<lettercount; i++) {
+        OK(hashmap_insert(hash, abc+i, abc+i) == 1, "new item");
+        //printf("insert '%s'\n", abc+i);
+    }
+    abcverify = 0;
+    OK(hashmap_foreach(hash, abcverify_cb, &abcverify) == 1, "foreach successful");
+    OK(abcverify == 0x3ffffff, "abcverify 0x%x", abcverify);
+    abcverify = -1;
+    OK(hashmap_foreach_sorted(hash, abcverify_order_cb, &abcverify) == 1, "foreach successful");
+    OK(abcverify == lettercount-1, "elem count %d %d", abcverify, lettercount);
+    abcverify = 0;
+    HASHMAP_ITERATE(hash, it) {
+        // same as @abcverify_cb
+        OK(hash_iterator_key(&it) == hash_iterator_value(&it), "key==value");
+        int v = *hash_iterator_key(&it) - 'a';
+        abcverify |= 1<<v;
+    }
+    OK(abcverify == 0x3ffffff, "abcverify 0x%x", abcverify);
+    struct HashMapIterator shmit = hash_iterator(hash);
+    for (unsigned i=0; i<2000; i++) {
+        hash_iterator_next(&shmit);
+    }
+    OK(hash_iterator_valid(&shmit) == 0, "shouldn't be valid");
+    OK(hash_iterator_key(&shmit) == NULL, "key of invalid");
+    OK(hash_iterator_value(&shmit) == NULL, "value of invalid");
+    OK(delete_hashmap(hash) == NULL, "delete");
+
+    // no buckets
     OK(new_hashmap(0, NULL, NULL) == NULL, "no buckets");
 }
 
@@ -289,7 +339,6 @@ static void test_rehash(void)
     OK(hashmap_count(hash) == m*n, "count %u", hashmap_count(hash));
     OK(delete_hashmap(hash) == NULL, "delete");
 }
-
 
 TEST_CASES = {
     {"insert", test_insert},

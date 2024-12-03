@@ -42,13 +42,29 @@ int main(int argc, char **argv)
         }
         fclose(jsf);
 
-        struct JsonValue *js = json_parse(jsb, len);
+        char *error = NULL;
+        struct JsonValue *js = json_parse(jsb, len, &error);
         free(jsb);
         if (js == NULL) {
-            printf("\033[31mJSON is invalid\033[0m\n");
+            printf("\033[31mJSON is invalid\033[0m '%s'\n", error);
+            free(error);
         } else {
             printf("\033[32mJSON is valid\033[0m\n");
         }
+
+        // for fuzz testing
+        if (js) {
+            unsigned len_fuzz;
+            char *string_fuzz = json_serialize(js, &len_fuzz);
+            struct JsonValue *js_fuzz = json_parse(string_fuzz, len_fuzz, &error);
+            free(string_fuzz);
+            string_fuzz = json_serialize_pretty(js_fuzz, &len_fuzz, 5);
+            json_delete(js_fuzz);
+            js_fuzz = json_parse(string_fuzz, len_fuzz, &error);
+            json_delete(js_fuzz);
+            free(string_fuzz);
+        }
+
         json_delete(js);
     }
 
