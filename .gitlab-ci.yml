@@ -155,73 +155,75 @@ pytest_srv6:
     - rosetta-docker
   dependencies:
     - build-unit_test
+  script:
+    - TEST_COLOR=1 valgrind --error-exitcode=42 --leak-check=full unit_test/build/$TESTNAME
 
 unit_test.conf_utils:
   extends: .unit_test.common
-  script:
-    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_conf_utils
+  variables:
+    TESTNAME: test_conf_utils
 
 unit_test.header_api:
   extends: .unit_test.common
-  script:
-    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_header_api
+  variables:
+    TESTNAME: test_header_api
 
 unit_test.header_compare:
   extends: .unit_test.common
-  script:
-    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_header_compare
+  variables:
+    TESTNAME: test_header_compare
 
 unit_test.header_read:
   extends: .unit_test.common
-  script:
-    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_header_read
+  variables:
+    TESTNAME: test_header_read
 
 unit_test.header_write:
   extends: .unit_test.common
-  script:
-    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_header_write
+  variables:
+    TESTNAME: test_header_write
 
 unit_test.if_utils:
   extends: .unit_test.common
-  script:
-    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_if_utils
+  variables:
+    TESTNAME: test_if_utils
 
 unit_test.inet_utils:
   extends: .unit_test.common
-  script:
-    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_inet_utils
+  variables:
+    TESTNAME: test_inet_utils
 
 unit_test.packet:
   extends: .unit_test.common
-  script:
-    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_packet
+  variables:
+    TESTNAME: test_packet
 
 unit_test.seq_rcvy_match:
   extends: .unit_test.common
-  script:
-    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_seq_rcvy_match
+  variables:
+    TESTNAME: test_seq_rcvy_match
 
 unit_test.seq_rcvy_oam:
   extends: .unit_test.common
-  script:
-    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_seq_rcvy_oam
+  variables:
+    TESTNAME: test_seq_rcvy_oam
 
 unit_test.seq_rcvy_vector:
   extends: .unit_test.common
-  script:
-    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_seq_rcvy_vector
+  variables:
+    TESTNAME: test_seq_rcvy_vector
 
 unit_test.thread:
   extends: .unit_test.common
-  script:
-    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_thread
+  variables:
+    TESTNAME: test_thread
 
 unit_test.time:
   extends: .unit_test.common
-  script:
-    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_time
+  variables:
+    TESTNAME: test_time
 
 unit_test.utils:
   extends: .unit_test.common
-  script:
-    - valgrind --error-exitcode=42 --leak-check=full unit_test/build/test_utils
+  variables:
+    TESTNAME: test_utils

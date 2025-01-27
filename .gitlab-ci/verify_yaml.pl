@@ -29,11 +29,13 @@ sub verify_unit_tests {
     for my $ut (@ci_unit_test_jobs) {
         my ($ut_name) = $ut =~ /^unit_test\.(\w+)/;
         die "Unit test job name '$ut' is invalid\n" unless defined $ut_name;
-        my $script = $ci->{$ut}{script}[0];
-        die "Unit test job '$ut' has no script\n" unless defined $script;
-        my ($script_name) = $script =~ /unit_test\/build\/test_(\w+)/;
-        die "Unit test script of job '$ut' is invalid\n" unless defined $script_name;
-        die "Unit test job '$ut' script doesn't match the test\n" unless $ut_name eq $script_name;
+
+        my $variables = $ci->{$ut}{variables};
+        die "Unit test job '$ut' has no variables\n" unless defined $variables;
+        my $TESTNAME = $variables->{TESTNAME};
+        die "Unit test job '$ut' has no TESTNAME variable\n" unless defined $TESTNAME;
+
+        die "Unit test job '$ut' mismatch: '$ut_name' vs '$TESTNAME'\n" unless "test_$ut_name" eq $TESTNAME;
     }
 
     # check for duplicate jobs
