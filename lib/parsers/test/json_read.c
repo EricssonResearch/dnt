@@ -34,7 +34,7 @@ static void test_read_good(void)
 {
 // we do the memdup to get rid of the null-termination (test over-reading in valgrind)
 #define TEST_TYPE(type_, s_)                                        \
-    for (unsigned i=0; (s_)[i]; i++) {                              \
+    for (unsigned i=0; i<sizeof(s_)/sizeof((s_)[0]); i++) {         \
         unsigned _len = strlen((s_)[i]);                            \
         char *_js = (char*)u_memdup((s_)[i], _len);                 \
         char *error = NULL;                                         \
@@ -48,79 +48,79 @@ static void test_read_good(void)
         OK(json_delete(j) == NULL, "delete must return NULL");      \
     }
 
-    const char *test_null[] = {"null", "   null  \n  ", NULL};
+    const char *test_null[] = {"null", "   null  \n  "};
     TEST_TYPE(JSON_NULL, test_null)
     END_TEST_TYPE
 
-    const char *test_true[] = {"true", " \t  true  \r ", NULL};
+    const char *test_true[] = {"true", " \t  true  \r "};
     TEST_TYPE(JSON_TRUE, test_true)
     END_TEST_TYPE
 
-    const char *test_false[] = {"false", "    false       \n        ", NULL};
+    const char *test_false[] = {"false", "    false       \n        "};
     TEST_TYPE(JSON_FALSE, test_false)
     END_TEST_TYPE
 
     const char *test_string[] = {"\"some string to test\"",
-        "   \n\n\t\n        \"some string to test\"   \r   ", NULL};
+        "   \n\n\t\n        \"some string to test\"   \r   "};
     TEST_TYPE(JSON_STRING, test_string)
         OK(strcmp(j->v.string, "some string to test") == 0, "string '%s' differs", j->v.string);
     END_TEST_TYPE
 
     const char *test_unicode_string[] = {"\"árvíztűrő tükörfúrógép そして日本語\"",
-        "    \n\"árvíztűrő tükörfúrógép そして日本語\" \t  ", NULL};
+        "    \n\"árvíztűrő tükörfúrógép そして日本語\" \t  "};
     TEST_TYPE(JSON_STRING, test_unicode_string)
         OK(strcmp(j->v.string, "árvíztűrő tükörfúrógép そして日本語") == 0, "string '%s' differs", j->v.string);
     END_TEST_TYPE
 
     const char *test_escaped_string[] = {"\"\\\"\\\\\\t\\b\\n\\r\\f\\/\"",
-        "   \r  \"\\\"\\\\\\t\\b\\n\\r\\f\\/\"   ", NULL};
+        "   \r  \"\\\"\\\\\\t\\b\\n\\r\\f\\/\"   "};
     TEST_TYPE(JSON_STRING, test_escaped_string)
         OK(strcmp(j->v.string, "\"\\\t\b\n\r\f/") == 0, "string '%s' differs", j->v.string);
     END_TEST_TYPE
 
     const char *test_escaped_u16[] = {"\"\\u00e1rv\\u00edzt\\u0171r\\u0151 t\\u00fck\\u00f6rf\\u00far\\u00f3g\\u00e9p \\ud83d\\udde8 \\u305d\\u3057\\u3066\\u65e5\\u672c\\u8a9e \\ud83d\\udd92\"",
-        "\"\\u00E1rv\\u00EDzt\\u0171r\\u0151 t\\u00FCk\\u00F6rf\\u00FAr\\u00F3g\\u00E9p \\uD83D\\uDDE8 \\u305D\\u3057\\u3066\\u65E5\\u672C\\u8A9E \\uD83D\\uDD92\"", NULL};
+        "\"\\u00E1rv\\u00EDzt\\u0171r\\u0151 t\\u00FCk\\u00F6rf\\u00FAr\\u00F3g\\u00E9p \\uD83D\\uDDE8 \\u305D\\u3057\\u3066\\u65E5\\u672C\\u8A9E \\uD83D\\uDD92\""};
     TEST_TYPE(JSON_STRING, test_escaped_u16)
         OK(strcmp(j->v.string, "árvíztűrő tükörfúrógép 🗨 そして日本語 🖒") == 0, "string '%s' differs", j->v.string);
     END_TEST_TYPE
 
-    const char *test_num1[] = {"425", "     425    ", NULL};
+    const char *test_num1[] = {"425", "     425    "};
     TEST_TYPE(JSON_NUMBER, test_num1)
         OK(j->v.number == 425, "number %.9f", j->v.number);
     END_TEST_TYPE
 
-    const char *test_num2[] = {"-31", " \n\n    -31 \t\r   ", NULL};
+    const char *test_num2[] = {"-31", " \n\n    -31 \t\r   "};
     TEST_TYPE(JSON_NUMBER, test_num2)
         OK(j->v.number == -31, "number %.9f", j->v.number);
     END_TEST_TYPE
 
-    const char *test_num3[] = {"211.2", " \n\n    211.2 \t\r   ", NULL};
+    const char *test_num3[] = {"211.2", " \n\n    211.2 \t\r   "};
     TEST_TYPE(JSON_NUMBER, test_num3)
         OK(j->v.number == 211.2, "number %.9f", j->v.number);
     END_TEST_TYPE
 
-    const char *test_num4[] = {"-.5", " \n\n    -.5 \t\r   ", NULL};
+    const char *test_num4[] = {"-0.5", " \n\n    -0.5 \t\r   "};
     TEST_TYPE(JSON_NUMBER, test_num4)
         OK(j->v.number == -0.5, "number %.9f", j->v.number);
     END_TEST_TYPE
 
-    const char *test_num_exp[] = {"-.5E3", " \n\n    -.5e3 \t\r   ", "-5000E-1  ", NULL};
+    const char *test_num_exp[] = {"-0.5E3", " \n\n    -0.5e3 \t\r   ", "-5000E-1  "};
     TEST_TYPE(JSON_NUMBER, test_num_exp)
-        OK(j->v.number == -500, "number %.9f", j->v.number);
+        OK(j->v.number == -500.0, "number %.9f", j->v.number);
     END_TEST_TYPE
 
-    const char *test_emptyarray[] = {"[]", "   [     ]     ", NULL};
+    const char *test_emptyarray[] = {"[]", "   [     ]     "};
     TEST_TYPE(JSON_ARRAY, test_emptyarray)
         OK(json_array_empty(j), "empty array");
     END_TEST_TYPE
 
-    const char *test_arraybool[] = {"[false]", "  [   false   ]   ", NULL};
+    const char *test_arraybool[] = {"[false]", "  [   false   ]   "};
     TEST_TYPE(JSON_ARRAY, test_arraybool)
         OK(json_array_size(j) == 1, "array has one value");
         OK(json_array_at(j, 0)->type == JSON_FALSE, "array elem type");
     END_TEST_TYPE
 
-    const char *test_arraystring[] = {"[\"false\"]", "   [ \n  \"false\"     ]  ", NULL};
+    const char *test_arraystring[] = {"[\"false\"]", "   [ \n  \"false\"     ]  "};
     TEST_TYPE(JSON_ARRAY, test_arraystring)
         OK(json_array_size(j) == 1, "array has one value");
         OK(json_array_at(j, 0)->type == JSON_STRING, "array elem type");
@@ -129,7 +129,7 @@ static void test_read_good(void)
 
     const char *test_arraymulti[] = {
         "[\"null\",-38,true]",
-        "  [  \"null\"  ,  -38  ,  true  ]  ", NULL};
+        "  [  \"null\"  ,  -38  ,  true  ]  "};
     TEST_TYPE(JSON_ARRAY, test_arraymulti)
         OK_FATAL(json_array_size(j) == 3, "size %u", json_array_size(j));
         OK(json_array_at(j, 0)->type == JSON_STRING, "first elem type");
@@ -139,7 +139,7 @@ static void test_read_good(void)
         OK(json_array_at(j, 2)->type == JSON_TRUE,   "third elem type");
     END_TEST_TYPE
 
-    const char *test_emptyobject[] = {"{}", "       {         }       ", NULL};
+    const char *test_emptyobject[] = {"{}", "       {         }       "};
     TEST_TYPE(JSON_OBJECT, test_emptyobject)
         OK_FATAL(j->v.object != NULL, "object always has hashmap");
         OK(hashmap_count(j->v.object) == 0, "empty object");
@@ -147,7 +147,7 @@ static void test_read_good(void)
 
     const char *test_object_one[] = {
         "{\"key\":\"value\"}",
-        "   {  \"key\"   : \"value\"   }   ", NULL};
+        "   {  \"key\"   : \"value\"   }   "};
     TEST_TYPE(JSON_OBJECT, test_object_one)
         OK_FATAL(j->v.object != NULL, "object always has hashmap");
         OK(hashmap_count(j->v.object) == 1, "one item");
@@ -158,7 +158,7 @@ static void test_read_good(void)
 
     const char *test_object_three[] = {
         "{\"key\":\"value\",\"double\":-9.1,\"true\":true}",
-        "  {   \"key\"   :   \"value\"   ,   \"double\" \n :  -9.1  ,  \"true\"  :  true  }  ", NULL};
+        "  {   \"key\"   :   \"value\"   ,   \"double\" \n :  -9.1  ,  \"true\"  :  true  }  "};
     TEST_TYPE(JSON_OBJECT, test_object_three)
         OK_FATAL(j->v.object != NULL, "object always has hashmap");
         OK(hashmap_count(j->v.object) == 3, "three items");
@@ -172,7 +172,7 @@ static void test_read_good(void)
         OK_FATAL(val != NULL, "have value");
     END_TEST_TYPE
 
-    const char *test_object_escape[] = {"{\"\\\"\\\\\\t\\u00e1rv\\u00edzt\\u0171r\\u0151 \\ud83d\\udde8\" : \"\\u65E5\\u672C\\u8A9E\"}", NULL};
+    const char *test_object_escape[] = {"{\"\\\"\\\\\\t\\u00e1rv\\u00edzt\\u0171r\\u0151 \\ud83d\\udde8\" : \"\\u65E5\\u672C\\u8A9E\"}"};
     TEST_TYPE(JSON_OBJECT, test_object_escape)
         OK_FATAL(j->v.object != NULL, "object always has hashmap");
         OK(hashmap_count(j->v.object) == 1, "one item");
@@ -181,14 +181,14 @@ static void test_read_good(void)
         OK(strcmp(val->v.string, "日本語") == 0, "correct value '%s'", val->v.string);
     END_TEST_TYPE
 
-    const char *test_aina1[] = {"[[]]", "  [  [  ]  ]  ", NULL};
+    const char *test_aina1[] = {"[[]]", "  [  [  ]  ]  "};
     TEST_TYPE(JSON_ARRAY, test_aina1)
         OK_FATAL(json_array_size(j) == 1, "size %u", json_array_size(j));
         OK_FATAL(json_array_at(j, 0)->type == JSON_ARRAY, "inner type");
         OK_FATAL(json_array_size(json_array_at(j, 0)) == 0, "inner size %u", json_array_size(j));
     END_TEST_TYPE
 
-    const char *test_aina2[] = {"[[4],-1]", "  [  [ 4  ] , -1  ]  ", NULL};
+    const char *test_aina2[] = {"[[4],-1]", "  [  [ 4  ] , -1  ]  "};
     TEST_TYPE(JSON_ARRAY, test_aina2)
         OK_FATAL(json_array_size(j) == 2, "size %u", json_array_size(j));
         OK_FATAL(json_array_at(j, 0)->type == JSON_ARRAY, "inner type");
@@ -200,14 +200,14 @@ static void test_read_good(void)
         OK(json_array_at(j, 1)->v.number == -1, "number value %.9f", json_array_at(j, 1)->v.number);
     END_TEST_TYPE
 
-    const char *test_oina1[] = {"[{}]", "  [  {  }  ]  ", NULL};
+    const char *test_oina1[] = {"[{}]", "  [  {  }  ]  "};
     TEST_TYPE(JSON_ARRAY, test_oina1)
         OK_FATAL(json_array_size(j) == 1, "size %u", json_array_size(j));
         OK_FATAL(json_array_at(j, 0)->type == JSON_OBJECT, "inner type");
         OK(json_object_empty(json_array_at(j, 0)), "object is empty");
     END_TEST_TYPE
 
-    const char *test_oina2[] = {"[{\"k\":null},true]", "  [  { \"k\" : null  } , true  ]  ", NULL};
+    const char *test_oina2[] = {"[{\"k\":null},true]", "  [  { \"k\" : null  } , true  ]  "};
     TEST_TYPE(JSON_ARRAY, test_oina2)
         OK_FATAL(json_array_size(j) == 2, "size %u", json_array_size(j));
         OK_FATAL(json_array_at(j, 0)->type == JSON_OBJECT, "elem type");
@@ -218,7 +218,7 @@ static void test_read_good(void)
         OK_FATAL(json_array_at(j, 1)->type == JSON_TRUE, "elem type");
     END_TEST_TYPE
 
-    const char *test_aino1[] = {"{\"k\":[6]}", " { \"k\" : [ 6 ] } ", NULL};
+    const char *test_aino1[] = {"{\"k\":[6]}", " { \"k\" : [ 6 ] } "};
     TEST_TYPE(JSON_OBJECT, test_aino1)
         OK(json_object_count(j) == 1, "one item");
         struct JsonValue *val = json_object_get_array(j, "k");
@@ -228,7 +228,7 @@ static void test_read_good(void)
         OK(json_array_at(val, 0)->v.number == 6, "correct value %.9f", json_array_at(val, 0)->v.number);
     END_TEST_TYPE
 
-    const char *test_oino1[] = {"{\"k\":{\"m\":{}}}", " { \"k\" : { \"m\" : { } } } ", NULL};
+    const char *test_oino1[] = {"{\"k\":{\"m\":{}}}", " { \"k\" : { \"m\" : { } } } "};
     TEST_TYPE(JSON_OBJECT, test_oino1)
         OK(hashmap_count(j->v.object) == 1, "one item");
         struct JsonValue *val = json_object_get_object(j, "k");
@@ -261,8 +261,10 @@ static void test_read_bad(void)
     const char *strings[] = {
         "", "   \t \n  ", ",", "{", "}", "[", "]", ".",
         "null,", "null4", "[],", "{},",
-        "0x1337", "5e", "5ee", "5e-",
-        "3+4", "-", "-.",
+        "0x1337", "5e", "5ee", "5ergs", "5e-", "e3",
+        "3+4", "-", "-.", "+", "+.", "-.e", "+.e",
+        "--3", "++3", ".3", "-.3", "3.", "-3.", "3.e3", "-3.e3",
+        "0123", "-0123", "3e400", "0x123", "0xabc",
         "\"unterminated string",
         "\"unterminated string\\\"",
         "\"unterminated \\\" string",
@@ -303,13 +305,12 @@ static void test_read_bad(void)
         "{\"key\" : {}",
         "{\"key\" : {",
         "{32 : 4}", "{true : false}", "{false : true}",
-        NULL
     };
 
-    for (unsigned i=0; strings[i]; i++) {
+    for (unsigned i=0; i<sizeof(strings)/sizeof(strings[0]); i++) {
         unsigned len = strlen(strings[i]);
         char *js = (char*)u_memdup(strings[i], len);
-        char *error = NULL;
+        char *error;
         struct JsonValue *j = json_parse(js, len, &error);
         free(js);
         OK(j == NULL, "string %u '%s' should be invalid", i, strings[i]);

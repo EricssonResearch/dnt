@@ -42,3 +42,4 @@ Reads data in [JSON format](https://www.json.org/json-en.html) from non-null-ter
 
 The parser is recursive with limited recursion depth. It supports all JSON features according to the ECMA 404 standard.
 
+Note that printing and scanning numbers depend on the current locale settings in the application (see the `LC_NUMERIC` category). By default the locale is "C", which is good, so this is only relevant if your application explicitly sets a non-default locale, or you are using a framework that automatically adopts the system locale from the environment (e.g. GTK+). If unsure, use the `json_check_locale` function to see if the current locale is suitable.

@@ -27,6 +27,7 @@
 
 #include <string.h>
 #include <stdlib.h>
+#include <math.h>
 
 TEST_INIT("Json Write");
 
@@ -39,7 +40,7 @@ static void test_write(void)
     json_delete(val);                                                       \
     OK_FATAL(got != NULL, "got serialized value");                          \
     OK(glen == slen, "length %u != %u", glen, slen);                        \
-    OK(strcmp(expected, got) == 0, "mismatched result '%s'", got);          \
+    OK(strcmp(expected, got) == 0, "expected '%s' got '%s'", expected, got);\
     free(got)
 
     do {
@@ -73,14 +74,14 @@ static void test_write(void)
     } while (0);
 
     do {
-        const char *expected = "3.210000";
+        const char *expected = "3.21";
         struct JsonValue *val = json_number(3.21);
         CHECK;
     } while (0);
 
     do {
-        const char *expected = "-9.900000";
-        struct JsonValue *val = json_number(-9.9);
+        const char *expected = "-9.75";
+        struct JsonValue *val = json_number(-9.75);
         CHECK;
     } while (0);
 
@@ -91,6 +92,7 @@ static void test_write(void)
     } while (0);
 
     do {
+        // sample text from Wikipedia
         const char *expected = "\"JSON (JavaScript Object Notation) is a lightweight data-interchange format. It is easy for humans to read and write. It is easy for machines to parse and generate. It is based on a subset of the JavaScript Programming Language Standard ECMA-262 3rd Edition - December 1999. JSON is a text format that is completely language independent but uses conventions that are familiar to programmers of the C-family of languages, including C, C++, C#, Java, JavaScript, Perl, Python, and many others. These properties make JSON an ideal data-interchange language.\"";
         struct JsonValue *val = json_string("JSON (JavaScript Object Notation) is a lightweight data-interchange format. It is easy for humans to read and write. It is easy for machines to parse and generate. It is based on a subset of the JavaScript Programming Language Standard ECMA-262 3rd Edition - December 1999. JSON is a text format that is completely language independent but uses conventions that are familiar to programmers of the C-family of languages, including C, C++, C#, Java, JavaScript, Perl, Python, and many others. These properties make JSON an ideal data-interchange language.");
         CHECK;
@@ -239,6 +241,32 @@ static void test_write(void)
         CHECK;
     } while (0);
 #undef CHECK
+
+    char *result;
+    unsigned rlen;
+
+    struct JsonValue *inf = json_number(INFINITY);
+    result = json_serialize(inf, &rlen);
+    OK(result == NULL, "infinity should be invalid");
+    json_delete(inf);
+
+    struct JsonValue *nan = json_number(NAN);
+    result = json_serialize(nan, &rlen);
+    OK(result == NULL, "not-a-number should be invalid");
+    json_delete(nan);
+
+    struct JsonValue *array = json_array();
+    json_array_push(array, json_number(4.0));
+    json_array_push(array, json_number(INFINITY));
+    result = json_serialize(array, &rlen);
+    OK(result == NULL, "infinity should be invalid");
+    json_delete(array);
+
+    struct JsonValue *object = json_object();
+    json_object_insert(object, "inf", json_number(INFINITY));
+    result = json_serialize(object, &rlen);
+    OK(result == NULL, "infinity should be invalid");
+    json_delete(object);
 }
 
 // same as test_write() but with json_serialize_pretty()
@@ -285,14 +313,14 @@ static void test_write_pretty(void)
     } while (0);
 
     do {
-        const char *expected = "3.210000";
+        const char *expected = "3.21";
         struct JsonValue *val = json_number(3.21);
         CHECK;
     } while (0);
 
     do {
-        const char *expected = "-9.900000";
-        struct JsonValue *val = json_number(-9.9);
+        const char *expected = "-9.75";
+        struct JsonValue *val = json_number(-9.75);
         CHECK;
     } while (0);
 
@@ -456,6 +484,32 @@ static void test_write_pretty(void)
         CHECK;
     } while (0);
 #undef CHECK
+
+    char *result;
+    unsigned rlen;
+
+    struct JsonValue *inf = json_number(INFINITY);
+    result = json_serialize_pretty(inf, &rlen, 4);
+    OK(result == NULL, "infinity should be invalid");
+    json_delete(inf);
+
+    struct JsonValue *nan = json_number(NAN);
+    result = json_serialize_pretty(nan, &rlen, 4);
+    OK(result == NULL, "not-a-number should be invalid");
+    json_delete(nan);
+
+    struct JsonValue *array = json_array();
+    json_array_push(array, json_number(4.0));
+    json_array_push(array, json_number(INFINITY));
+    result = json_serialize_pretty(array, &rlen, 4);
+    OK(result == NULL, "infinity should be invalid");
+    json_delete(array);
+
+    struct JsonValue *object = json_object();
+    json_object_insert(object, "inf", json_number(INFINITY));
+    result = json_serialize_pretty(object, &rlen, 4);
+    OK(result == NULL, "infinity should be invalid");
+    json_delete(object);
 }
 
 // have items of various types, shift them with a growing string to see
@@ -465,7 +519,7 @@ static void test_realloc(void)
 {
     const char *expected_start = "{\"a\":\"";
     const char *expected_end = "\",\"array\":[true,\"testing\",false,42,null],"
-        "\"number\":-41.500000,\"object\":{\"key\":\"value\"}}";
+        "\"number\":-41.5,\"object\":{\"key\":\"value\"}}";
 
     struct JsonValue *js = json_object();
     json_object_insert(js, "number", json_number(-41.5));
@@ -508,7 +562,7 @@ static void test_realloc_pretty(void)
 {
     const char *expected_start = "{\n \"a\" : \"";
     const char *expected_end = "\",\n \"array\" :\n  [\n   true,\n   \"testing\",\n   false,\n   42,\n"
-        "   null\n  ],\n \"number\" : -41.500000,\n \"object\" :\n  {\n   \"key\" : \"value\"\n  }\n}";
+        "   null\n  ],\n \"number\" : -41.5,\n \"object\" :\n  {\n   \"key\" : \"value\"\n  }\n}";
 
     struct JsonValue *js = json_object();
     json_object_insert(js, "number", json_number(-41.5));

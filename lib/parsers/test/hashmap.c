@@ -238,12 +238,12 @@ static void test_change(void)
 
     // overwrite value in the hash without inserting with the same key
     float *f = (float*)malloc(sizeof(float));
-    *f = 3.14;
+    *f = 3.14f;
     OK(hashmap_insert(hash, u_strdup("float"), f) == 1, "new item");
     float *hf = (float*)hashmap_find(hash, "float");
     OK(hf, "found float");
-    *hf = 0.5; // float can represent this value exactly
-    OK(*f == 0.5, "value overwrite %f", *f);
+    *hf = 0.5f; // float can represent this value exactly
+    OK(*f == 0.5f, "value overwrite %f", (double)*f);
 
     OK(hashmap_remove(hash, NULL) == 0, "no key");
     OK(hashmap_remove(NULL, "null") == 0, "no hash");

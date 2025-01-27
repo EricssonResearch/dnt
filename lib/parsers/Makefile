@@ -1,7 +1,7 @@
 # example makefile for compiling the library
 
 CFLAGS += -g -std=c99
-CFLAGS += -Wall -Wextra -Wshadow -Wstrict-prototypes -Wmissing-declarations -Wwrite-strings -Wvla -Wc++-compat
+CFLAGS += -Wall -Wextra -Wshadow -Wstrict-prototypes -Wmissing-declarations -Wwrite-strings -Wvla -Wc++-compat -Wdouble-promotion -Wfloat-conversion
 CFLAGS += -Werror
 CFLAGS += -O2
 

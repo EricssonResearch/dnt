@@ -28,6 +28,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <math.h>
+#include <locale.h>
 
 #define BUFFER_INCREMENT 128
 
@@ -242,25 +243,89 @@ static char *get_string(const char *text, unsigned length, unsigned *i, char **e
 #undef THROW
 }
 
-static int is_numberchar(char c)
-{
-    if (isdigit(c)) return 1;
-    if (c == '-' || c == '+' || c == 'e' || c == 'E' || c == '.') return 1;
-    return 0;
-}
-
 // @text is the start of the string, @length is the total length, @i is the current read position
+// returns a newly allocated string, or NULL if the format is invalid
+// we need this validation because JSON number format is stricter than strtod()
 static char *get_number_str(const char *text, unsigned length, unsigned *i)
 {
     int nlen = 0;
-    while (*i + nlen < length) {
-        if (is_numberchar(text[*i + nlen])) {
-            nlen++;
-        } else {
-            break;
-        }
+    int had_digit = 0;
+    int first_digit_0 = 0;
+
+#define HAVE_INPUT (*i + nlen < length)
+
+    while (HAVE_INPUT && isspace(text[*i + nlen]))
+        nlen++;
+
+    if (!HAVE_INPUT)
+        return NULL;
+
+    // must start with '-' or digit
+    if (text[*i + nlen] == '-') {
+    } else if (isdigit(text[*i + nlen])) {
+        had_digit = 1;
+        first_digit_0 = text[*i + nlen] == '0';
+    } else {
+        return NULL;
     }
+    nlen++;
+
+    // integral part
+    while (HAVE_INPUT && isdigit(text[*i + nlen])) {
+        if (!had_digit) {
+            first_digit_0 = text[*i + nlen] == '0';
+        }
+        had_digit++;
+        nlen++;
+    }
+
+    if (!had_digit)
+        return NULL;
+
+    if (had_digit > 1 && first_digit_0)
+        return NULL;
+
+    // optional fractional part
+    if (HAVE_INPUT && text[*i + nlen] == '.') {
+        nlen++;
+        had_digit = 0;
+        while (HAVE_INPUT && isdigit(text[*i + nlen])) {
+            had_digit++;
+            nlen++;
+        }
+
+        // there must be at least 1 fractional digit
+        if (had_digit == 0)
+            return NULL;
+    }
+
+    // optional exponent
+    if (HAVE_INPUT && (text[*i + nlen] == 'e' || text[*i + nlen] == 'E')) {
+        nlen++;
+        int had_exponent_digit = 0;
+
+        if (!HAVE_INPUT)
+            return NULL;
+
+        if (text[*i + nlen] == '-' || text[*i + nlen] == '+') {
+        } else if (isdigit(text[*i + nlen])) {
+            had_exponent_digit = 1;
+        } else {
+            return NULL;
+        }
+        nlen++;
+
+        while (HAVE_INPUT && isdigit(text[*i + nlen])) {
+            had_exponent_digit++;
+            nlen++;
+        }
+
+        if (had_exponent_digit == 0)
+            return NULL;
+    }
+
     return u_strndup(text + *i, nlen);
+#undef HAVE_INPUT
 }
 
 // @text is the start of the string, @length is the total length, @i is the current read position, @depth is recursion depth
@@ -385,6 +450,11 @@ static struct JsonValue *parse_value(const char *text, unsigned length, unsigned
     } else {
         int chars = 0;
         char *num_str = get_number_str(text, length, i);
+
+        if (num_str == NULL) {
+            THROW("invalid number");
+        }
+
         char *num_end;
         double num = strtod(num_str, &num_end);
 
@@ -491,6 +561,20 @@ struct objparams {
     unsigned increment;
 };
 
+static char *serialize_number(double number, char *buf, unsigned *buflen, unsigned *slen)
+{
+    if (isinf(number) || isnan(number)) {
+        free(buf);
+        return NULL;
+    }
+
+    unsigned chars = snprintf(NULL, 0, "%.17g", number);
+    CHECK_BUF(chars+1);
+    sprintf(buf+*slen, "%.17g", number);
+    *slen += chars;
+    return buf;
+}
+
 static char *serialize_string(const char *string, char *buf, unsigned *buflen, unsigned *slen)
 {
     CHECK_BUF(2);
@@ -575,6 +659,9 @@ static int obj_print_cb(const char *key, void *value, void *userdata)
     *slen += 1;
 
     buf = serialize_value(val, buf, buflen, slen);
+    if (buf == NULL) {
+        return 0;
+    }
 
     CHECK_BUF_OBJ(2);
     buf[*slen+0] = ',';
@@ -604,11 +691,7 @@ static char *serialize_value(const struct JsonValue *json, char *buf, unsigned *
             *slen += 5;
             break;
         case JSON_NUMBER: {
-            const char *fmt = json->v.number == floor(json->v.number) ? "%.0f" : "%f";
-            unsigned c = snprintf(NULL, 0, fmt, json->v.number);
-            CHECK_BUF(c+1);
-            sprintf(buf+*slen, fmt, json->v.number);
-            *slen += c;
+            buf = serialize_number(json->v.number, buf, buflen, slen);
             break; }
         case JSON_STRING:
             buf = serialize_string(json->v.string, buf, buflen, slen);
@@ -642,6 +725,9 @@ static char *serialize_value(const struct JsonValue *json, char *buf, unsigned *
 
             for (unsigned i=0; i<json->v.array->num; i++) {
                 buf = serialize_value(json->v.array->vals[i], buf, buflen, slen);
+                if (buf == NULL) {
+                    return NULL;
+                }
 
                 if (i < json->v.array->num - 1) {
                     CHECK_BUF(2);
@@ -703,6 +789,9 @@ static int obj_print_pretty_cb(const char *key, void *value, void *userdata)
     *slen += 3;
 
     buf = serialize_value_pretty(val, buf, buflen, slen, val_indent, op->increment);
+    if (buf == NULL) {
+        return 0;
+    }
 
     CHECK_BUF_OBJ(3);
     buf[*slen+0] = ',';
@@ -722,7 +811,8 @@ static char *serialize_value_pretty(const struct JsonValue *json, char *buf, uns
 #define PRINT_INDENT                            \
     do {                                        \
         CHECK_BUF(indent+1);                    \
-        sprintf(buf+*slen, "%*s", indent, "");  \
+        for (unsigned i_=0; i_<indent; i_++)    \
+            buf[*slen+i_] = ' ';                \
         *slen += indent;                        \
     } while (0)
 
@@ -747,11 +837,7 @@ static char *serialize_value_pretty(const struct JsonValue *json, char *buf, uns
             break;
         case JSON_NUMBER: {
             PRINT_INDENT;
-            const char *fmt = json->v.number == floor(json->v.number) ? "%.0f" : "%f";
-            unsigned c = snprintf(NULL, 0, fmt, json->v.number);
-            CHECK_BUF(c+1);
-            sprintf(buf+*slen, fmt, json->v.number);
-            *slen += c;
+            buf = serialize_number(json->v.number, buf, buflen, slen);
             break; }
         case JSON_STRING: {
             PRINT_INDENT;
@@ -803,6 +889,9 @@ static char *serialize_value_pretty(const struct JsonValue *json, char *buf, uns
 
             for (unsigned i=0; i<json->v.array->num; i++) {
                 buf = serialize_value_pretty(json->v.array->vals[i], buf, buflen, slen, indent+increment, increment);
+                if (buf == NULL) {
+                    return NULL;
+                }
 
                 if (i < json->v.array->num - 1) {
                     CHECK_BUF(3);
@@ -838,6 +927,14 @@ char *json_serialize_pretty(const struct JsonValue *json, unsigned *length, unsi
     if (buf)
         *length = len;
     return buf;
+}
+
+int json_check_locale(void)
+{
+    struct lconv *lc = localeconv();
+    if (strcmp(lc->decimal_point, ".") != 0) return 0;
+    if (strcmp(lc->thousands_sep, "") != 0) return 0;
+    return 1;
 }
 
 struct JsonValue *json_null(void)

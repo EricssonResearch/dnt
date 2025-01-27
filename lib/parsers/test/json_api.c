@@ -65,6 +65,9 @@ static void test_simple(void)
     OK(strcmp(js->v.string, "jawa script") == 0, "value '%s'", js->v.string);
     js = json_delete(js);
     OK_FATAL(js == NULL, "delete returns null");
+
+    //TODO test json_check_locale() somehow
+    //  problem: we can only switch to locales that are actually installed on the system
 }
 
 static void test_array(void)

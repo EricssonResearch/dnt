@@ -55,7 +55,7 @@ struct JsonArray;
 struct JsonValue {
     enum JsonType type;
     union {
-        double number;
+        double number; // cannot be Inf or NaN
         char *string; // null-terminated
         struct HashMap *object; // opaque, use the json_object_* methods
         struct JsonArray *array; // opaque, use the json_array_* methods
@@ -75,7 +75,8 @@ struct JsonValue *json_delete(struct JsonValue *json);
 
 // @returns a JSON string representation of @js
 // @returns the length of the returned string as @length
-// only @returns NULL on memory allocation failure
+// @returns NULL on memory allocation failure
+// @returns NULL on invalid number value (infinity or NaN)
 // the result is compact without any whitespace around the items
 // the keys in objects are sorted alphabetically for reproducible results
 // allocates the output buffer, the callee has to free it
@@ -84,12 +85,18 @@ char *json_serialize(const struct JsonValue *json, unsigned *length);
 
 // @returns a JSON string representation of @js
 // @returns the length of the returned string as @length
+// @returns NULL on memory allocation failure
+// @returns NULL on invalid number value (infinity or NaN)
 // the result is padded and indented with whitespaces
 // @indent controls the depth of the indentation
 // the keys in objects are sorted alphabetically for reproducible results
 // allocates the output buffer, the callee has to free it
 // null-terminates the returned string, @length does not include the null-termination
 char *json_serialize_pretty(const struct JsonValue *json, unsigned *length, unsigned indent);
+
+// @returns true if the current locale is suitable
+// unfortunately the printing/scanning of numbers depend on the locale
+int json_check_locale(void);
 
 // helpers for creating values
 struct JsonValue *json_null(void);
