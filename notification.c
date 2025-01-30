@@ -1,0 +1,278 @@
+// Copyright (c) 2025, Ericsson AB and Ericsson Telecommunication Hungary
+// All rights reserved.
+
+
+#include "notification.h"
+#include "log.h"
+#include "packet.h"
+#include "thread_utils.h"
+#include "utils.h"
+
+#include <stdlib.h>
+#include <string.h>
+
+#include <pthread.h>
+#include <time.h>
+
+DEFAULT_LOGGING_MODULE(NOTIFICATION, INFO);
+
+#define MAX_NOTIFICATION_LEN 1000
+
+static struct Thread *notif_thread = NULL;
+static struct MessageQueue *notif_q = NULL;
+
+struct Pipeline *notification_pipe = NULL;
+
+static struct HashMap *sources = NULL;
+static pthread_mutex_t sources_lock = PTHREAD_MUTEX_INITIALIZER;
+
+static NotificationLevel log_level = NOTIF_WARNING;
+static NotificationLevel submit_level = NOTIF_ALL;
+
+struct NotificationSource {
+    notification_pull_fn *pull;
+    unsigned period_ms;
+};
+
+struct NotificationMessage {
+    const char *source;
+    NotificationLevel level;
+    struct JsonValue *message;
+};
+
+//TODO move these to time_utils.h?
+// return t1-t2
+static int64_t time_diff_us(struct timespec t1, struct timespec t2)
+{
+    int64_t timediff;
+    timediff = (t1.tv_nsec - t2.tv_nsec) / 1000;
+    timediff += (t1.tv_sec - t2.tv_sec) * 1000000;
+    return timediff;
+}
+
+static struct timespec time_add_us(struct timespec t, unsigned increase_us)
+{
+    t.tv_sec += increase_us / 1000000;
+    t.tv_nsec += (increase_us % 1000000) * 1000;
+    t.tv_sec += t.tv_nsec / 1000000000;
+    t.tv_nsec %= 1000000000;
+    return t;
+}
+
+static void send_notification_packet(const struct JsonValue *pkt)
+{
+    unsigned pkt_len;
+    char *pkt_str = json_serialize(pkt, &pkt_len);
+
+    struct Packet *packet = new_packet(NULL);
+    packet_add_header(packet, 0, PROTO_ID_PAYLOAD, pkt_len);
+    unsigned char *payload = packet->buf + packet->headers[0].start;
+    memcpy(payload, pkt_str, pkt_len);
+    struct PipelineIterator *pi = new_pipe_iterator(notification_pipe, packet);
+    pipe_iterator_run(pi);
+}
+
+static void *notification_thread(void *arg)
+{
+    (void)arg;
+    int period_us = 0;
+    int timeout_us = -1;
+    struct timespec next_wake;
+
+    if (hashmap_count(sources) != 0) {
+        //TODO find a period that fits all sources
+        period_us = 2*1000*1000;
+    }
+
+    log_info("thread started, %s notification session",
+            notification_pipe ? "have" : "no");
+
+    if (period_us > 0) {
+        struct timespec now;
+        clock_gettime(CLOCK_REALTIME, &now);
+        next_wake = time_add_us(now, period_us);
+        timeout_us = time_diff_us(next_wake, now);
+    }
+
+    while (1) {
+        struct NotificationMessage *msg = (struct NotificationMessage *)messagequeue_pop(notif_q, timeout_us);
+        if (msg) {
+            if (strcmp(msg->source, "notification_register_source") == 0) {
+                if (hashmap_count(sources) != 0) {
+                    //TODO find a period that fits all sources
+                    period_us = 2*1000*1000;
+                } else {
+                    period_us = 0;
+                }
+            } else {
+                log_debug("push from '%s'", msg->source);
+                unsigned js_len;
+                char *js_str = json_serialize(msg->message, &js_len);
+                if (msg->level <= log_level) {
+                    if (msg->level == NOTIF_ERROR) {
+                        log_error("push from '%s' '%s'", msg->source, js_str);
+                    } else if (msg->level == NOTIF_WARNING) {
+                        log_warning("push from '%s' '%s'", msg->source, js_str);
+                    } else if (msg->level == NOTIF_INFO) {
+                        log_info("push from '%s' '%s'", msg->source, js_str);
+                    }
+                }
+                free(js_str);
+
+                if ((msg->level <= submit_level) && notification_pipe) {
+                    if (js_len + strlen(msg->source) < MAX_NOTIFICATION_LEN) {
+                        struct JsonValue *pkt = json_object();
+                        json_object_insert(pkt, msg->source, msg->message);
+                        send_notification_packet(pkt);
+                        json_delete(pkt);
+                    } else {
+                        log_error("can't send push from '%s' length %u", msg->source, js_len);
+                    }
+                }
+                free(msg);
+            }
+
+            if (period_us > 0) {
+                struct timespec now;
+                clock_gettime(CLOCK_REALTIME, &now);
+                next_wake = time_add_us(next_wake, period_us);
+                timeout_us = time_diff_us(next_wake, now);
+                if (timeout_us < 0) timeout_us = 0;
+            } else {
+                timeout_us = -1;
+            }
+        } else {
+            // timeout, let's pull from everybody
+            pthread_mutex_lock(&sources_lock);
+            unsigned total_length = 0;
+            struct JsonValue *pkt = json_object();
+            HASHMAP_ITERATE(sources, s) { //TODO hashmap_foreach_sorted?
+                struct NotificationSource *source = (struct NotificationSource *)hash_iterator_value(&s);
+                const char *src = hash_iterator_key(&s);
+                struct JsonValue *js;
+                NotificationLevel level = source->pull(&js);
+                if (js) {
+                    log_debug("pull from '%s'", hash_iterator_key(&s));
+                    unsigned js_len;
+                    char *js_str = json_serialize(js, &js_len);
+
+                    if (level <= log_level) {
+                        if (level == NOTIF_ERROR) {
+                            log_error("pull from '%s' '%s'", src, js_str);
+                        } else if (level == NOTIF_WARNING) {
+                            log_warning("pull from '%s' '%s'", src, js_str);
+                        } else if (level == NOTIF_INFO) {
+                            log_info("pull from '%s' '%s'", src, js_str);
+                        }
+
+                    }
+                    free(js_str);
+
+                    if ((level <= submit_level) && notification_pipe) {
+                        if (total_length + js_len + strlen(src) < MAX_NOTIFICATION_LEN) {
+                            json_object_insert(pkt, src, js);
+                            total_length += js_len + strlen(src);
+                        } else {
+                            // send what we have collected, start new object
+                            send_notification_packet(pkt);
+                            json_delete(pkt);
+                            pkt = json_object();
+                        }
+                    }
+                }
+            }
+            pthread_mutex_unlock(&sources_lock);
+            send_notification_packet(pkt);
+            json_delete(pkt);
+
+            struct timespec now;
+            clock_gettime(CLOCK_REALTIME, &now);
+            next_wake = time_add_us(next_wake, period_us);
+            timeout_us = time_diff_us(next_wake, now);
+            if (timeout_us < 0) timeout_us = 0;
+        }
+    }
+
+    return NULL;
+}
+
+void init_notification(struct Pipeline *pipe)
+{
+    notification_pipe = pipe;
+    if (pipe) {
+        pipeline_ref(pipe);
+        pipeline_ref_send_interfaces(pipe);
+    }
+    sources = new_hashmap(13, NULL, NULL);
+    notif_q = new_messagequeue();
+    notif_thread = thread_launch(notification_thread, NULL, "notification");
+}
+
+void finish_notification(void)
+{
+    notif_thread = thread_stop(notif_thread);
+    notif_q = delete_messagequeue(notif_q);
+    sources = delete_hashmap(sources);
+    if (notification_pipe)
+        pipeline_unref(notification_pipe);
+}
+
+bool notification_register_source(const char *name, notification_pull_fn *callback, unsigned period_ms)
+{
+    struct NotificationSource *existing = (struct NotificationSource *)hashmap_find(sources, name);
+    if (callback) {
+        if (existing) {
+            log_error("source '%s' already exists", name);
+            return false;
+        }
+
+        struct NotificationSource *src = calloc_struct(NotificationSource);
+        src->pull = callback;
+        src->period_ms = period_ms;
+        pthread_mutex_lock(&sources_lock);
+        hashmap_insert(sources, strdup(name), src);
+        pthread_mutex_unlock(&sources_lock);
+    } else {
+        if (!existing) {
+            log_error("can't remove unregistered source '%s'", name);
+            return false;
+        }
+
+        pthread_mutex_lock(&sources_lock);
+        hashmap_remove(sources, name);
+        pthread_mutex_unlock(&sources_lock);
+    }
+
+    if (notif_q) {
+        // notify the thread to recalculate its timeout
+        struct NotificationMessage *msg = calloc_struct(NotificationMessage);
+        msg->source = "notification_register_source";
+        messagequeue_push(notif_q, msg);
+    }
+    return true;
+}
+
+bool notification_push_event(const char *source, NotificationLevel level, struct JsonValue *message)
+{
+    if (notif_q == NULL) {
+        log_error("can't push without a queue");
+        return false;
+    }
+
+    struct NotificationMessage *msg = calloc_struct(NotificationMessage);
+    msg->source = source;
+    msg->level = level;
+    msg->message = message;
+    messagequeue_push(notif_q, msg);
+    return true;
+}
+
+void notification_set_log_level(NotificationLevel level)
+{
+    log_level = level;
+}
+
+void notification_set_submit_level(NotificationLevel level)
+{
+    submit_level = level;
+}

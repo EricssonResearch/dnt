@@ -5,6 +5,7 @@
 #include "delay.h"
 #include "hashmap.h"
 #include "interface.h"
+#include "notification.h"
 #include "packet.h"
 #include "parsetree.h"
 #include "seq_gen.h"
@@ -12,6 +13,9 @@
 #include "oam.h"
 #include "log.h"
 #include "version.h"
+
+#include "conf_actions.h"
+#include "conf_streams.h"
 
 #include <argp.h>
 #include <stdlib.h>
@@ -296,6 +300,13 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
+    struct Pipeline *notif_pipe = NULL;
+    struct ConfStream *notif_sess = (struct ConfStream *)hashmap_find(tr->streams, "notification_session");
+    if (notif_sess) {
+        notif_pipe = assemble_actions("notification_session", notif_sess->actions);
+    }
+    init_notification(notif_pipe);
+
     bool commit_success = state_commit_transaction(tr);
     delete_transaction(tr);
     if (!commit_success) {
@@ -312,6 +323,8 @@ int main(int argc, char **argv)
 
     recv_loop();
     log_info("receive loop ended");
+
+    finish_notification();
 
     fini_delay();
 
