@@ -532,8 +532,6 @@ static bool send_request(const struct OamRequest *req){
     packet_add_header(packet, 2, PROTO_ID_PAYLOAD, js_length);
     unsigned char *msg = packet->buf + packet->headers[2].start;
     memcpy(msg, js_string, js_length);
-    for (unsigned i = 0; i < packet->header_count; ++i)
-        packet->len += packet->headers[i].len;
 
     log_packet("send request %s %s:%d seq %d lvl %d - %s",
                req->mep_start->name, req->mep_start->stream_name, req->session_id, req->seq, req->level,

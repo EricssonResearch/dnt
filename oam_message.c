@@ -856,21 +856,24 @@ static bool process_request(struct OamEndPoint *oam, struct Packet *p)
 {
     // note: we made sure in conf_actions.c that at this point of the pipeline the packet starts with mpls+dcw
 
-    for (unsigned i=1; i<p->header_count-1; i++) {
-        if (p->headers[i+1].start != p->headers[i].start + p->headers[i].len) {
-            log_error("OAM packet is not continuous in memory at header %u type %s",
-                    i, protocol_type_from_id(p->headers[i].type));
-            return false;
+    // let's reinterpret the header structure if it wasn't already done by an earlier MIP
+    if (p->headers[1].type != PROTO_ID_OAM) {
+        for (unsigned i=1; i<p->header_count-1; i++) {
+            if (p->headers[i+1].start != p->headers[i].start + p->headers[i].len) {
+                log_error("OAM packet is not continuous in memory at header %u type %s",
+                        i, protocol_type_from_id(p->headers[i].type));
+                return false;
+            }
         }
-    }
 
-    // let's reinterpret the header structure
-    p->headers[1].type = PROTO_ID_OAM;
-    p->headers[1].len = 8; // length of oam
-    p->headers[2].type = PROTO_ID_PAYLOAD;
-    p->headers[2].start = p->headers[1].start + 8;
-    p->headers[2].len = p->len - 4 - 8; // length of mpls and oam
-    p->header_count = 3;
+        unsigned plen = packet_length(p);
+        p->headers[1].type = PROTO_ID_OAM;
+        p->headers[1].len = 8; // length of oam
+        p->headers[2].type = PROTO_ID_PAYLOAD;
+        p->headers[2].start = p->headers[1].start + 8;
+        p->headers[2].len = plen - 4 - 8; // length of mpls and oam
+        p->header_count = 3;
+    }
 
     unsigned char *oam_hdr = p->buf + p->headers[1].start;
     //unsigned char seq = oam_hdr[1];
