@@ -29,6 +29,7 @@ static void test_create(void)
     OK(p->header_count == 0, "no headers");
     OK(p->from == (struct Interface *)42, "from");
     OK(p->id == p->original_id, "id");
+    OK(packet_length(p) == 0, "no length without headers");
 
     OK(delete_packet(p) == NULL, "always returns null");
 
@@ -72,11 +73,13 @@ static void test_identify(void)
     OK(p->start == PACKET_START_OFFSET, "start");
     OK(p->len == 256, "len %u", p->len);
     OK(p->scratch_len == 0, "scratch empty");
+    OK(packet_length(p) == 14+4+40+198, "length %u", packet_length(p));
     packet_clear_headers(p);
     OK(p->header_count == 0, "header_count %u", p->header_count);
     OK(p->start == PACKET_START_OFFSET, "start");
     OK(p->len == 256, "len %u", p->len);
     OK(p->scratch_len == 0, "scratch empty");
+    OK(packet_length(p) == 0, "no length without headers");
 
     // header length can be anything
     OK(packet_identify_header(p, PROTO_ID_IPv6, 0, 1) == true, "identify");
@@ -89,11 +92,13 @@ static void test_identify(void)
     OK(p->start == PACKET_START_OFFSET, "start");
     OK(p->len == 256, "len %u", p->len);
     OK(p->scratch_len == 0, "scratch empty");
+    OK(packet_length(p) == 6, "length %u", packet_length(p));
     packet_clear_headers(p);
     OK(p->header_count == 0, "header_count %u", p->header_count);
     OK(p->start == PACKET_START_OFFSET, "start");
     OK(p->len == 256, "len %u", p->len);
     OK(p->scratch_len == 0, "scratch empty");
+    OK(packet_length(p) == 0, "no length without headers");
 
     // offsets can have gaps
     //TODO why do we allow this?
@@ -107,11 +112,13 @@ static void test_identify(void)
     OK(p->start == PACKET_START_OFFSET, "start");
     OK(p->len == 256, "len %u", p->len);
     OK(p->scratch_len == 0, "scratch empty");
+    OK(packet_length(p) == 6, "length %u", packet_length(p));
     packet_clear_headers(p);
     OK(p->header_count == 0, "header_count %u", p->header_count);
     OK(p->start == PACKET_START_OFFSET, "start");
     OK(p->len == 256, "len %u", p->len);
     OK(p->scratch_len == 0, "scratch empty");
+    OK(packet_length(p) == 0, "no length without headers");
 
     // offsets can overlap
     //TODO why do we allow this?
@@ -125,11 +132,13 @@ static void test_identify(void)
     OK(p->start == PACKET_START_OFFSET, "start");
     OK(p->len == 256, "len %u", p->len);
     OK(p->scratch_len == 0, "scratch empty");
+    OK(packet_length(p) == 6*20, "length %u", packet_length(p));
     packet_clear_headers(p);
     OK(p->header_count == 0, "header_count %u", p->header_count);
     OK(p->start == PACKET_START_OFFSET, "start");
     OK(p->len == 256, "len %u", p->len);
     OK(p->scratch_len == 0, "scratch empty");
+    OK(packet_length(p) == 0, "no length without headers");
 
     // length overflow
     OK(packet_identify_header(p, PROTO_ID_IPv6, 0, 257) == false, "too long");
@@ -185,23 +194,23 @@ static void test_add_del(void)
     OK(packet_identify_header(p, PROTO_ID_CVLAN, 128+14, 4) == true, "cvlan");
     OK(packet_identify_header(p, PROTO_ID_IPv6, 128+18, 40) == true, "ipv6");
     OK(packet_identify_header(p, PROTO_ID_PAYLOAD, 128+58, 70) == true, "payload");
+    OK(packet_length(p) == 14+4+40+70, "length %u", packet_length(p));
 
     // add things
-    // note: we don't get a return value, because
-    //       validation happened in the config compiler
     OK(p->header_count == 4, "header_count %u", p->header_count);
-    packet_add_header(p, 2, PROTO_ID_SVLAN, 4); // middle
+    OK(packet_add_header(p, 2, PROTO_ID_SVLAN, 4) == true, "middle");
     OK(p->header_count == 5, "header_count %u", p->header_count);
-    packet_add_header(p, 5, PROTO_ID_ARP, 10); // end
+    OK(packet_add_header(p, 5, PROTO_ID_ARP, 10) == true, "end");
     OK(p->header_count == 6, "header_count %u", p->header_count);
-    packet_add_header(p, 0, PROTO_ID_IPv4, 20); // beginning
+    OK(packet_add_header(p, 0, PROTO_ID_IPv4, 20) == true, "beginning");
     OK(p->header_count == 7, "header_count %u", p->header_count);
-    packet_add_header(p, 8, PROTO_ID_MPLS, 4); // this is invalid
+    OK(packet_add_header(p, 8, PROTO_ID_MPLS, 4) == false, "invalid index");
     OK(p->header_count == 7, "header_count %u", p->header_count);
 
     OK(p->start == PACKET_START_OFFSET, "start");
     OK(p->len == 256, "len %u", p->len);
     OK(p->scratch_len == 20+10+4, "scratch allocation %u", p->scratch_len);
+    OK(packet_length(p) == 14+4+40+70+4+10+20, "length %u", packet_length(p));
 
     OK(p->headers[0].type == PROTO_ID_IPv4, "header type %d", p->headers[0].type);
     OK(p->headers[1].type == PROTO_ID_ETH, "header type %d", p->headers[1].type);
@@ -254,15 +263,17 @@ static void test_add_del(void)
     // note: deleting a header doesn't deallocate the scratch space
     OK(p->scratch_len == 20+10+4, "scratch allocation %u", p->scratch_len);
     OK(p->headers[0].type == PROTO_ID_CVLAN, "header type %d", p->headers[0].type);
+    OK(packet_length(p) == 4, "length %u", packet_length(p));
 
     // add again
-    packet_add_header(p, 0, PROTO_ID_ETH, 14); // beginning
-    packet_add_header(p, 2, PROTO_ID_MPLS, 4); // end
+    OK(packet_add_header(p, 0, PROTO_ID_ETH, 14) == true, "beginning");
+    OK(packet_add_header(p, 2, PROTO_ID_MPLS, 4) == true, "end");
 
     OK(p->header_count == 3, "header_count %u", p->header_count);
     OK(p->start == PACKET_START_OFFSET, "start");
     OK(p->len == 256, "len %u", p->len);
     OK(p->scratch_len == 20+10+4+14+4, "scratch allocation %u", p->scratch_len);
+    OK(packet_length(p) == 4+14+4, "length %u", packet_length(p));
 
     OK(p->headers[0].type == PROTO_ID_ETH, "header type %d", p->headers[0].type);
     OK(p->headers[1].type == PROTO_ID_CVLAN, "header type %d", p->headers[1].type);
@@ -280,6 +291,35 @@ static void test_add_del(void)
         OK(p->buf[i] == i, "scratch space was changed %u %u", i, p->buf[i]);
         OK(p->buf[PACKET_START_OFFSET+i] == i, "data was changed %u %u", i, p->buf[PACKET_START_OFFSET+i]);
     }
+
+    OK(delete_packet(p) == NULL, "always returns null");
+
+
+    p = new_packet((struct Interface *)42);
+
+    OK(packet_add_header(p, 0, PROTO_ID_IPv4, PACKET_START_OFFSET) == false, "scratch space overflow");
+    for (unsigned i=0; i<PACKET_MAX_HEADER_NUM; i++) {
+        OK(packet_add_header(p, i, PROTO_ID_IPv4, 1) == true, "valid add %u", i);
+    }
+    OK(packet_add_header(p, PACKET_MAX_HEADER_NUM, PROTO_ID_ETH, 1) == false, "too many headers");
+    OK(p->header_count == PACKET_MAX_HEADER_NUM, "header_count %u", p->header_count);
+    OK(p->start == PACKET_START_OFFSET, "start");
+    OK(p->len == 0, "len %u", p->len);
+    OK(p->scratch_len == PACKET_MAX_HEADER_NUM, "scratch allocation %u", p->scratch_len);
+    OK(packet_length(p) == PACKET_MAX_HEADER_NUM, "length %u", packet_length(p));
+
+    OK(packet_add_header(p, 0, PROTO_ID_IPv4, PACKET_START_OFFSET - PACKET_MAX_HEADER_NUM) == false, "scratch space overflow");
+
+    packet_clear_headers(p);
+    OK(p->header_count == 0, "header_count %u", p->header_count);
+    OK(p->start == PACKET_START_OFFSET, "start");
+    OK(p->len == 0, "len %u", p->len);
+    OK(p->scratch_len == 0, "scratch allocation %u", p->scratch_len);
+    OK(packet_length(p) == 0, "no length without headers");
+
+    OK(packet_add_header(p, 0, PROTO_ID_IPv4, PACKET_START_OFFSET) == false, "scratch space overflow");
+    OK(packet_add_header(p, 0, PROTO_ID_IPv4, PACKET_START_OFFSET-1) == true, "scratch space fill");
+    OK(packet_length(p) == PACKET_START_OFFSET-1, "length %u", packet_length(p));
 
     OK(delete_packet(p) == NULL, "always returns null");
 }
@@ -353,6 +393,7 @@ static void test_copy(void)
     }
 
     // serialize creates a packet that looks like it was received on the wire (used by if_internal)
+    //  all headers must be in the receive space in order, scratch space must be empty
     struct Packet *sp = serialize_packet(p);
     OK_FATAL(sp != NULL, "have copy");
     OK_FATAL(sp->buf != NULL, "have buffer");
@@ -395,7 +436,7 @@ static void test_logbuf(void)
 
     OK(strcmp(p->logbuf, "now we are 1099ing") == 0, "log '%s'", p->logbuf);
 
-    OK(delete_packet(p) == NULL, "always returns null");
+    OK(delete_packet(p) == NULL, "always returns null"); // this should print the logbuf
 }
 
 TEST_CASES = {

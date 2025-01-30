@@ -35,7 +35,8 @@ struct Packet {
     // these two tell where the received packet is in @buf
     // they are set by the Interface upon reception
     // use @headers to locate stuff after the headers have been identified
-    // @start should be PACKET_START_OFFSET
+    // @start is usually PACKET_START_OFFSET
+    // @len should be treated as constant
     unsigned start; // from beginning of @buf
     unsigned len; // number of used bytes after @start
 
@@ -81,7 +82,7 @@ struct Packet *delete_packet(struct Packet *p);
 // the new packet has new @id, its @original_id is the same as in @p
 struct Packet *copy_packet(const struct Packet *p);
 
-// returns the packet length
+// returns the packet length calculated from the header list
 unsigned packet_length(const struct Packet *p);
 
 // @returns a new packet that is a serialization of the headers in @p
@@ -95,18 +96,20 @@ struct Packet *serialize_packet(const struct Packet *p);
 // newly created packets over the limit are dummy buffers that should not be processed
 bool packet_dummy(const struct Packet *p);
 
-// identify the header at the given position in the packet as @type
+// identify the header at the given position in the received packet as @type
 // this will create a new entry in p->headers
 // @offset and @len are bytes
 // @offset is counted from p->start not from p->buf!
+// @offset + @len MUST NOT exceed p->len
 // the headers MUST be identified by increasing offset
 // @returns false on error
 bool packet_identify_header(struct Packet *p, enum ProtocolID type, unsigned offset, unsigned len);
 
 // adds a new header on the scratch space, adds an entry to @p->headers
 // the position in the header list is @idx
-// all the existing headers after @idx will be shifted in the array
-void packet_add_header(struct Packet *p, unsigned idx, enum ProtocolID type, unsigned len);
+// all the existing entries in p->headers after @idx will be shifted in the array
+// @returns false on error
+bool packet_add_header(struct Packet *p, unsigned idx, enum ProtocolID type, unsigned len);
 
 // removes a header and forgets it in @p->headers
 // the header can be in the receive space or the scratch space
@@ -114,6 +117,7 @@ void packet_add_header(struct Packet *p, unsigned idx, enum ProtocolID type, uns
 void packet_del_header(struct Packet *p, unsigned idx);
 
 // remove all headers from @p->headers
+// also clears the scratch space
 void packet_clear_headers(struct Packet *p);
 
 // prints a warning if there are too many packets in the system

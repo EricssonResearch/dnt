@@ -136,6 +136,7 @@ bool packet_identify_header(struct Packet *p, enum ProtocolID type, unsigned off
     return true;
 }
 
+// returns the start offset of the allocated space, or -1 on error
 static int scratch_alloc(struct Packet *p, unsigned len)
 {
     if (p->scratch_len + len >= PACKET_START_OFFSET) return -1;
@@ -146,19 +147,22 @@ static int scratch_alloc(struct Packet *p, unsigned len)
 
 //TODO static void scratch_free(struct Packet *p, unsigned char *start)
 
-void packet_add_header(struct Packet *p, unsigned idx, enum ProtocolID type, unsigned len)
+bool packet_add_header(struct Packet *p, unsigned idx, enum ProtocolID type, unsigned len)
 {
     if (p->header_count == PACKET_MAX_HEADER_NUM) {
-        //TODO error (can we prevent this in the config compiler?)
+        //TODO can we prevent this in the config compiler?
+        log_error("packet_add_header too many headers");
+        return false;
     }
     if (idx > p->header_count) {
-        //TODO if this error happens, the config compiler is broken
+        //TODO if this happens, the config compiler is broken
         log_error("packet_add_header index too large %u > %u", idx, p->header_count);
-        return;
+        return false;
     }
     int start = scratch_alloc(p, len);
     if (start < 0) {
-        //TODO error: out of scratch space TODO how to handle this??
+        log_error("packet_add_header out of scratch space");
+        return false;
     }
 
     if (idx < p->header_count)
@@ -168,12 +172,13 @@ void packet_add_header(struct Packet *p, unsigned idx, enum ProtocolID type, uns
     p->headers[idx].start = start;
     p->headers[idx].len = len;
     p->header_count++;
+    return true;
 }
 
 void packet_del_header(struct Packet *p, unsigned idx)
 {
     if (idx >= p->header_count) {
-        //TODO error (this should never happen though)
+        //TODO can this happen?
         log_error("packet_del_header index too large %u > %u", idx, p->header_count);
         return;
     }
@@ -187,6 +192,7 @@ void packet_del_header(struct Packet *p, unsigned idx)
 void packet_clear_headers(struct Packet *p)
 {
     p->header_count = 0;
+    p->scratch_len = 0;
 }
 
 void packets_check_performance(void)
