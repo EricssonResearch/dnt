@@ -5,8 +5,13 @@
 #include "notification.h"
 #include "log.h"
 #include "packet.h"
+#include "pipeline.h"
 #include "thread_utils.h"
+#include "time_utils.h"
 #include "utils.h"
+
+#include "conf_actions.h"
+#include "conf_streams.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -40,24 +45,6 @@ struct NotificationMessage {
     struct JsonValue *message;
 };
 
-//TODO move these to time_utils.h?
-// return t1-t2
-static int64_t time_diff_us(struct timespec t1, struct timespec t2)
-{
-    int64_t timediff;
-    timediff = (t1.tv_nsec - t2.tv_nsec) / 1000;
-    timediff += (t1.tv_sec - t2.tv_sec) * 1000000;
-    return timediff;
-}
-
-static struct timespec time_add_us(struct timespec t, unsigned increase_us)
-{
-    t.tv_sec += increase_us / 1000000;
-    t.tv_nsec += (increase_us % 1000000) * 1000;
-    t.tv_sec += t.tv_nsec / 1000000000;
-    t.tv_nsec %= 1000000000;
-    return t;
-}
 
 static void send_notification_packet(const struct JsonValue *pkt)
 {
@@ -196,12 +183,13 @@ static void *notification_thread(void *arg)
     return NULL;
 }
 
-void init_notification(struct Pipeline *pipe)
+void init_notification(struct HashMap *conf_streams)
 {
-    notification_pipe = pipe;
-    if (pipe) {
-        pipeline_ref(pipe);
-        pipeline_ref_send_interfaces(pipe);
+    struct ConfStream *notif_sess = (struct ConfStream *)hashmap_find(conf_streams, "notification_session");
+    if (notif_sess) {
+        notification_pipe = assemble_actions("notification_session", notif_sess->actions);
+        pipeline_ref(notification_pipe);
+        pipeline_ref_send_interfaces(notification_pipe);
     }
     sources = new_hashmap(13, NULL, NULL);
     notif_q = new_messagequeue();

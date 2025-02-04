@@ -100,6 +100,30 @@ static int packetline_cb(const char *key, void *value, void *userdata)
             free(matchname);
             free(actionname);
         }
+    } else if (strcmp(key, "notification_session") == 0) {
+        // this is a special stream for the notification framework
+        struct HeaderDescriptor *headers = NULL;
+        struct ConfAction *actions = NULL;
+        char *streamname = strdup(key);
+        char *matchname = NULL;
+        char *actionname = NULL;
+
+        log_info("Parsing stream '%s'", streamname);
+
+        headers = calloc_struct(HeaderDescriptor);
+        headers->name = strdup("payload");
+        headers->id = PROTO_ID_PAYLOAD;
+
+        actions = parse_actions_line(streamname, packetline,
+                headers, state->ifaces, state->objects, state->streams_section);
+        if (actions == NULL) {
+            THROW("notification_session actions invalid");
+        }
+
+        struct ConfStream *stream = calloc_struct(ConfStream);
+        stream->actions = actions;
+        stream->headers = headers;
+        hashmap_insert(state->streams, strdup("notification_session"), stream);
     }
     return 1;
 }

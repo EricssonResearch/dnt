@@ -6,9 +6,12 @@
 #define R2_NOTIFICATION_H
 
 #include "json.h"
-#include "pipeline.h"
 
-void init_notification(struct Pipeline *notification_pipe);
+#include <stdbool.h>
+
+// starts up the notification framework
+// @conf_streams is the streams section read from the config (hash of ConfStream)
+void init_notification(struct HashMap *conf_streams);
 
 void finish_notification(void);
 
@@ -23,12 +26,16 @@ typedef enum {
 typedef NotificationLevel notification_pull_fn(struct JsonValue **);
 
 // pull operation: all registered sources are periodically queried
+// @name is the unique name of the source
+// @callback will be called periodically to get a message
 // @period_ms is the requested query period
 // if @callback is NULL, this source is removed from the query list
+// @returns false on failure
 bool notification_register_source(const char *name, notification_pull_fn *callback, unsigned period_ms);
 
 // push operation: anybody can submit a message anytime
-// returns false if the notification system is not running
+// @source is the name of the source of the push
+// @returns false if the notification system is not running
 bool notification_push_event(const char *source, NotificationLevel level, struct JsonValue *message);
 
 // set the minimum level that gets logged

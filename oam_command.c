@@ -12,6 +12,7 @@
 
 #include "if_oam.h"
 #include "log.h"
+#include "notification.h"
 #include "state.h"
 #include "thread_utils.h"
 #include "utils.h"
@@ -222,6 +223,11 @@ static void command_loop(struct CommandConnection *conn)
     } else {
         fprintf(cmd_w, "\033[32mOAM ready\033[0m, but has no configured return interface.\n");
     }
+
+    struct JsonValue *msg = json_object();
+    json_object_insert(msg, "login", json_string("login"));
+
+    notification_push_event("telnet", NOTIF_ERROR, msg);
 
     while (true) {
         int n = read(cmd_fd, oam_command, sizeof(oam_command)-1);
