@@ -503,6 +503,7 @@ static bool udpin_open(struct Interface *iface)
     log_info("Udp-in interface %s on device %s ip %s port %u", iface->name, iface->ifname, if_ip, uid->port);
 
     uid->ifmon = thread_launch(iface_address_monitoring, iface, "ifmon %s", iface->name);
+    notification_register_source(iface->name, iface_notification_pull_fn, iface, 2000);
 
     iface->recvfd = sock;
     iface->state = IFS_OPEN;
@@ -512,6 +513,7 @@ static bool udpin_open(struct Interface *iface)
 static bool udpin_close(struct Interface *iface)
 {
     struct UdpInIfData *uid = (struct UdpInIfData *)iface->iface_private;
+    notification_register_source(iface->name, NULL, NULL, 2000);
     close(iface->recvfd);
     thread_stop(uid->ifmon);
     delete_senderlist(uid->senders);

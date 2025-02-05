@@ -211,6 +211,10 @@ struct Packet *iface_common_recv(struct Interface *iface, msghdr_process_cb *msg
         return delete_packet(p);
     }
 
+    //TODO protect these with a mutex
+    iface->recv_packets += 1;
+    iface->recv_bytes += p->len;
+
     if (res > 0) {
         p->len = res;
     }
@@ -229,7 +233,7 @@ struct Packet *iface_common_recv(struct Interface *iface, msghdr_process_cb *msg
 
 static void dropstat(struct Interface *iface, int socket)
 {
-    if (iface->dropstat_cntr > 5000) {
+    if (iface->dropstat_cntr++ > 5000) {
         struct tpacket_stats stats;
         unsigned optlen = sizeof(stats);
         if (getsockopt(socket, SOL_PACKET, PACKET_STATISTICS, &stats, &optlen) < 0) {
@@ -309,12 +313,16 @@ bool iface_common_send(struct Interface *iface, struct Packet *p, int socket, vo
     }
 #endif
 
+    packet_logcat(p, "%s ", iface->name);
+
+    //TODO protect these with a mutex
+    iface->send_packets += 1;
+    iface->send_bytes += packet_length(p);
+
     if (sendmsg(socket, &msg, 0) < 0) {
         log_perror("sendmsg on %s", iface->name);
         return false;
     }
-
-    packet_logcat(p, "%s ", iface->name);
 
     dropstat(iface, socket);
 
@@ -466,6 +474,21 @@ struct MonitorState *stop_monitoring_error_queue(struct MonitorState *st)
     }
     free(st);
     return NULL;
+}
+
+NotificationLevel iface_notification_pull_fn(void *self, struct JsonValue **msg)
+{
+    struct Interface *iface = (struct Interface *)self;
+
+    struct JsonValue *ret = json_object();
+    json_object_insert(ret, "recv_packets", json_number(iface->recv_packets));
+    json_object_insert(ret, "recv_bytes", json_number(iface->recv_bytes));
+    json_object_insert(ret, "send_packets", json_number(iface->send_packets));
+    json_object_insert(ret, "send_bytes", json_number(iface->send_bytes));
+    json_object_insert(ret, "dropstat_cntr", json_number(iface->dropstat_cntr));
+
+    *msg = ret;
+    return NOTIF_INFO;
 }
 
 void print_ifaddrs(struct ifaddrs *ifa)

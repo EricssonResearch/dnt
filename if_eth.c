@@ -227,6 +227,8 @@ static bool eth_open(struct Interface *iface)
         eid->pcp_used[i] = 1;
     }
 
+    notification_register_source(iface->name, iface_notification_pull_fn, iface, 2000);
+
     log_info("Eth interface %s on device %s", iface->name, iface->ifname);
     iface->recvfd = eid->sockfd[0];
     iface->dropstat_cntr = 0;
@@ -244,6 +246,7 @@ static bool eth_close(struct Interface *iface)
         }
     }
     free(eid);
+    notification_register_source(iface->name, NULL, NULL, 2000);
     log_info("Eth interface %s closed", iface->name);
     return true;
 }

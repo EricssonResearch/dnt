@@ -23,15 +23,17 @@ typedef enum {
     NOTIF_ALL
 } NotificationLevel;
 
-typedef NotificationLevel notification_pull_fn(struct JsonValue **);
+// it receives the @self that was registered, returns the message in @msg
+typedef NotificationLevel notification_pull_fn(void *self, struct JsonValue **msg);
 
 // pull operation: all registered sources are periodically queried
 // @name is the unique name of the source
 // @callback will be called periodically to get a message
+// @self will be passed to the callback
 // @period_ms is the requested query period
 // if @callback is NULL, this source is removed from the query list
 // @returns false on failure
-bool notification_register_source(const char *name, notification_pull_fn *callback, unsigned period_ms);
+bool notification_register_source(const char *name, notification_pull_fn *callback, void *self, unsigned period_ms);
 
 // push operation: anybody can submit a message anytime
 // @source is the name of the source of the push

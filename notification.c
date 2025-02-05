@@ -23,6 +23,8 @@ DEFAULT_LOGGING_MODULE(NOTIFICATION, INFO);
 
 #define MAX_NOTIFICATION_LEN 1000
 
+#define DEFAULT_TIMEOUT 2*1000*1000
+
 static struct Thread *notif_thread = NULL;
 static struct MessageQueue *notif_q = NULL;
 
@@ -36,6 +38,7 @@ static NotificationLevel submit_level = NOTIF_ALL;
 
 struct NotificationSource {
     notification_pull_fn *pull;
+    void *self;
     unsigned period_ms;
 };
 
@@ -68,11 +71,11 @@ static void *notification_thread(void *arg)
 
     if (hashmap_count(sources) != 0) {
         //TODO find a period that fits all sources
-        period_us = 2*1000*1000;
+        period_us = DEFAULT_TIMEOUT;
     }
 
-    log_info("thread started, %s notification session",
-            notification_pipe ? "have" : "no");
+    log_info("thread started, %s",
+            notification_pipe ? "have notification session" : "no session");
 
     if (period_us > 0) {
         struct timespec now;
@@ -80,17 +83,25 @@ static void *notification_thread(void *arg)
         next_wake = time_add_us(now, period_us);
         timeout_us = time_diff_us(next_wake, now);
     }
+    log_debug("initial period %u first timeout %d", period_us, timeout_us);
 
     while (1) {
         struct NotificationMessage *msg = (struct NotificationMessage *)messagequeue_pop(notif_q, timeout_us);
         if (msg) {
             if (strcmp(msg->source, "notification_register_source") == 0) {
                 if (hashmap_count(sources) != 0) {
+                    if (period_us == 0) {
+                        // first source, start period now
+                        clock_gettime(CLOCK_REALTIME, &next_wake);
+                    }
+
                     //TODO find a period that fits all sources
-                    period_us = 2*1000*1000;
+                    period_us = DEFAULT_TIMEOUT;
                 } else {
+                    // no more sources, return to infinite timeout
                     period_us = 0;
                 }
+                log_debug("new period %u", period_us);
             } else {
                 log_debug("push from '%s'", msg->source);
                 unsigned js_len;
@@ -119,15 +130,16 @@ static void *notification_thread(void *arg)
                 free(msg);
             }
 
+            struct timespec now;
+            clock_gettime(CLOCK_REALTIME, &now);
             if (period_us > 0) {
-                struct timespec now;
-                clock_gettime(CLOCK_REALTIME, &now);
-                next_wake = time_add_us(next_wake, period_us);
                 timeout_us = time_diff_us(next_wake, now);
                 if (timeout_us < 0) timeout_us = 0;
             } else {
                 timeout_us = -1;
             }
+            log_debug("after push period %u now %ld.%.9lu next_wake %ld.%.09lu timeout %d",
+                    period_us, now.tv_sec, now.tv_nsec, next_wake.tv_sec, next_wake.tv_nsec, timeout_us);
         } else {
             // timeout, let's pull from everybody
             pthread_mutex_lock(&sources_lock);
@@ -137,7 +149,7 @@ static void *notification_thread(void *arg)
                 struct NotificationSource *source = (struct NotificationSource *)hash_iterator_value(&s);
                 const char *src = hash_iterator_key(&s);
                 struct JsonValue *js;
-                NotificationLevel level = source->pull(&js);
+                NotificationLevel level = source->pull(source->self, &js);
                 if (js) {
                     log_debug("pull from '%s'", hash_iterator_key(&s));
                     unsigned js_len;
@@ -177,6 +189,9 @@ static void *notification_thread(void *arg)
             next_wake = time_add_us(next_wake, period_us);
             timeout_us = time_diff_us(next_wake, now);
             if (timeout_us < 0) timeout_us = 0;
+
+            log_debug("after timeout period %u now %ld.%.9lu next_wake %ld.%.09lu timeout %d",
+                    period_us, now.tv_sec, now.tv_nsec, next_wake.tv_sec, next_wake.tv_nsec, timeout_us);
         }
     }
 
@@ -205,7 +220,7 @@ void finish_notification(void)
         pipeline_unref(notification_pipe);
 }
 
-bool notification_register_source(const char *name, notification_pull_fn *callback, unsigned period_ms)
+bool notification_register_source(const char *name, notification_pull_fn *callback, void *self, unsigned period_ms)
 {
     struct NotificationSource *existing = (struct NotificationSource *)hashmap_find(sources, name);
     if (callback) {
@@ -216,6 +231,7 @@ bool notification_register_source(const char *name, notification_pull_fn *callba
 
         struct NotificationSource *src = calloc_struct(NotificationSource);
         src->pull = callback;
+        src->self = self;
         src->period_ms = period_ms;
         pthread_mutex_lock(&sources_lock);
         hashmap_insert(sources, strdup(name), src);
@@ -230,6 +246,7 @@ bool notification_register_source(const char *name, notification_pull_fn *callba
         hashmap_remove(sources, name);
         pthread_mutex_unlock(&sources_lock);
     }
+    log_info("registered source %s", name);
 
     if (notif_q) {
         // notify the thread to recalculate its timeout

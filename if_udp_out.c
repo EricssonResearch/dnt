@@ -200,6 +200,7 @@ static bool udpout_open(struct Interface *iface)
 */
 
     uid->errq_monitor = monitor_error_queue(sock, uid->family, iface->name);
+    notification_register_source(iface->name, iface_notification_pull_fn, iface, 2000);
 
     log_info("Udp-out interface %s on device %s destination %s port %u", iface->name, iface->ifname, uid->dst_ip, uid->dport);
     iface->dropstat_cntr = 0;
@@ -212,6 +213,7 @@ static bool udpout_close(struct Interface *iface)
 {
     struct UdpOutIfData *uid = (struct UdpOutIfData *)iface->iface_private;
     stop_monitoring_error_queue(uid->errq_monitor);
+    notification_register_source(iface->name, NULL, NULL, 2000);
     close(uid->sock);
     free(uid->dst_ip);
     free(uid->dstaddr);

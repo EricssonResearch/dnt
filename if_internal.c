@@ -100,6 +100,7 @@ static bool int_open(struct Interface *iface)
         log_error("open internal interface %s: already opened", iface->name);
         return false;
     }
+    notification_register_source(iface->name, iface_notification_pull_fn, iface, 2000);
     log_info("Internal interface %s", iface->name);
     iface->recvfd = eventfd(0, EFD_SEMAPHORE);
     iface->state = IFS_OPEN;
@@ -115,6 +116,7 @@ static bool int_close(struct Interface *iface)
     }
     free(pf); // the sentinel
     close(iface->recvfd);
+    notification_register_source(iface->name, NULL, NULL, 2000);
     log_info("Internal interface %s closed", iface->name);
     return true;
 }

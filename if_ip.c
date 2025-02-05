@@ -261,6 +261,7 @@ static bool ip_open(struct Interface *iface)
     } else
         iface->recvfd = sock4;
 
+    notification_register_source(iface->name, iface_notification_pull_fn, iface, 2000);
 
     iid->sock4 = sock4;
     iid->sock6 = sock6;
@@ -275,6 +276,7 @@ static bool ip_open(struct Interface *iface)
 static bool ip_close(struct Interface *iface)
 {
     struct IpIfData *iid = (struct IpIfData *)iface->iface_private;
+    notification_register_source(iface->name, NULL, NULL, 2000);
     close(iface->recvfd);
     close(iid->sock4);
     close(iid->sock6);

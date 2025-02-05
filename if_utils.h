@@ -5,6 +5,8 @@
 #ifndef R2_IF_UTILS_H
 #define R2_IF_UTILS_H
 
+#include "notification.h"
+
 #include <stdbool.h>
 
 struct Interface;
@@ -41,6 +43,9 @@ struct MonitorState *monitor_error_queue(int socket, int family, const char *nam
 
 // always @returns NULL
 struct MonitorState *stop_monitoring_error_queue(struct MonitorState *st);
+
+// @self must be struct Interface
+NotificationLevel iface_notification_pull_fn(void *self, struct JsonValue **msg);
 
 struct ifaddrs;
 void print_ifaddrs(struct ifaddrs *ifa);

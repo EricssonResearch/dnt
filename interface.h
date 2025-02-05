@@ -70,6 +70,12 @@ struct Interface {
     bool delay_offload;
     int dropstat_cntr;
     int dropstat_last_warn;
+
+    unsigned long long recv_packets;
+    unsigned long long recv_bytes;
+    unsigned long long send_packets;
+    unsigned long long send_bytes;
+
     struct ParseTree *parsetree_; // private
 
     // all of these methods are mandatory
