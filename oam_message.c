@@ -405,7 +405,7 @@ static int process_reply(const char *msg)
             receivetime.tv_nsec = json_object_get_number(j, "recv_ns")->v.number;
             timespecsub(&receivetime, &sendtime, &delay_diff);
 
-            sprintf(reply_str,"  oam_r %s:%.0f seq %.0f lvl %.0f R - %s on stream %s target %s; reply from %s delay %ld.%ld",
+            sprintf(reply_str,"  oam_r %s:%.0f seq %.0f lvl %.0f R - %s on stream %s target %s; reply from %s delay %ld.%09ld",
                     stream->v.string, session->v.number, sequence->v.number, level->v.number,
                     type->v.string, stream->v.string, target->v.string, receiver->v.string, delay_diff.tv_sec, delay_diff.tv_nsec);
         }
