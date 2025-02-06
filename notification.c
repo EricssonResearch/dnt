@@ -208,7 +208,6 @@ void init_notification(struct HashMap *conf_streams)
     struct ConfStream *notif_sess = (struct ConfStream *)hashmap_find(conf_streams, "notification_session");
     if (notif_sess) {
         notification_pipe = assemble_actions("notification_session", notif_sess->actions);
-        pipeline_ref(notification_pipe);
         pipeline_ref_send_interfaces(notification_pipe);
     }
     sources = new_hashmap(13, NULL, NULL);
