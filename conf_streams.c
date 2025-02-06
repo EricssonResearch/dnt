@@ -124,6 +124,7 @@ static int packetline_cb(const char *key, void *value, void *userdata)
         stream->actions = actions;
         stream->headers = headers;
         hashmap_insert(state->streams, strdup("notification_session"), stream);
+        free(streamname);
     }
     return 1;
 }

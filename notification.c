@@ -58,6 +58,7 @@ static void send_notification_packet(const struct JsonValue *pkt)
     packet_add_header(packet, 0, PROTO_ID_PAYLOAD, pkt_len);
     unsigned char *payload = packet->buf + packet->headers[0].start;
     memcpy(payload, pkt_str, pkt_len);
+    free(pkt_str);
     struct PipelineIterator *pi = new_pipe_iterator(notification_pipe, packet);
     pipe_iterator_run(pi);
 }
@@ -89,6 +90,7 @@ static void *notification_thread(void *arg)
         struct NotificationMessage *msg = (struct NotificationMessage *)messagequeue_pop(notif_q, timeout_us);
         if (msg) {
             if (strcmp(msg->source, "notification_register_source") == 0) {
+                free(msg);
                 if (hashmap_count(sources) != 0) {
                     if (period_us == 0) {
                         // first source, start period now
@@ -177,11 +179,14 @@ static void *notification_thread(void *arg)
                             json_delete(pkt);
                             pkt = json_object();
                         }
+                    } else {
+                        json_delete(js);
                     }
                 }
             }
             pthread_mutex_unlock(&sources_lock);
-            send_notification_packet(pkt);
+            if (notification_pipe)
+                send_notification_packet(pkt);
             json_delete(pkt);
 
             struct timespec now;
