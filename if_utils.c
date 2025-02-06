@@ -211,9 +211,8 @@ struct Packet *iface_common_recv(struct Interface *iface, msghdr_process_cb *msg
         return delete_packet(p);
     }
 
-    //TODO protect these with a mutex
-    iface->recv_packets += 1;
-    iface->recv_bytes += p->len;
+    __atomic_add_fetch(&iface->recv_packets, 1, __ATOMIC_RELAXED);
+    __atomic_add_fetch(&iface->recv_bytes, p->len, __ATOMIC_RELAXED);
 
     if (res > 0) {
         p->len = res;
@@ -315,9 +314,8 @@ bool iface_common_send(struct Interface *iface, struct Packet *p, int socket, vo
 
     packet_logcat(p, "%s ", iface->name);
 
-    //TODO protect these with a mutex
-    iface->send_packets += 1;
-    iface->send_bytes += packet_length(p);
+    __atomic_add_fetch(&iface->send_packets, 1, __ATOMIC_RELAXED);
+    __atomic_add_fetch(&iface->send_bytes, packet_length(p), __ATOMIC_RELAXED);
 
     if (sendmsg(socket, &msg, 0) < 0) {
         log_perror("sendmsg on %s", iface->name);
@@ -485,7 +483,6 @@ NotificationLevel iface_notification_pull_fn(void *self, struct JsonValue **msg)
     json_object_insert(ret, "recv_bytes", json_number(iface->recv_bytes));
     json_object_insert(ret, "send_packets", json_number(iface->send_packets));
     json_object_insert(ret, "send_bytes", json_number(iface->send_bytes));
-    json_object_insert(ret, "dropstat_cntr", json_number(iface->dropstat_cntr));
 
     *msg = ret;
     return NOTIF_INFO;
