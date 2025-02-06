@@ -42,7 +42,7 @@ add_dependencies(test_conf_utils gen_conf_utils_dat)
 target_include_directories(test_conf_utils PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 
 function(add_test_ifutil name)
-    add_executable(${name} ../if_utils.c ../log.c ../packet.c ../utils.c ../lib/parsers/hashmap.c ${name}.c)
+    add_executable(${name} ../if_utils.c ../log.c ../packet.c ../utils.c ../lib/parsers/hashmap.c ../lib/parsers/json.c ${name}.c)
     target_include_directories(${name} PUBLIC ../lib/parsers)
     target_compile_definitions(${name} PUBLIC TESTING)
 endfunction()
