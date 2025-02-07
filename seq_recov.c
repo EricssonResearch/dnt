@@ -2,15 +2,16 @@
 // All rights reserved.
 
 
-#include "seq_recov.h"
+#include "json.h"
 #include "log.h"
+#include "notification.h"
 #include "oam.h"
 #include "packet.h"
 #include "pipeline.h"
+#include "seq_recov.h"
 #include "time_utils.h"
 #include "thread_utils.h"
 #include "utils.h"
-#include "json.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -444,11 +445,23 @@ static void seq_recovery_reset(struct SequenceRecovery *rec)
 
 static void recovery_diagnostic(struct SequenceRecovery *rec)
 {
-#define ALERT(msg, ...)                                     \
-    do {                                                    \
-        log_warning_m(DIAGNOSTIC, msg, ##__VA_ARGS__);      \
-        oam_cli_alert(msg, ##__VA_ARGS__);                  \
-    } while (0)                                             \
+#define ALERT(msg, ...)                                                     \
+    do {                                                                    \
+        log_warning_m(DIAGNOSTIC, msg, ##__VA_ARGS__);                      \
+        oam_cli_alert(msg, ##__VA_ARGS__);                                  \
+        char *notistr = strdup_printf(msg, ##__VA_ARGS__);                  \
+        struct JsonValue *noti = json_object();                             \
+        json_object_insert(noti, "source", json_string(rec->base.name));    \
+        json_object_insert(noti, "alert", json_string(notistr));            \
+        notification_push_event("diagnostic", NOTIF_WARNING, noti);         \
+    } while (0)                                                             \
+
+    const char *fmt_more = "%s: MORE_PACKETS_THAN_EXPECTED with %d percent";
+    const char *fmt_absent = "%s: PACKET_ABSENT";
+    const char *fmt_disfunct = "%s: DISFUNCTIONING_PATHS: %d path(s)";
+    const char *fmt_disfunct_absent = "%s: DISFUNCTIONING_PATHS: %d path(s) and PACKET_ABSENT";
+    const char *fmt_outofwin = "%s: OUTOFWINDOW_PACKETS: %d";
+    const char *fmt_loss = "%s: PACKET_LOSS: %d consecutive packets and %d aggregate lost";
 
     const struct RecoveryDiagnosticConf *diag = &rec->diag;
     int diff, discarded_diff, passed_diff;
@@ -466,31 +479,29 @@ static void recovery_diagnostic(struct SequenceRecovery *rec)
         goto update;
     } else if (diff >= diag->latent_error_difference) {
         int more_percent = (discarded_diff * 100) / ((diag->latent_error_paths - 1) * passed_diff);
-        ALERT("%s: MORE_PACKETS_THAN_EXPECTED with %d percent", rec->base.name, more_percent);
+        ALERT(fmt_more, rec->base.name, more_percent);
         goto update;
     }
     if (discarded_diff < diag->latent_error_difference) {
         disfunctioning_paths = diag->latent_error_paths - 1;
-        ALERT("%s: DISFUNCTIONING_PATHS: %d path(s)", rec->base.name, disfunctioning_paths);
+        ALERT(fmt_disfunct, rec->base.name, disfunctioning_paths);
     } else if (working_ceil == working_floor) {
         disfunctioning_paths = diag->latent_error_paths - 2 - working_ceil;
         if (disfunctioning_paths > 0) {
-            ALERT("%s: DISFUNCTIONING_PATHS: %d path(s) and PACKET_ABSENT",
-                     rec->base.name, disfunctioning_paths);
+            ALERT(fmt_disfunct_absent, rec->base.name, disfunctioning_paths);
         } else {
-        ALERT("%s: PACKET_ABSENT", rec->base.name);
+            ALERT(fmt_absent, rec->base.name);
         }
     } else {
         disfunctioning_paths = diag->latent_error_paths - 1 - working_ceil;
-    ALERT("%s: DISFUNCTIONING_PATHS: %d path(s)", rec->base.name, disfunctioning_paths);
+        ALERT(fmt_disfunct, rec->base.name, disfunctioning_paths);
     }
     if (rec->rogue_packets != rec->rogue_packets_last) {
-    ALERT("%s: OUTOFWINDOW_PACKETS: %d", rec->base.name, rec->rogue_packets);
+        ALERT(fmt_outofwin, rec->base.name, rec->rogue_packets);
         rec->rogue_packets_last = rec->rogue_packets;
     }
     if (rec->consecutive_loss_max > diag->outage_threshold) {
-    ALERT("%s: PACKET_LOSS: %d consecutive packets and %d aggregate lost",
-                 rec->base.name, rec->consecutive_loss_max, rec->lost_packets);
+        ALERT(fmt_loss, rec->base.name, rec->consecutive_loss_max, rec->lost_packets);
         rec->consecutive_loss_max = 0;
     }
 update:
