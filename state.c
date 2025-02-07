@@ -86,6 +86,7 @@ struct StateTransaction *new_transaction(const char *name)
     ret->objects = new_hashmap(11, obj_delete_cb, NULL);
     ret->streams = new_hashmap(22, stream_delete_cb, NULL);
     ret->oam = new_hashmap(7, NULL, NULL);
+    ret->del_ifaces = new_hashmap(7, NULL, NULL);
     return ret;
 }
 
@@ -100,9 +101,23 @@ struct StateTransaction *delete_transaction(struct StateTransaction *tr)
     delete_hashmap(tr->iface_streams);
     delete_hashmap(tr->oam);
     delete_hashmap(tr->ifaces);
+    delete_hashmap(tr->del_ifaces);
     free(tr);
 
     return NULL;
+}
+
+static int del_interfaces_cb(const char *key, void *value, void *userdata)
+{
+    (void)value;
+    const char *trname = (const char*)userdata;
+    //TODO validate the whole transaction before committing anything
+    if (!hashmap_find(state_interfaces, key)) {
+        log_error("transaction '%s' del_iface '%s' not found", trname, key);
+        return 0;
+    }
+    hashmap_remove(state_interfaces, key);
+    return 1;
 }
 
 static int add_new_objects_cb(const char *key, void *value, void *userdata)
@@ -268,7 +283,11 @@ bool state_commit_transaction(struct StateTransaction *tr)
     // note: the order of operations is important
 
     //TODO remove streams that are on the del list (no such list yet)
-    //TODO remove interfaces that are on the del list (no such list yet)
+
+    if (!hashmap_foreach(tr->del_ifaces, del_interfaces_cb, tr->name)) {
+        //TODO rollback
+        return false;
+    }
 
     if (!hashmap_foreach(tr->objects, add_new_objects_cb, NULL)) {
         //TODO rollback

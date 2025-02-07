@@ -137,6 +137,26 @@ static void recv_loop(void)
     }
 }
 
+static int add_if_to_close(struct Interface *iface, void *userdata)
+{
+    struct HashMap *del_ifaces = (struct HashMap *)userdata;
+    hashmap_insert(del_ifaces, strdup(iface->name), NULL);
+    return 1;
+}
+
+static void close_interfaces(void)
+{
+    struct StateTransaction *tr = new_transaction("shutdown");
+
+    state_foreach_interfaces(add_if_to_close, tr->del_ifaces);
+
+    bool commit_success = state_commit_transaction(tr);
+    delete_transaction(tr);
+    if (!commit_success) {
+        log_error("failed to close the interfaces");
+    }
+}
+
 // expected format: "MOD1:LEVEL1,MOD2:LEVEL2"
 static bool set_loglevels(const char *levels)
 {
@@ -302,6 +322,7 @@ int main(int argc, char **argv)
     bool commit_success = state_commit_transaction(tr);
     delete_transaction(tr);
     if (!commit_success) {
+        log_error("failed to apply the config");
         return EXIT_FAILURE;
     }
 
@@ -315,6 +336,8 @@ int main(int argc, char **argv)
 
     recv_loop();
     log_info("receive loop ended");
+
+    close_interfaces();
 
     finish_notification();
 
