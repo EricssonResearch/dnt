@@ -339,11 +339,11 @@ int main(int argc, char **argv)
 
     close_interfaces();
 
-    finish_notification();
-
     fini_delay();
 
     finish_oam();
+
+    finish_notification();
 
     close_log();
 

@@ -219,9 +219,9 @@ void finish_notification(void)
 {
     notif_thread = thread_stop(notif_thread);
     notif_q = delete_messagequeue(notif_q);
-    sources = delete_hashmap(sources);
     if (notification_pipe)
         pipeline_unref(notification_pipe);
+    sources = delete_hashmap(sources);
 }
 
 bool notification_register_source(const char *name, notification_pull_fn *callback, void *self, unsigned period_ms)
