@@ -1,9 +1,10 @@
 
 #include "testing.h"
 
-#include "seq_recov.h"
+#include "notification.h"
 #include "packet.h"
 #include "pipeline.h"
+#include "seq_recov.h"
 #include "utils.h"
 
 #include <stdlib.h>
@@ -28,6 +29,9 @@ struct Action *delete_action(struct Action *a) { (void)a; return NULL; }
 struct Interface *action_send_get_iface(struct Action *a) { (void)a; return NULL; }
 const char *action_name_from_type(enum ActionType type) { (void)type; return NULL; }
 struct PipelineList *action_repl_get_piplinelist(struct Action *a) { (void)a; return NULL; }
+bool notification_push_event(const char *source, NotificationLevel level, struct JsonValue *message) {
+    (void)source; (void)level; (void)message; return false;
+}
 // XXX end stubs
 
 static const unsigned history_length = 64; // must be 2^n
