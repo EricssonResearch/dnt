@@ -211,12 +211,14 @@ struct Packet *iface_common_recv(struct Interface *iface, msghdr_process_cb *msg
         return delete_packet(p);
     }
 
-    __atomic_add_fetch(&iface->recv_packets, 1, __ATOMIC_RELAXED);
-    __atomic_add_fetch(&iface->recv_bytes, p->len, __ATOMIC_RELAXED);
-
     if (res > 0) {
         p->len = res;
+    } else {
+        return delete_packet(p);
     }
+
+    __atomic_add_fetch(&iface->recv_packets, 1, __ATOMIC_RELAXED);
+    __atomic_add_fetch(&iface->recv_bytes, p->len, __ATOMIC_RELAXED);
 
     get_rx_tstamp(&msg, p, userdata);
     log_debug("Used timestamp: %ld.%09ld", p->recv_time.tv_sec, p->recv_time.tv_nsec);

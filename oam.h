@@ -35,7 +35,7 @@ void oam_recv_reply(const char *msg);
 void oam_recv_request(struct OamEndPoint *oam, struct PipelineIterator *pi);
 
 // receive connection on the command (telnet) interface
-void oam_start_command_connection(int fd);
+void oam_start_command_connection(int fd, const char *remote_ip, unsigned short remote_port);
 
 // print an alert message to all active command sessions (like wall(1) does)
 void oam_cli_alert(const char *fmt, ...)

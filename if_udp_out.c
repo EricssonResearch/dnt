@@ -213,7 +213,9 @@ static bool udpout_close(struct Interface *iface)
 {
     struct UdpOutIfData *uid = (struct UdpOutIfData *)iface->iface_private;
     stop_monitoring_error_queue(uid->errq_monitor);
-    notification_register_source(iface->name, NULL, NULL, 2000);
+    // note: we only register after we've opened the socket to a known target ip
+    if (uid->sock)
+        notification_register_source(iface->name, NULL, NULL, 2000);
     close(uid->sock);
     free(uid->dst_ip);
     free(uid->dstaddr);

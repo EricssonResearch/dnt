@@ -31,6 +31,8 @@ DEFAULT_LOGGING_MODULE(OAM, INFO);
 
 struct CommandConnection {
     char *name;
+    char *remote_ip;
+    unsigned short remote_port;
     int socket_fd; // RW
     FILE *cmd_w; // WRONLY
     int w_users;
@@ -225,8 +227,9 @@ static void command_loop(struct CommandConnection *conn)
     }
 
     struct JsonValue *msg = json_object();
-    json_object_insert(msg, "login", json_string("login"));
-
+    json_object_insert(msg, "login", json_string(conn->name));
+    json_object_insert(msg, "ip", json_string(conn->remote_ip));
+    json_object_insert(msg, "port", json_number(conn->remote_port));
     notification_push_event("telnet", NOTIF_ERROR, msg);
 
     while (true) {
@@ -400,7 +403,7 @@ static void *command_thread(void *arg)
     return NULL;
 }
 
-void oam_start_command_connection(int fd)
+void oam_start_command_connection(int fd, const char *remote_ip, unsigned short remote_port)
 {
     struct CommandConnection *conn = calloc_struct(CommandConnection);
     conn->socket_fd = fd;
@@ -411,11 +414,14 @@ void oam_start_command_connection(int fd)
     //FILE *cmd_r = fdopen(cmd_fd_dup, "r");
 
     setvbuf(conn->cmd_w, NULL, _IOLBF, 0);
+    conn->remote_ip = strdup(remote_ip);
+    conn->remote_port = remote_port;
 
     conn->thread = thread_launch(command_thread, conn, "command");
     if (conn->thread == NULL) {
         log_perror("could not create new oam thread");
         fclose(conn->cmd_w); // we only need to close the FILE*
+        free(conn->remote_ip);
         free(conn);
         return;
     }
@@ -457,6 +463,7 @@ static int command_connection_delete_cb(const char *key, void *value, void *user
     thread_stop(conn->thread);
     fclose(conn->cmd_w); // we only need to close the FILE*
     free(conn->name);
+    free(conn->remote_ip);
     free(conn);
     return 1;
 }

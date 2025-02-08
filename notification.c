@@ -240,6 +240,7 @@ bool notification_register_source(const char *name, notification_pull_fn *callba
         pthread_mutex_lock(&sources_lock);
         hashmap_insert(sources, strdup(name), src);
         pthread_mutex_unlock(&sources_lock);
+        log_info("new source %s", name);
     } else {
         if (!existing) {
             log_error("can't remove unregistered source '%s'", name);
@@ -249,8 +250,8 @@ bool notification_register_source(const char *name, notification_pull_fn *callba
         pthread_mutex_lock(&sources_lock);
         hashmap_remove(sources, name);
         pthread_mutex_unlock(&sources_lock);
+        log_info("removed source %s", name);
     }
-    log_info("registered source %s", name);
 
     if (notif_q) {
         // notify the thread to recalculate its timeout

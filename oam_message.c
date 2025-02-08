@@ -293,21 +293,19 @@ static int process_reply(const char *msg)
             json_delete(j);
             return -1;
         }
-        if (sendif->type != IF_UDP_OUT) {
-            log_error("got newaddress notification for interface '%s' that is %s",
-                    sendiface->v.string, iface_type_str(sendif->type));
-            json_delete(j);
-            return -1;
-        }
 
         JS_OBJECT_GET(address, object, j);
         JS_OBJECT_GET(ip, string, address);
         JS_OBJECT_GET(port, number, address);
         log_debug("newaddress notification for %s is %s %.0f",
                 sendiface->v.string, ip->v.string, port->v.number);
-        udp_out_set_dst(sendif, ip->v.string, port->v.number);
-        json_delete(j);
-        return 0;
+        if (udp_out_set_dst(sendif, ip->v.string, port->v.number)) {
+            json_delete(j);
+            return 0;
+        } else {
+            json_delete(j);
+            return -1;
+        }
     }
 
     JS_OBJECT_GET(nodeid, number, j);
