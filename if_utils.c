@@ -337,6 +337,10 @@ bool iface_common_send(struct Interface *iface, struct Packet *p, int socket, vo
 
 bool iface_common_process(struct Interface *iface, struct Packet *p)
 {
+    if (iface->parsetree_ == NULL) {
+        iface->parsetree_ = new_parsetree(iface);
+    }
+
     struct PipelineIterator *pi = parsetree_identify(iface->parsetree_, p);
     if (pi == NULL) {
         delete_packet(p);

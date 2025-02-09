@@ -348,7 +348,5 @@ struct Interface *new_ip_interface(const char *name, const char *ifname)
     struct IpIfData *iid = calloc_struct(IpIfData);
     iface->iface_private = iid;
 
-    iface->parsetree_ = new_parsetree(iface);
-
     return iface;
 }

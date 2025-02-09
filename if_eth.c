@@ -294,7 +294,5 @@ struct Interface *new_eth_interface(const char *name, const char *ifname)
     struct EthIfData *eid = calloc_struct(EthIfData);
     iface->iface_private = eid;
 
-    iface->parsetree_ = new_parsetree(iface);
-
     return iface;
 }

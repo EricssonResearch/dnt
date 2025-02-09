@@ -5,12 +5,14 @@
 #include "parsetree.h"
 #include "interface.h"
 #include "log.h"
+#include "notification.h"
 #include "packet.h"
 #include "pipeline.h"
 #include "protocol.h"
 #include "utils.h"
 
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 
 DEFAULT_LOGGING_MODULE(PARSER, WARNING);
@@ -118,12 +120,16 @@ struct HeaderDescriptor *header_list_find_by_typeid(struct HeaderDescriptor *hea
 struct Stream {
     struct HeaderDescriptor *headers;
     struct Pipeline *pipe;
+    unsigned long long match_count;
+    unsigned long long match_bytes;
     struct Stream *next;
 };
 
 struct ParseTree {
     const struct Interface *iface;
     struct Stream *streams;
+    unsigned long long nomatch_count;
+    unsigned long long nomatch_bytes;
 };
 
 static struct Stream *new_stream(struct HeaderDescriptor *headers, struct Pipeline *pipe)
@@ -143,16 +149,41 @@ static struct Stream *delete_stream(struct Stream *del)
     return NULL;
 }
 
+static NotificationLevel pt_notification_pull_fn(void *self, struct JsonValue **msg)
+{
+    struct ParseTree *pt = (struct ParseTree *)self;
+    char name[1024];
+
+    struct JsonValue *js = json_object();
+    json_object_insert(js, "no match count", json_number(pt->nomatch_count));
+    json_object_insert(js, "no match bytes", json_number(pt->nomatch_bytes));
+    for (struct Stream *s=pt->streams; s; s=s->next) {
+        snprintf(name, sizeof(name), "%s count", s->pipe->name);
+        json_object_insert(js, name, json_number(s->match_count));
+        snprintf(name, sizeof(name), "%s bytes", s->pipe->name);
+        json_object_insert(js, name, json_number(s->match_bytes));
+    }
+    *msg = js;
+    return NOTIF_INFO;
+}
+
 struct ParseTree *new_parsetree(const struct Interface *iface)
 {
     struct ParseTree *ret = calloc_struct(ParseTree);
     ret->iface = iface;
+    char name[1024];
+    snprintf(name, sizeof(name), "%s parser", iface->name);
+    notification_register_source(name, pt_notification_pull_fn, ret, 2000);
     return ret;
 }
 
 struct ParseTree *delete_parsetree(struct ParseTree *pt)
 {
     if (pt == NULL) return NULL;
+
+    char name[1024];
+    snprintf(name, sizeof(name), "%s parser", pt->iface->name);
+    notification_register_source(name, NULL, NULL, 2000);
 
     struct Stream *s = pt->streams;
     while (s) {
@@ -275,6 +306,8 @@ struct PipelineIterator *parsetree_identify(struct ParseTree *pt, struct Packet 
                 packet_logcat(p, "|%s", protocol_from_id(p->headers[i].type)->name);
             }
             packet_logcat(p, "| ");
+            s->match_count++;
+            s->match_bytes += packet_length(p);
 
             return new_pipe_iterator(s->pipe, p);
         }
@@ -282,6 +315,8 @@ struct PipelineIterator *parsetree_identify(struct ParseTree *pt, struct Packet 
 
     log_packet("no pipeline found, unknown stream");
     packet_logcat(p, "unknown stream");
+    pt->nomatch_count++;
+    pt->nomatch_bytes += packet_length(p);
     return NULL;
 }
 

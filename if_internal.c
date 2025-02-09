@@ -133,7 +133,5 @@ struct Interface *new_internal_interface(const char *name)
 
     iface->iface_private = new_packetfifo();
 
-    iface->parsetree_ = new_parsetree(iface);
-
     return iface;
 }

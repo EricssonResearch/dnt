@@ -614,7 +614,5 @@ struct Interface *new_udp_in_interface(const char *name, const char *ifname,
     uid->family = ipversion == 6 ? AF_INET6 : AF_INET;
     uid->senders = sender_list;
 
-    iface->parsetree_ = new_parsetree(iface);
-
     return iface;
 }

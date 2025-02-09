@@ -64,6 +64,7 @@ static void send_notification_packet(struct JsonValue *pkt)
 
     unsigned pkt_len;
     char *pkt_str = json_serialize(pkt, &pkt_len);
+    log_debug("sending %zu", strlen(pkt_str));
 
     struct Packet *packet = new_packet(NULL);
     packet_add_header(packet, 0, PROTO_ID_PAYLOAD, pkt_len);
@@ -239,6 +240,11 @@ void finish_notification(void)
 
 bool notification_register_source(const char *name, notification_pull_fn *callback, void *self, unsigned period_ms)
 {
+    if (sources == NULL) {
+        log_error("can't register source '%s' before init", name);
+        return false;
+    }
+
     struct NotificationSource *existing = (struct NotificationSource *)hashmap_find(sources, name);
     if (callback) {
         if (existing) {
