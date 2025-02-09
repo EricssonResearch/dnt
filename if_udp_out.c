@@ -400,6 +400,12 @@ bool udp_out_set_dst(struct Interface *iface, const char *dst_ip, unsigned dst_p
         uid->dstip.v4 = dst4;
     }
 
+    struct JsonValue *js = json_object();
+    json_object_insert(js, "interface", json_string(iface->name));
+    json_object_insert(js, "ip", json_string(dst_ip));
+    json_object_insert(js, "port", json_number(dst_port));
+    notification_push_event("new dst", NOTIF_INFO, js);
+
     if (iface->state == IFS_INIT) {
         if (uid->opened) {
             // this means we wanted to open but had no address

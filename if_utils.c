@@ -321,6 +321,12 @@ bool iface_common_send(struct Interface *iface, struct Packet *p, int socket, vo
 
     if (sendmsg(socket, &msg, 0) < 0) {
         log_perror("sendmsg on %s", iface->name);
+        struct JsonValue *js = json_object();
+        json_object_insert(js, "interface", json_string(iface->name));
+        char err[2048];
+        strerror_r(errno, err, sizeof(err));
+        json_object_insert(js, "error", json_string(err));
+        notification_push_event("send", NOTIF_ERROR, js);
         return false;
     }
 

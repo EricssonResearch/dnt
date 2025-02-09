@@ -305,6 +305,12 @@ static void *iface_address_monitoring(void *arg)
                 strcpy(ip_str, "<none>");
             }
             log_info("udp-in %s new ip %s port %u", iface->name, ip_str, uid->port);
+
+            struct JsonValue *js = json_object();
+            json_object_insert(js, "interface", json_string(iface->name));
+            json_object_insert(js, "ip", json_string(ip_str));
+            json_object_insert(js, "port", json_number(uid->port));
+            notification_push_event("new src", NOTIF_INFO, js);
         }
 
         struct timespec now;

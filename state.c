@@ -8,6 +8,7 @@
 #include "conf_streams.h"
 #include "interface.h"
 #include "log.h"
+#include "notification.h"
 #include "oam.h"
 #include "object.h"
 #include "pipeline.h"
@@ -318,6 +319,10 @@ bool state_commit_transaction(struct StateTransaction *tr)
         //TODO rollback
         return false;
     }
+
+    struct JsonValue *msg = json_object();
+    json_object_insert(msg, "committed", json_string(tr->name));
+    notification_push_event("transaction", NOTIF_INFO, msg);
 
     return true;
 }
