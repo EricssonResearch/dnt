@@ -224,7 +224,8 @@ void init_notification(struct HashMap *conf_streams)
         notification_pipe = assemble_actions("notification_session", notif_sess->actions);
         pipeline_ref_send_interfaces(notification_pipe);
     }
-    sources = new_hashmap(13, NULL, NULL);
+    if (sources == NULL)
+        sources = new_hashmap(13, NULL, NULL);
     notif_q = new_messagequeue();
     notif_thread = thread_launch(notification_thread, NULL, "notification");
 }
@@ -240,10 +241,8 @@ void finish_notification(void)
 
 bool notification_register_source(const char *name, notification_pull_fn *callback, void *self, unsigned period_ms)
 {
-    if (sources == NULL) {
-        log_error("can't register source '%s' before init", name);
-        return false;
-    }
+    if (sources == NULL)
+        sources = new_hashmap(13, NULL, NULL);
 
     struct NotificationSource *existing = (struct NotificationSource *)hashmap_find(sources, name);
     if (callback) {

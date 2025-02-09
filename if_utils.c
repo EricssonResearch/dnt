@@ -218,7 +218,7 @@ struct Packet *iface_common_recv(struct Interface *iface, msghdr_process_cb *msg
     }
 
     __atomic_add_fetch(&iface->recv_packets, 1, __ATOMIC_RELAXED);
-    __atomic_add_fetch(&iface->recv_bytes, p->len, __ATOMIC_RELAXED);
+    __atomic_add_fetch(&iface->recv_octets, p->len, __ATOMIC_RELAXED);
 
     get_rx_tstamp(&msg, p, userdata);
     log_debug("Used timestamp: %ld.%09ld", p->recv_time.tv_sec, p->recv_time.tv_nsec);
@@ -317,7 +317,7 @@ bool iface_common_send(struct Interface *iface, struct Packet *p, int socket, vo
     packet_logcat(p, "%s ", iface->name);
 
     __atomic_add_fetch(&iface->send_packets, 1, __ATOMIC_RELAXED);
-    __atomic_add_fetch(&iface->send_bytes, packet_length(p), __ATOMIC_RELAXED);
+    __atomic_add_fetch(&iface->send_octets, packet_length(p), __ATOMIC_RELAXED);
 
     if (sendmsg(socket, &msg, 0) < 0) {
         log_perror("sendmsg on %s", iface->name);
@@ -492,9 +492,9 @@ NotificationLevel iface_notification_pull_fn(void *self, struct JsonValue **msg)
 
     struct JsonValue *ret = json_object();
     json_object_insert(ret, "recv_packets", json_number(iface->recv_packets));
-    json_object_insert(ret, "recv_bytes", json_number(iface->recv_bytes));
+    json_object_insert(ret, "recv_octets", json_number(iface->recv_octets));
     json_object_insert(ret, "send_packets", json_number(iface->send_packets));
-    json_object_insert(ret, "send_bytes", json_number(iface->send_bytes));
+    json_object_insert(ret, "send_octets", json_number(iface->send_octets));
 
     *msg = ret;
     return NOTIF_INFO;

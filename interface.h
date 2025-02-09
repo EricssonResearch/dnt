@@ -72,9 +72,9 @@ struct Interface {
     int dropstat_last_warn;
 
     unsigned long long recv_packets;
-    unsigned long long recv_bytes;
+    unsigned long long recv_octets;
     unsigned long long send_packets;
-    unsigned long long send_bytes;
+    unsigned long long send_octets;
 
     struct ParseTree *parsetree_; // private
 
