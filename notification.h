@@ -40,6 +40,21 @@ bool notification_register_source(const char *name, notification_pull_fn *callba
 // @returns false if the notification system is not running
 bool notification_push_event(const char *source, NotificationLevel level, struct JsonValue *message);
 
+// @returns true of the string is a valid log level
+bool notification_level_valid(const char *level);
+
+// unknown level is translated to NOTIF_NONE
+NotificationLevel notification_level_from_string(const char *level);
+
+// @returns a string representation of the given @level
+const char *notification_string_from_level(NotificationLevel level);
+
+// @returns the current minimum level that gets logged
+NotificationLevel notification_log_level(void);
+
+// @returns the current minimum level that gets sent to the center
+NotificationLevel notification_submit_level(void);
+
 // set the minimum level that gets logged
 // default is NOTIF_WARNING
 // TODO separate for push and pull?

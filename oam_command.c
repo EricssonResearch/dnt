@@ -90,9 +90,10 @@ enum TerminalFormat command_connection_get_format(const struct CommandConnection
 
 static const char help_str[] =
     "Available commands:\n"
-    "help - get help\n"
+    "help, ? - get help\n"
     "exit, quit, CTRL+D - exit OAM\n"
     "log [module newlevel] - get current log levels or set it for the given module\n"
+    "notify [{LOG|SUBMIT} newlevel] - get current notification levels or set them\n"
     "mode <mode> - set ping reply printing mode, can be 'dump' or 'json'\n"
     "list - list monitoring start points\n"
     "returns - list return interfaces\n"
@@ -230,7 +231,7 @@ static void command_loop(struct CommandConnection *conn)
     json_object_insert(msg, "login", json_string(conn->name));
     json_object_insert(msg, "ip", json_string(conn->remote_ip));
     json_object_insert(msg, "port", json_number(conn->remote_port));
-    notification_push_event("telnet", NOTIF_ERROR, msg);
+    notification_push_event("telnet", NOTIF_INFO, msg);
 
     while (true) {
         int n = read(cmd_fd, oam_command, sizeof(oam_command)-1);
@@ -281,7 +282,7 @@ static void command_loop(struct CommandConnection *conn)
                 }
                 fprintf(cmd_w, "Display mode is %s\n", terminal_format_name(conn->mode));
             }
-            else if(strcmp(oam_command, "help") == 0){
+            else if (strcmp(oam_command, "help") == 0 || strcmp(oam_command, "?") == 0) {
                 fprintf(cmd_w, help_str);
             }
             else if (strcmp(oam_command, "list") == 0) {
@@ -308,6 +309,31 @@ static void command_loop(struct CommandConnection *conn)
                     }
                 } else {
                     fprintf(cmd_w, "Invalid parameters for 'log' command.\n");
+                }
+            }
+            else if (strncmp(oam_command, "notify", 6) == 0) {
+                char target[32];
+                char newlevel[16];
+                int k = sscanf(oam_command, "notify %s %s", target, newlevel);
+                if (k == 0 || k == EOF) {
+                    fprintf(cmd_w, "Notification level limits:\n  LOG    %s\n  SUBMIT %s\n",
+                            notification_string_from_level(notification_log_level()),
+                            notification_string_from_level(notification_submit_level()));
+                } else if (k == 2) {
+                    if (notification_level_valid(newlevel)) {
+                        NotificationLevel nlvl = notification_level_from_string(newlevel);
+                        if (strcmp(target, "LOG") == 0) {
+                            notification_set_log_level(nlvl);
+                        } else if (strcmp(target, "SUBMIT") == 0) {
+                            notification_set_submit_level(nlvl);
+                        } else {
+                            fprintf(cmd_w, "Invalid notification target '%s'.\n", target);
+                        }
+                    } else {
+                        fprintf(cmd_w, "Invalid notification level '%s'.\n", newlevel);
+                    }
+                } else {
+                    fprintf(cmd_w, "Invalid parameters for 'notify' command.\n");
                 }
             }
             else if (strncmp(oam_command, "sessions", 8) == 0) {

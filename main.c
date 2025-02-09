@@ -179,24 +179,19 @@ static bool set_loglevels(const char *levels)
             char *comma = strchr(l, ',');
             if (comma) {
                 *comma = 0;
-                //printf("module '%s' level '%s'\n", m, l);
-                if (!log_level_valid(l)) {
-                    THROW("Invalid log level '%s'", l);
-                }
-                LOGGING_LEVELS nlvl = log_level_from_string(l);
-                if (!log_set_level(m, nlvl)) {
-                    THROW("Module '%s' does not exist", m);
-                }
+            }
+
+            if (!log_level_valid(l)) {
+                THROW("Invalid log level '%s'", l);
+            }
+            LOGGING_LEVELS nlvl = log_level_from_string(l);
+            if (!log_set_level(m, nlvl)) {
+                THROW("Module '%s' does not exist", m);
+            }
+
+            if (comma) {
                 p = comma + 1;
             } else {
-                //printf("last module '%s' level '%s'\n", m, l);
-                if (!log_level_valid(l)) {
-                    THROW("Invalid log level '%s'", l);
-                }
-                LOGGING_LEVELS nlvl = log_level_from_string(l);
-                if (!log_set_level(m, nlvl)) {
-                    THROW("Module '%s' does not exist", m);
-                }
                 free(s);
                 return true;
             }
@@ -210,17 +205,71 @@ static bool set_loglevels(const char *levels)
 #undef THROW
 }
 
+static bool set_notiflevels(const char *levels)
+{
+#define THROW(msg, ...)                             \
+    do {                                            \
+        log_error(msg, ##__VA_ARGS__);              \
+        free(s);                                    \
+        return false;                               \
+    } while (0)
+
+    char *s = strdup(levels);
+    char *p = s;
+
+    while (1) {
+        char *t = p;
+        char *colon = strchr(t, ':');
+        if (colon) {
+            *colon = 0;
+            char *l = colon + 1;
+            char *comma = strchr(l, ',');
+            if (comma) {
+                *comma = 0;
+            }
+
+            if (!notification_level_valid(l)) {
+                THROW("Invalid notification level '%s'", l);
+            }
+            NotificationLevel nlvl = notification_level_from_string(l);
+
+            if (strcmp(t, "LOG") == 0) {
+                notification_set_log_level(nlvl);
+            } else if (strcmp(t, "SUBMIT") == 0) {
+                notification_set_submit_level(nlvl);
+            } else {
+                THROW("Invalid notification target '%s'", t);
+            }
+
+            if (comma) {
+                p = comma + 1;
+            } else {
+                free(s);
+                return true;
+            }
+        } else {
+            THROW("Missing notification level");
+        }
+    }
+
+    free(s);
+    return true;
+#undef THROW
+}
+
 static char args_doc[] = "CONFIGFILE";
 
 static struct argp_option options[] = {
     {"verbose", 'v', "MODULE:LEVEL", 0, "Available levels: NONE, ERROR, WARNING, INFO, PACKET, DEBUG, ALL", 0},
     {"output", 'o', "logfile", 0, "Output: log[f]ile, sys[l]og, [s]tdout (default), std[e]rr", 0},
+    {"notify", 'n', "{LOG|SUBMIT}:LEVEL", 0, "Available levels: NONE, ERROR, WARNING, INFO, ALL", 0},
     { 0, 0, 0, 0, 0, 0 }
 };
 
 static struct arguments {
     char *configfile;
     char *verbosity;
+    char *notification;
     LOG_OUTPUT output;
 } arguments;
 
@@ -251,6 +300,10 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
                 else if (strcmp(arg, "stderr") == 0) args->output = LOG_OUT_STDERR;
                 else argp_error(state, "Invalid value '%s' for output argument.", arg);
             }
+        }
+        break;
+        case 'n': {
+            args->notification = arg;
         }
         break;
         case ARGP_KEY_ARG:
@@ -296,6 +349,13 @@ int main(int argc, char **argv)
     if (arguments.verbosity) {
         if (!set_loglevels(arguments.verbosity)) {
             log_error("Verbosity argument '%s' is invalid", arguments.verbosity);
+            return EXIT_FAILURE;
+        }
+    }
+
+    if (arguments.notification) {
+        if (!set_notiflevels(arguments.notification)) {
+            log_error("Notification argument '%s' is invalid", arguments.notification);
             return EXIT_FAILURE;
         }
     }

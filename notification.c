@@ -36,6 +36,8 @@ static pthread_mutex_t sources_lock = PTHREAD_MUTEX_INITIALIZER;
 static NotificationLevel log_level = NOTIF_WARNING;
 static NotificationLevel submit_level = NOTIF_ALL;
 
+static unsigned notif_seq = 0;
+
 struct NotificationSource {
     notification_pull_fn *pull;
     void *self;
@@ -48,9 +50,18 @@ struct NotificationMessage {
     struct JsonValue *message;
 };
 
+static const char *notification_level_strings[] = {
+    "NONE",
+    "ERROR",
+    "WARNING",
+    "INFO",
+    "ALL",
+};
 
-static void send_notification_packet(const struct JsonValue *pkt)
+static void send_notification_packet(struct JsonValue *pkt)
 {
+    json_object_insert(pkt, "notif_seq", json_number(notif_seq++));
+
     unsigned pkt_len;
     char *pkt_str = json_serialize(pkt, &pkt_len);
 
@@ -128,6 +139,8 @@ static void *notification_thread(void *arg)
                     } else {
                         log_error("can't send push from '%s' length %u", msg->source, js_len);
                     }
+                } else {
+                    json_delete(msg->message);
                 }
                 free(msg);
             }
@@ -275,6 +288,42 @@ bool notification_push_event(const char *source, NotificationLevel level, struct
     msg->message = message;
     messagequeue_push(notif_q, msg);
     return true;
+}
+
+bool notification_level_valid(const char *level)
+{
+    for (unsigned i=0; i<ARRAY_SIZE(notification_level_strings); i++) {
+        if (strcmp(level, notification_level_strings[i]) == 0)
+            return true;
+    }
+    return false;
+}
+
+NotificationLevel notification_level_from_string(const char *level)
+{
+    if (level == NULL) return NOTIF_NONE;
+    for (unsigned i=0; i<ARRAY_SIZE(notification_level_strings); i++) {
+        if (strcmp(level, notification_level_strings[i]) == 0)
+            return (NotificationLevel)i;
+    }
+    return NOTIF_NONE;
+}
+
+const char *notification_string_from_level(NotificationLevel level)
+{
+    if (level >= 0 && level < ARRAY_SIZE(notification_level_strings))
+        return notification_level_strings[level];
+    return NULL;
+}
+
+NotificationLevel notification_log_level(void)
+{
+    return log_level;
+}
+
+NotificationLevel notification_submit_level(void)
+{
+    return submit_level;
 }
 
 void notification_set_log_level(NotificationLevel level)
