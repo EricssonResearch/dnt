@@ -394,6 +394,11 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
+	struct JsonValue *msg = json_object();
+    json_object_insert(msg, "status", json_string("startup completed"));
+
+    notification_push_event("r2dtwo", NOTIF_INFO, msg);
+    
     recv_loop();
     log_info("receive loop ended");
 
