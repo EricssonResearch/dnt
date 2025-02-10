@@ -119,7 +119,7 @@ static bool ip_open(struct Interface *iface)
         return false;
     }
 
-   if(parsetree_streams_empty(iface->parsetree_)) {
+   if(iface->parsetree_==NULL || parsetree_streams_empty(iface->parsetree_)) {
        log_info("open ip interface %s empty stream list, assuming output-only", iface->name);
        iid->out_only = true;
    }

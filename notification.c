@@ -199,7 +199,7 @@ static void *notification_thread(void *arg)
                 }
             }
             pthread_mutex_unlock(&sources_lock);
-            if (notification_pipe)
+            if (notification_pipe && json_object_count(pkt))
                 send_notification_packet(pkt);
             json_delete(pkt);
 

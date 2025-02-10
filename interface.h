@@ -6,6 +6,7 @@
 #define R2_INTERFACE_H
 
 #include "protocol.h"
+#include "time_utils.h"
 #include "value.h"
 
 #include <stdbool.h>
@@ -75,6 +76,8 @@ struct Interface {
     unsigned long long recv_octets;
     unsigned long long send_packets;
     unsigned long long send_octets;
+
+    struct timespec last_alert;
 
     struct ParseTree *parsetree_; // private
 
