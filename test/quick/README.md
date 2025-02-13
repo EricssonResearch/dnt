@@ -15,7 +15,7 @@ This has to be run on *nb*, its normal function is to do a VLAN translation betw
 
 ## quickdetB.ini and quickdetC.ini
 
-This sets up a TSN-in-PseudoWire tunnel between *nb* and *nc*, so *na* and *nd* can talk to each other, check it out on *na* with `ping 192.126.1.4` or `ping fd92::4`.
+This sets up a TSN-in-PseudoWire tunnel between *nb* and *nc*, so *na* and *nd* can talk to each other, check it out on *na* with `ping 192.168.1.4` or `ping fd92::4`.
 
 ## quickip.ini
 
