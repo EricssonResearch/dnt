@@ -3,18 +3,10 @@ import json
 import sys
 import ipaddress
 import signal
-#import ipaddr
 
 def signal_handler(sig, frame):
     print('   Ctrl+C pressed, exiting.')
     sys.exit(0)
-
-def is_ipv4(string):
-    try:
-        ipaddress.IPv4Network(string)
-        return True
-    except ValueError:
-        return False
 
 signal.signal(signal.SIGINT, signal_handler)
 
@@ -24,7 +16,7 @@ DEFAULT_PORT = 5678
 if len(sys.argv) < 3:
     srv_addr = DEFAULT_IP
     srv_port = DEFAULT_PORT
-    print("<IP address> and/or <port> not specfied in command line parameters, defaulting to all interafces and ",DEFAULT_PORT," port")
+    print("<IP address> and/or <port> not specfied in command line parameters, defaulting to ALL interafces and ",DEFAULT_PORT," port")
 else:
     srv_addr = sys.argv[1]
     srv_port = int(sys.argv[2])
@@ -55,18 +47,33 @@ sock.bind((srv_addr, srv_port))
 
 print("JSON receiver server started")
 
+SEQ_HISTORY_SIZE = 10
+index=0
+last_seqnums=[0] * SEQ_HISTORY_SIZE
+
+supress = False
+
 while True:
     data, addr = sock.recvfrom(2048) #gets UDP data up to 2kB
     (host,port) = socket.getnameinfo(addr,socket.NI_NUMERICHOST | socket.NI_NUMERICSERV)
-    #print("Host: ",host," port: ", port)
 
-    print('\nConnection from: ', host, 'port ',port)
-
+    print('\nConnection from: ',host)
     try:
-        jsonReceived = json.loads(data) #sets UDP received as JSON    
-        print('========== JSON data begin ==========')
-        print(json.dumps(jsonReceived, indent=2))
-        print('=========== JSON data end ===========')
+        jsonReceived = json.loads(data)    
+        seq_num = jsonReceived.get("notif_seq")
+        if seq_num != None:
+            if (host, seq_num) in last_seqnums: 
+                print("Message with sequence number ", seq_num, " already received, not showing the replica")
+                supress = True
+            else:
+                last_seqnums[index] = (host, seq_num)
+                index = ( index + 1 ) % SEQ_HISTORY_SIZE
+
+        if not supress:
+            print('========== JSON data begin ==========')
+            print(json.dumps(jsonReceived, indent=2))
+            print('=========== JSON data end ===========')
+        supress = False
 
     except json.decoder.JSONDecodeError:
         print ("JSON decoder error: received message is not JSON or UDP receive buffer is too small to fit all the JSON data")
