@@ -2,13 +2,13 @@
 // All rights reserved.
 
 
+#include "seq_recov.h"
 #include "json.h"
 #include "log.h"
 #include "notification.h"
 #include "oam.h"
 #include "packet.h"
 #include "pipeline.h"
-#include "seq_recov.h"
 #include "time_utils.h"
 #include "thread_utils.h"
 #include "utils.h"
@@ -454,6 +454,7 @@ static void recovery_diagnostic(struct SequenceRecovery *rec)
         json_object_insert(noti, "source", json_string(rec->base.name));    \
         json_object_insert(noti, "alert", json_string(notistr));            \
         notification_push_event("diagnostic", NOTIF_WARNING, noti);         \
+        free(notistr);                                                      \
     } while (0)                                                             \
 
     const char *fmt_more = "%s: MORE_PACKETS_THAN_EXPECTED with %d percent";
