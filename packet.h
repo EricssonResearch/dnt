@@ -6,6 +6,7 @@
 #define R2_PACKET_H
 
 #include "protocol.h"
+#include "notification.h"
 
 #include <stdbool.h>
 #include <time.h>

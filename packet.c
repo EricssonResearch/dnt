@@ -199,8 +199,25 @@ void packets_check_performance(void)
 {
     if (packet_count > PACKET_COUNT_LIMIT * 0.9) {
         log_warning("SEVERE PERFORMANCE WARNING: too many packets in the system");
+
+        // rate is limited by the caller
+        struct JsonValue *js = json_object();
+
+        json_object_insert(js, "warning", json_string("performance"));
+        json_object_insert(js, "cause", json_string("too many packets in the system"));
+        json_object_insert(js, "severity", json_string("high"));
+        notification_push_event("send", NOTIF_WARNING, js);
+
     } else if (packet_count > PACKET_COUNT_LIMIT * 0.5) {
         log_warning("PERFORMANCE WARNING: too many packets in the system");
+
+        // rate is limited by the caller
+        struct JsonValue *js = json_object();
+        json_object_insert(js, "warning", json_string("performance"));
+        json_object_insert(js, "cause", json_string("too many packets in the system"));
+        json_object_insert(js, "severity", json_string("medium"));
+        notification_push_event("send", NOTIF_WARNING, js);
+
     }
 }
 
