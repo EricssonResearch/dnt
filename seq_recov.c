@@ -218,6 +218,14 @@ char *seq_rec_sprintf_state_json(struct JsonValue *json, const char *record_sep,
     }
 }
 
+static NotificationLevel seq_rec_notification_pull_fn(void *self, struct JsonValue **msg)
+{
+    struct PipelineObject *rep = (struct PipelineObject *)self;
+    struct JsonValue *js = get_state_json(rep);
+    *msg = js;
+    return NOTIF_INFO;
+}
+
 static void shift_seq_history(struct SequenceRecovery *rec, char *history,  unsigned new_zero)
 {
     if (history[rec->history_length - 1] == 0) {
@@ -636,6 +644,7 @@ struct PipelineObject *new_seq_rec(const char *name, enum SequenceRecoveryAlgori
         log_error("cant't create reset thread for %s", name);
         return delete_seq_rec((struct PipelineObject *)ret);
     }
+    notification_register_source(name, seq_rec_notification_pull_fn, ret, 2000);
 
     return (struct PipelineObject *)ret;
 }
@@ -643,6 +652,7 @@ struct PipelineObject *new_seq_rec(const char *name, enum SequenceRecoveryAlgori
 struct PipelineObject *delete_seq_rec(struct PipelineObject *r)
 {
     struct SequenceRecovery *rec = (struct SequenceRecovery *)r;
+    notification_register_source(r->name, NULL, NULL, 2000);
     thread_stop(rec->reset_thread);
     rec->reset_thread = NULL;
     free(rec->history);
