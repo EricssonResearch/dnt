@@ -100,11 +100,32 @@ unsigned short get_node_id(void)
     return oamif_get_uid(oam_default_iface);
 }
 
+struct JsonValue *mep_start_get_state(const struct MepStart *mep_start)
+{
+    struct JsonValue *ret = json_object();
+    json_object_insert(ret, "packets_passed", json_number(mep_start->packets_passed));
+    json_object_insert(ret, "octets_passed", json_number(mep_start->octets_passed));
+    json_object_insert(ret, "oam_packets_passed", json_number(mep_start->oam_packets_passed));
+    json_object_insert(ret, "oam_octets_passed", json_number(mep_start->oam_octets_passed));
+    json_object_insert(ret, "name", json_string(mep_start->name));
+    json_object_insert(ret, "type", json_string("mep_state"));
+    return ret;
+}
+
+static NotificationLevel mep_start_notification_pull_fn(void *self, struct JsonValue **msg)
+{
+    struct MepStart *mep = (struct MepStart *) self;
+    struct JsonValue *state = mep_start_get_state(mep);
+    *msg = state;
+    return NOTIF_INFO;
+}
+
 static int mep_start_delete_cb(const char *key, void *value, void *userdata)
 {
     (void)key;
     (void)userdata;
     struct MepStart *mepstart = (struct MepStart *)value;
+    notification_register_source(mepstart->name, NULL, NULL, 2000);
     free(mepstart->name);
     free(mepstart->stream_name);
     free(mepstart);
@@ -152,6 +173,7 @@ bool oam_create_mep_start(const char *stream_name, const char *mep_name, int lev
     mepstart->pipe_pos_idx = idx;
     // for mepstart->pipe see oam_set_pipeline_for_mep_start()
     hashmap_insert(mep_starts, mepstart->name, mepstart);
+    notification_register_source(mep_name, mep_start_notification_pull_fn, mepstart, 2000);
     return true;
 }
 
@@ -356,10 +378,9 @@ bool oam_start_background_ping(const char *name, const char *command)
 
 void mep_start_count_passed(struct MepStart *start, struct Packet *pkt)
 {
-    start->packets_passed += 1;
-    start->octets_passed += packet_length(pkt);
+    __atomic_fetch_add(&start->packets_passed, 1, __ATOMIC_RELAXED);
+    __atomic_fetch_add(&start->octets_passed, packet_length(pkt), __ATOMIC_RELAXED);
 }
-
 
 bool init_oam(void)
 {

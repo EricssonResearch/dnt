@@ -51,4 +51,6 @@ void mep_start_wakeup_mask_checker(struct MepStart *start);
 
 void mep_start_count_passed(struct MepStart *start, struct Packet *pkt);
 
+struct JsonValue *mep_start_get_state(const struct MepStart *mep_start);
+
 #endif // R2_OAM_CORE_H
