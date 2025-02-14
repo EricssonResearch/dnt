@@ -100,6 +100,8 @@ unsigned short get_node_id(void)
     return oamif_get_uid(oam_default_iface);
 }
 
+static bool is_masked(const struct MepStart *mep, const struct timespec *now);
+
 struct JsonValue *mep_start_get_state(const struct MepStart *mep_start)
 {
     struct JsonValue *ret = json_object();
@@ -108,6 +110,10 @@ struct JsonValue *mep_start_get_state(const struct MepStart *mep_start)
     json_object_insert(ret, "oam_packets_passed", json_number(mep_start->oam_packets_passed));
     json_object_insert(ret, "oam_octets_passed", json_number(mep_start->oam_octets_passed));
     json_object_insert(ret, "name", json_string(mep_start->name));
+    struct timespec now;
+    clock_gettime(CLOCK_REALTIME, &now);
+    bool masked = is_masked(mep_start, &now);
+    json_object_insert(ret, "mask_signal_state", json_string(masked ? "masked" : "unmasked"));
     json_object_insert(ret, "type", json_string("mep_state"));
     return ret;
 }

@@ -124,3 +124,12 @@ void pipe_iteraror_cancel(struct PipelineIterator *pi)
 {
     delete_iterator(pi);
 }
+
+struct JsonValue *pipe_get_state(const struct Pipeline *pipe)
+{
+    struct JsonValue *state = json_object();
+    json_object_insert(state, "name", json_string(pipe->name));
+    json_object_insert(state, "mask_state", json_string(pipe->mask ? "masked" : "unmasked"));
+    json_object_insert(state, "action_count", json_number((double) pipe->action_count));
+    return state;
+}

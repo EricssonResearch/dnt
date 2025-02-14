@@ -55,4 +55,7 @@ void pipe_iteraror_cancel(struct PipelineIterator *pi);
 // @returns: true if the mask changed (new_mask != pipe->mask)
 bool pipe_set_mask(struct Pipeline *pipe, bool new_mask);
 
+// get state information
+struct JsonValue *pipe_get_state(const struct Pipeline *pipe);
+
 #endif // R2_PIPELINE_H

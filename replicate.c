@@ -29,6 +29,14 @@ static struct JsonValue *get_state_json(const struct PipelineObject *obj)
     json_object_insert(js, "name", json_string(obj->name));
     json_object_insert(js, "packets_passed", json_number(rep->packets_passed));
     json_object_insert(js, "octets_passed", json_number(rep->octets_passed));
+    struct JsonValue *pipe_states = json_array();
+    struct PipelineList *iter = rep->pipes;
+    while (iter) {
+        struct JsonValue *pstate = pipe_get_state(iter->pipe);
+        json_array_push(pipe_states, pstate);
+        iter = iter->next;
+    }
+    json_object_insert(js, "pipelines", pipe_states);
     return js;
 }
 
