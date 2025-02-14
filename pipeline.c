@@ -5,7 +5,9 @@
 #include "pipeline.h"
 #include "action.h"
 #include "interface.h"
+#include "json.h"
 #include "log.h"
+#include "notification.h"
 #include "packet.h"
 #include "utils.h"
 
@@ -85,6 +87,12 @@ bool pipe_set_mask(struct Pipeline *pipe, bool new_mask)
 {
     if (pipe->mask != new_mask) {
         pipe->mask = new_mask;
+
+        struct JsonValue *noti = json_object();
+        json_object_insert(noti, "source_pipeline", json_string(pipe->name));
+        json_object_insert(noti, "status", json_string(new_mask ? "masked" : "unmasked"));
+        notification_push_event("mask", NOTIF_INFO, noti);
+
         return true;
     }
     return false;
