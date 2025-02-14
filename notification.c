@@ -191,6 +191,7 @@ static void *notification_thread(void *arg)
                             // send what we have collected, start new object
                             send_notification_packet(pkt);
                             json_delete(pkt);
+                            total_length = 0;
                             pkt = json_object();
                         }
                     } else {
