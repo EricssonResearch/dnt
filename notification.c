@@ -94,7 +94,7 @@ static void *notification_thread(void *arg)
         struct timespec now;
         clock_gettime(CLOCK_REALTIME, &now);
         next_wake = time_add_us(now, period_us);
-        timeout_us = time_diff_us(next_wake, now);
+        timeout_us = period_us;
     }
     log_debug("initial period %u first timeout %d", period_us, timeout_us);
 
@@ -208,7 +208,11 @@ static void *notification_thread(void *arg)
             clock_gettime(CLOCK_REALTIME, &now);
             next_wake = time_add_us(next_wake, period_us);
             timeout_us = time_diff_us(next_wake, now);
-            if (timeout_us < 0) timeout_us = 0;
+            if (timeout_us < 0) {
+                log_debug("next wake time is in the past, rebooting the cycle");
+                timeout_us = period_us;
+                next_wake = time_add_us(now, period_us);
+            }
 
             log_debug("after timeout period %u now %ld.%.9lu next_wake %ld.%.09lu timeout %d",
                     period_us, now.tv_sec, now.tv_nsec, next_wake.tv_sec, next_wake.tv_nsec, timeout_us);
