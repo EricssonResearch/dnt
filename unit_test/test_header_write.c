@@ -3,6 +3,7 @@
 
 #include "header.h"
 #include "log.h"
+#include "notification.h"
 #include "packet.h"
 #include "utils.h"
 
@@ -10,8 +11,15 @@
 
 TEST_INIT("Header Write");
 
+// XXX stubs for stuff that we depend on but don't need
+bool notification_push_event(const char *source, NotificationLevel level, struct JsonValue *message)
+    { (void)source; (void)level; (void)message; return false; }
+bool notification_register_source(const char *name, notification_pull_fn *callback, void *self, unsigned period_ms)
+    { (void)name; (void)callback; (void)self; (void)period_ms; return true; }
+// XXX end stubs
+
 // we test 1..32 bit fields with 0..32 bit offset -> buffer is 64 bits
-struct TestData {
+struct TestData{
     unsigned char src[8];
     unsigned char dst[8];
     unsigned char expected[8];

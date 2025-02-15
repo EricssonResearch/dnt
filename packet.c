@@ -3,6 +3,7 @@
 
 
 #include "packet.h"
+#include "notification.h"
 #include "protocol.h"
 #include "utils.h"
 #include "log.h"
