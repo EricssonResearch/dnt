@@ -9,6 +9,7 @@
 
 #include "pipeline.h"
 #include "time_utils.h"
+#include "notification.h"
 
 // initialize the delay thread
 bool init_delay(void);
@@ -22,6 +23,8 @@ void fini_delay(void);
 // the queue will release the packet when @delay has elapsed since @timestamp
 // TODO return whether it has stored the packet or not (TODO return if no delaying needed)
 void delay_insert(struct PipelineIterator *pi, unsigned timestamp, const struct timespec delay);
+
+NotificationLevel delay_notification_pull_fn(void *self, struct JsonValue **msg);
 
 
 #endif // R2_DELAY_H
