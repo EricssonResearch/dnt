@@ -6,6 +6,7 @@
 #include "hashmap.h"
 #include "interface.h"
 #include "notification.h"
+#include "monitor.h"
 #include "packet.h"
 #include "parsetree.h"
 #include "seq_gen.h"
@@ -377,6 +378,8 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
+    init_monitor();
+
     init_notification(tr->streams);
 
     bool commit_success = state_commit_transaction(tr);
@@ -409,6 +412,8 @@ int main(int argc, char **argv)
     finish_oam();
 
     finish_notification();
+
+    finish_monitor();
 
     close_log();
 
