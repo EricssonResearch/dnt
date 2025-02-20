@@ -1,10 +1,6 @@
 // Copyright (c) 2023, Ericsson AB and Ericsson Telecommunication Hungary
 // All rights reserved.
 
-#ifdef _GNU_SOURCE /* stupid g++ implicitly defines this */
-#undef _GNU_SOURCE /* we want the standard version of strerror_r */
-#endif
-
 #include "action.h"
 #include "delay.h"
 #include "log.h"
@@ -26,6 +22,8 @@
 
 
 DEFAULT_LOGGING_MODULE(DELAY, WARNING);
+
+int delay_actions = 0;
 
 struct DelayStat {
     unsigned long long delayed_packets;
@@ -49,14 +47,15 @@ pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 struct timespec delay_timer;
 struct timespec last_alert;
 
-NotificationLevel delay_notification_pull_fn(void *self, struct JsonValue **msg)
+
+static NotificationLevel delay_notification_pull_fn(void *self, struct JsonValue **msg)
 {
     (void)self;
     //char *name = (char *)self;
 
     struct JsonValue *ret = json_object();
 
-    HASHMAP_ITERATE(stats, s) { 
+    HASHMAP_ITERATE(stats, s) {
         struct DelayStat *stat = (struct DelayStat *)hash_iterator_value(&s);
         const char *pipeline_name = hash_iterator_key(&s);
 
@@ -66,9 +65,9 @@ NotificationLevel delay_notification_pull_fn(void *self, struct JsonValue **msg)
         json_object_insert(ret, pipeline_name, js);
     }
 
-    unsigned len;
+/*    unsigned len;
     printf("js=%s\n", json_serialize(ret, &len));
-
+*/
     *msg = ret;
     return NOTIF_INFO;
 }
@@ -187,7 +186,6 @@ void delay_insert(struct PipelineIterator *pi, unsigned timestamp, const struct 
     if (!stat) {
         stat = calloc_struct(DelayStat);
         hashmap_insert(stats, strdup(pi->pipe->name), stat);
-        printf("stat added\n");
     }
 
     pDelayQueueEntry->pi = pi;
@@ -211,7 +209,8 @@ void delay_insert(struct PipelineIterator *pi, unsigned timestamp, const struct 
         if (time_diff_us(now_ts, last_alert) > 1000*1000*5) {
             log_perror("delay %s", pi->pipe->name);
             stat->delay_exceeded_packets++;
-/*            struct JsonValue *js = json_object();
+/*          // push notification
+            struct JsonValue *js = json_object();
             json_object_insert(js, "delay", json_string(pi->pipe->name));
             json_object_insert(js, "error", json_string("Delay already exceeded"));
             notification_push_event("delay", NOTIF_ERROR, js);

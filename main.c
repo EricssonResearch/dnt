@@ -6,7 +6,7 @@
 #include "hashmap.h"
 #include "interface.h"
 #include "notification.h"
-#include "monitor.h"
+#include "sysmon.h"
 #include "packet.h"
 #include "parsetree.h"
 #include "seq_gen.h"
@@ -378,8 +378,6 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
-    init_monitor();
-
     init_notification(tr->streams);
 
     bool commit_success = state_commit_transaction(tr);
@@ -389,8 +387,14 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
-    if (!init_delay()) {
-        return EXIT_FAILURE;
+    // Init delay and monitor only when delay actionsions are present
+    if(delay_actions > 0) {
+        if (!init_delay()) {
+            return EXIT_FAILURE;
+        }
+        if (!init_monitor()) {
+            return EXIT_FAILURE;
+        }
     }
 
     if(!init_oam()) {
@@ -401,7 +405,7 @@ int main(int argc, char **argv)
     json_object_insert(msg, "status", json_string("startup completed"));
 
     notification_push_event("r2dtwo", NOTIF_INFO, msg);
-    
+
     recv_loop();
     log_info("receive loop ended");
 
