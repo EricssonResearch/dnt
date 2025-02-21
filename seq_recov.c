@@ -439,6 +439,10 @@ static enum ActionResult seq_recovery(struct PipelineObject *r, struct PipelineI
 static void seq_recovery_reset(struct SequenceRecovery *rec)
 {
     log_info("%s%s: Sequence recovery reset.", rec->session_id ? "(OAM)" : "", rec->base.name);
+    struct JsonValue *noti = json_object();
+    json_object_insert(noti, "source", json_string(rec->base.name));
+    json_object_insert(noti, "message", json_string("recovery reset"));
+    notification_push_event("seq_rcvy", NOTIF_INFO, noti);
     rec->seq_recovery_resets += 1;
     rec->take_any = true;
     switch (rec->algorithm) {
