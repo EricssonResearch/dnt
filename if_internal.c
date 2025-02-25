@@ -77,6 +77,10 @@ static bool int_recv(struct Interface *iface)
     if (ret < 0)
         log_perror("read interface %s", iface->name);
     struct Packet *p = packetfifo_get(pf);
+
+    __atomic_add_fetch(&iface->recv_packets, 1, __ATOMIC_RELAXED);
+    __atomic_add_fetch(&iface->recv_octets, p->len, __ATOMIC_RELAXED);
+
     return iface_common_process(iface, p);
 }
 
@@ -84,6 +88,11 @@ static bool int_send(struct Interface *iface, struct Packet *p)
 {
     struct PacketFifo *pf = (struct PacketFifo *)iface->iface_private;
     if (iface->state == IFS_OPEN) {
+        packet_logcat(p, "%s ", iface->name);
+
+        __atomic_add_fetch(&iface->send_packets, 1, __ATOMIC_RELAXED);
+        __atomic_add_fetch(&iface->send_octets, packet_length(p), __ATOMIC_RELAXED);
+
         struct Packet *newp = serialize_packet(p);
         packetfifo_insert(pf, newp);
         uint64_t one = 1;

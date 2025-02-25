@@ -120,7 +120,7 @@ struct HeaderDescriptor *header_list_find_by_typeid(struct HeaderDescriptor *hea
 struct Stream {
     struct HeaderDescriptor *headers;
     struct Pipeline *pipe;
-    unsigned long long match_count;
+    unsigned long long match_packets;
     unsigned long long match_octets;
     struct Stream *next;
 };
@@ -128,7 +128,7 @@ struct Stream {
 struct ParseTree {
     const struct Interface *iface;
     struct Stream *streams;
-    unsigned long long nomatch_count;
+    unsigned long long nomatch_packets;
     unsigned long long nomatch_octets;
 };
 
@@ -155,11 +155,11 @@ static NotificationLevel pt_notification_pull_fn(void *self, struct JsonValue **
     char name[1024];
 
     struct JsonValue *js = json_object();
-    json_object_insert(js, "no match count", json_number(pt->nomatch_count));
+    json_object_insert(js, "no match packets", json_number(pt->nomatch_packets));
     json_object_insert(js, "no match octets", json_number(pt->nomatch_octets));
     for (struct Stream *s=pt->streams; s; s=s->next) {
-        snprintf(name, sizeof(name), "%s count", s->pipe->name);
-        json_object_insert(js, name, json_number(s->match_count));
+        snprintf(name, sizeof(name), "%s packets", s->pipe->name);
+        json_object_insert(js, name, json_number(s->match_packets));
         snprintf(name, sizeof(name), "%s octets", s->pipe->name);
         json_object_insert(js, name, json_number(s->match_octets));
     }
@@ -306,7 +306,7 @@ struct PipelineIterator *parsetree_identify(struct ParseTree *pt, struct Packet 
                 packet_logcat(p, "|%s", protocol_from_id(p->headers[i].type)->name);
             }
             packet_logcat(p, "| ");
-            s->match_count++;
+            s->match_packets++;
             s->match_octets += packet_length(p);
 
             return new_pipe_iterator(s->pipe, p);
@@ -315,7 +315,7 @@ struct PipelineIterator *parsetree_identify(struct ParseTree *pt, struct Packet 
 
     log_packet("no pipeline found, unknown stream");
     packet_logcat(p, "unknown stream");
-    pt->nomatch_count++;
+    pt->nomatch_packets++;
     pt->nomatch_octets += packet_length(p);
     return NULL;
 }
