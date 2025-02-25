@@ -72,6 +72,14 @@ static NotificationLevel delay_notification_pull_fn(void *self, struct JsonValue
     return NOTIF_INFO;
 }
 
+bool register_delay_notification(bool add, char *target, unsigned period_ms)
+{
+    if(add)
+        return notification_register_source("delay", delay_notification_pull_fn, target, period_ms);
+    else
+        return notification_register_source("delay", NULL, target, period_ms);
+}
+
 static void *delay_thread(void *arg)
 {
     (void)arg;
@@ -158,8 +166,8 @@ bool init_delay(void)
 
     clock_gettime(CLOCK_REALTIME, &last_alert);
 
-    static char iface[] = "eno1";  // just for test
-    notification_register_source("delay", delay_notification_pull_fn, iface, 2000);
+    static char name[] = "delay";  // ToDo: per pipeline delay stat?
+    notification_register_source(name, delay_notification_pull_fn, name, 2000);
 
     return true;
 }
@@ -204,11 +212,10 @@ void delay_insert(struct PipelineIterator *pi, unsigned timestamp, const struct 
     pDelayQueueEntry->due_time = result;
 
     if(time_diff_us(now_ts, pDelayQueueEntry->due_time) > 0){
-
+        stat->delay_exceeded_packets++;
         // already over due time, send notification once per sec
         if (time_diff_us(now_ts, last_alert) > 1000*1000*5) {
             log_perror("delay %s", pi->pipe->name);
-            stat->delay_exceeded_packets++;
 /*          // push notification
             struct JsonValue *js = json_object();
             json_object_insert(js, "delay", json_string(pi->pipe->name));

@@ -7,10 +7,12 @@
 #endif
 
 #include "log.h"
+#include "state.h"
 #include "hashmap.h"
 #include "sysmon.h"
 #include "thread_utils.h"
 #include "utils.h"
+#include "interface.h"
 
 #include <errno.h>
 #include <stdio.h>
@@ -35,7 +37,8 @@ DEFAULT_LOGGING_MODULE(SYSMON, INFO);
 static pid_t pmc_pid;
 struct Thread *pmc_monitor_thread;
 
-static void *pmc_monitor(void *arg) {
+static void *pmc_monitor(void *arg)
+{
     int fd = *((int *)arg); // Dereferencing integer pointer
     char managementId[MAX_ID_LEN+1], portState[MAX_ID_LEN+1], portIdentity[MAX_ID_LEN+1];
     char buf[MAX_LINE+1], *st;
@@ -235,7 +238,41 @@ static NotificationLevel tc_stat_notification_pull_fn(void *self, struct JsonVal
     return NOTIF_INFO;
 }
 
-static int monitor_ptp(void){
+static NotificationLevel modem_stat_notification_pull_fn(void *self, struct JsonValue **msg)
+{
+    char *iface_name = (char *)self;
+    char command[MAX_LINE],  buffer[MAX_LINE];
+
+    snprintf(command, sizeof(command), "echo AT |  socat - %s,crnl", iface_name);
+    FILE *fp = popen(command, "r");
+    if (fp == NULL) {
+        msg = NULL;
+        return NOTIF_INFO;
+    }
+
+    struct JsonValue *ret = json_object();
+
+    do {
+        printf("x: %s", buffer);
+        // ToDo: implement modem commands needed...
+
+    } while (fgets(buffer, sizeof(buffer), fp) != NULL);
+
+    // Populate JSON
+    json_object_insert(ret, "modem", json_string(buffer));
+
+    pclose(fp);
+
+/*    unsigned n;
+    char *jstr = json_serialize(ret, &n);
+    printf("json: %s\n", jstr);
+*/
+    *msg = ret;
+    return NOTIF_INFO;
+}
+
+static int monitor_ptp(void)
+{
     static int fd;
 
     pmc_pid = forkpty(&fd, 0, 0, 0);
@@ -263,19 +300,63 @@ static int monitor_ptp(void){
 	return EXIT_SUCCESS;
 }
 
-bool init_monitor(void){
-    log_info("monitor started");
+bool register_tc_notification(bool add, char *target, unsigned period_ms)
+{
+    char notif_name[32];
+    snprintf(notif_name, 32, "delay_%s", target);
+    if(add)
+        return notification_register_source(notif_name, tc_stat_notification_pull_fn, target, period_ms);
+    else
+        return notification_register_source(notif_name, NULL, target, period_ms);
+}
 
+bool register_modem_notification(bool add, char *target, unsigned period_ms)
+{
+    char notif_name[32];
+    snprintf(notif_name, 32, "delay_%s", target);
+    if(add)
+        return notification_register_source(notif_name, modem_stat_notification_pull_fn, target, period_ms);
+    else
+        return notification_register_source(notif_name, NULL, target, period_ms);
+}
+
+bool init_monitor(struct HashMap *ifaces)
+{
     if (monitor_ptp() == -1)
         return false;
 
-    static char iface[] = "eno1";  // just for test
-    notification_register_source(iface, tc_stat_notification_pull_fn, iface, 2000);
+    if(ifaces == NULL)
+        log_perror("No interfaces?" );
 
+    char command[MAX_LINE],  buffer[MAX_LINE];
+    char kind[32] = {0};
+    HASHMAP_ITERATE(ifaces, s) {
+        struct Interface *ifa= (struct Interface *)hash_iterator_value(&s);
+        if((ifa->type == IF_ETH) || (ifa->type == IF_IP) || (ifa->type == IF_UDP_OUT)) {
+            // check if it's TAPRIO or MQPRIO
+            snprintf(command, sizeof(command), "tc qdisc show dev %s root", ifa->ifname);
+            FILE *fp = popen(command, "r");
+            if (fp != NULL) {
+                if (fgets(buffer, sizeof(buffer), fp) != NULL) {   // the first line is qdisc type
+                    if (strstr(buffer, "qdisc") != NULL) {
+                        sscanf(buffer, "qdisc %s", kind);
+                        if(strcmp(kind, "taprio")==0) {
+                            register_tc_notification(true, ifa->ifname, 2000);
+                            log_info("  Registered %s\n", ifa->ifname);
+                        }
+                    }
+                }
+            }
+            pclose(fp);
+        }
+    }
+
+    log_info("Monitor started");
     return true;
 }
 
-void finish_monitor(void){
+void finish_monitor(void)
+{
     log_info("Stopping monitor.");
 
     thread_stop(pmc_monitor_thread);

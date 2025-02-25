@@ -26,4 +26,7 @@ void fini_delay(void);
 // TODO return whether it has stored the packet or not (TODO return if no delaying needed)
 void delay_insert(struct PipelineIterator *pi, unsigned timestamp, const struct timespec delay);
 
+// registers a delay notification
+bool register_delay_notification(bool add, char *target, unsigned period_ms);
+
 #endif // R2_DELAY_H

@@ -8,7 +8,10 @@
 #include "notification.h"
 
 
-bool init_monitor(void);
+bool init_monitor(struct HashMap *ifaces);
 void finish_monitor(void);
+
+bool register_tc_notification(bool add, char *target, unsigned period_ms);
+bool register_modem_notification(bool add, char *target, unsigned period_ms);
 
 #endif // R2_SYSMON_H

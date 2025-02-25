@@ -17,6 +17,9 @@
 #include "thread_utils.h"
 #include "utils.h"
 
+#include "delay.h"
+#include "sysmon.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -94,6 +97,7 @@ static const char help_str[] =
     "exit, quit, CTRL+D - exit OAM\n"
     "log [module newlevel] - get current log levels or set it for the given module\n"
     "notify [{LOG|SUBMIT} newlevel] - get current notification levels or set them\n"
+    "notification_source <command> <type> <target> [period_ms] - add/rem notification source. Type: delay, tc, modem. Target: specific\n"
     "mode <mode> - set ping reply printing mode, can be 'dump' or 'json'\n"
     "list - list monitoring start points\n"
     "returns - list return interfaces\n"
@@ -335,6 +339,39 @@ static void command_loop(struct CommandConnection *conn)
                 } else {
                     fprintf(cmd_w, "Invalid parameters for 'notify' command.\n");
                 }
+            }
+            else if (strncmp(oam_command, "notification_source", 6) == 0) {
+                char target[32];
+                char type[16];
+                char cmd[16];
+                unsigned period_ms = 2000;
+                bool ret = false, add = false;
+                int k = sscanf(oam_command, "notification_source %s %s %s %u", cmd, type, target, &period_ms);
+                if (k <= 2 || k == EOF) {
+                    fprintf(cmd_w, "notification_source <cmd> <type> <target> [period]\n");
+                } else if (k <= 4) {
+                    if ((strcmp(cmd, "add") == 0) || (strcmp(cmd, "rem") == 0)) {   // rem instead of del to avoid mixing up with delay
+                        if (strcmp(cmd, "add") == 0)
+                            add = true;
+                        if (strcmp(type, "tc") == 0) {
+                            ret = register_tc_notification(add, target, period_ms);
+                        } else if (strcmp(type, "delay") == 0) {
+                            ret =register_delay_notification(add, target, period_ms);
+                        } else if (strcmp(target, "modem") == 0) {
+                            ret = register_modem_notification(add, target, period_ms);
+                        } else {
+                            fprintf(cmd_w, "Invalid monitor type '%s'.\n", type);
+                        }
+                        if(ret)
+                            fprintf(cmd_w, "Success\n");
+                        else
+                            fprintf(cmd_w, "Error.\n");
+                    } else {
+                        fprintf(cmd_w, "Invalid command '%s'. Command should be 'add' or 'rem'\n", cmd);
+                    }
+                } else {
+                   fprintf(cmd_w, "Invalid parameters for 'notification_source' command.\n");
+               }
             }
             else if (strncmp(oam_command, "sessions", 8) == 0) {
                 int k=sscanf(oam_command, "sessions %s", streamname);

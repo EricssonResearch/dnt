@@ -380,6 +380,10 @@ int main(int argc, char **argv)
 
     init_notification(tr->streams);
 
+    if (!init_monitor(tr->ifaces)) {
+        return EXIT_FAILURE;
+    }
+
     bool commit_success = state_commit_transaction(tr);
     delete_transaction(tr);
     if (!commit_success) {
@@ -390,9 +394,6 @@ int main(int argc, char **argv)
     // Init delay and monitor only when delay actionsions are present
     if(delay_actions > 0) {
         if (!init_delay()) {
-            return EXIT_FAILURE;
-        }
-        if (!init_monitor()) {
             return EXIT_FAILURE;
         }
     }
