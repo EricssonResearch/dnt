@@ -61,6 +61,10 @@ static const char *notification_level_strings[] = {
 static void send_notification_packet(struct JsonValue *pkt)
 {
     json_object_insert(pkt, "notif_seq", json_number(notif_seq++));
+    struct timespec now;
+    clock_gettime(CLOCK_REALTIME, &now);
+    double now_d = now.tv_sec + (double)now.tv_nsec / 1000000000.0;
+    json_object_insert(pkt, "tstamp", json_number(now_d));
 
     unsigned pkt_len;
     char *pkt_str = json_serialize(pkt, &pkt_len);
@@ -81,6 +85,7 @@ static void *notification_thread(void *arg)
     int period_us = 0;
     int timeout_us = -1;
     struct timespec next_wake;
+    unsigned pull_seq = 0;
 
     if (hashmap_count(sources) != 0) {
         //TODO find a period that fits all sources
@@ -161,6 +166,8 @@ static void *notification_thread(void *arg)
             pthread_mutex_lock(&sources_lock);
             unsigned total_length = 0;
             struct JsonValue *pkt = json_object();
+            json_object_insert(pkt, "pull_seq", json_number(++pull_seq));
+
             HASHMAP_ITERATE(sources, s) { //TODO hashmap_foreach_sorted?
                 struct NotificationSource *source = (struct NotificationSource *)hash_iterator_value(&s);
                 const char *src = hash_iterator_key(&s);
@@ -192,6 +199,7 @@ static void *notification_thread(void *arg)
                             send_notification_packet(pkt);
                             json_delete(pkt);
                             pkt = json_object();
+                            json_object_insert(pkt, "pull_seq", json_number(pull_seq));
                             json_object_insert(pkt, src, js);
                             total_length = js_len + strlen(src);
                         }
