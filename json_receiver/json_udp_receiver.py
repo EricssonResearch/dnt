@@ -57,16 +57,16 @@ while True:
     data, addr = sock.recvfrom(2048) #gets UDP data up to 2kB
     (host,port) = socket.getnameinfo(addr,socket.NI_NUMERICHOST | socket.NI_NUMERICSERV)
 
-    print('\nConnection from: ',host)
+    print('\nConnection from: ',host," : ",port)
     try:
         jsonReceived = json.loads(data)    
         seq_num = jsonReceived.get("notif_seq")
         if seq_num != None:
-            if (host, seq_num) in last_seqnums: 
+            if (host, port, seq_num) in last_seqnums: 
                 print("Message with sequence number ", seq_num, " already received, not showing the replica")
                 supress = True
             else:
-                last_seqnums[index] = (host, seq_num)
+                last_seqnums[index] = (host, port, seq_num)
                 index = ( index + 1 ) % SEQ_HISTORY_SIZE
 
         if not supress:
