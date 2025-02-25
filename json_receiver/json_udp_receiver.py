@@ -63,7 +63,7 @@ while True:
         seq_num = jsonReceived.get("notif_seq")
         if seq_num != None:
             if (host, port, seq_num) in last_seqnums: 
-                print("Message with sequence number ", seq_num, " already received, not showing the replica")
+                print("Message with sequence number ", seq_num, "from ", host, " : ", port, " already received, not showing the replica")
                 supress = True
             else:
                 last_seqnums[index] = (host, port, seq_num)
