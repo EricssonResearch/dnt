@@ -8,7 +8,7 @@ workflow:
     - if: $CI_PIPELINE_SOURCE == "web"
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_OPEN_MERGE_REQUESTS
-        when: never
+      when: never
     - when: always
 
 # this Docker image should contain everything we need
