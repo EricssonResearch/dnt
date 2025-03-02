@@ -1,11 +1,15 @@
 # this is based on the C++.gitlab-ci.yml template
 
-# only run automatically on the main branch
+# run on the main branch, from web, for merge requests
+#   only run for feature branch commits when there is no associated merge request
 workflow:
   rules:
-#   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-    - when: always
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_OPEN_MERGE_REQUESTS
+        when: never
+    - when: always
 
 # this Docker image should contain everything we need
 image: mtmkls/ci-runner:v2
