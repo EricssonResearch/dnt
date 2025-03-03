@@ -77,6 +77,11 @@ struct SequenceRecovery {
 // currently the only state of the session is the seq recovery
 static struct HashMap *oam_seq_recoveries = NULL; // session_id -> struct SequenceRecovery
 
+static void __attribute__((destructor)) cleanup_oam_seq_recoveries(void)
+{
+    delete_hashmap(oam_seq_recoveries);
+}
+
 TESTABLE char *oam_session_id(const struct Packet *p)
 {
     // TODO: we can assume headers[1] indentified?
@@ -427,6 +432,7 @@ static enum ActionResult seq_recovery(struct PipelineObject *r, struct PipelineI
             accept =  match_seq_recovery(oam_rec, oam_seq);
             seq = oam_seq;
         }
+        free(session_id);
     }
     if (accept){
         packet_logcat(p, "(%d pass) ", seq);
@@ -595,7 +601,9 @@ static void *reset_thread(void *arg)
         should_run = decrement_ticks(rec);
         timespecadd(&now, &delta, &sleep_until);
     }
+    struct Thread *reset_thread = rec->reset_thread;
     hashmap_remove(oam_seq_recoveries, rec->session_id);
+    thread_exit(reset_thread);
     return rec;
 }
 
@@ -657,8 +665,7 @@ struct PipelineObject *delete_seq_rec(struct PipelineObject *r)
 {
     struct SequenceRecovery *rec = (struct SequenceRecovery *)r;
     notification_register_source(r->name, NULL, NULL, 2000);
-    thread_stop(rec->reset_thread);
-    rec->reset_thread = NULL;
+    rec->reset_thread = thread_stop(rec->reset_thread);
     free(rec->history);
     free(rec->init_history);
     free(rec->session_id);
