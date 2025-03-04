@@ -47,6 +47,9 @@ def config_ifaces():
 # Tell if ping ICMP sequences in order (true) or not (false)
 def ping_check_out_of_order(ping_output):
     seqs_str = [s for s in ping_output.splitlines() if "icmp_seq" in s]
+    # if first packet OoO lets skip the check of the first ten packets
+    if any(f"time={PATH_DELAY_MS}" and "icmp_seq=1 ttl" for item in seqs_str):
+        seqs_str = seqs_str[10:]
     seqs = [int(s.split(" ")[4].split("=")[1]) for s in seqs_str]
     return all(s == s_prev + 1 for s_prev, s in zip(seqs, seqs[1:]))
 
