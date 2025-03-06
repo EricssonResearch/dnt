@@ -193,21 +193,27 @@ async def test_delay():
         failed = failed + 1
 
     print("Test delay notification report...", end=" ")
-    dly_js = last_msg.get("delay").get("s3")
+    dly_js = last_msg.get("delay")
     if dly_js is None:
         print("✘  - No delay statistic received.")
         failed = failed + 1
     else:
-        dly_exceeded = dly_js.get("delay_exceeded_packets")
-        dly = dly_js.get("delayed_packets")
-        if dly == 10 and dly_exceeded == 5:
-            print("✔")
+        dly_s3 = dly_js.get("s3")
+        if dly_s3 is not None:
+            dly_exceeded = dly_s3.get("delay_exceeded_packets")
+            dly = dly_s3.get("delayed_packets")
+            if dly == NUM_PACKETS_S2*2 and dly_exceeded == NUM_PACKETS_S2:
+                print("✔")
+            else:
+                print(f"✘ - Received {dly} delayed and {dly_exceeded} delay exceeded packets - should be {NUM_PACKETS_S2*2} and {NUM_PACKETS_S2}")
+                failed = failed+1
         else:
-            print(f"✘ - Received {dly} delayed and {dly_exceeded} delay exceeded packets - should be 10 and 5")
-            failed = failed+1
+            print("✘  - No delay stream s3 statistic received.")
+            failed = failed + 1
+
 
     print("Test tc notification report...", end=" ")
-    tc_js = last_msg.get("zxdelay").get("s3")
+    tc_js = last_msg.get("tc_r2rx")
     if tc_js is None:
         print("✘  - No TC statistic received.")
         failed = failed + 1
