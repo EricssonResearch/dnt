@@ -132,7 +132,7 @@ def send_cli_commands():
     return ret
 
 async def test_delay():
-    global index, dup, notifications
+    global dups, notifications
     failed = 0
 
     config_ifaces()
@@ -148,28 +148,41 @@ async def test_delay():
 
     await asyncio.sleep(1)  # wait
     sendp(pkts_delay, verbose=0, iface="to_r2")
-    await asyncio.sleep(3)
+    await asyncio.sleep(5)
 
     print("Test notification message replication...", end=" ")
-    if index == dups:
+    if len(notif_messages) == dups:
         print("✔")
     else:
-        print("✘")
+        print(f"✘ - received {len(notif_messages)} and {dups} duplicate notifications")
         failed = failed+1
 
     telnet_push = False
     mask_push = False
     newip_push = False
+    if_msg = None
+    tc_msg = None
+    delay_msg = None
+    rep_msg = None
+    rec_msg = None
     for msg in notif_messages:
-        #print(f"Received last -> {msg}")
+        #sprint(f"Received last -> {msg}")
         if msg.get("telnet"):
             telnet_push = True
         if msg.get("mask"):
             mask_push = True
         if msg.get("new src"):
             newip_push = True
-        if msg.get("if1"):
-            last_msg = msg
+        if msg.get("if2"):
+            if_msg = msg
+        if msg.get("delay"):
+            delay_msg = msg
+        if msg.get("tc_r2rx"):
+            tc_msg = msg
+        if msg.get("rep"):
+            rep_msg = msg
+        if msg.get("srcvy1"):
+            rec_msg = msg
 
     print("Test telnet login push notification...", end=" ")
     if telnet_push:
@@ -193,7 +206,9 @@ async def test_delay():
         failed = failed + 1
 
     print("Test delay notification report...", end=" ")
-    dly_js = last_msg.get("delay")
+    dly_js = None
+    if delay_msg is not None:
+        dly_js = delay_msg.get("delay")
     if dly_js is None:
         print("✘  - No delay statistic received.")
         failed = failed + 1
@@ -213,7 +228,9 @@ async def test_delay():
 
 
     print("Test tc notification report...", end=" ")
-    tc_js = last_msg.get("tc_r2rx")
+    tc_js = None
+    if tc_msg is not None:
+        tc_js = tc_msg.get("tc_r2rx")
     if tc_js is None:
         print("✘  - No TC statistic received.")
         failed = failed + 1
@@ -221,7 +238,9 @@ async def test_delay():
         print("✔")
 
     print("Test if2 report...", end=" ")
-    if_js = last_msg.get("if2")
+    if_js = None
+    if if_msg is not None:
+        if_js = if_msg.get("if2")
     if if_js is None:
         print("✘  - No if2 statistic received.")
         failed = failed + 1
@@ -234,7 +253,9 @@ async def test_delay():
             failed = failed+1
 
     print("Test replication report...", end=" ")
-    rep_js = last_msg.get("rep")
+    rep_js = None
+    if rep_msg is not None:
+        rep_js = rep_msg.get("rep")
     if rep_js is None:
         print("✘  - No replication statistic received.")
         failed = failed + 1
@@ -249,7 +270,9 @@ async def test_delay():
             failed = failed+1
 
     print("Test sequence recovery report...", end=" ")
-    rec_js = last_msg.get("srcvy1")
+    rec_js = None
+    if rec_msg is not None:
+        rec_js = rec_msg.get("srcvy1")
     if rec_js is None:
         print("✘  - No sequence recovery statistic received.")
         failed = failed + 1
