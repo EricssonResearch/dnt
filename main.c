@@ -380,16 +380,14 @@ int main(int argc, char **argv)
 
     init_notification(tr->streams);
 
-    if (!init_monitor(tr->ifaces)) {
-        return EXIT_FAILURE;
-    }
-
     bool commit_success = state_commit_transaction(tr);
     delete_transaction(tr);
     if (!commit_success) {
         log_error("failed to apply the config");
         return EXIT_FAILURE;
     }
+
+    init_monitor();
 
     // Init delay and monitor only when delay actionsions are present
     if(delay_actions > 0) {
@@ -416,9 +414,9 @@ int main(int argc, char **argv)
 
     finish_oam();
 
-    finish_notification();
-
     finish_monitor();
+
+    finish_notification();
 
     close_log();
 

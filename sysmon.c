@@ -22,10 +22,11 @@
 #include <unistd.h>
 #include <pty.h>
 #include <poll.h>
-
+#include <pthread.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/timerfd.h>
+#include <sys/eventfd.h>
 
 DEFAULT_LOGGING_MODULE(SYSMON, INFO);
 
@@ -35,7 +36,10 @@ DEFAULT_LOGGING_MODULE(SYSMON, INFO);
 #define SUBSCRIBE_TIMEOUT   100
 
 static pid_t pmc_pid;
-struct Thread *pmc_monitor_thread;
+static pthread_t pmc_monitor_thread;
+int efd;  // Event file descriptor
+
+static struct HashMap *subs = NULL;
 
 static void *pmc_monitor(void *arg)
 {
@@ -68,19 +72,21 @@ static void *pmc_monitor(void *arg)
     if (write(fd, SUBSCRIBE_CMD, sizeof(SUBSCRIBE_CMD)-1) < 0)      // -1 needed to exclude the string terminating 0
         fprintf(stderr, "Failed to send to PMC: %s\n", strerror(errno));
 
-    struct pollfd fds[2];
+    struct pollfd fds[3];
     fds[0].fd = fd;
     fds[0].events = POLLIN;
     fds[1].fd = tfd;
     fds[1].events = POLLIN;
+    fds[2].fd = efd;
+    fds[2].events = POLLIN;
 
     while(1){
-        int ret = poll(fds, 2, 1000); // 1 seconds timeout
-
+        int ret = poll(fds, 3, -1); // block until something happens
         if (ret == -1) {
             fprintf(stderr, "poll error: %s\n", strerror(errno));
             break;
         }
+
         if (fds[1].revents & POLLIN) {
             ssize_t s = read(tfd, &exp, sizeof(uint64_t));
             if (s == sizeof(uint64_t)) {
@@ -90,7 +96,6 @@ static void *pmc_monitor(void *arg)
             }
             continue;
         }
-
         if (fds[0].revents & POLLIN) {
             if (fgets(buf, MAX_LINE, stream) != NULL) {
                 if ((st = strstr(buf, "RESPONSE MANAGEMENT")) != NULL) {
@@ -120,6 +125,12 @@ static void *pmc_monitor(void *arg)
                 }
             }
         }
+        if (fds[2].revents & POLLIN) {      // eventfd
+            uint64_t value;
+            if(read(efd, &value, sizeof(value)) < 0)  // Clear the event
+                    log_error("Could not read eventfd.");
+            break;  // Exit the loop and terminate the thread
+        }
     }
 
     fclose(stream);  // Closes fd as well!
@@ -134,87 +145,19 @@ static NotificationLevel tc_stat_notification_pull_fn(void *self, struct JsonVal
     char *iface_name = (char *)self;
     char command[MAX_LINE],  buffer[MAX_LINE];
 
-    char kind[32] = {0}, handle[16] = {0};
-    unsigned long sent_bytes = 0, sent_packets = 0, dropped = 0, overlimits = 0, requeues = 0;
-    unsigned long backlog_bytes = 0, backlog_packets = 0;
-    unsigned long maxpacket = 0, drop_overlimit = 0, new_flow_count = 0, ecn_mark = 0;
-    unsigned long new_flows_len = 0, old_flows_len = 0;
-    int root = 0, refcnt = 0, limit = 0, flows = 0, quantum = 0, drop_batch = 0;
-    unsigned long target = 0, interval = 0, memory_limit = 0;
-    int ecn = 0;
-
     snprintf(command, sizeof(command), "tc -s -j qdisc show dev %s handle 0", iface_name);
+    log_error("TC command: %s", command);
     FILE *fp = popen(command, "r");
     if (fp == NULL) {
         msg = NULL;
         return NOTIF_INFO;
     }
 
-    struct JsonValue *ret = json_object();
+    struct JsonValue *ret;
 
     if (fgets(buffer, sizeof(buffer), fp) == 0){    // no -j (json) option, old tc
-        snprintf(command, sizeof(command), "tc -s qdisc show dev %s handle 0", iface_name);
-        fp = popen(command, "r");
-        if (fgets(buffer, sizeof(buffer), fp) == 0) {
-            msg = NULL;
-            return NOTIF_INFO;
-        }
-
-        do {
-            //printf("x: %s", buffer);
-            /* ToDo: handle multiple types of qdiscs, IF needed  */
-            if (strstr(buffer, "qdisc") != NULL) {
-                 sscanf(buffer, "qdisc %s %s root refcnt %d limit %d flows %d quantum %d target %lums interval %lums memory_limit %luMb ecn drop_batch %d",
-                        kind, handle, &refcnt, &limit, &flows, &quantum, &target, &interval, &memory_limit, &drop_batch);
-                 root = 1;
-                 ecn = strstr(buffer, "ecn") ? 1 : 0;
-             } else if (strstr(buffer, "Sent") != NULL) {
-                 sscanf(buffer, "Sent %lu bytes %lu pkt (dropped %lu, overlimits %lu requeues %lu)",
-                        &sent_bytes, &sent_packets, &dropped, &overlimits, &requeues);
-             } else if (strstr(buffer, "backlog") != NULL) {
-                 sscanf(buffer, "backlog %lub %lup requeues %lu", &backlog_bytes, &backlog_packets, &requeues);
-             } else if (strstr(buffer, "maxpacket") != NULL) {
-                 sscanf(buffer, " maxpacket %lu drop_overlimit %lu new_flow_count %lu ecn_mark %lu",
-                        &maxpacket, &drop_overlimit, &new_flow_count, &ecn_mark);
-             } else if (strstr(buffer, "new_flows_len") != NULL) {
-                 sscanf(buffer, "  new_flows_len %lu old_flows_len %lu", &new_flows_len, &old_flows_len);
-             }
-        } while (fgets(buffer, sizeof(buffer), fp) != NULL);
-
-        // Populate JSON
-        json_object_insert(ret, "kind", json_string(kind));
-        json_object_insert(ret, "handle", json_string(handle));
-        json_object_insert(ret, "root", root?json_true():json_false());
-        json_object_insert(ret, "refcnt", json_number(refcnt));
-
-        // Options
-        struct JsonValue *options = json_object();
-        json_object_insert(options, "limit", json_number(limit));
-        json_object_insert(options, "flows", json_number(flows));
-        json_object_insert(options, "quantum", json_number(quantum));
-        json_object_insert(options, "target", json_number(target * 1000 - 1));  // Convert ms to ns
-        json_object_insert(options, "interval", json_number(interval * 1000 - 1)); // Convert ms to ns
-        json_object_insert(options, "memory_limit", json_number(memory_limit * 1024 * 1024)); // Convert MB to Bytes
-        json_object_insert(options, "ecn", ecn?json_true():json_false());
-        json_object_insert(options, "drop_batch", json_number(drop_batch));
-        json_object_insert(ret, "options", options);
-
-        // Statistics
-        json_object_insert(ret, "bytes", json_number(sent_bytes));
-        json_object_insert(ret, "packets", json_number(sent_packets));
-        json_object_insert(ret, "drops", json_number(dropped));
-        json_object_insert(ret, "overlimits", json_number(overlimits));
-        json_object_insert(ret, "requeues", json_number(requeues));
-        json_object_insert(ret, "backlog", json_number(backlog_packets));
-        json_object_insert(ret, "qlen", json_number(backlog_packets));
-
-        // Additional Metrics
-        json_object_insert(ret, "maxpacket", json_number(maxpacket));
-        json_object_insert(ret, "drop_overlimit", json_number(drop_overlimit));
-        json_object_insert(ret, "new_flow_count", json_number(new_flow_count));
-        json_object_insert(ret, "ecn_mark", json_number(ecn_mark));
-        json_object_insert(ret, "new_flows_len", json_number(new_flows_len));
-        json_object_insert(ret, "old_flows_len", json_number(old_flows_len));
+        ret = json_object();
+        json_object_insert(ret, "error", json_string("tc does not support -j option"));
     }
     else {
         buffer[strlen(buffer)-2] = '\0';
@@ -289,9 +232,27 @@ static int monitor_ptp(void)
     default: break;
     }
 
+    // Wait briefly to check if child process exits immediately due to execlp failure
+    sleep(0.3);  // Allow some time for failure detection (tunable)
+
+    int status;
+    pid_t result = waitpid(pmc_pid, &status, WNOHANG);
+    if (result == pmc_pid) {
+        // Child exited, meaning execlp likely failed
+        pmc_pid = -1;  // Invalidate pmc_pid
+        return EXIT_FAILURE;
+    }
+
+    // Create eventfd
+    efd = eventfd(0, 0);
+    if (efd < 0) {
+        log_perror("eventfd failed");
+        close(fd); // we only need to close the fd
+        return EXIT_FAILURE;
+    }
+
     // Create monitor thread
-    pmc_monitor_thread = thread_launch(pmc_monitor, &fd, "monitor");
-    if (pmc_monitor_thread == NULL) {
+    if (pthread_create(&pmc_monitor_thread, NULL, pmc_monitor, &fd) != 0) {
         log_perror("could not create monitor thread");
         close(fd); // we only need to close the fd
         return EXIT_FAILURE;
@@ -303,53 +264,72 @@ static int monitor_ptp(void)
 bool register_tc_notification(bool add, char *target, unsigned period_ms)
 {
     char notif_name[32];
-    snprintf(notif_name, 32, "delay_%s", target);
-    if(add)
-        return notification_register_source(notif_name, tc_stat_notification_pull_fn, target, period_ms);
-    else
-        return notification_register_source(notif_name, NULL, target, period_ms);
+    snprintf(notif_name, 32, "tc_%s", target);
+    char *pname = strdup(target);
+
+    if(add) {
+        hashmap_insert(subs, strdup(notif_name), pname);
+        return notification_register_source(notif_name, tc_stat_notification_pull_fn, pname, period_ms);
+    } else {
+        int ret = notification_register_source(notif_name, NULL, target, period_ms);
+        if(ret)
+            hashmap_remove(subs, notif_name);
+        return ret;
+    }
 }
 
 bool register_modem_notification(bool add, char *target, unsigned period_ms)
 {
     char notif_name[32];
-    snprintf(notif_name, 32, "delay_%s", target);
-    if(add)
-        return notification_register_source(notif_name, modem_stat_notification_pull_fn, target, period_ms);
-    else
-        return notification_register_source(notif_name, NULL, target, period_ms);
+    snprintf(notif_name, 32, "modem_%s", target);
+    char *pname = strdup(target);
+
+    if(add) {
+        hashmap_insert(subs, strdup(notif_name), pname);
+        return notification_register_source(notif_name, modem_stat_notification_pull_fn, pname, period_ms);
+    } else {
+        int ret = notification_register_source(notif_name, NULL, target, period_ms);
+        if(ret)
+            hashmap_remove(subs, notif_name);
+        return ret;
+    }
 }
 
-bool init_monitor(struct HashMap *ifaces)
-{
-    if (monitor_ptp() == -1)
-        return false;
-
-    if(ifaces == NULL)
-        log_perror("No interfaces?" );
-
+static int check_if_notification(struct Interface *ifa, void *userdata) {
+    (void) userdata;
     char command[MAX_LINE],  buffer[MAX_LINE];
     char kind[32] = {0};
-    HASHMAP_ITERATE(ifaces, s) {
-        struct Interface *ifa= (struct Interface *)hash_iterator_value(&s);
-        if((ifa->type == IF_ETH) || (ifa->type == IF_IP) || (ifa->type == IF_UDP_OUT)) {
-            // check if it's TAPRIO or MQPRIO
-            snprintf(command, sizeof(command), "tc qdisc show dev %s root", ifa->ifname);
-            FILE *fp = popen(command, "r");
-            if (fp != NULL) {
-                if (fgets(buffer, sizeof(buffer), fp) != NULL) {   // the first line is qdisc type
-                    if (strstr(buffer, "qdisc") != NULL) {
-                        sscanf(buffer, "qdisc %s", kind);
-                        if(strcmp(kind, "taprio")==0) {
-                            register_tc_notification(true, ifa->ifname, 2000);
-                            log_info("  Registered %s\n", ifa->ifname);
-                        }
+    int ret = 0;
+
+    if((ifa->type == IF_ETH) || (ifa->type == IF_IP) || (ifa->type == IF_UDP_OUT)) {
+        // check if it's TAPRIO or MQPRIO
+        snprintf(command, sizeof(command), "tc qdisc show dev %s root", ifa->ifname);
+        FILE *fp = popen(command, "r");
+        if (fp != NULL) {
+            if (fgets(buffer, sizeof(buffer), fp) != NULL) {   // the first line is qdisc type
+                if (strstr(buffer, "qdisc") != NULL) {
+                    sscanf(buffer, "qdisc %s", kind);
+                    if((strcmp(kind, "taprio")==0) || (strcmp(kind, "mqprio")==0)) {
+                        register_tc_notification(true, ifa->ifname, 2000);
+                        log_info("  Registered %s\n", ifa->ifname);
+                        ret = 1;
                     }
                 }
             }
             pclose(fp);
         }
     }
+    return ret;
+}
+
+bool init_monitor(void)
+{
+    subs = new_hashmap(13, NULL, NULL);
+
+    if (monitor_ptp() == EXIT_FAILURE)
+        log_perror("PTP monitor not started. Is ptp4l (with pmc) installed?" );
+
+    state_foreach_interfaces(check_if_notification, NULL);
 
     log_info("Monitor started");
     return true;
@@ -357,9 +337,18 @@ bool init_monitor(struct HashMap *ifaces)
 
 void finish_monitor(void)
 {
-    log_info("Stopping monitor.");
+    HASHMAP_ITERATE(subs, s) {
+        notification_register_source((char *)hash_iterator_key(&s), NULL, (char *)hash_iterator_value(&s), 0);
+    }
+    delete_hashmap(subs);
 
-    thread_stop(pmc_monitor_thread);
-    //waitpid(pmc_pid, 0, 0);
-    //pthread_join(pmc_monitor_thread, NULL);
+    // Signal to pmc monitor to stop
+    uint64_t signal_value = 1;
+    if(write(efd, &signal_value, sizeof(signal_value)) < 0)
+        log_error("Could not write eventfd.");
+    // Wait for the thread to finish
+    pthread_join(pmc_monitor_thread, NULL);
+    // Cleanup efd
+    close(efd);
+    log_info("Monitor stopped.");
 }

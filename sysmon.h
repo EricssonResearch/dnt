@@ -8,7 +8,7 @@
 #include "notification.h"
 
 
-bool init_monitor(struct HashMap *ifaces);
+bool init_monitor(void);
 void finish_monitor(void);
 
 bool register_tc_notification(bool add, char *target, unsigned period_ms);
