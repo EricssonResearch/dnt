@@ -51,14 +51,11 @@ struct timespec last_alert;
 static NotificationLevel delay_notification_pull_fn(void *self, struct JsonValue **msg)
 {
     (void)self;
-    //char *name = (char *)self;
-
     struct JsonValue *ret = json_object();
 
     HASHMAP_ITERATE(stats, s) {
         struct DelayStat *stat = (struct DelayStat *)hash_iterator_value(&s);
         const char *pipeline_name = hash_iterator_key(&s);
-
         struct JsonValue *js = json_object();
         json_object_insert(js, "delayed_packets", json_number(stat->delayed_packets));
         json_object_insert(js, "delay_exceeded_packets", json_number(stat->delay_exceeded_packets));
@@ -66,7 +63,7 @@ static NotificationLevel delay_notification_pull_fn(void *self, struct JsonValue
     }
 
 /*    unsigned len;
-    printf("js=%s\n", json_serialize(ret, &len));
+    log_info("js=%s\n", json_serialize(ret, &len));
 */
     *msg = ret;
     return NOTIF_INFO;
