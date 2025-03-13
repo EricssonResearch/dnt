@@ -1,6 +1,6 @@
 # Scenario 2R-2E: R2DTWO IPv4 over DetNet PseudoWire with 2 Replicate and 2 Eliminate
 
-This scenario is the same from networking aspects as the Scenario IP over DetNet scenario, only the network topology is extended, as the stream replication and elimination is done at two r2dtwo nodes in the network.
+This scenario is the same from networking aspects as the Scenario IP over DetNet, only the network topology is extended, as the stream replication and elimination is done at two r2dtwo nodes in the network.
 
 ```
                                                                                         ┌─────┬──────────────────┐             
@@ -85,11 +85,9 @@ To generate some traffic with `ping` on the `talker` node run:
 
 ```
 talker ping 192.168.2.2
-hello
-world
 ```
 
-To supress ICMP Destination Net Unreachable messages the Linux tc redirections is congifuredd int the environment. For more details see the Scenario IP over DetNet.
+To supress ICMP Destination Net Unreachable messages the Linux tc redirections is congifuredd in the environment. For more details see the Scenario IP over DetNet.
 
 ## Optional: Cleanup (if running locally, not on physical NXP boards)
 
