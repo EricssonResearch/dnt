@@ -52,7 +52,7 @@ static void *pmc_monitor(void *arg)
 
     FILE *stream = fdopen(fd, "r");  // Convert fd to FILE*
     if (!stream) {
-        printf("fdopen");
+        log_perror("fdopen %s", strerror(errno));
         return NULL;
     }
 
@@ -63,14 +63,14 @@ static void *pmc_monitor(void *arg)
 
     int tfd = timerfd_create(CLOCK_REALTIME, 0);
     if (tfd == -1)
-        fprintf(stderr, "timerfd_create %s\n", strerror(errno));
+        log_perror("timerfd_create %s", strerror(errno));
 
     if (timerfd_settime(tfd, 0, &new_value, NULL) == -1)
-        fprintf(stderr, "timerfd_settime %s\n", strerror(errno));
+        log_perror("timerfd_settime %s", strerror(errno));
 
     // Initial subscribe
     if (write(fd, SUBSCRIBE_CMD, sizeof(SUBSCRIBE_CMD)-1) < 0)      // -1 needed to exclude the string terminating 0
-        fprintf(stderr, "Failed to send to PMC: %s\n", strerror(errno));
+        log_perror("Failed to send to PMC: %s", strerror(errno));
 
     struct pollfd fds[3];
     fds[0].fd = fd;
@@ -83,7 +83,7 @@ static void *pmc_monitor(void *arg)
     while(1){
         int ret = poll(fds, 3, -1); // block until something happens
         if (ret == -1) {
-            fprintf(stderr, "poll error: %s\n", strerror(errno));
+            log_perror("poll error: %s\n", strerror(errno));
             break;
         }
 
@@ -92,7 +92,7 @@ static void *pmc_monitor(void *arg)
             if (s == sizeof(uint64_t)) {
                 // renew subscription
                 if (write(fd, SUBSCRIBE_CMD, sizeof(SUBSCRIBE_CMD) - 1) < 0)
-                    fprintf(stderr, "Failed to send to PMC: %s\n", strerror(errno));
+                    log_perror("Failed to send to PMC: %s\n", strerror(errno));
             }
             continue;
         }
@@ -118,7 +118,7 @@ static void *pmc_monitor(void *arg)
                 }
 
                 if ((st = strstr(buf, "versionNumber")) != NULL) {
-                    printf("sync monitor: managementId: %s, portIdentity: %s, portState: %s\n", managementId, portIdentity, portState);
+                    log_info("sync monitor: managementId: %s, portIdentity: %s, portState: %s\n", managementId, portIdentity, portState);
                     if ((strcmp(portState, "FAULTY") == 0) || (strcmp(portState, "UNCALIBRATED") == 0)) {
                         // Handle error notification logic
                     }
@@ -128,7 +128,7 @@ static void *pmc_monitor(void *arg)
         if (fds[2].revents & POLLIN) {      // eventfd
             uint64_t value;
             if(read(efd, &value, sizeof(value)) < 0)  // Clear the event
-                    log_error("Could not read eventfd.");
+                    log_perror("Could not read eventfd.");
             break;  // Exit the loop and terminate the thread
         }
     }
@@ -146,7 +146,6 @@ static NotificationLevel tc_stat_notification_pull_fn(void *self, struct JsonVal
     char command[MAX_LINE],  buffer[MAX_LINE];
 
     snprintf(command, sizeof(command), "tc -s -j qdisc show dev %s handle 0", iface_name);
-    log_error("TC command: %s", command);
     FILE *fp = popen(command, "r");
     if (fp == NULL) {
         msg = NULL;
@@ -233,7 +232,7 @@ static int monitor_ptp(void)
     }
 
     // Wait briefly to check if child process exits immediately due to execlp failure
-    sleep(0.3);  // Allow some time for failure detection (tunable)
+    usleep(3000);  // Allow some time for failure detection (tunable)
 
     int status;
     pid_t result = waitpid(pmc_pid, &status, WNOHANG);
