@@ -78,8 +78,8 @@ async def cleanup_udp(transports):
     await asyncio.sleep(1)  # Allow time for cleanup messages
 
 def start_r2dtwo():
-#    return exec_bg("../r2dtwo notification/notification.ini")
-    return exec_bg("../r2dtwo -of notification/notification.ini -v PACKETTRACE:PACKET")
+    return exec_bg("../r2dtwo notification/notification.ini")
+#    return exec_bg("../r2dtwo -of notification/notification.ini -v PACKETTRACE:PACKET")
 
 def cleanup_ifaces():
     exec_fg("ip link del to_r2 type veth peer name r2rx")
@@ -128,6 +128,11 @@ def send_cli_commands():
     if "Success" not in msg:
         print("Error: ", msg)
         ret = False
+
+    cli.send("exit") # send add notification command
+    msg = cli.recv()
+    time.sleep(0.5)
+
     cli.close()
     return ret
 
@@ -161,12 +166,13 @@ async def test_delay():
     mask_push = False
     newip_push = False
     if_msg = None
+    parser_msg = None
     tc_msg = None
     delay_msg = None
     rep_msg = None
     rec_msg = None
     for msg in notif_messages:
-        #sprint(f"Received last -> {msg}")
+        #print(f"Received last -> {msg}")
         if msg.get("telnet"):
             telnet_push = True
         if msg.get("mask"):
@@ -175,6 +181,8 @@ async def test_delay():
             newip_push = True
         if msg.get("if2"):
             if_msg = msg
+        if msg.get("if1 parser"):
+            parser_msg = msg
         if msg.get("delay"):
             delay_msg = msg
         if msg.get("tc_r2rx"):
@@ -246,10 +254,31 @@ async def test_delay():
         failed = failed + 1
     else:
         sent = if_js.get("send_packets")
-        if sent == NUM_PACKETS_S2*3:
+        if sent == NUM_PACKETS_S2*2:
             print("✔")
         else:
-            print(f"✘ - Received {sent} sent packets - should be {NUM_PACKETS_S2*3}")
+            print(f"✘ - Received {sent} sent packets - should be {NUM_PACKETS_S2*2}")
+            failed = failed+1
+
+    print("Test if1 parser report...", end=" ")
+    parser_js = None
+    if parser_msg is not None:
+        parser_js = parser_msg.get("if1 parser")
+    if parser_js is None:
+        print("✘  - No if1 parser statistic received.")
+        failed = failed + 1
+    else:
+        pkt = parser_js.get("s2 packets")
+        if pkt == NUM_PACKETS_S2:
+            print("s2 ✔", end=" ")
+        else:
+            print(f"✘ - Received {pkt} s2 packets - should be {NUM_PACKETS_S2}")
+            failed = failed+1
+        pkt = parser_js.get("s3 packets")
+        if pkt == NUM_PACKETS_S2:
+            print("s3 ✔")
+        else:
+            print(f"✘ - Received {pkt} s3 packets - should be {NUM_PACKETS_S3}")
             failed = failed+1
 
     print("Test replication report...", end=" ")
@@ -289,7 +318,7 @@ async def test_delay():
 async def main():
     transports = []  # Store UDP transports
 
-    print("R2DTWO notifications tests")
+    print("R2DTWO notifications tests - TSN")
     ret = 0
     # Start both IPv4 and IPv6 listeners
     task_ipv4 = asyncio.create_task(start_udp_listener("127.0.0.1", 9000, AF_INET, "IPv4", transports))
