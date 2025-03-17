@@ -99,7 +99,13 @@ static void *notification_thread(void *arg)
         struct timespec now;
         clock_gettime(CLOCK_REALTIME, &now);
         next_wake = time_add_us(now, period_us);
-        timeout_us = period_us;
+
+        // make it start at exact second and also at multiple of period_us
+        uint64_t start_corr = (next_wake.tv_sec*1000000) % period_us;
+        next_wake.tv_sec += start_corr / 1000000;
+        next_wake.tv_nsec = (start_corr % 1000000) * 1000;
+
+        timeout_us = time_diff_us(next_wake, now);
     }
     log_debug("initial period %u first timeout %d", period_us, timeout_us);
 
