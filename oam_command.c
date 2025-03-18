@@ -424,6 +424,13 @@ static void command_loop(struct CommandConnection *conn)
                     ERROR("sending rping command failed");
                 }
             }
+            else if (strncmp(oam_command, "trig_oam", 8) == 0) {
+                struct OamRequest *trig_req = parse_trig_command(oam_command+8, strdup(conn->name));
+                CHECK_REQUEST(trig_req);
+                if (!initiate_request(trig_req)) {
+                    ERROR("sending trig_oam command failed");
+                }
+            }
             else if (strncmp(oam_command, "rlist", 5) == 0) {
                 struct OamRequest *rlist_req = parse_rlist_command(oam_command+5, strdup(conn->name));
                 CHECK_REQUEST(rlist_req);

@@ -134,6 +134,12 @@ def send_cli_commands():
         print("Error: ", msg)
         ret = False
 
+    cli.send("trig_oam o_s2_L5_pre-prf o_common_actions_L5_post-srcvy1 5") # send trig_oam command
+    msg = cli.recv()
+    if "OAM request trig session" not in msg:
+        print("Error: ", msg)
+        ret = False
+
     cli.send("exit") # send add notification command
     msg = cli.recv()
     time.sleep(0.5)
@@ -210,8 +216,10 @@ def test_delay():
     pre_prf_msg = None
     post_prf_nni0_msg = None
     post_prf_nni1_msg = None
+    trig_start = None
+    trig = None
     for msg in notif_messages:
-        #print(f"Received last -> {msg}")
+        print(f"Received last -> {msg}")
         if msg.get("telnet"):
             telnet_push = True
         if msg.get("mask"):
@@ -242,6 +250,11 @@ def test_delay():
             post_prf_nni0_msg = msg
         if msg.get("o_to_nni1_L5_post-prf"):
             post_prf_nni1_msg = msg
+        if msg.get("trig_oam_start"):
+            trig_start = msg
+        if msg.get("trig_oam"):
+            trig = msg
+
 
     print("Test telnet login push notification...", end=" ")
     if telnet_push:
@@ -259,6 +272,20 @@ def test_delay():
 
     print("Test IP change push notification...", end=" ")
     if newip_push:
+        print("✔")
+    else:
+        print("✘")
+        failed = failed + 1
+
+    print("Test trig_oam at mep start...", end=" ")
+    if trig_start:
+        print("✔")
+    else:
+        print("✘")
+        failed = failed + 1
+
+    print("Test trig_oam at mep stop...", end=" ")
+    if trig:
         print("✔")
     else:
         print("✘")
@@ -295,7 +322,7 @@ def test_delay():
 
     print("\nTest replication report...", end=" ")
     checks = [ "prf", "No replication statistic received.",
-                  "packets_passed", NUM_PACKETS_S2, "Received {} passed packets - should be {}"]
+                  "packets_passed", NUM_PACKETS_S2+1, "Received {} passed packets - should be {}"]
     f=validate_json(rep_msg, checks)
     if f == 0:
         rep_js = rep_msg.get("prf")
@@ -366,6 +393,7 @@ async def main():
     config_ifaces()
 
     start_r2dtwo()
+    # run with ../r2dtwo -of notification/notification-detnet.ini -v ALL:ALL
     #input("Press Enter to continue...")
 
     await asyncio.sleep(1)

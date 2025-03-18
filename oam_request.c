@@ -9,6 +9,7 @@
 #include "oam_command.h"
 #include "oam_core.h"
 #include "oam_message.h"
+#include "notification.h"
 
 #include "if_oam.h"
 #include "inet_utils.h"
@@ -257,6 +258,33 @@ struct OamRequest *parse_rping_command(const char *oam_command,
     return rping_req;
 }
 
+struct OamRequest *parse_trig_command(const char *oam_command,
+        char *conn_name)
+{
+    int l;
+    char start_name[32];
+
+    struct OamRequest *trig_req = new_oam_request("trig", conn_name);
+
+    int k = sscanf(oam_command, " %s %s %d%n",
+                   start_name, trig_req->mep_stop, &trig_req->level, &l);
+    if (k < 3) {
+        trig_req->error = strdup("trig_oam arguments invalid");
+        return trig_req;
+    }
+
+    trig_req->mep_start = find_mep_start(start_name);
+    if (trig_req->mep_start == NULL) {
+        trig_req->error = strdup_printf("trig_oam start '%s' invalid", start_name);
+        return trig_req;
+    }
+
+    while (isspace(oam_command[l])) l++;
+    trig_req->remote_command = strdup(oam_command+l);
+
+    return trig_req;
+}
+
 // always returns a request, sets ret->error to an error message
 struct OamRequest *parse_rlist_command(const char *oam_command,
         char *conn_name)
@@ -483,10 +511,13 @@ static bool send_request(const struct OamRequest *req){
         json_object_insert(js, "stream", json_string(req->mep_start->stream_name));
     }
     json_object_insert(js, "target", json_string(req->mep_stop));
-    struct JsonValue *jret = json_object();
-    json_object_insert(jret, "ip", json_string(req->return_ip));
-    json_object_insert(jret, "port", json_number(req->return_port));
-    json_object_insert(js, "return", jret);
+
+    if(strcmp(req->type, "trig")!=0){   // these are not needed for trig type
+        struct JsonValue *jret = json_object();
+        json_object_insert(jret, "ip", json_string(req->return_ip));
+        json_object_insert(jret, "port", json_number(req->return_port));
+        json_object_insert(js, "return", jret);
+    }
 
     if(strcmp(req->type, "ping")==0){
         if(req->record_route){
@@ -564,6 +595,12 @@ static void *oam_request_thread(void *arg)
     return NULL;
 }
 
+static void trigger_mep_push_notification(struct MepStart *mep_start)
+{
+    struct JsonValue *state = mep_start_get_state(mep_start);
+    notification_push_event("trig_oam_start", NOTIF_INFO, state);
+}
+
 bool initiate_request(struct OamRequest *req)
 {
     struct CommandConnection *conn = find_command_connection(req->conn_name);
@@ -606,6 +643,9 @@ bool initiate_request(struct OamRequest *req)
             req->type, req->session_id, req->seq, req->mep_start->name, req->mep_stop, req->level, req->count, req->interval_ms,
             req->record_route?"yes":"no", req->object_state?"yes":"no", req->return_ip, req->return_port);
 
+    if(strcmp(req->type, "trig")==0){
+        trigger_mep_push_notification(req->mep_start);
+    }
     if(req->count == 1){
         session_set_thread(stream, session_id, NULL);
         send_request(req);
@@ -624,5 +664,3 @@ bool initiate_request(struct OamRequest *req)
     command_connection_release_w(conn);
     return true;
 }
-
-

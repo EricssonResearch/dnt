@@ -9,6 +9,7 @@
 #include "oam_command.h"
 #include "oam_core.h"
 #include "oam_request.h"
+#include "notification.h"
 
 #include "if_udp_out.h"
 #include "json.h"
@@ -747,6 +748,34 @@ static bool process_rping_request(struct OamEndPoint *oam, struct Packet *p, str
     return false;
 }
 
+static void trigger_mep_push_notification(struct MepStart *mep_start, char *stream)
+{
+    (void) stream;
+    struct JsonValue *state = mep_start_get_state(mep_start);
+    notification_push_event("trig_oam", NOTIF_INFO, state);
+
+    // ToDo: all stream related MIP reports
+}
+
+// @returns false on error
+static bool process_trig_request(struct OamEndPoint *oam, struct Packet *p, struct JsonValue *j)
+{
+    (void) p;
+
+    struct JsonValue *jstream = json_object_get_string(j, "stream");
+    if (jstream == NULL) {
+        json_delete(j);
+        return false;
+    }
+
+    struct MepStart *mep = find_mep_start(oam->name);
+    if(mep)
+        trigger_mep_push_notification(mep, jstream->v.string);
+
+    json_delete(j);
+    return false;
+}
+
 struct AddstartState {
     struct JsonValue *jlist;
     struct OamEndPoint *oam;
@@ -976,6 +1005,15 @@ static bool process_request(struct OamEndPoint *oam, struct Packet *p)
             return false;
         }
         return oam->stop ? false : true;
+    } else if (strcmp(jreqt->v.string, "trig") == 0) {
+        if (p->ttl == 0) {
+            return false;
+        }
+        if ((strcmp(target->v.string, "any") == 0) || strcmp(target->v.string, oam->name) == 0) {
+            process_trig_request(oam, p, j);
+            return false;
+        }
+        return oam->stop ? false : true;
     } else if (strcmp(jreqt->v.string, "rlist") == 0) {
         if (p->ttl == 0) {
             return false;
@@ -1070,4 +1108,3 @@ void finish_msg_module(void)
 
     delete_hashmap(session_ids);
 }
-
