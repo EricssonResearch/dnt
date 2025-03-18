@@ -222,12 +222,12 @@ static int monitor_ptp(void)
     switch (pmc_pid) {  // pmc -u -b 0
     case 0: if (execlp("pmc", "pmc", "-u", "-b", "0", NULL) < 0) {
                 log_perror("could not start pmc");
-                exit(EXIT_FAILURE);
+                _Exit(EXIT_FAILURE);
              }
              /* NOTREACHED */
              break;
     case -1: log_perror("could not forkpty ");
-             exit(EXIT_FAILURE);
+             _Exit(EXIT_FAILURE);
     default: break;
     }
 
