@@ -174,6 +174,7 @@ void fini_delay(void)
     thread_stop(thread);
     sem_destroy(&delay_sem);
     free(delay_queue);
+    delete_hashmap(stats);
 }
 
 void delay_insert(struct PipelineIterator *pi, unsigned timestamp, const struct timespec delay)

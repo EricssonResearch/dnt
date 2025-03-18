@@ -165,6 +165,7 @@ static struct JsonValue *get_state_json(const struct PipelineObject *obj)
                 hist_content[i] = '0';
         }
         json_object_insert(js, "history", json_string(hist_content));
+        free(hist_content);
     }
     return js;
 }
