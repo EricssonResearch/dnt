@@ -225,10 +225,12 @@ static void command_loop(struct CommandConnection *conn)
 
     const char *last_stream=NULL; // the stream name of the last issued command
 
+    while (conn->name == NULL); // this is generated after the thread has been launched
+
     if (have_default_iface()) {
-        fprintf(cmd_w, "\033[32mOAM ready.\033[0m\n");
+        fprintf(cmd_w, "\033[32mOAM '%s' ready.\033[0m\n", conn->name);
     } else {
-        fprintf(cmd_w, "\033[32mOAM ready\033[0m, but has no configured return interface.\n");
+        fprintf(cmd_w, "\033[32mOAM '%s' ready\033[0m, but has no configured return interface.\n", conn->name);
     }
 
     struct JsonValue *msg = json_object();
