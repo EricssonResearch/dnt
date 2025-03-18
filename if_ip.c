@@ -20,6 +20,7 @@
 #include <net/if.h> /* struct ifreq */
 #include <ifaddrs.h>
 #include <linux/if_ether.h>
+#include <linux/if_packet.h> /* struct sockaddr_ll */
 
 DEFAULT_LOGGING_MODULE(INTERFACE, INFO);
 
@@ -162,9 +163,6 @@ static bool ip_open(struct Interface *iface)
         return false;
     }
 
-    // note: RFC 3542 says IPV6_HDRINCL is deliberately not supported
-    // (they say the ancillary data API should be sufficient)
-    // Linux 4.5 added this nonstandard option (inspired by Windows)
     // the dummy protocol type signals that we don't want to receive things
     int sock6 = socket(AF_INET6, SOCK_RAW, IPPROTO_BEETPH);
     if (sock6 < 0) {
@@ -180,6 +178,9 @@ static bool ip_open(struct Interface *iface)
         return false;
     }
 
+    // note: RFC 3542 says IPV6_HDRINCL is deliberately not supported
+    // (they say the ancillary data API should be sufficient)
+    // Linux 4.5 added this nonstandard option (inspired by Windows)
     if (setsockopt(sock6, IPPROTO_IPV6, IPV6_HDRINCL, &enable, sizeof(enable)) < 0) {
         log_perror("ipv6 setsockopt IP_HDRINCL for %s", iface->name);
         close(sock4);
@@ -250,16 +251,32 @@ static bool ip_open(struct Interface *iface)
             close(sock6);
             return false;
         }
-        if (setsockopt(sock_raw, SOL_SOCKET, SO_BINDTODEVICE, iface->ifname, strlen(iface->ifname)) < 0) {
-            log_perror("ip6 setsockopt SO_BINDTODEVICE for %s on %s", iface->name, iface->ifname);
+
+        struct sockaddr_ll socket_address;
+        memset(&socket_address, 0, sizeof(socket_address));
+        socket_address.sll_family = AF_PACKET;
+        socket_address.sll_protocol = htons(ETH_P_ALL);
+        socket_address.sll_ifindex = if_idx.ifr_ifindex;
+        if (bind(sock_raw, (struct sockaddr *)&socket_address, sizeof(socket_address)) < 0) {
+            log_perror("bind sock to iface for %s on %s", iface->name, iface->ifname);
             close(sock4);
             close(sock6);
             close(sock_raw);
             return false;
         }
+
+        // Ignore outgoing packets sent on other priority sockets (since Linux 4.20)
+        int true_flag = 1;
+        if (setsockopt(sock_raw, SOL_PACKET, PACKET_IGNORE_OUTGOING, &true_flag, sizeof(true_flag)) < 0) {
+            log_perror("setsockopt PACKET_IGNORE_OUTGOING");
+            close(sock4);
+            close(sock6);
+            close(sock_raw);
+            return false;
+        }
+
         iface->recvfd = sock_raw;
-    } else
-        iface->recvfd = sock4;
+    }
 
     notification_register_source(iface->name, iface_notification_pull_fn, iface, 2000);
 
