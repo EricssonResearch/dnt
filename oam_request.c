@@ -258,7 +258,75 @@ struct OamRequest *parse_rping_command(const char *oam_command,
     return rping_req;
 }
 
-struct OamRequest *parse_trig_command(const char *oam_command,
+
+static bool parse_trig_options(struct OamRequest *trig_req, const char *options_str, bool allow_num)
+{
+    const char *po = options_str;
+    bool opt_err = false;
+    int k, l;
+    int val;
+    float fval;
+    char c;
+
+    while ((k=sscanf(po, " -%c%n", &c, &l)) == 1) {
+        if (!isspace(*po)) {
+            trig_req->error = strdup("Error: ping options must be separated by space");
+            opt_err = true;
+            break;
+        }
+        po += l;
+        if (c=='i') {
+            k = sscanf(po, " %f%n", &fval, &l);
+            if (k == 1) {
+                po += l;
+                if (fval < 0.002) fval = 0.002; // 2msec is the minimum
+                trig_req->interval_ms = fval * 1000;
+            } else {
+                trig_req->error = strdup("trigger interval is invalid");
+                opt_err = true;
+                break;
+            }
+        } else if (c=='n') {
+            if(!allow_num){
+                trig_req->error = strdup("trigger count is not allwed in config");
+                opt_err = true;
+                break;
+            }
+            k = sscanf(po, " %d%n", &val, &l);
+            if (k == 1) {
+                po += l;
+                trig_req->count = val;
+            } else {
+                trig_req->error = strdup("trigger count is invalid\n");
+                opt_err = true;
+                break;
+            }
+        } else if (c=='t') {
+            k = sscanf(po, " %d%n", &val, &l);
+            if (k == 1) {
+                po += l;
+                trig_req->ttl = val;
+            } else {
+                trig_req->error = strdup("trigger ttl is invalid");
+                opt_err = true;
+                break;
+            }
+        } else {
+            trig_req->error = strdup_printf("trigger option '%c' is invalid", c);
+            opt_err = true;
+            break;
+        }
+    }
+    if (opt_err) return false;
+    while (isspace(*po)) po++;
+    if (*po) {
+        trig_req->error = strdup_printf("trigger options '%s' is invalid", po);
+        return false;
+    }
+    return true;
+}
+
+struct OamRequest *parse_trig_command(const char *oam_command, bool allow_num,
         char *conn_name)
 {
     int l;
@@ -279,8 +347,12 @@ struct OamRequest *parse_trig_command(const char *oam_command,
         return trig_req;
     }
 
-    while (isspace(oam_command[l])) l++;
-    trig_req->remote_command = strdup(oam_command+l);
+    //while (isspace(oam_command[l])) l++;
+    //trig_req->remote_command = strdup(oam_command+l);
+
+    if (!parse_trig_options(trig_req, oam_command+l, allow_num)) {
+        //TODO add something to the error?
+    }
 
     return trig_req;
 }
@@ -493,6 +565,15 @@ static int add_fixed_headers(struct Packet *packet, unsigned char ttl,
     return 0;
 }
 
+static void trigger_mep_push_notification(struct MepStart *mep_start, const struct OamRequest *req)
+{
+    struct JsonValue *js = json_object();
+    json_object_insert(js, "seq", json_number(req->seq));
+    struct JsonValue *state = mep_start_get_state(mep_start);
+    json_object_insert(js, "mep", state);
+    notification_push_event("trig_oam_start", NOTIF_INFO, js);
+}
+
 // returns true on success
 static bool send_request(const struct OamRequest *req){
     struct Packet *packet = new_packet(NULL);
@@ -517,6 +598,10 @@ static bool send_request(const struct OamRequest *req){
         json_object_insert(jret, "ip", json_string(req->return_ip));
         json_object_insert(jret, "port", json_number(req->return_port));
         json_object_insert(js, "return", jret);
+    } else {
+        json_object_insert(js, "seq", json_number(req->seq));
+        // we also triger local notification
+        trigger_mep_push_notification(req->mep_start, req);
     }
 
     if(strcmp(req->type, "ping")==0){
@@ -595,12 +680,6 @@ static void *oam_request_thread(void *arg)
     return NULL;
 }
 
-static void trigger_mep_push_notification(struct MepStart *mep_start)
-{
-    struct JsonValue *state = mep_start_get_state(mep_start);
-    notification_push_event("trig_oam_start", NOTIF_INFO, state);
-}
-
 bool initiate_request(struct OamRequest *req)
 {
     struct CommandConnection *conn = find_command_connection(req->conn_name);
@@ -643,9 +722,6 @@ bool initiate_request(struct OamRequest *req)
             req->type, req->session_id, req->seq, req->mep_start->name, req->mep_stop, req->level, req->count, req->interval_ms,
             req->record_route?"yes":"no", req->object_state?"yes":"no", req->return_ip, req->return_port);
 
-    if(strcmp(req->type, "trig")==0){
-        trigger_mep_push_notification(req->mep_start);
-    }
     if(req->count == 1){
         session_set_thread(stream, session_id, NULL);
         send_request(req);

@@ -748,38 +748,55 @@ static bool process_rping_request(struct OamEndPoint *oam, struct Packet *p, str
     return false;
 }
 
-static void trigger_mep_push_notification(struct MepStart *mep_start, char *stream)
+struct AddstartState {
+    struct JsonValue *jlist;
+    struct OamEndPoint *oam;
+};
+static int addtrig_cb(const char *key, void *value, void *userdata)
 {
-    (void) stream;
-    struct JsonValue *state = mep_start_get_state(mep_start);
-    notification_push_event("trig_oam", NOTIF_INFO, state);
+    (void) key;
+    struct AddstartState *st = (struct AddstartState *)userdata;
+    struct MepStart *mep = (struct MepStart *)value;
 
-    // ToDo: all stream related MIP reports
+    if (mep_start_in_stream(mep, st->oam->stream)) {
+        // limit to meps with the same target
+        if(mep->target == st->oam->mep->target) {
+            struct JsonValue *state = mep_start_get_state(mep);
+            json_array_push(st->jlist, state);
+        }
+    }
+    return 1;
 }
-
 // @returns false on error
 static bool process_trig_request(struct OamEndPoint *oam, struct Packet *p, struct JsonValue *j)
 {
     (void) p;
 
-    struct JsonValue *jstream = json_object_get_string(j, "stream");
-    if (jstream == NULL) {
+    struct JsonValue *jseq = json_object_get_number(j, "seq");
+    if (jseq == NULL) {
+        log_error("OAM trigger packet does not have 'seq'");
         json_delete(j);
         return false;
     }
 
-    struct MepStart *mep = find_mep_start(oam->name);
-    if(mep)
-        trigger_mep_push_notification(mep, jstream->v.string);
+    struct JsonValue *js = json_object();
+    json_object_insert(js, "seq", json_number(jseq->v.number));
 
+    struct MepStart *mep = find_mep_start(oam->name);
+    if(mep) {
+        oam->mep = mep;
+        struct JsonValue *jlist = json_array();
+        struct AddstartState st = {jlist, oam};
+        foreach_mep_start(addtrig_cb, &st);
+
+        json_object_insert(js, "mep", jlist);
+        notification_push_event("trig_oam", NOTIF_INFO, js);
+    }
     json_delete(j);
     return false;
 }
 
-struct AddstartState {
-    struct JsonValue *jlist;
-    struct OamEndPoint *oam;
-};
+
 static int addstart_cb(const char *key, void *value, void *userdata)
 {
     struct AddstartState *st = (struct AddstartState *)userdata;

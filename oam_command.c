@@ -427,7 +427,7 @@ static void command_loop(struct CommandConnection *conn)
                 }
             }
             else if (strncmp(oam_command, "trig_oam", 8) == 0) {
-                struct OamRequest *trig_req = parse_trig_command(oam_command+8, strdup(conn->name));
+                struct OamRequest *trig_req = parse_trig_command(oam_command+8, true, strdup(conn->name));
                 CHECK_REQUEST(trig_req);
                 if (!initiate_request(trig_req)) {
                     ERROR("sending trig_oam command failed");
