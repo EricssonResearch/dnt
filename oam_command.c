@@ -225,7 +225,7 @@ static void command_loop(struct CommandConnection *conn)
 
     const char *last_stream=NULL; // the stream name of the last issued command
 
-    while (conn->name == NULL); // this is generated after the thread has been launched
+    while (conn->name == NULL) usleep(1000); // this is generated after the thread has been launched
 
     if (have_default_iface()) {
         fprintf(cmd_w, "\033[32mOAM '%s' ready.\033[0m\n", conn->name);
