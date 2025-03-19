@@ -134,15 +134,18 @@ def send_cli_commands():
         print("Error: ", msg)
         ret = False
 
-    cli.send("trig_oam o_s2_L5_pre-prf o_common_actions_L5_post-srcvy1 5") # send trig_oam command
+    cli.send("trig_oam o_s2_L5_pre-prf o_common_actions_L5_post-srcvy1 5 -n 3 -i 0.05 ") # send trig_oam command
     msg = cli.recv()
     if "OAM request trig session" not in msg:
         print("Error: ", msg)
         ret = False
 
+    # wait for the previously requested packets
+    time.sleep(1)
+
     cli.send("exit") # send add notification command
     msg = cli.recv()
-    time.sleep(0.5)
+    time.sleep(0.1)
 
     cli.close()
     return ret
@@ -177,6 +180,7 @@ def validate_json(json_msg, checks):
     return failed
 
 async def start_meas():
+    print("Sending Telnet commands")
     if not send_cli_commands():
         print("Cli commands failed.")
         return -1
@@ -186,6 +190,8 @@ async def start_meas():
         return -1
 
     time.sleep(1)
+
+    print("Sending traffic")
     sendp(pkts_delay, verbose=0, iface="to_r2")
     return 0
 
@@ -322,7 +328,7 @@ def test_delay():
 
     print("\nTest replication report...", end=" ")
     checks = [ "prf", "No replication statistic received.",
-                  "packets_passed", NUM_PACKETS_S2+1, "Received {} passed packets - should be {}"]
+                  "packets_passed", NUM_PACKETS_S2+3, "Received {} passed packets - should be {}"]
     f=validate_json(rep_msg, checks)
     if f == 0:
         rep_js = rep_msg.get("prf")
@@ -393,13 +399,16 @@ async def main():
     config_ifaces()
 
     start_r2dtwo()
-    # run with ../r2dtwo -of notification/notification-detnet.ini -v ALL:ALL
+    # run with sudo ../r2dtwo -of notification/notification-detnet.ini -v ALL:ALL
     #input("Press Enter to continue...")
 
     await asyncio.sleep(1)
     await start_meas()
+
+    print("Waiting for results")
     await asyncio.sleep(6)
 
+    print("Checking results:")
     result = test_delay()
     if result == -1:
         print("Error running tests.")
