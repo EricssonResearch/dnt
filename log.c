@@ -203,19 +203,25 @@ static void __attribute__((destructor)) cleanup_mod_instances(void)
 static int __do_log(LOGGING_LEVELS level, const char *logmodule, const char *msg)
 {
     if (log_output != LOG_OUT_SYSLOG) {
-        time_t now;
-        time(&now);
+        /*time_t now;
+        time(&now); // on Linux this uses CLOCK_REALTIME_COARSE
+        */
+        struct timespec now;
+        clock_gettime(CLOCK_REALTIME, &now);
         struct tm now_tm;
-        localtime_r(&now, &now_tm);
+        // here we assume that time_t is an integer of the same size as tv_sec
+        localtime_r(&now.tv_sec, &now_tm);
         char date[32];
         strftime(date, sizeof(date), "%Y.%m.%d %H:%M:%S", &now_tm);
 
         if (color) {
-            return fprintf(logfile, "%s [\033[1m%s\033[0m] [%s%s%s] %s\n",
-                    date, logmodule, colors[level], log_level_strings[level], colors[RESET], msg);
+            return fprintf(logfile, "%s.%03lu [\033[1m%s\033[0m] [%s%s%s] %s\n",
+                    date, now.tv_nsec/1000000,
+                    logmodule, colors[level], log_level_strings[level], colors[RESET], msg);
         } else {
-            return fprintf(logfile, "%s [%s] [%s] %s\n",
-                    date, logmodule, log_level_strings[level], msg);
+            return fprintf(logfile, "%s.%03lu [%s] [%s] %s\n",
+                    date, now.tv_nsec/1000000,
+                    logmodule, log_level_strings[level], msg);
         }
     } else {
         int syslog_prio = log_level_to_syslog_level(level);
@@ -226,7 +232,7 @@ static int __do_log(LOGGING_LEVELS level, const char *logmodule, const char *msg
 
 int __log_func(LOGGING_LEVELS level, const char *logmodule, const char *frmt, ...)
 {
-    char msg[1024];
+    char msg[2048];
     va_list argp;
     va_start(argp, frmt);
     vsnprintf(msg, sizeof(msg), frmt, argp);
