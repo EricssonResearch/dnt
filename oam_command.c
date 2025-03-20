@@ -227,11 +227,8 @@ static void command_loop(struct CommandConnection *conn)
 
     while (conn->name == NULL) usleep(1000); // this is generated after the thread has been launched
 
-    if (have_default_iface()) {
-        fprintf(cmd_w, "\033[32mOAM '%s' ready.\033[0m\n", conn->name);
-    } else {
-        fprintf(cmd_w, "\033[32mOAM '%s' ready\033[0m, but has no configured return interface.\n", conn->name);
-    }
+    fprintf(cmd_w, "\033[32mOAM '%s' ready\033[0m%s\n", conn->name,
+            have_default_iface()?"":", but has no configured return interface");
 
     struct JsonValue *msg = json_object();
     json_object_insert(msg, "login", json_string(conn->name));

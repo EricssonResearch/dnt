@@ -98,12 +98,11 @@ static void *notification_thread(void *arg)
     if (period_us > 0) {
         struct timespec now;
         clock_gettime(CLOCK_REALTIME, &now);
-        next_wake = time_add_us(now, period_us);
 
-        // make it start at exact second and also at multiple of period_us
-        uint64_t start_corr = (next_wake.tv_sec*1000000) % period_us;
-        next_wake.tv_sec += start_corr / 1000000;
-        next_wake.tv_nsec = (start_corr % 1000000) * 1000;
+        // start at next even second
+        next_wake.tv_sec = now.tv_sec + 1;
+        next_wake.tv_sec += next_wake.tv_sec % 2;
+        next_wake.tv_nsec = 0;
 
         timeout_us = time_diff_us(next_wake, now);
     }
@@ -111,13 +110,17 @@ static void *notification_thread(void *arg)
 
     while (1) {
         struct NotificationMessage *msg = (struct NotificationMessage *)messagequeue_pop(notif_q, timeout_us);
+        log_debug("popped %p", msg);
+
         if (msg) {
             if (strcmp(msg->source, "notification_register_source") == 0) {
                 free(msg);
                 if (hashmap_count(sources) != 0) {
                     if (period_us == 0) {
-                        // first source, start period now
+                        // first source, start period at the next even second
                         clock_gettime(CLOCK_REALTIME, &next_wake);
+                        next_wake.tv_nsec = 0;
+                        next_wake.tv_sec += next_wake.tv_sec % 2;
                     }
 
                     //TODO find a period that fits all sources
@@ -225,8 +228,11 @@ static void *notification_thread(void *arg)
             timeout_us = time_diff_us(next_wake, now);
             if (timeout_us < 0) {
                 log_debug("next wake time is in the past, rebooting the cycle");
-                timeout_us = period_us;
-                next_wake = time_add_us(now, period_us);
+                //start at next even second
+                next_wake.tv_sec = now.tv_sec;
+                next_wake.tv_sec += next_wake.tv_sec % 2;
+                next_wake.tv_nsec = 0;
+                timeout_us = time_diff_us(next_wake, now);
             }
 
             log_debug("after timeout period %u now %ld.%.9lu next_wake %ld.%.09lu timeout %d",
