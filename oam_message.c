@@ -768,7 +768,7 @@ static int addtrig_cb(const char *key, void *value, void *userdata)
     return 1;
 }
 // @returns false on error
-static bool process_trig_request(struct OamEndPoint *oam, struct Packet *p, struct JsonValue *j)
+static bool process_trigger_request(struct OamEndPoint *oam, struct Packet *p, struct JsonValue *j)
 {
     (void) p;
 
@@ -790,7 +790,7 @@ static bool process_trig_request(struct OamEndPoint *oam, struct Packet *p, stru
         foreach_mep_start(addtrig_cb, &st);
 
         json_object_insert(js, "mep", jlist);
-        notification_push_event("trig_oam", NOTIF_INFO, js);
+        notification_push_event("triggered_receiver", NOTIF_INFO, js);
     }
     json_delete(j);
     return false;
@@ -1022,12 +1022,12 @@ static bool process_request(struct OamEndPoint *oam, struct Packet *p)
             return false;
         }
         return oam->stop ? false : true;
-    } else if (strcmp(jreqt->v.string, "trig") == 0) {
+    } else if (strcmp(jreqt->v.string, "trigger") == 0) {
         if (p->ttl == 0) {
             return false;
         }
         if ((strcmp(target->v.string, "any") == 0) || strcmp(target->v.string, oam->name) == 0) {
-            process_trig_request(oam, p, j);
+            process_trigger_request(oam, p, j);
             return false;
         }
         return oam->stop ? false : true;

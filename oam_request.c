@@ -259,7 +259,7 @@ struct OamRequest *parse_rping_command(const char *oam_command,
 }
 
 
-static bool parse_trig_options(struct OamRequest *trig_req, const char *options_str, bool allow_num)
+static bool parse_trigger_options(struct OamRequest *trig_req, const char *options_str, bool allow_num)
 {
     const char *po = options_str;
     bool opt_err = false;
@@ -270,7 +270,7 @@ static bool parse_trig_options(struct OamRequest *trig_req, const char *options_
 
     while ((k=sscanf(po, " -%c%n", &c, &l)) == 1) {
         if (!isspace(*po)) {
-            trig_req->error = strdup("Error: ping options must be separated by space");
+            trig_req->error = strdup("Error: trigger options must be separated by space");
             opt_err = true;
             break;
         }
@@ -326,31 +326,28 @@ static bool parse_trig_options(struct OamRequest *trig_req, const char *options_
     return true;
 }
 
-struct OamRequest *parse_trig_command(const char *oam_command, bool allow_num,
+struct OamRequest *parse_trigger_command(const char *oam_command, bool allow_num,
         char *conn_name)
 {
     int l;
     char start_name[32];
 
-    struct OamRequest *trig_req = new_oam_request("trig", conn_name);
+    struct OamRequest *trig_req = new_oam_request("trigger", conn_name);
 
     int k = sscanf(oam_command, " %s %s %d%n",
                    start_name, trig_req->mep_stop, &trig_req->level, &l);
     if (k < 3) {
-        trig_req->error = strdup("trig_oam arguments invalid");
+        trig_req->error = strdup("notif_trigger arguments invalid");
         return trig_req;
     }
 
     trig_req->mep_start = find_mep_start(start_name);
     if (trig_req->mep_start == NULL) {
-        trig_req->error = strdup_printf("trig_oam start '%s' invalid", start_name);
+        trig_req->error = strdup_printf("notif_trigger start '%s' invalid", start_name);
         return trig_req;
     }
 
-    //while (isspace(oam_command[l])) l++;
-    //trig_req->remote_command = strdup(oam_command+l);
-
-    if (!parse_trig_options(trig_req, oam_command+l, allow_num)) {
+    if (!parse_trigger_options(trig_req, oam_command+l, allow_num)) {
         //TODO add something to the error?
     }
 
@@ -571,7 +568,7 @@ static void trigger_mep_push_notification(struct MepStart *mep_start, const stru
     json_object_insert(js, "seq", json_number(req->seq));
     struct JsonValue *state = mep_start_get_state(mep_start);
     json_object_insert(js, "mep", state);
-    notification_push_event("trig_oam_start", NOTIF_INFO, js);
+    notification_push_event("triggered_source", NOTIF_INFO, js);
 }
 
 // returns true on success
@@ -593,7 +590,7 @@ static bool send_request(const struct OamRequest *req){
     }
     json_object_insert(js, "target", json_string(req->mep_stop));
 
-    if(strcmp(req->type, "trig")!=0){   // these are not needed for trig type
+    if(strcmp(req->type, "trigger")!=0){   // these are not needed for trig type
         struct JsonValue *jret = json_object();
         json_object_insert(jret, "ip", json_string(req->return_ip));
         json_object_insert(jret, "port", json_number(req->return_port));

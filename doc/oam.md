@@ -99,6 +99,7 @@ The available commands are:
     * `-t` ttl (default: 64)
 * `rping[@if] <remote stream:mep-stop/mip> <stream:mep-start> <mep-stop/mip/any> <level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]` sends a remote ping request: instruct a remote OAM start point to send a ping request
     * accepts the same parameters as `ping`
+* `notif_trigger <mep-start> <mep-stop/mip/any> <level> [-i <interval>] [-n <count>] [-t <ttl>]` sends a trigger request inside a stream which triggers notifications at mep_start and target. No reply is generated, just the notifications.
 * `stop [stream session_id]` stop a running OAM session identified by `stream:session_id`, without parameter it stops the last session
 
 The `ping` command sends a ping request inside a stream, and the responder will send a ping reply out-of-bound to the OAM return interface. The `rping` command on an *originator* node is sent to the *initiator* node, which in turn will send a normal ping request to the given target.
@@ -204,6 +205,25 @@ Json has mostly the same info as ping reply.
  * type = "rping"
  * code = "error"
  * error - the error message
+
+### trigger request
+
+The notif_trigger command can be used for triggered MEP statistic collection, which can be used even when no synchronization is available.
+When sent, the initiator MEP sends a `triggered_source` push notification, and also sends the trigger request. When the target receives the trigger request, it sends a `triggered_receiver` push notification with all MEPs related to the target object. There is no response to the trigger request.s 
+
+Fixed header
+
+ * similar to the others
+
+Json
+
+ * type = "trigger"
+ * stream - name of the stream where the start point is, important for notification
+ * target - the end point that must answer the request, can be "any"
+ * send_s - timestamp seconds
+ * send_ns - timestamp nanoseconds
+ * seq - sequence number, the same seq will be used in the notifications as well
+
 
 ### rlist request
 

@@ -134,9 +134,9 @@ def send_cli_commands():
         print("Error: ", msg)
         ret = False
 
-    cli.send("trig_oam o_s2_L5_pre-prf o_common_actions_L5_post-srcvy1 5 -n 3 -i 0.05 ") # send trig_oam command
+    cli.send("notif_trigger o_s2_L5_pre-prf o_common_actions_L5_post-srcvy1 5 -n 3 -i 0.05 ") # send notif_trigger command
     msg = cli.recv()
-    if "OAM request trig session" not in msg:
+    if "OAM request trigger session" not in msg:
         print("Error: ", msg)
         ret = False
 
@@ -256,9 +256,9 @@ def test_delay():
             post_prf_nni0_msg = msg
         if msg.get("o_to_nni1_L5_post-prf"):
             post_prf_nni1_msg = msg
-        if msg.get("trig_oam_start"):
+        if msg.get("triggered_source"):
             trig_start = msg
-        if msg.get("trig_oam"):
+        if msg.get("triggered_receiver"):
             trig = msg
 
 
@@ -283,14 +283,14 @@ def test_delay():
         print("✘")
         failed = failed + 1
 
-    print("Test trig_oam at mep start...", end=" ")
+    print("Test notif_trigger at mep start...", end=" ")
     if trig_start:
         print("✔")
     else:
         print("✘")
         failed = failed + 1
 
-    print("Test trig_oam at mep stop...", end=" ")
+    print("Test notif_trigger at mep stop...", end=" ")
     if trig:
         print("✔")
     else:

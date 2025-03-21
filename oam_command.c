@@ -423,11 +423,11 @@ static void command_loop(struct CommandConnection *conn)
                     ERROR("sending rping command failed");
                 }
             }
-            else if (strncmp(oam_command, "trig_oam", 8) == 0) {
-                struct OamRequest *trig_req = parse_trig_command(oam_command+8, true, strdup(conn->name));
+            else if (strncmp(oam_command, "notif_trigger", 13) == 0) {
+                struct OamRequest *trig_req = parse_trigger_command(oam_command+13, true, strdup(conn->name));
                 CHECK_REQUEST(trig_req);
                 if (!initiate_request(trig_req)) {
-                    ERROR("sending trig_oam command failed");
+                    ERROR("sending notif_trigger command failed");
                 }
             }
             else if (strncmp(oam_command, "rlist", 5) == 0) {
