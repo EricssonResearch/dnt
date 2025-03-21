@@ -384,6 +384,7 @@ def main():
         net = create_net()
         config_net(net)
         if debug:
+            start_r2dtwos(net, False)
             CLI(net)
         else:
             all_ok = run_tests(net, testcases)
