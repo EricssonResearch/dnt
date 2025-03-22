@@ -56,6 +56,13 @@ static struct MessageQueue *request_q = NULL;
 static struct Thread *reply_thread = NULL;
 static struct MessageQueue *reply_q = NULL;
 
+struct OamEndPoint {
+    char *name;
+    char *stream;
+    int level;
+    bool stop; // false: MIP, true: MEP-Stop
+    struct MepStart *mep;
+};
 
 
 struct StreamSessions *get_stream_sessions(const char *stream_name)
@@ -70,7 +77,7 @@ struct StreamSessions *get_stream_sessions(const char *stream_name)
     return stream;
 }
 
-bool known_stream(const char *stream_name)
+static bool known_stream(const char *stream_name)
 {
     pthread_mutex_lock(&session_lock);
     int contains = hashmap_contains(session_ids, stream_name);
@@ -257,6 +264,26 @@ void session_touch(struct StreamSessions *stream, int session)
     stream->sessions[session].access_time = now.tv_sec + 1;
 }
 
+
+struct OamEndPoint *oam_create_endpoint(const char *name, const char *stream, int level, bool stop)
+{
+    //TODO make sure that endpoints have unique names
+    //      put them into the same hash as the startpoints?
+    struct OamEndPoint *ret = calloc_struct(OamEndPoint);
+    ret->name = strdup(name);
+    ret->stream = strdup(stream);
+    ret->level = level;
+    ret->stop = stop;
+    return ret;
+}
+
+struct OamEndPoint *oam_delete_endpoint(struct OamEndPoint *end)
+{
+    free(end->name);
+    free(end->stream);
+    free(end);
+    return NULL;
+}
 
 static int process_reply(const char *msg)
 {

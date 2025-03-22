@@ -209,18 +209,6 @@ bool mep_start_in_stream(const struct MepStart *start, const char *stream)
     return 0;
 }
 
-struct OamEndPoint *oam_create_endpoint(const char *name, const char *stream, int level, bool stop)
-{
-    //TODO make sure that endpoints have unique names
-    //      put them into the same hash as the startpoints?
-    struct OamEndPoint *ret = calloc_struct(OamEndPoint);
-    ret->name = strdup(name);
-    ret->stream = strdup(stream);
-    ret->level = level;
-    ret->stop = stop;
-    return ret;
-}
-
 // check when the last mask heartbeat received
 // time < now+1sec: masked
 // time > now+1sec: unmasked
@@ -315,14 +303,6 @@ void mep_start_wakeup_mask_checker(struct MepStart *start)
             thread_wakeup(start->mask_check_worker);
         }
     }
-}
-
-struct OamEndPoint *oam_delete_endpoint(struct OamEndPoint *end)
-{
-    free(end->name);
-    free(end->stream);
-    free(end);
-    return NULL;
 }
 
 static int copy_streamname(const char *key, void *value, void *userdata)

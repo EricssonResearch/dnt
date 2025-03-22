@@ -20,8 +20,6 @@ struct Thread;
 
 struct StreamSessions *get_stream_sessions(const char *stream_name);
 
-bool known_stream(const char *stream_name);
-
 int alloc_session_id(struct StreamSessions *stream, struct OamRequest *req,
         const char *conn_name, unsigned interval_ms);
 

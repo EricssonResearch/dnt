@@ -724,8 +724,9 @@ bool initiate_request(struct OamRequest *req)
         send_request(req);
         delete_oam_request(req);
     } else {
-        session_set_thread(stream, session_id, thread_launch(oam_request_thread, req, "oam req %d", session_id));
-        if (session_get_thread(stream, session_id) == NULL) {
+        struct Thread *th = thread_launch(oam_request_thread, req, "oam req %d", session_id);
+        if (th) {
+            session_set_thread(stream, session_id, th);
             req->error = strdup("could not create new request thread");
             log_error("%s", req->error);
             if (cmd_w) fprintf(cmd_w, "%s", req->error);
