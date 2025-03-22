@@ -46,7 +46,7 @@ static void *pmc_monitor(void *arg)
     int fd = *((int *)arg); // Dereferencing integer pointer
     char managementId[MAX_ID_LEN+1], portState[MAX_ID_LEN+1], portIdentity[MAX_ID_LEN+1];
     char buf[MAX_LINE+1], *st;
-    int len;
+    int len, status;
     struct itimerspec  new_value;
     uint64_t           exp;
 
@@ -81,7 +81,7 @@ static void *pmc_monitor(void *arg)
     fds[2].events = POLLIN;
 
     while(1){
-        int ret = poll(fds, 3, -1); // block until something happens
+        int ret = poll(fds, 3, 1); // timeout 1s to check pmc
         if (ret == -1) {
             log_perror("poll error: %s\n", strerror(errno));
             break;
@@ -125,6 +125,16 @@ static void *pmc_monitor(void *arg)
                 }
             }
         }
+
+        // Check if pmc is still running...
+        pid_t result = waitpid(pmc_pid, &status, WNOHANG);
+        if (result == pmc_pid) {
+            // Child exited, meaning execlp likely failed
+            log_error("sync monitor: pmc exited, monitor thread stops.");
+            pmc_pid = -1;  // Invalidate pmc_pid
+            break;
+        }
+
         if (fds[2].revents & POLLIN) {      // eventfd
             uint64_t value;
             if(read(efd, &value, sizeof(value)) < 0)  // Clear the event
@@ -229,17 +239,6 @@ static int monitor_ptp(void)
     case -1: log_perror("could not forkpty ");
              _Exit(EXIT_FAILURE);
     default: break;
-    }
-
-    // Wait briefly to check if child process exits immediately due to execlp failure
-    usleep(3000);  // Allow some time for failure detection (tunable)
-
-    int status;
-    pid_t result = waitpid(pmc_pid, &status, WNOHANG);
-    if (result == pmc_pid) {
-        // Child exited, meaning execlp likely failed
-        pmc_pid = -1;  // Invalidate pmc_pid
-        return EXIT_FAILURE;
     }
 
     // Create eventfd
