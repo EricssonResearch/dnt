@@ -655,7 +655,7 @@ static bool send_request(const struct OamRequest *req){
     return true;
 }
 
-static void *oam_request_thread(void *arg)
+static void *send_periodic_request_thread(void *arg)
 {
     struct OamRequest *req = (struct OamRequest *)arg;
     unsigned seq=0;
@@ -670,9 +670,8 @@ static void *oam_request_thread(void *arg)
         usleep(req->interval_ms * 1000);
     }
     struct Thread *th = session_get_thread(stream, req->session_id);
-    //TODO keep the session live until we receive the replies
+    // we keep the session live so we can still receive replies
     session_set_thread(stream, req->session_id, NULL);
-    delete_oam_request(req);
     thread_exit(th);
     return NULL;
 }
@@ -722,11 +721,10 @@ bool initiate_request(struct OamRequest *req)
     if(req->count == 1){
         session_set_thread(stream, session_id, NULL);
         send_request(req);
-        delete_oam_request(req);
     } else {
-        struct Thread *th = thread_launch(oam_request_thread, req, "oam req %d", session_id);
+        struct Thread *th = thread_launch(send_periodic_request_thread, req, "oam req %d", session_id);
+        session_set_thread(stream, session_id, th);
         if (th == NULL) {
-            session_set_thread(stream, session_id, NULL);
             req->error = strdup("could not create new request thread");
             log_error("%s", req->error);
             if (cmd_w) fprintf(cmd_w, "%s\n", req->error);

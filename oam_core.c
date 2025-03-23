@@ -363,7 +363,7 @@ bool oam_start_background_ping(const char *name, const char *command)
     return initiate_request(ping_req);
 }
 
-void mep_start_count_passed(struct MepStart *start, struct Packet *pkt)
+void mep_start_count_passed(struct MepStart *start, const struct Packet *pkt)
 {
     __atomic_fetch_add(&start->packets_passed, 1, __ATOMIC_RELAXED);
     __atomic_fetch_add(&start->octets_passed, packet_length(pkt), __ATOMIC_RELAXED);
@@ -373,10 +373,7 @@ bool init_oam(void)
 {
     if (oam_initialized) return true;
 
-    bool have_command_iface = oam_cmd_iface != NULL;
-    bool have_reply_iface = oam_default_iface != NULL;
-
-    init_msg_module(have_command_iface, have_reply_iface);
+    init_msg_module(oam_default_iface != NULL);
 
     if (oam_default_iface || oam_cmd_iface) {
         log_info("Init OAM fuctionality:%s%s",

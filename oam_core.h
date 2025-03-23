@@ -49,7 +49,7 @@ bool mep_start_in_stream(const struct MepStart *start, const char *stream);
 
 void mep_start_wakeup_mask_checker(struct MepStart *start);
 
-void mep_start_count_passed(struct MepStart *start, struct Packet *pkt);
+void mep_start_count_passed(struct MepStart *start, const struct Packet *pkt);
 
 struct JsonValue *mep_start_get_state(const struct MepStart *mep_start);
 
