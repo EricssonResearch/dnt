@@ -140,7 +140,7 @@ bool packet_identify_header(struct Packet *p, enum ProtocolID type, unsigned off
 // returns the start offset of the allocated space, or -1 on error
 static int scratch_alloc(struct Packet *p, unsigned len)
 {
-    if (p->scratch_len + len >= PACKET_START_OFFSET) return -1;
+    if (p->scratch_len + len >= p->start) return -1;
     off_t ret = p->scratch_len;
     p->scratch_len += len;
     return ret;
@@ -194,6 +194,13 @@ void packet_clear_headers(struct Packet *p)
 {
     p->header_count = 0;
     p->scratch_len = 0;
+}
+
+void packet_enlarge_scratch(struct Packet *p)
+{
+    if (p->len == 0) {
+        p->start = PACKET_BUF_LEN;
+    }
 }
 
 void packets_check_performance(void)

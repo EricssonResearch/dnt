@@ -329,6 +329,14 @@ static void test_add_del(void)
     OK(packet_add_header(p, 0, PROTO_ID_IPv4, PACKET_START_OFFSET-1) == true, "scratch space fill");
     OK(packet_length(p) == PACKET_START_OFFSET-1, "length %u", packet_length(p));
 
+    packet_clear_headers(p);
+    packet_enlarge_scratch(p);
+    OK(p->start == PACKET_BUF_LEN, "start");
+    OK(p->len == 0, "len %u", p->len);
+    OK(packet_add_header(p, 0, PROTO_ID_IPv4, PACKET_START_OFFSET) == true, "scratch space enough");
+    OK(packet_add_header(p, 1, PROTO_ID_IPv6, PACKET_START_OFFSET) == true, "scratch space enough");
+    OK(packet_length(p) == PACKET_START_OFFSET*2, "length %u", packet_length(p));
+
     OK(delete_packet(p) == NULL, "always returns null");
 }
 

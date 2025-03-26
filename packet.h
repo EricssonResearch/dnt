@@ -15,7 +15,7 @@
 #define PACKET_LOG_BUF_SIZE 256
 #define PACKET_MAX_HEADER_NUM 20
 #define PACKET_COUNT_LIMIT 200
-#define PACKET_START_OFFSET 2048
+#define PACKET_START_OFFSET 1024
 
 struct Interface;
 
@@ -119,6 +119,12 @@ void packet_del_header(struct Packet *p, unsigned idx);
 // remove all headers from @p->headers
 // also clears the scratch space
 void packet_clear_headers(struct Packet *p);
+
+// if p->len is 0, move p->start to the end of the buffer
+// this is useful when the packet is locally generated:
+//  there is no received data at p->start (p->len is 0)
+//  the payload we build is on the scratch space
+void packet_enlarge_scratch(struct Packet *p);
 
 // prints a warning if there are too many packets in the system
 void packets_check_performance(void);
