@@ -134,6 +134,19 @@ void thread_wakeup(const struct Thread *thread)
     }
 }
 
+int thread_join(struct Thread *thread)
+{
+    int ret;
+    if (thread) {
+        log_debug("joining thread '%s'", thread->name);
+        ret = pthread_join(thread->tid, NULL);
+        free(thread->name);
+        free(thread);
+        return ret;
+    }
+    return 0;
+}
+
 struct Message {
     void *data;
     struct Message *next;
@@ -260,4 +273,3 @@ int messagequeue_foreach(struct MessageQueue *q, int (*cb)(const void *item, voi
     pthread_mutex_unlock(&q->mutex);
     return 1;
 }
-

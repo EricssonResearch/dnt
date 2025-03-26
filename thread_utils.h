@@ -32,6 +32,10 @@ struct Thread *thread_stop(struct Thread *thread);
 // doesn't do anything if called from another thread
 void thread_exit(struct Thread *thread);
 
+// joins the thread
+// then cleans up
+int thread_join(struct Thread *thread);
+
 // send alarm signal for a thread
 void thread_wakeup(const struct Thread *thread);
 
