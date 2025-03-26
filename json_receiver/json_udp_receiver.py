@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import socket
 import json
 import sys
@@ -45,7 +47,7 @@ else: # v6 or dual
 
 sock.bind((srv_addr, srv_port))
 
-print("JSON receiver server started")
+print(f"JSON receiver server started on {srv_addr} : {srv_port}")
 
 SEQ_HISTORY_SIZE = 10
 index=0
@@ -54,15 +56,15 @@ last_seqnums=[0] * SEQ_HISTORY_SIZE
 supress = False
 
 while True:
-    data, addr = sock.recvfrom(2048) #gets UDP data up to 2kB
+    data, addr = sock.recvfrom(4096)
     (host,port) = socket.getnameinfo(addr,socket.NI_NUMERICHOST | socket.NI_NUMERICSERV)
 
-    print('\nConnection from: ',host," : ",port)
+    print(f'\nReceived {len(data)} bytes from {host} : {port}')
     try:
-        jsonReceived = json.loads(data)    
+        jsonReceived = json.loads(data)
         seq_num = jsonReceived.get("notif_seq")
         if seq_num != None:
-            if (host, port, seq_num) in last_seqnums: 
+            if (host, port, seq_num) in last_seqnums:
                 print("Message with sequence number ", seq_num, "from ", host, " : ", port, " already received, not showing the replica")
                 supress = True
             else:
@@ -72,10 +74,10 @@ while True:
         if not supress:
             print('========== JSON data begin ==========')
             print(json.dumps(jsonReceived, indent=2))
-            print('=========== JSON data end ===========')
+            print('........... JSON data end ...........')
         supress = False
 
     except json.decoder.JSONDecodeError:
         print ("JSON decoder error: received message is not JSON or UDP receive buffer is too small to fit all the JSON data")
-    
+
 
