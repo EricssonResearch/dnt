@@ -109,9 +109,10 @@ configure_networkenv() {
   ip netns exec talker ethtool -K eth0 tx off rx off
 }
 
-# This is totally unsafe
-# TODO: use flock to avoid races
+# Using flock to avoid race conditions
 if [ -f "$CNTFILE" ]; then
+  exec {CNTFD}<"$CNTFILE"
+  flock -x -w 5 "$CNTFD"
   read scenname cntvalue < $CNTFILE
   if [ "$scenname" != "$SCENNAME" ] ; then
     echo "scenario '$scenname' is already running, stop it before starting $SCENNAME"
@@ -119,6 +120,7 @@ if [ -f "$CNTFILE" ]; then
   fi
   newvalue=`expr $cntvalue + 1`
   echo "$SCENNAME $newvalue" > $CNTFILE
+  exec {CNTFD}<&-
 else
   echo "$SCENNAME 1" > $CNTFILE
   configure_networkenv
@@ -126,7 +128,10 @@ fi
 
 /bin/bash --init-file <(echo "PS1='( 2R-2E ) \u:\W# '")
 
+exec {CNTFD}<"$CNTFILE"
+flock -x -w 5 "$CNTFD"
 read scenname cntvalue < $CNTFILE
+
 if [ $cntvalue -eq 1 ]; then #last bash instance in the env, do cleanup
   echo "Cleanup r2dtwo test environment"
   rm $CNTFILE
@@ -138,3 +143,4 @@ else
   newvalue=`expr $cntvalue - 1`
   echo "$SCENNAME $newvalue" > $CNTFILE
 fi
+exec {CNTFD}<&-
