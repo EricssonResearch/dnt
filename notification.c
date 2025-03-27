@@ -21,7 +21,7 @@
 
 DEFAULT_LOGGING_MODULE(NOTIFICATION, INFO);
 
-#define MAX_NOTIFICATION_LEN 1000
+#define MAX_NOTIFICATION_LEN 1200
 
 #define DEFAULT_TIMEOUT 2*1000*1000
 
@@ -71,6 +71,7 @@ static void send_notification_packet(struct JsonValue *pkt)
     log_debug("sending %zu", strlen(pkt_str));
 
     struct Packet *packet = new_packet(NULL);
+    packet_enlarge_scratch(packet);
     packet_add_header(packet, 0, PROTO_ID_PAYLOAD, pkt_len);
     unsigned char *payload = packet->buf + packet->headers[0].start;
     memcpy(payload, pkt_str, pkt_len);

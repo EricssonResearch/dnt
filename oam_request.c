@@ -576,6 +576,7 @@ static void trigger_mep_push_notification(struct MepStart *mep_start, const stru
 // returns true on success
 static bool send_request(const struct OamRequest *req){
     struct Packet *packet = new_packet(NULL);
+    packet_enlarge_scratch(packet);
 
     unsigned session_id = req->originator_stream ? req->originator_session_id : req->session_id;
     add_fixed_headers(packet, req->ttl, req->seq, OAM_CHANNEL,
