@@ -53,4 +53,6 @@ void mep_start_count_passed(struct MepStart *start, const struct Packet *pkt);
 
 struct JsonValue *mep_start_get_state(const struct MepStart *mep_start);
 
+struct JsonValue *mep_start_get_state_by_target(struct MepStart *mep_start);
+
 #endif // R2_OAM_CORE_H

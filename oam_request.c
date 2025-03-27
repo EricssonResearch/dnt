@@ -566,8 +566,10 @@ static void trigger_mep_push_notification(struct MepStart *mep_start, const stru
 {
     struct JsonValue *js = json_object();
     json_object_insert(js, "seq", json_number(req->seq));
-    struct JsonValue *state = mep_start_get_state(mep_start);
-    json_object_insert(js, "mep", state);
+
+    struct JsonValue *jlist = mep_start_get_state_by_target(mep_start);
+    json_object_insert(js, "mep", jlist);
+
     notification_push_event("triggered_source", NOTIF_INFO, js);
 }
 

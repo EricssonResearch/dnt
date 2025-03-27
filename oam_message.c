@@ -776,25 +776,6 @@ static bool process_rping_request(struct OamEndPoint *oam, struct Packet *p, str
     return false;
 }
 
-struct AddstartState {
-    struct JsonValue *jlist;
-    struct OamEndPoint *oam;
-};
-static int addtrig_cb(const char *key, void *value, void *userdata)
-{
-    (void) key;
-    struct AddstartState *st = (struct AddstartState *)userdata;
-    struct MepStart *mep = (struct MepStart *)value;
-
-    if (mep_start_in_stream(mep, st->oam->stream)) {
-        // limit to meps with the same target
-        if(mep->target == st->oam->mep->target) {
-            struct JsonValue *state = mep_start_get_state(mep);
-            json_array_push(st->jlist, state);
-        }
-    }
-    return 1;
-}
 // @returns false on error
 static bool process_trigger_request(struct OamEndPoint *oam, struct Packet *p, struct JsonValue *j)
 {
@@ -811,20 +792,19 @@ static bool process_trigger_request(struct OamEndPoint *oam, struct Packet *p, s
     json_object_insert(js, "seq", json_number(jseq->v.number));
 
     struct MepStart *mep = find_mep_start(oam->name);
-    if(mep) {
-        oam->mep = mep;
-        struct JsonValue *jlist = json_array();
-        struct AddstartState st = {jlist, oam};
-        foreach_mep_start(addtrig_cb, &st);
+    struct JsonValue *jlist = mep_start_get_state_by_target(mep);
+    json_object_insert(js, "mep", jlist);
 
-        json_object_insert(js, "mep", jlist);
-        notification_push_event("triggered_receiver", NOTIF_INFO, js);
-    }
+    notification_push_event("triggered_receiver", NOTIF_INFO, js);
+
     json_delete(j);
     return false;
 }
 
-
+struct AddstartState {
+    struct JsonValue *jlist;
+    struct OamEndPoint *oam;
+};
 static int addstart_cb(const char *key, void *value, void *userdata)
 {
     struct AddstartState *st = (struct AddstartState *)userdata;

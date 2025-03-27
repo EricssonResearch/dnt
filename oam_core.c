@@ -139,6 +139,37 @@ static int mep_start_delete_cb(const char *key, void *value, void *userdata)
     return 1;
 }
 
+struct AddMepState {
+    struct JsonValue *jlist;
+    struct MepStart *mep;
+};
+static int addtrig_cb(const char *key, void *value, void *userdata)
+{
+    (void) key;
+    struct AddMepState *st = (struct AddMepState *)userdata;
+    struct MepStart *mep = (struct MepStart *)value;
+
+    if (mep_start_in_stream(mep, st->mep->stream_name)) {
+        // limit to meps with the same target
+        if(mep->target == st->mep->target) {
+            struct JsonValue *state = mep_start_get_state(mep);
+            json_array_push(st->jlist, state);
+        }
+    }
+    return 1;
+}
+
+struct JsonValue *mep_start_get_state_by_target(struct MepStart *mep_start)
+{
+    struct JsonValue *jlist = json_array();
+
+    if(mep_start) {
+        struct AddMepState st = {jlist, mep_start};
+        foreach_mep_start(addtrig_cb, &st);
+    }
+    return jlist;
+}
+
 bool oam_create_mep_start(const char *stream_name, const char *mep_name, int level,
         struct PipelineObject *obj, struct Pipeline *pipe, unsigned idx)
 {
