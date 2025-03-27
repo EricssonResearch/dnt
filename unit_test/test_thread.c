@@ -3,6 +3,7 @@
 
 #include "thread_utils.h"
 #include "log.h"
+#include "time_utils.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -14,6 +15,7 @@ TEST_INIT("Thread Utils");
 struct ThreadTestParam {
     int counter;
     struct Thread *th;
+    struct MessageQueue *mq;
 };
 
 static void *thread_func(void *arg)
@@ -29,8 +31,19 @@ static void *thread_exit_func(void *arg)
     struct ThreadTestParam *param = (struct ThreadTestParam *)arg;
     usleep(1000*100); // make sure the assignment to param->th is done
     thread_stop(param->th); // should do nothing
+    thread_join(param->th); // should do nothing
     param->counter = 21;
     thread_exit(param->th);
+    return NULL;
+}
+
+static void *thread_join_func(void *arg)
+{
+    struct ThreadTestParam *param = (struct ThreadTestParam *)arg;
+    void *msg = messagequeue_pop(param->mq, -1);
+    OK(msg == param, "msg %p param %p", msg, param);
+    usleep(500*1000);
+    param->mq = delete_messagequeue(param->mq);
     return NULL;
 }
 
@@ -66,6 +79,25 @@ static void test_thread(void)
     usleep(1000*1000); // wait for the thread
     OK(param3.counter == 21, "thread_exit didn't stop the thread");
 
+    // thread_join() waits for the thread to finish
+    struct ThreadTestParam param4;
+    param4.counter = 0;
+    param4.mq = new_messagequeue();
+    OK_FATAL(param4.mq, "have queue");
+    param4.th = thread_launch(thread_join_func, &param4, "test join");
+    OK_FATAL(param4.th, "have thread object");
+    messagequeue_push(param4.mq, &param4); // signal the thread to finish its job and quit
+    OK(param4.mq, "have queue");
+    struct timespec time1;
+    clock_gettime(CLOCK_REALTIME, &time1);
+    param4.th = thread_join(param4.th);
+    OK(param4.th == NULL, "always returns NULL");
+    OK(param4.mq == NULL, "queue gone");
+    struct timespec time2;
+    clock_gettime(CLOCK_REALTIME, &time2);
+    int64_t diff_us = time_diff_us(time2, time1);
+    OK(diff_us > 400*1000, "diff %ld", diff_us);
+
     OK(id1 != id2, "different id");
     OK(id1 != id3, "different id");
     OK(id2 != id3, "different id");
@@ -74,15 +106,15 @@ static void test_thread(void)
     thread_exit(NULL); // exit NULL thread shouldn't segfault either
 
     log_set_level("THREAD", NONE);
-    struct ThreadTestParam param4;
-    param4.counter = 0;
-    param4.th = thread_launch_priority(thread_func, &param4, 10, "test thread %s", "p");
-    if (param4.th) {
+    struct ThreadTestParam param5;
+    param5.counter = 0;
+    param5.th = thread_launch_priority(thread_func, &param5, 10, "test thread %s", "p");
+    if (param5.th) {
         usleep(1000*500); // wait for the thread
-        OK(param4.counter == 1, "priority thread worked");
-        OK(strcmp(thread_getname(param4.th), "test thread p") == 0, "good name");
-        param4.th = thread_stop(param4.th);
-        OK_FATAL(param4.th == NULL, "thread object gone");
+        OK(param5.counter == 1, "priority thread worked");
+        OK(strcmp(thread_getname(param5.th), "test thread p") == 0, "good name");
+        param5.th = thread_stop(param5.th);
+        OK_FATAL(param5.th == NULL, "thread object gone");
     } else {
         SKIP("need CAP_SYS_NICE for the thread priority test");
     }
