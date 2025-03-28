@@ -66,7 +66,7 @@ static NotificationLevel delay_notification_pull_fn(void *self, struct JsonValue
     log_info("js=%s\n", json_serialize(ret, &len));
 */
     *msg = ret;
-    return NOTIF_INFO;
+    return NOTIF_PULL;
 }
 
 bool register_delay_notification(bool add, char *target, unsigned period_ms)

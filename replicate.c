@@ -45,7 +45,7 @@ static NotificationLevel repl_notification_pull_fn(void *self, struct JsonValue 
     struct PipelineObject *rep = (struct PipelineObject *)self;
     struct JsonValue *js = get_state_json(rep);
     *msg = js;
-    return NOTIF_INFO;
+    return NOTIF_PULL;
 }
 
 struct PipelineList *replicate_get_pipes(struct PipelineObject *rep)

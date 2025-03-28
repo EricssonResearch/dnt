@@ -58,6 +58,7 @@ static const char *notification_level_strings[] = {
     "ERROR",
     "WARNING",
     "INFO",
+    "PULL",
     "ALL",
 };
 
@@ -148,7 +149,7 @@ static void *notification_thread(void *arg)
                         log_error("push from '%s' '%s'", msg->source, js_str);
                     } else if (msg->level == NOTIF_WARNING) {
                         log_warning("push from '%s' '%s'", msg->source, js_str);
-                    } else if (msg->level == NOTIF_INFO) {
+                    } else if (msg->level == NOTIF_INFO ) {
                         log_info("push from '%s' '%s'", msg->source, js_str);
                     }
                 }
@@ -184,7 +185,7 @@ static void *notification_thread(void *arg)
             pthread_mutex_lock(&sources_lock);
             unsigned total_length = 0;
             struct JsonValue *pkt = json_object();
-            json_object_insert(pkt, "pull_seq", json_number(++pull_seq));
+            ++pull_seq;
 
             HASHMAP_ITERATE(sources, s) { //TODO hashmap_foreach_sorted?
                 struct NotificationSource *source = (struct NotificationSource *)hash_iterator_value(&s);
@@ -193,6 +194,7 @@ static void *notification_thread(void *arg)
                 NotificationLevel level = source->pull(source->self, &js);
                 if (js) {
                     log_debug("pull from '%s'", hash_iterator_key(&s));
+                    log_debug("level from pull fn: '%d' log_level: '%d' submit level: '%d'", level, log_level, submit_level);
                     unsigned js_len;
                     char *js_str = json_serialize(js, &js_len);
 
@@ -201,7 +203,7 @@ static void *notification_thread(void *arg)
                             log_error("pull from '%s' '%s'", src, js_str);
                         } else if (level == NOTIF_WARNING) {
                             log_warning("pull from '%s' '%s'", src, js_str);
-                        } else if (level == NOTIF_INFO) {
+                        } else if (level == NOTIF_INFO || level == NOTIF_PULL) {
                             log_info("pull from '%s' '%s'", src, js_str);
                         }
 
@@ -209,6 +211,7 @@ static void *notification_thread(void *arg)
                     free(js_str);
 
                     if ((level <= submit_level) && notification_pipe) {
+                         json_object_insert(pkt, "pull_seq", json_number(pull_seq));
                         if (total_length + js_len + strlen(src) < MAX_NOTIFICATION_LEN) {
                             json_object_insert(pkt, src, js);
                             total_length += js_len + strlen(src);

@@ -164,7 +164,7 @@ static NotificationLevel pt_notification_pull_fn(void *self, struct JsonValue **
         json_object_insert(js, name, json_number(s->match_octets));
     }
     *msg = js;
-    return NOTIF_INFO;
+    return NOTIF_PULL;
 }
 
 struct ParseTree *new_parsetree(const struct Interface *iface)

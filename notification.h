@@ -20,6 +20,7 @@ typedef enum {
     NOTIF_ERROR,
     NOTIF_WARNING,
     NOTIF_INFO,
+    NOTIF_PULL,
     NOTIF_ALL
 } NotificationLevel;
 

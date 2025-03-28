@@ -229,7 +229,7 @@ static NotificationLevel seq_rec_notification_pull_fn(void *self, struct JsonVal
     struct PipelineObject *rep = (struct PipelineObject *)self;
     struct JsonValue *js = get_state_json(rep);
     *msg = js;
-    return NOTIF_INFO;
+    return NOTIF_PULL;
 }
 
 static void shift_seq_history(struct SequenceRecovery *rec, char *history,  unsigned new_zero)

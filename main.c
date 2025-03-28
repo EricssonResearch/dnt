@@ -263,7 +263,7 @@ static char args_doc[] = "CONFIGFILE";
 static struct argp_option options[] = {
     {"verbose", 'v', "MODULE:LEVEL", 0, "Available levels: NONE, ERROR, WARNING, INFO, PACKET, DEBUG, ALL", 0},
     {"output", 'o', "logfile", 0, "Output: log[f]ile, sys[l]og, [s]tdout (default), std[e]rr", 0},
-    {"notify", 'n', "{LOG|SUBMIT}:LEVEL", 0, "Available levels: NONE, ERROR, WARNING, INFO, ALL", 0},
+    {"notify", 'n', "{LOG|SUBMIT}:LEVEL", 0, "Available levels: NONE, ERROR, WARNING, INFO, PULL, ALL", 0},
     { 0, 0, 0, 0, 0, 0 }
 };
 

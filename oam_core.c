@@ -124,7 +124,7 @@ static NotificationLevel mep_start_notification_pull_fn(void *self, struct JsonV
     struct MepStart *mep = (struct MepStart *) self;
     struct JsonValue *state = mep_start_get_state(mep);
     *msg = state;
-    return NOTIF_INFO;
+    return NOTIF_PULL;
 }
 
 static int mep_start_delete_cb(const char *key, void *value, void *userdata)

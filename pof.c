@@ -116,7 +116,7 @@ static NotificationLevel pof_notification_pull_fn(void *self, struct JsonValue *
     const struct PipelineObject *pof = (struct PipelineObject *) self;
     struct JsonValue *state = pof_get_state_json(pof);
     *msg = state;
-    return NOTIF_INFO;
+    return NOTIF_PULL;
 }
 
 

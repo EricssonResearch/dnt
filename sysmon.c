@@ -203,7 +203,7 @@ static NotificationLevel tc_stat_notification_pull_fn(void *self, struct JsonVal
     FILE *fp = popen(command, "r");
     if (fp == NULL) {
         msg = NULL;
-        return NOTIF_INFO;
+        return NOTIF_PULL;
     }
 
     struct JsonValue *ret;
@@ -220,7 +220,7 @@ static NotificationLevel tc_stat_notification_pull_fn(void *self, struct JsonVal
             log_error("JSON in reply is invalid: %s", jerror);
             free(jerror);
             msg = NULL;
-            return NOTIF_INFO;
+            return NOTIF_PULL;
         }
     }
 
@@ -231,7 +231,7 @@ static NotificationLevel tc_stat_notification_pull_fn(void *self, struct JsonVal
     printf("json: %s\n", jstr);
 */
     *msg = ret;
-    return NOTIF_INFO;
+    return NOTIF_PULL;
 }
 
 static NotificationLevel modem_stat_notification_pull_fn(void *self, struct JsonValue **msg)
@@ -243,7 +243,7 @@ static NotificationLevel modem_stat_notification_pull_fn(void *self, struct Json
     FILE *fp = popen(command, "r");
     if (fp == NULL) {
         msg = NULL;
-        return NOTIF_INFO;
+        return NOTIF_PULL;
     }
 
     struct JsonValue *ret = json_object();
@@ -264,7 +264,7 @@ static NotificationLevel modem_stat_notification_pull_fn(void *self, struct Json
     printf("json: %s\n", jstr);
 */
     *msg = ret;
-    return NOTIF_INFO;
+    return NOTIF_PULL;
 }
 
 static int monitor_ptp(void)

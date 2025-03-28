@@ -503,7 +503,7 @@ NotificationLevel iface_notification_pull_fn(void *self, struct JsonValue **msg)
     json_object_insert(ret, "send_octets", json_number(iface->send_octets));
 
     *msg = ret;
-    return NOTIF_INFO;
+    return NOTIF_PULL;
 }
 
 void print_ifaddrs(struct ifaddrs *ifa)

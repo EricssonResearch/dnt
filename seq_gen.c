@@ -65,7 +65,7 @@ static NotificationLevel seq_gen_notification_pull_fn(void *self, struct JsonVal
     struct PipelineObject *rep = (struct PipelineObject *)self;
     struct JsonValue *js = get_state_json(rep);
     *msg = js;
-    return NOTIF_INFO;
+    return NOTIF_PULL;
 }
 
 static void sequence_generation_reset(struct SequenceGenerator *gen)
