@@ -19,6 +19,9 @@
 #include <pthread.h>
 #include <time.h>
 
+#include <limits.h>
+#include <unistd.h>
+
 DEFAULT_LOGGING_MODULE(NOTIFICATION, INFO);
 
 #define MAX_NOTIFICATION_LEN 1200
@@ -65,6 +68,11 @@ static void send_notification_packet(struct JsonValue *pkt)
     clock_gettime(CLOCK_REALTIME, &now);
     double now_d = now.tv_sec + (double)now.tv_nsec / 1000000000.0;
     json_object_insert(pkt, "tstamp", json_number(now_d));
+        
+    char hostname[HOST_NAME_MAX+1];
+    gethostname(hostname, HOST_NAME_MAX+1);
+
+    json_object_insert(pkt, "notif_hostname", json_string(hostname));
 
     unsigned pkt_len;
     char *pkt_str = json_serialize(pkt, &pkt_len);

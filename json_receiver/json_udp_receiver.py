@@ -57,21 +57,27 @@ supress = False
 
 while True:
     data, addr = sock.recvfrom(4096)
-    (host,port) = socket.getnameinfo(addr,socket.NI_NUMERICHOST | socket.NI_NUMERICSERV)
+    (host_ip,port) = socket.getnameinfo(addr,socket.NI_NUMERICHOST | socket.NI_NUMERICSERV)
 
-    print(f'\nReceived {len(data)} bytes from {host} : {port}')
     try:
         jsonReceived = json.loads(data)
         seq_num = jsonReceived.get("notif_seq")
-        if seq_num != None:
-            if (host, port, seq_num) in last_seqnums:
-                print("Message with sequence number ", seq_num, "from ", host, " : ", port, " already received, not showing the replica")
+        hostname = jsonReceived.get("notif_hostname")
+        if ( hostname != None and seq_num != None ):
+            if (hostname, seq_num) in last_seqnums:
+                print("Message with sequence number ", seq_num, "from ", hostname, " already received, not showing the replica")
                 supress = True
             else:
-                last_seqnums[index] = (host, port, seq_num)
+                last_seqnums[index] = (hostname, seq_num)
                 index = ( index + 1 ) % SEQ_HISTORY_SIZE
-
+        else:
+            if (hostname == None): 
+                hostname = "unknown"
+            if (seq_num == None):    
+                seq_num = "unknown"
+        
         if not supress:
+            print(f'\nReceived {len(data)} bytes from {hostname} , {host_ip} : {port} with sequence number {seq_num}')
             print('========== JSON data begin ==========')
             print(json.dumps(jsonReceived, indent=2))
             print('........... JSON data end ...........')
