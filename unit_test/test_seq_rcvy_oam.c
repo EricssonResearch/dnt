@@ -38,7 +38,7 @@ bool notification_register_source(const char *name, notification_pull_fn *callba
 // XXX end stubs
 
 static const unsigned history_length = 64; // must be 2^n
-static const unsigned reset_ms = 30;
+static const unsigned reset_ms = 300000; // way longer than OAM timeout so we know we test the OAM timeout
 
 // we don't want to use assemble_actions() in this test
 // and we don't care about the contents
@@ -49,29 +49,33 @@ static struct Pipeline *new_pipeline(const char *name)
     return ret;
 }
 
-static void prepare_oam_packet(struct Packet *p, unsigned short nodeid, unsigned char session)
+static void prepare_oam_packet(struct Packet *p, unsigned nodeid, unsigned char session)
 {
     p->len = 30;
     OK(packet_identify_header(p, PROTO_ID_IPv6, 0, 10) == true, "first header doesn't matter");
     OK(packet_identify_header(p, PROTO_ID_OAM, 10, 8) == true, "oam header");
 
     unsigned char *oam  = p->buf + p->headers[1].start;
-    oam[4] = (nodeid>>8) & 0xff;
-    oam[5] = nodeid & 0xff;
-    oam[7] = session & 0x0f;
+    oam[4] = (nodeid>>12) & 0xff;
+    oam[5] = (nodeid>>4) & 0xff;
+    oam[6] = (nodeid&0xf) << 4;
+    oam[7] = session & 0xff; // upper 4 bits are flags (we don't care here)
 }
 
 static void test_get_sessionid(void)
 {
     struct Packet *p = new_packet(NULL);
     OK_FATAL(p, "have packet");
-
-    // session id is 4 bit so this becomes 11
-    prepare_oam_packet(p, 1234, 91);
-
     char *s = oam_session_id(p);
+    OK(s == NULL, "session is undefined before having headers");
+
+    // node id is 74565
+    // session id is 4 bit so 91 becomes 11
+    prepare_oam_packet(p, 0x12345, 91);
+
+    s = oam_session_id(p);
     OK(s != NULL, "have session id");
-    OK(strcmp(s, "1234:11") == 0, "session id '%s'", s);
+    OK(strcmp(s, "74565:11") == 0, "session id '%s'", s);
     free(s);
 
     delete_packet(p);
@@ -79,6 +83,8 @@ static void test_get_sessionid(void)
 
 static void test_get_oam_rcvy(void)
 {
+    log_set_level("RCVY", DEBUG); //TODO to catch the flaky test in line 234
+    // session id string can be anything
     struct SequenceRecovery *rec1 = get_oam_rcvy("one of the recovery objects ever created");
     struct SequenceRecovery *rec2 = get_oam_rcvy("another nice recovery object");
     struct SequenceRecovery *rec3 = get_oam_rcvy("one of the recovery objects ever created");
@@ -86,6 +92,7 @@ static void test_get_oam_rcvy(void)
     // the oam timeout is 5000 ms
     usleep(6000*1000);
 
+    // note: without valgind the memory locations may be reused for the new sessions
     struct SequenceRecovery *rec4 = get_oam_rcvy("one of the recovery objects ever created");
     struct SequenceRecovery *rec5 = get_oam_rcvy("another nice recovery object");
 
@@ -224,7 +231,7 @@ static void test_timeout(void)
     // the oam timeout is 5000 ms
     usleep(6000*1000);
 
-    OK(rec->process_packet(rec, pi) == ACR_CONTINUE, "in TakeAny");
+    OK(rec->process_packet(rec, pi) == ACR_CONTINUE, "in TakeAny"); //TODO this line is flaky in CI
     OK(rec->process_packet(rec, pi) == ACR_DONE, "duplicate");
 
     OK(delete_seq_rec(rec) == NULL, "delete object");

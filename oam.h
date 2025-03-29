@@ -77,4 +77,26 @@ bool oam_start_background_ping(const char *name, const char *command);
 // update the packet counter of @oam with @p
 void oam_count_packet(struct OamEndPoint *oam, struct Packet *p);
 
+// decode the DetNet Associated Channel Header (PROTO_ID_OAM)
+#define INTERPRET_DACH(header)                                                      \
+    struct {                                                                        \
+        unsigned char version;                                                      \
+        unsigned char seq;                                                          \
+        unsigned short channel;                                                     \
+        unsigned int nodeid;                                                        \
+        unsigned char level;                                                        \
+        unsigned char flags;                                                        \
+        unsigned char session;                                                      \
+    } dach;                                                                         \
+    dach.version = (header)[0] & 0xf;                                               \
+    dach.seq = (header)[1];                                                         \
+    dach.channel = ((header)[2] << 8) + ((header)[3]);                              \
+    dach.nodeid = ((header)[4] << 12) + ((header)[5] << 4) + ((header)[6] >> 4);    \
+    dach.level = ((header)[6] >> 1) & 0x7;                                          \
+    dach.flags = (((header)[6] & 0x1) << 4) + ((header)[7] >> 4);                   \
+    dach.session = ((header)[7] & 0xf)
+
+//TODO functions to set the dACH fields
+
+
 #endif // R2_OAM_H

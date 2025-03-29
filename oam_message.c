@@ -613,12 +613,7 @@ static bool process_ping_request(struct OamEndPoint *oam, struct Packet *p, stru
     int port=6634;
     char *reply_address=NULL;
 
-    unsigned char *oam_hdr = p->buf + p->headers[1].start;
-    unsigned char seq = oam_hdr[1];
-    //unsigned short channel = (oam_hdr[2]<<8)+oam_hdr[3];
-    unsigned short nodeid = (oam_hdr[4]<<8)+oam_hdr[5];
-    unsigned char level = oam_hdr[6] >> 1;
-    unsigned char session = oam_hdr[7] & 0x0f;
+    INTERPRET_DACH(p->buf + p->headers[1].start);
 
     if (!get_return_ip_port(j, &reply_address, &port)) {
         json_delete(j);
@@ -646,10 +641,10 @@ static bool process_ping_request(struct OamEndPoint *oam, struct Packet *p, stru
 
     json_object_remove(j, "return");
     json_object_insert(j, "code", json_string("reply"));
-    json_object_insert(j, "sequence", json_number(seq));
-    json_object_insert(j, "level", json_number(level));
-    json_object_insert(j, "nodeid", json_number(nodeid));
-    json_object_insert(j, "session", json_number(session));
+    json_object_insert(j, "sequence", json_number(dach.seq));
+    json_object_insert(j, "level", json_number(dach.level));
+    json_object_insert(j, "nodeid", json_number(dach.nodeid));
+    json_object_insert(j, "session", json_number(dach.session));
     json_object_insert(j, "receiver", json_string(oam->name));
 
     const char *stream = "<unknown>";
@@ -667,7 +662,8 @@ static bool process_ping_request(struct OamEndPoint *oam, struct Packet *p, stru
     unsigned msg_len=0;
     char *j_msg = json_serialize(j, &msg_len);
     if (j_msg) {
-        log_packet("send ping reply %s %s:%d seq %d lvl %d (to %s %d) - %s", oam->name, stream, session, seq, level,
+        log_packet("send ping reply %s %s:%d seq %d lvl %d (to %s %d) - %s",
+                oam->name, stream, dach.session, dach.seq, dach.level,
                 reply_address, port, j_msg);
 
         oam_send_reply(reply_address, port, j_msg, msg_len);
@@ -681,19 +677,14 @@ static bool process_ping_request(struct OamEndPoint *oam, struct Packet *p, stru
 static bool send_rping_error(struct OamEndPoint *oam, struct Packet *p, struct JsonValue *j,
         struct OamRequest *ping_req)
 {
-    unsigned char *oam_hdr = p->buf + p->headers[1].start;
-    unsigned char seq = oam_hdr[1];
-    //unsigned short channel = (oam_hdr[2]<<8)+oam_hdr[3];
-    unsigned short nodeid = (oam_hdr[4]<<8)+oam_hdr[5];
-    unsigned char level = oam_hdr[6] >> 1;
-    unsigned char session = oam_hdr[7] & 0x0f;
+    INTERPRET_DACH(p->buf + p->headers[1].start);
 
     json_object_remove(j, "return");
     json_object_insert(j, "code", json_string("error"));
-    json_object_insert(j, "sequence", json_number(seq));
-    json_object_insert(j, "level", json_number(level));
-    json_object_insert(j, "nodeid", json_number(nodeid));
-    json_object_insert(j, "session", json_number(session));
+    json_object_insert(j, "sequence", json_number(dach.seq));
+    json_object_insert(j, "level", json_number(dach.level));
+    json_object_insert(j, "nodeid", json_number(dach.nodeid));
+    json_object_insert(j, "session", json_number(dach.session));
     json_object_insert(j, "receiver", json_string(oam->name));
 
     const char *stream = "<unknown>";
@@ -713,7 +704,8 @@ static bool send_rping_error(struct OamEndPoint *oam, struct Packet *p, struct J
     unsigned msg_len=0;
     char *j_msg = json_serialize(j, &msg_len);
     if (j_msg) {
-        log_packet("send rping error %s %s:%d seq %d lvl %d (to %s %d) - %s", oam->name, stream, session, seq, level,
+        log_packet("send rping error %s %s:%d seq %d lvl %d (to %s %d) - %s",
+                oam->name, stream, dach.session, dach.seq, dach.level,
                 request_get_return_ip(ping_req), request_get_return_port(ping_req), j_msg);
         oam_send_reply(request_get_return_ip(ping_req), request_get_return_port(ping_req), j_msg, msg_len);
         free(j_msg);
@@ -729,12 +721,7 @@ static bool process_rping_request(struct OamEndPoint *oam, struct Packet *p, str
     int port=6634;
     char *reply_address=NULL;
 
-    unsigned char *oam_hdr = p->buf + p->headers[1].start;
-    //unsigned char seq = oam_hdr[1];
-    //unsigned short channel = (oam_hdr[2]<<8)+oam_hdr[3];
-    //unsigned short nodeid = (oam_hdr[4]<<8)+oam_hdr[5];
-    //unsigned char level = oam_hdr[6] >> 1;
-    unsigned char session = oam_hdr[7] & 0x0f;
+    INTERPRET_DACH(p->buf + p->headers[1].start);
 
     if (!get_return_ip_port(j, &reply_address, &port)) {
         json_delete(j);
@@ -763,7 +750,7 @@ static bool process_rping_request(struct OamEndPoint *oam, struct Packet *p, str
             request_set_error(ping_req, strdup("rping request contains no stream name"));
             return send_rping_error(oam, p, j, ping_req);
         }
-        request_set_originator(ping_req, strdup(jstream->v.string), session);
+        request_set_originator(ping_req, strdup(jstream->v.string), dach.session);
 
         if (!initiate_request(ping_req)) {
             request_set_error(ping_req, strdup_printf("ping request could not be sent: %s", request_get_error(ping_req)));
@@ -824,12 +811,7 @@ static bool process_rlist_request(struct OamEndPoint *oam, struct Packet *p, str
     int port=6634;
     char *reply_address=NULL;
 
-    unsigned char *oam_hdr = p->buf + p->headers[1].start;
-    unsigned char seq = oam_hdr[1];
-    //unsigned short channel = (oam_hdr[2]<<8)+oam_hdr[3];
-    unsigned short nodeid = (oam_hdr[4]<<8)+oam_hdr[5];
-    unsigned char level = oam_hdr[6] >> 1;
-    unsigned char session = oam_hdr[7] & 0x0f;
+    INTERPRET_DACH(p->buf + p->headers[1].start);
 
     if (!get_return_ip_port(j, &reply_address, &port)) {
         json_delete(j);
@@ -838,10 +820,10 @@ static bool process_rlist_request(struct OamEndPoint *oam, struct Packet *p, str
 
     json_object_remove(j, "return");
     json_object_insert(j, "code", json_string("reply"));
-    json_object_insert(j, "sequence", json_number(seq));
-    json_object_insert(j, "level", json_number(level));
-    json_object_insert(j, "nodeid", json_number(nodeid));
-    json_object_insert(j, "session", json_number(session));
+    json_object_insert(j, "sequence", json_number(dach.seq));
+    json_object_insert(j, "level", json_number(dach.level));
+    json_object_insert(j, "nodeid", json_number(dach.nodeid));
+    json_object_insert(j, "session", json_number(dach.session));
     json_object_insert(j, "receiver", json_string(oam->name));
 
     const char *stream = "<unknown>";
@@ -861,7 +843,8 @@ static bool process_rlist_request(struct OamEndPoint *oam, struct Packet *p, str
     unsigned msg_len=0;
     char *j_msg = json_serialize(j, &msg_len);
     if (j_msg) {
-        log_packet("send rlist reply %s:%d seq %d lvl %d (to %s %d) - %s", stream, session, seq, level,
+        log_packet("send rlist reply %s:%d seq %d lvl %d (to %s %d) - %s",
+                stream, dach.session, dach.seq, dach.level,
                 reply_address, port, j_msg);
 
         oam_send_reply(reply_address, port, j_msg, msg_len);
@@ -927,12 +910,7 @@ static bool process_request(struct OamEndPoint *oam, struct Packet *p)
         p->header_count = 3;
     }
 
-    unsigned char *oam_hdr = p->buf + p->headers[1].start;
-    //unsigned char seq = oam_hdr[1];
-    //unsigned short channel = (oam_hdr[2]<<8)+oam_hdr[3];
-    //unsigned short nodeid = (oam_hdr[4]<<8)+oam_hdr[5];
-    unsigned char level = oam_hdr[6] >> 1;
-    //unsigned char session = oam_hdr[7] & 0x0f;
+    INTERPRET_DACH(p->buf + p->headers[1].start);
     char *msg = (char *)(p->buf + p->headers[2].start);
 
     //log_packet("packet (%s) at [%s level %d], ttl %d nib_ver %x sequence %x channel %x node %x level %x session %x\njson: %s",
@@ -965,13 +943,13 @@ static bool process_request(struct OamEndPoint *oam, struct Packet *p)
         return false;
     }
 
-    if(level < oam->level){
+    if(dach.level < oam->level){
         /*fprintf(stderr, "MIP %s level %d Warning: dropping lower level (level %d) OAM packet.\n",
           oam->name, oam->level, level);*/
         json_delete(j);
         return false;
     }
-    if(level > oam->level) {
+    if(dach.level > oam->level) {
         json_delete(j);
         return true;
     }
@@ -983,7 +961,8 @@ static bool process_request(struct OamEndPoint *oam, struct Packet *p)
         return false;
     }
 
-    log_packet("%s received request type %s target %s level %u", oam->name, jreqt->v.string, target->v.string, level);
+    log_packet("%s received request type %s target %s level %u",
+            oam->name, jreqt->v.string, target->v.string, dach.level);
 
     if (strcmp(jreqt->v.string, "ping") == 0) {
         struct JsonValue *jrr = json_object_get_array(j, "rr");

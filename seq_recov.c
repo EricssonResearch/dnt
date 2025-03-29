@@ -84,13 +84,12 @@ static void __attribute__((destructor)) cleanup_oam_seq_recoveries(void)
 
 TESTABLE char *oam_session_id(const struct Packet *p)
 {
-    // TODO: we can assume headers[1] indentified?
-    /* g_ach[4]; //node ID MSB */
-    /* g_ach[5]; //node ID LSB */
-    /* g_ach[7] & 0x0f; //session id */
-    const uint8_t *g_ach = p->buf + p->headers[1].start;
-    uint16_t node_id = (g_ach[4] << 8) + g_ach[5];
-    return strdup_printf("%d:%d", node_id, g_ach[7] & 0x0f);
+    if (p->header_count > 1 && p->headers[1].type == PROTO_ID_OAM) {
+        INTERPRET_DACH(p->buf + p->headers[1].start);
+        return strdup_printf("%d:%d", dach.nodeid, dach.session);
+    } else {
+        return NULL;
+    }
 }
 
 static int oam_rcvy_del_cb(const char *key, void *value, void *userdata)

@@ -550,13 +550,14 @@ static int add_fixed_headers(struct Packet *packet, unsigned char ttl,
     mpls[2] = 1; // BOS
     mpls[3] = ttl;
     unsigned char *oam  = packet->buf + packet->headers[1].start;
+    //TODO function that sets all this
     oam[0] = 0x11; // indicator and version
     oam[1] = seq;
     oam[2] = (channel>>8) & 0xff;
     oam[3] = channel & 0xff;
-    oam[4] = (nodeid>>8) & 0xff;
-    oam[5] = nodeid & 0xff;
-    oam[6] = (level & 0x07) << 1;
+    oam[4] = (nodeid>>12) & 0xff;
+    oam[5] = (nodeid>>4) & 0xff;
+    oam[6] = ((nodeid&0xf) << 4) + ((level & 0x07) << 1);
     oam[7] = session & 0x0f;
 
     return 0;
