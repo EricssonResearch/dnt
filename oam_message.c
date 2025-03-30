@@ -766,17 +766,27 @@ static bool process_rping_request(struct OamEndPoint *oam, struct Packet *p, str
 // @returns false on error
 static bool process_trigger_request(struct OamEndPoint *oam, struct Packet *p, struct JsonValue *j)
 {
-    (void) p;
+    INTERPRET_DACH(p->buf + p->headers[1].start);
 
     struct JsonValue *jseq = json_object_get_number(j, "seq");
-    if (jseq == NULL) {
-        log_error("OAM trigger packet does not have 'seq'");
+    struct JsonValue *jtarget = json_object_get_string(j, "target");
+    struct JsonValue *jstream = json_object_get_string(j, "stream");
+    struct JsonValue *jsrc = json_object_get_string(j, "source");
+    if ((jseq == NULL) || (jtarget == NULL) || (jstream == NULL) || (jsrc == NULL)) {
+        log_error("OAM trigger packet does not have required fields");
         json_delete(j);
         return false;
     }
 
     struct JsonValue *js = json_object();
     json_object_insert(js, "seq", json_number(jseq->v.number));
+    json_object_insert(js, "target", json_string(jtarget->v.string));
+    json_object_insert(js, "stream", json_string(jstream->v.string));
+    json_object_insert(js, "source", json_string(jsrc->v.string));
+
+    json_object_insert(js, "level", json_number(dach.level));
+    json_object_insert(js, "session", json_number(dach.session));
+    json_object_insert(js, "node_id", json_number(dach.nodeid));
 
     struct MepStart *mep = find_mep_start(oam->name);
     struct JsonValue *jlist = mep_start_get_state_by_target(mep);

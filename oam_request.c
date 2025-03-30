@@ -567,6 +567,14 @@ static void trigger_mep_push_notification(struct MepStart *mep_start, const stru
 {
     struct JsonValue *js = json_object();
     json_object_insert(js, "seq", json_number(req->seq));
+    json_object_insert(js, "level", json_number(req->level));
+    json_object_insert(js, "target", json_string(req->mep_stop));
+    json_object_insert(js, "stream", json_string(req->mep_start->stream_name));
+    json_object_insert(js, "source", json_string(req->mep_start->name));
+
+    unsigned session_id = req->originator_stream ? req->originator_session_id : req->session_id;
+    json_object_insert(js, "session", json_number(session_id));
+    json_object_insert(js, "node_id", json_number(req->node_id));
 
     struct JsonValue *jlist = mep_start_get_state_by_target(mep_start);
     json_object_insert(js, "mep", jlist);
@@ -601,6 +609,8 @@ static bool send_request(const struct OamRequest *req){
         json_object_insert(js, "return", jret);
     } else {
         json_object_insert(js, "seq", json_number(req->seq));
+        json_object_insert(js, "source", json_string(req->mep_start->name));
+
         // we also triger local notification
         trigger_mep_push_notification(req->mep_start, req);
     }
