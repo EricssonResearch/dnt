@@ -66,4 +66,7 @@ void notification_set_log_level(NotificationLevel level);
 // TODO separate for push and pull?
 void notification_set_submit_level(NotificationLevel level);
 
+// 1 enable, 0 disable, -1 just return the current state
+bool notification_enable_pull(int enable);
+
 #endif // R2_NOTIFICATION_H

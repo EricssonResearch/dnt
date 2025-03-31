@@ -40,6 +40,7 @@ static NotificationLevel log_level = NOTIF_WARNING;
 static NotificationLevel submit_level = NOTIF_ALL;
 
 static unsigned notif_seq = 0;
+static bool pull_enabled = 0;
 
 struct NotificationSource {
     notification_pull_fn *pull;
@@ -69,7 +70,7 @@ static void send_notification_packet(struct JsonValue *pkt)
     clock_gettime(CLOCK_REALTIME, &now);
     double now_d = now.tv_sec + (double)now.tv_nsec / 1000000000.0;
     json_object_insert(pkt, "tstamp", json_number(now_d));
-        
+
     char hostname[HOST_NAME_MAX+1];
     gethostname(hostname, HOST_NAME_MAX+1);
 
@@ -182,57 +183,59 @@ static void *notification_thread(void *arg)
                     period_us, now.tv_sec, now.tv_nsec, next_wake.tv_sec, next_wake.tv_nsec, timeout_us);
         } else {
             // timeout, let's pull from everybody
-            pthread_mutex_lock(&sources_lock);
-            unsigned total_length = 0;
-            struct JsonValue *pkt = json_object();
-            ++pull_seq;
+            if (pull_enabled && notification_pipe) {
+                pthread_mutex_lock(&sources_lock);
+                unsigned total_length = 0;
+                struct JsonValue *pkt = json_object();
+                ++pull_seq;
 
-            HASHMAP_ITERATE(sources, s) { //TODO hashmap_foreach_sorted?
-                struct NotificationSource *source = (struct NotificationSource *)hash_iterator_value(&s);
-                const char *src = hash_iterator_key(&s);
-                struct JsonValue *js;
-                NotificationLevel level = source->pull(source->self, &js);
-                if (js) {
-                    log_debug("pull from '%s'", hash_iterator_key(&s));
-                    log_debug("level from pull fn: '%d' log_level: '%d' submit level: '%d'", level, log_level, submit_level);
-                    unsigned js_len;
-                    char *js_str = json_serialize(js, &js_len);
+                HASHMAP_ITERATE(sources, s) { //TODO hashmap_foreach_sorted?
+                    struct NotificationSource *source = (struct NotificationSource *)hash_iterator_value(&s);
+                    const char *src = hash_iterator_key(&s);
+                    struct JsonValue *js;
+                    NotificationLevel level = source->pull(source->self, &js);
+                    if (js) {
+                        log_debug("pull from '%s'", hash_iterator_key(&s));
+                        log_debug("level from pull fn: '%d' log_level: '%d' submit level: '%d'", level, log_level, submit_level);
+                        unsigned js_len;
+                        char *js_str = json_serialize(js, &js_len);
 
-                    if (level <= log_level) {
-                        if (level == NOTIF_ERROR) {
-                            log_error("pull from '%s' '%s'", src, js_str);
-                        } else if (level == NOTIF_WARNING) {
-                            log_warning("pull from '%s' '%s'", src, js_str);
-                        } else if (level == NOTIF_INFO || level == NOTIF_PULL) {
-                            log_info("pull from '%s' '%s'", src, js_str);
+                        if (level <= log_level) {
+                            if (level == NOTIF_ERROR) {
+                                log_error("pull from '%s' '%s'", src, js_str);
+                            } else if (level == NOTIF_WARNING) {
+                                log_warning("pull from '%s' '%s'", src, js_str);
+                            } else if (level == NOTIF_INFO || level == NOTIF_PULL) {
+                                log_info("pull from '%s' '%s'", src, js_str);
+                            }
+
                         }
+                        free(js_str);
 
-                    }
-                    free(js_str);
-
-                    if ((level <= submit_level) && notification_pipe) {
-                         json_object_insert(pkt, "pull_seq", json_number(pull_seq));
-                        if (total_length + js_len + strlen(src) < MAX_NOTIFICATION_LEN) {
-                            json_object_insert(pkt, src, js);
-                            total_length += js_len + strlen(src);
-                        } else {
-                            // send what we have collected, start new object
-                            send_notification_packet(pkt);
-                            json_delete(pkt);
-                            pkt = json_object();
+                        if (level <= submit_level) {
                             json_object_insert(pkt, "pull_seq", json_number(pull_seq));
-                            json_object_insert(pkt, src, js);
-                            total_length = js_len + strlen(src);
+                            if (total_length + js_len + strlen(src) < MAX_NOTIFICATION_LEN) {
+                                json_object_insert(pkt, src, js);
+                                total_length += js_len + strlen(src);
+                            } else {
+                                // send what we have collected, start new object
+                                send_notification_packet(pkt);
+                                json_delete(pkt);
+                                pkt = json_object();
+                                json_object_insert(pkt, "pull_seq", json_number(pull_seq));
+                                json_object_insert(pkt, src, js);
+                                total_length = js_len + strlen(src);
+                            }
+                        } else {
+                            json_delete(js);
                         }
-                    } else {
-                        json_delete(js);
                     }
                 }
+                pthread_mutex_unlock(&sources_lock);
+                if (json_object_count(pkt))
+                    send_notification_packet(pkt);
+                json_delete(pkt);
             }
-            pthread_mutex_unlock(&sources_lock);
-            if (notification_pipe && json_object_count(pkt))
-                send_notification_packet(pkt);
-            json_delete(pkt);
 
             struct timespec now;
             clock_gettime(CLOCK_REALTIME, &now);
@@ -378,3 +381,13 @@ void notification_set_submit_level(NotificationLevel level)
 {
     submit_level = level;
 }
+
+bool notification_enable_pull(int enable)
+{
+    if (enable < 0)
+        return pull_enabled;
+
+    pull_enabled = enable;
+    return pull_enabled;
+}
+

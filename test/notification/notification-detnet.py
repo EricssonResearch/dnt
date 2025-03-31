@@ -122,6 +122,18 @@ def send_cli_commands():
     cli = Telnet("0", 8000)
     _ = cli.recv() # recv first msg
 
+    cli.send("notif_pull")
+    msg = cli.recv()
+    if "Notification pull is disabled" not in msg:
+        print("Error: ", msg)
+        ret = False
+
+    cli.send("notif_pull enable")
+    msg = cli.recv()
+    if "Notification pull is now enabled" not in msg:
+        print("Error: ", msg)
+        ret = False
+
     cli.send("mask to_nni0") # send mask command
     msg = cli.recv()
     if "Pipeline 'to_nni0' masked" not in msg:

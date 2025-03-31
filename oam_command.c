@@ -430,6 +430,23 @@ static void command_loop(struct CommandConnection *conn)
                     ERROR("sending notif_trigger command failed");
                 }
             }
+            else if (strncmp(oam_command, "notif_pull", 10) == 0) {
+                if (strlen(oam_command) == 10) {
+                    // no params, just query the state
+                    fprintf(cmd_w, "Notification pull is %s\n", notification_enable_pull(-1) ? "enabled" : "disabled");
+                } else {
+                    // parse the param
+                    if (strcmp(oam_command+10, " enable") == 0) {
+                        notification_enable_pull(1);
+                        fprintf(cmd_w, "Notification pull is now enabled\n");
+                    } else if (strcmp(oam_command+10, " disable") == 0) {
+                        notification_enable_pull(0);
+                        fprintf(cmd_w, "Notification pull is now disabled\n");
+                    } else {
+                        fprintf(cmd_w, "Notification pull setting '%s' is invalid\n", oam_command+10);
+                    }
+                }
+            }
             else if (strncmp(oam_command, "rlist", 5) == 0) {
                 struct OamRequest *rlist_req = parse_rlist_command(oam_command+5, strdup(conn->name));
                 CHECK_REQUEST(rlist_req);
