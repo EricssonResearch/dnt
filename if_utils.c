@@ -255,11 +255,6 @@ static void dropstat(struct Interface *iface, int socket)
 
 bool iface_common_send(struct Interface *iface, struct Packet *p, int socket, void *dst, unsigned dstlen)
 {
-    if (iface->state != IFS_OPEN) {
-        log_warning("send on %s: interface is not open", iface->name);
-        return false;
-    }
-
     if (p->header_count < 1) {
         log_error("send on %s: packet doesn't have headers", iface->name);
         return false;

@@ -281,6 +281,7 @@ int state_foreach_objects(state_foreach_obj_cb *cb, void *userdata)
 
 bool state_commit_transaction(struct StateTransaction *tr)
 {
+    log_info("committing transaction '%s' ...", tr->name);
     // note: the order of operations is important
 
     //TODO remove streams that are on the del list (no such list yet)
@@ -323,6 +324,7 @@ bool state_commit_transaction(struct StateTransaction *tr)
     struct JsonValue *msg = json_object();
     json_object_insert(msg, "committed", json_string(tr->name));
     notification_push_event("transaction", NOTIF_INFO, msg);
+    log_info("transaction '%s' committed successfully", tr->name);
 
     return true;
 }

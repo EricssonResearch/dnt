@@ -82,6 +82,11 @@ static bool ip_send(struct Interface *iface, struct Packet *p)
 {
     struct IpIfData *iid = (struct IpIfData *)iface->iface_private;
 
+    if (iface->state == IFS_INIT) {
+        log_error("ip %s send: not opened yet", iface->name);
+        return false;
+    }
+
     if (p->header_count < 1) {
         log_error("ip %s send: packet doesn't have headers", iface->name);
         return false;

@@ -50,13 +50,18 @@ static bool udpout_recv(struct Interface *iface)
 static bool udpout_send(struct Interface *iface, struct Packet *p)
 {
     struct UdpOutIfData *uid = (struct UdpOutIfData *)iface->iface_private;
-    if (iface->state == IFS_OPEN) {
-        bool ret = iface_common_send(iface, p, uid->sock, uid->dstaddr, uid->dstaddr_size);
-        return ret;
-    } else {
-        // we don't know the dst address yet
+
+    if (iface->state == IFS_INIT) {
+        log_error("udp-out %s send: not opened yet", iface->name);
         return false;
     }
+
+    if (uid->sock == 0) {
+        log_error("udp-out %s send: no destination set", iface->name);
+        return false;
+    }
+
+    return iface_common_send(iface, p, uid->sock, uid->dstaddr, uid->dstaddr_size);
 }
 
 static bool udpout_open(struct Interface *iface)

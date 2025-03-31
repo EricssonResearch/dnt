@@ -91,6 +91,11 @@ static bool eth_send(struct Interface *iface, struct Packet *p)
 {
     struct EthIfData *eid = (struct EthIfData *)iface->iface_private;
 
+    if (iface->state == IFS_INIT) {
+        log_error("eth %s send: not opened yet", iface->name);
+        return false;
+    }
+
     if (p->header_count < 1) {
         log_error("eth %s send: packet doesn't have headers", iface->name);
         return false;
