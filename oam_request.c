@@ -76,22 +76,25 @@ static bool parse_ping_returnif(struct OamRequest *ping_req, const char *ifname)
     struct Interface *iface = get_oam_interface(ifname);
     if (iface == NULL) {
         ping_req->return_port = OAM_PORT;
+        // in addition to an interface name @ifname can also be an ip:port string
         if (parse_ip_port(ifname, &ping_req->return_ip, &ping_req->return_port)) {
-            ping_req->node_id = get_node_id();
+            ping_req->node_id = get_default_node_id();
             log_debug("return ip '%s' port %u", ping_req->return_ip, ping_req->return_port);
             return true;
         }
+
         if (have_default_iface()) {
             ping_req->error = strdup_printf("invalid return interface name: %s", ifname);
         } else {
-            ping_req->error = strdup("need a return interface or a remote IP to send requests");
+            ping_req->error = strdup("config has no return interface, need to specify an IP to send requests");
         }
         return false;
+    } else {
+        ping_req->node_id = oamif_get_uid(iface);
+        ping_req->return_ip = strdup(oamif_get_ip(iface));
+        ping_req->return_port = oamif_get_port(iface);
+        return true;
     }
-    ping_req->node_id = oamif_get_uid(iface);
-    ping_req->return_ip = strdup(oamif_get_ip(iface));
-    ping_req->return_port = oamif_get_port(iface);
-    return true;
 }
 
 static bool parse_ping_options(struct OamRequest *ping_req, const char *options_str, bool allow_num)
@@ -350,6 +353,8 @@ struct OamRequest *parse_trigger_command(const char *oam_command, bool allow_num
     if (!parse_trigger_options(trig_req, oam_command+l, allow_num)) {
         //TODO add something to the error?
     }
+
+    trig_req->node_id = get_default_node_id();
 
     return trig_req;
 }

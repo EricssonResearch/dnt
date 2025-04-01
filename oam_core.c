@@ -96,7 +96,7 @@ bool have_default_iface(void)
     return oam_default_iface != NULL;
 }
 
-unsigned short get_node_id(void)
+unsigned short get_default_node_id(void)
 {
     return oamif_get_uid(oam_default_iface);
 }

@@ -37,7 +37,7 @@ int foreach_oam_ifaces(hashmap_cb *cb, void *userdata);
 
 bool have_default_iface(void);
 
-unsigned short get_node_id(void);
+unsigned short get_default_node_id(void);
 
 struct MepStart *find_mep_start(const char *name);
 
