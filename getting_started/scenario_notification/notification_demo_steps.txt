@@ -2,15 +2,15 @@ Notification demo steps:
 
 1. on pandora and minion start r2dtwo if not already running
 
-2. on minion:
- - start json receiver:
+2. on minion start json receiver (if not started):
 > python3 json_receiver/json_udp_receiver.py 10.10.10.2 6000
 
 3. on pandora and minion enable pull notifications:
+(telnet windows open automatically)
 > telnet localhost 8000
 notif_pull enable
 
-4. on plague: 
+4. on plague:
  - generate ping traffic
 > ping 10.10.11.2
 
@@ -32,6 +32,6 @@ notif_pull disable
 
 8. Initiate trigger for push notifications:
 In pandora telnet:
-notif_trigger path2_pandora_rx c_pandora_rx 3 -n 10 -i 0.2
+notif_trigger c_pandora_tx c_minion_rx 3 -n 10 -i 0.2
 
 Check push notifications.
