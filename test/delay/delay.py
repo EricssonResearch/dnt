@@ -43,7 +43,7 @@ def config_ifaces():
 def ping_check_time(ping_output):
     times_str = [s for s in ping_output.splitlines() if "icmp_seq" in s]
     times_f = [float(s.split(" ")[6].split("=")[1]) for s in times_str]
-    res_bool = [(f > 99 and f<101)  for f in times_f]
+    res_bool = [(f >= 99 and f <= 101)  for f in times_f]
     return all(res_bool)
 
 
