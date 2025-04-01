@@ -553,7 +553,7 @@ static void latent_error_reset(struct SequenceRecovery *rec)
 static bool decrement_ticks(struct SequenceRecovery *rec)
 {
     rec->latent_reset_counter += 1000 / FRER_TICKS_PER_SEC;
-    if (rec->latent_reset_counter >= rec->diag.latent_reset_period) {
+    if (rec->diag.latent_reset_period && (rec->latent_reset_counter >= rec->diag.latent_reset_period)) {
         latent_error_reset(rec);
         rec->latent_reset_counter = 0;
     }
