@@ -167,6 +167,10 @@ struct JsonValue *mep_start_get_state_by_target(struct MepStart *mep_start)
         struct AddMepState st = {jlist, mep_start};
         foreach_mep_start(addtrig_cb, &st);
     }
+    // add target statistics
+    struct JsonValue *objinfo = mep_start->target->get_state(mep_start->target);
+    json_array_push(jlist, objinfo);
+
     return jlist;
 }
 
