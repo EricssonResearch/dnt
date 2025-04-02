@@ -42,6 +42,8 @@ static NotificationLevel submit_level = NOTIF_ALL;
 static unsigned notif_seq = 0;
 static bool pull_enabled = 0;
 
+static char *myhostname = NULL;
+
 struct NotificationSource {
     notification_pull_fn *pull;
     void *self;
@@ -69,12 +71,15 @@ static void send_notification_packet(struct JsonValue *pkt)
     struct timespec now;
     clock_gettime(CLOCK_REALTIME, &now);
     double now_d = now.tv_sec + (double)now.tv_nsec / 1000000000.0;
-    json_object_insert(pkt, "tstamp", json_number(now_d));
+    json_object_insert(pkt, "notif_tstamp", json_number(now_d));
 
-    char hostname[HOST_NAME_MAX+1];
-    gethostname(hostname, HOST_NAME_MAX+1);
-
-    json_object_insert(pkt, "notif_hostname", json_string(hostname));
+    if (myhostname) {
+        json_object_insert(pkt, "notif_hostname", json_string(myhostname));
+    } else {
+        char hostname[HOST_NAME_MAX+1];
+        gethostname(hostname, HOST_NAME_MAX+1);
+        json_object_insert(pkt, "notif_hostname", json_string(hostname));
+    }
 
     unsigned pkt_len;
     char *pkt_str = json_serialize(pkt, &pkt_len);
@@ -278,6 +283,8 @@ void finish_notification(void)
     if (notification_pipe)
         pipeline_unref(notification_pipe);
     sources = delete_hashmap(sources);
+    free(myhostname);
+    myhostname = NULL;
 }
 
 bool notification_register_source(const char *name, notification_pull_fn *callback, void *self, unsigned period_ms)
@@ -391,3 +398,8 @@ bool notification_enable_pull(int enable)
     return pull_enabled;
 }
 
+void notification_override_hostname(const char *name)
+{
+    free(myhostname);
+    myhostname = strdup(name);
+}

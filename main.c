@@ -261,16 +261,18 @@ static bool set_notiflevels(const char *levels)
 static char args_doc[] = "CONFIGFILE";
 
 static struct argp_option options[] = {
-    {"verbose", 'v', "MODULE:LEVEL", 0, "Available levels: NONE, ERROR, WARNING, INFO, PACKET, DEBUG, ALL", 0},
-    {"output", 'o', "logfile", 0, "Output: log[f]ile, sys[l]og, [s]tdout (default), std[e]rr", 0},
+    {"hostname", 'h', "name", 0, "Override hostname (for notifications)", 0},
     {"notify", 'n', "{LOG|SUBMIT}:LEVEL", 0, "Available levels: NONE, ERROR, WARNING, INFO, PULL, ALL", 0},
+    {"output", 'o', "logfile", 0, "Output: log[f]ile, sys[l]og, [s]tdout (default), std[e]rr", 0},
+    {"verbose", 'v', "MODULE:LEVEL", 0, "Available levels: NONE, ERROR, WARNING, INFO, PACKET, DEBUG, ALL", 0},
     { 0, 0, 0, 0, 0, 0 }
 };
 
 static struct arguments {
     char *configfile;
-    char *verbosity;
+    char *hostname;
     char *notification;
+    char *verbosity;
     LOG_OUTPUT output;
 } arguments;
 
@@ -280,11 +282,13 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
     if (state->arg_num > 1)
         argp_error(state, "Too many arguments");
     switch (key) {
-        case 'v': {
-            args->verbosity = arg;
-        }
-        break;
-        case 'o': {
+        case 'h':
+            args->hostname = arg;
+            break;
+        case 'n':
+            args->notification = arg;
+            break;
+        case 'o':
             if (strlen(arg) == 1) {
                 switch (arg[0]) {
                     case 'f': args->output = LOG_OUT_LOGFILE; break;
@@ -301,21 +305,19 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
                 else if (strcmp(arg, "stderr") == 0) args->output = LOG_OUT_STDERR;
                 else argp_error(state, "Invalid value '%s' for output argument.", arg);
             }
-        }
-        break;
-        case 'n': {
-            args->notification = arg;
-        }
-        break;
+            break;
+        case 'v':
+            args->verbosity = arg;
+            break;
         case ARGP_KEY_ARG:
             args->configfile = arg;
-        break;
+            break;
         case ARGP_KEY_END:
             if (state->arg_num != 1) {
                 argp_state_help(state, state->out_stream, ARGP_HELP_LONG | ARGP_HELP_SHORT_USAGE);
                 argp_error(state, "Config file required!");
             }
-        break;
+            break;
         default:
             return ARGP_ERR_UNKNOWN;
     }
@@ -359,6 +361,10 @@ int main(int argc, char **argv)
             log_error("Notification argument '%s' is invalid", arguments.notification);
             return EXIT_FAILURE;
         }
+    }
+
+    if (arguments.hostname) {
+        notification_override_hostname(arguments.hostname);
     }
 
     log_info("R2DTWO - Reliable & Robust Deterministic Tool for netWOrking %d.%d", VERSION_MAJOR, VERSION_MINOR);

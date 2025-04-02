@@ -69,4 +69,8 @@ void notification_set_submit_level(NotificationLevel level);
 // 1 enable, 0 disable, -1 just return the current state
 bool notification_enable_pull(int enable);
 
+// override hostname in the notification messages
+// useful in mininet, where all nodes have the same hostname (no UTS namespace isolation)
+void notification_override_hostname(const char *name);
+
 #endif // R2_NOTIFICATION_H
