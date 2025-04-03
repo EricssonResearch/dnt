@@ -156,15 +156,17 @@ static struct JsonValue *get_state_json(const struct PipelineObject *obj)
         json_object_insert(js, "latent_error_resets", json_number((double) rec->latent_error_resets));
         json_object_insert(js, "latent_errors", json_number((double) rec->latent_errors));
 
-        char *hist_content = (char *)calloc(1, rec->history_length + 1);
-        for (int i = 0; i < rec->history_length; ++i) {
-            if (rec->history[i] == 1)
-                hist_content[i] = '1';
-            else if (rec->history[i] == 0)
-                hist_content[i] = '0';
+        if (log_enabled(DEBUG)) {
+            char *hist_content = (char *)calloc(1, rec->history_length + 1);
+            for (int i = 0; i < rec->history_length; ++i) {
+                if (rec->history[i] == 1)
+                    hist_content[i] = '1';
+                else if (rec->history[i] == 0)
+                    hist_content[i] = '0';
+            }
+            json_object_insert(js, "history", json_string(hist_content));
+            free(hist_content);
         }
-        json_object_insert(js, "history", json_string(hist_content));
-        free(hist_content);
     }
     return js;
 }
@@ -189,7 +191,7 @@ char *seq_rec_sprintf_state_json(struct JsonValue *json, const char *record_sep,
             struct JsonValue *history = json_object_get_string(json, "history");
 
             if (use_init_flag && use_reset_flag && history_length &&
-                    latent_error_paths && latent_error_resets && latent_errors && history) {
+                    latent_error_paths && latent_error_resets && latent_errors) {
                 return strdup_printf("recovery_algorithm %s%sreset_timer %.0fms%s"
                         "use_init_flag %s%suse_reset_flag %s%shistory_length %.0f%s"
                         "history_content %s%s"
@@ -200,7 +202,7 @@ char *seq_rec_sprintf_state_json(struct JsonValue *json, const char *record_sep,
                         (use_init_flag->type == JSON_TRUE) ? "true" : "false", record_sep,
                         (use_reset_flag->type == JSON_TRUE) ? "true" : "false", record_sep,
                         history_length->v.number, line_sep,
-                        history->v.string, line_sep,
+                        history ? history->v.string : "...", line_sep,
                         latent_error_paths->v.number, record_sep, latent_error_resets->v.number, record_sep,
                         latent_errors->v.number, line_sep,
                         recovery_seq_num->v.number, record_sep,
