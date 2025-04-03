@@ -81,8 +81,8 @@ def main():
 
     # start r2dtwos in background
     minion.popen(f"xterm -T minion -e python3 ../../json_receiver/json_udp_receiver.py 10.10.10.2 6000")
-    pandora.popen(f"xterm -T pandora -e r2dtwo pandora.ini -v ALL:NONE,PACKETTRACE:DEBUG")
-    minion.popen(f"xterm -T minion -e r2dtwo minion.ini -v ALL:NONE,PACKETTRACE:DEBUG")
+    pandora.popen(f"xterm -T pandora -e r2dtwo pandora.ini -h pandora -v ALL:NONE,PACKETTRACE:DEBUG")
+    minion.popen(f"xterm -T minion -e r2dtwo minion.ini -h minion -v ALL:NONE,PACKETTRACE:DEBUG")
     time.sleep(1)
     pandora.popen(f"xterm -T pandora -e telnet localhost 8000")
     minion.popen(f"xterm -T minion -e telnet localhost 8000")
