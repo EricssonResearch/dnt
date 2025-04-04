@@ -289,8 +289,12 @@ void finish_notification(void)
 
 bool notification_register_source(const char *name, notification_pull_fn *callback, void *self, unsigned period_ms)
 {
-    if (sources == NULL)
+    //TODO this is extremely ugly, but we have to allow this for pipeline objects
+    //      they are created before init_notification() and deleted after finish_notification()
+    if (sources == NULL && callback != NULL) {
+        log_warning("register source %s before init", name);
         sources = new_hashmap(13, NULL, NULL);
+    }
 
     struct NotificationSource *existing = (struct NotificationSource *)hashmap_find(sources, name);
     if (callback) {

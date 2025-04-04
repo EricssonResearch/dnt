@@ -133,6 +133,8 @@ static int mep_start_delete_cb(const char *key, void *value, void *userdata)
     (void)userdata;
     struct MepStart *mepstart = (struct MepStart *)value;
     notification_register_source(mepstart->name, NULL, NULL, 2000);
+    if (mepstart->target)
+        pipeline_object_unref(mepstart->target);
     free(mepstart->name);
     free(mepstart->stream_name);
     free(mepstart);
@@ -216,6 +218,7 @@ bool oam_create_mep_start(const char *stream_name, const char *mep_name, int lev
     mepstart->pipe = pipe;
     if (obj) {
         mepstart->target = obj;
+        pipeline_object_ref(obj);
         pipelineobject_store_mep_start_name(obj, mep_name);
     }
     mepstart->pipe_pos_idx = idx;
