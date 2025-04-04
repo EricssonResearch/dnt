@@ -188,7 +188,6 @@ static void *pmc_monitor(void *arg)
 
     fclose(stream);  // Closes fd as well!
     close(tfd);
-    close(ppmd->fd);
     ppmd->fd = -1;
 
     return NULL;
@@ -376,7 +375,7 @@ void finish_monitor(void)
     }
     delete_hashmap(subs);
 
-    if(pmd.fd != -1) {
+    if (pmc_monitor_thread) {
         // Signal to pmc monitor to stop
         uint64_t signal_value = 1;
         if(write(pmd.efd, &signal_value, sizeof(signal_value)) < 0)
