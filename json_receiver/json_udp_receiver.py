@@ -64,18 +64,18 @@ while True:
         seq_num = jsonReceived.get("notif_seq")
         hostname = jsonReceived.get("notif_hostname")
         if ( hostname != None and seq_num != None ):
-            if (hostname, seq_num) in last_seqnums:
+            if (hostname, port, seq_num) in last_seqnums:
                 print("Message with sequence number ", seq_num, "from ", hostname, " already received, not showing the replica")
                 supress = True
             else:
-                last_seqnums[index] = (hostname, seq_num)
+                last_seqnums[index] = (hostname, port, seq_num)
                 index = ( index + 1 ) % SEQ_HISTORY_SIZE
         else:
-            if (hostname == None): 
+            if (hostname == None):
                 hostname = "unknown"
-            if (seq_num == None):    
+            if (seq_num == None):
                 seq_num = "unknown"
-        
+
         if not supress:
             print(f'\nReceived {len(data)} bytes from {hostname} , {host_ip} : {port} with sequence number {seq_num}')
             print('========== JSON data begin ==========')
