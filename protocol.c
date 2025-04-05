@@ -208,6 +208,8 @@ static const struct ProtocolField ipv4_fields[] = {
     {"src",            96, 32, FT_IPV4ADDRESS},
     {"dst",           128, 32, FT_IPV4ADDRESS},
 };
+//TODO IP options how? we must support variable-length headers somehow
+//      IGMPv2 seems to use the Router Alert option
 
 static const char *const ipv4_default =
         "\x45\x00\x00\x00"
@@ -277,9 +279,10 @@ static const struct ProtocolField tcp_fields[] = {
 //TODO TCP options how? we must support variable-length headers somehow
 
 // DetNet MPLS PW OAM Associated Channel Header (d-ACH)
+// RFC 9546
 static const struct ProtocolField oam_fields[] = {
     {"oam_nibble",  0,  4, FT_NUMBER}, // must be 1
-    {"version",     4,  4, FT_NUMBER},
+    {"version",     4,  4, FT_NUMBER}, // should be 0
     {"sequence",    8,  8, FT_NUMBER},
     {"channel",    16, 16, FT_NUMBER}, // https://www.iana.org/assignments/g-ach-parameters/g-ach-parameters.xhtml
     {"nodeid",     32, 20, FT_NUMBER},

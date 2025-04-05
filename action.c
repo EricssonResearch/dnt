@@ -623,7 +623,7 @@ static enum ActionResult action_MEP_execute(struct Action *a, struct PipelineIte
     // note: we made sure in conf_actions.c that at this point of the pipeline the packet starts with mpls+dcw
     unsigned char *oam_hdr = p->buf + p->headers[1].start;
 
-    if(oam_hdr[0] == 0x11) {
+    if((oam_hdr[0] & 0xf0) == 0x10) {
         oam_recv_request(md->oam, pi);
         return ACR_HOLD;
     } else {

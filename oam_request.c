@@ -556,7 +556,7 @@ static int add_fixed_headers(struct Packet *packet, unsigned char ttl,
     mpls[3] = ttl;
     unsigned char *oam  = packet->buf + packet->headers[1].start;
     //TODO function that sets all this
-    oam[0] = 0x11; // indicator and version
+    oam[0] = 0x10; // indicator and version
     oam[1] = seq;
     oam[2] = (channel>>8) & 0xff;
     oam[3] = channel & 0xff;
