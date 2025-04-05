@@ -14,6 +14,7 @@
 #include "conf_streams.h"
 
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 
 #include <pthread.h>
@@ -65,8 +66,23 @@ static const char *notification_level_strings[] = {
     "ALL",
 };
 
-static void send_notification_packet(struct JsonValue *pkt)
+static void send_packet(char *payload, unsigned len)
 {
+    log_debug("sending packet len %u", len);
+
+    struct Packet *packet = new_packet(NULL);
+    packet_enlarge_scratch(packet);
+    packet_add_header(packet, 0, PROTO_ID_PAYLOAD, len);
+    unsigned char *p = packet->buf + packet->headers[0].start;
+    memcpy(p, payload, len);
+    free(payload);
+    struct PipelineIterator *pi = new_pipe_iterator(notification_pipe, packet);
+    pipe_iterator_run(pi);
+}
+
+static void send_notification_message(char *msg, unsigned len)
+{
+    struct JsonValue *pkt = json_object();
     json_object_insert(pkt, "notif_seq", json_number(notif_seq++));
     struct timespec now;
     clock_gettime(CLOCK_REALTIME, &now);
@@ -81,18 +97,35 @@ static void send_notification_packet(struct JsonValue *pkt)
         json_object_insert(pkt, "notif_hostname", json_string(hostname));
     }
 
-    unsigned pkt_len;
-    char *pkt_str = json_serialize(pkt, &pkt_len);
-    log_debug("sending %zu", strlen(pkt_str));
+    log_debug("sending message len %u seq %u", len, notif_seq);
 
-    struct Packet *packet = new_packet(NULL);
-    packet_enlarge_scratch(packet);
-    packet_add_header(packet, 0, PROTO_ID_PAYLOAD, pkt_len);
-    unsigned char *payload = packet->buf + packet->headers[0].start;
-    memcpy(payload, pkt_str, pkt_len);
-    free(pkt_str);
-    struct PipelineIterator *pi = new_pipe_iterator(notification_pipe, packet);
-    pipe_iterator_run(pi);
+    if (len <= MAX_NOTIFICATION_LEN) {
+        json_object_insert(pkt, "notif_msg", json_string(msg));
+        free(msg);
+        unsigned pkt_len;
+        char *pkt_str = json_serialize(pkt, &pkt_len);
+        json_delete(pkt);
+        send_packet(pkt_str, pkt_len);
+    } else {
+        unsigned fragments = len / MAX_NOTIFICATION_LEN;
+        fragments += len > fragments * MAX_NOTIFICATION_LEN;
+        for (unsigned i=0; i<fragments; i++) {
+            char frag_str[32];
+            snprintf(frag_str, sizeof(frag_str), "%u/%u", i+1, fragments);
+            json_object_insert(pkt, "notif_fragment", json_string(frag_str));
+
+            char msg_frag[MAX_NOTIFICATION_LEN+1];
+            strncpy(msg_frag, msg + MAX_NOTIFICATION_LEN*i, MAX_NOTIFICATION_LEN);
+            msg_frag[MAX_NOTIFICATION_LEN] = 0;
+            json_object_insert(pkt, "notif_msg", json_string(msg_frag));
+
+            unsigned pkt_len;
+            char *pkt_str = json_serialize(pkt, &pkt_len);
+            send_packet(pkt_str, pkt_len);
+        }
+        free(msg);
+        json_delete(pkt);
+    }
 }
 
 static void *notification_thread(void *arg)
@@ -101,7 +134,6 @@ static void *notification_thread(void *arg)
     int period_us = 0;
     int timeout_us = -1;
     struct timespec next_wake;
-    unsigned pull_seq = 0;
 
     if (hashmap_count(sources) != 0) {
         //TODO find a period that fits all sources
@@ -148,9 +180,9 @@ static void *notification_thread(void *arg)
                 log_debug("new period %u", period_us);
             } else {
                 log_debug("push from '%s'", msg->source);
-                unsigned js_len;
-                char *js_str = json_serialize(msg->message, &js_len);
                 if (msg->level <= log_level) {
+                    unsigned js_len;
+                    char *js_str = json_serialize(msg->message, &js_len);
                     if (msg->level == NOTIF_ERROR) {
                         log_error("push from '%s' '%s'", msg->source, js_str);
                     } else if (msg->level == NOTIF_WARNING) {
@@ -158,18 +190,18 @@ static void *notification_thread(void *arg)
                     } else if (msg->level == NOTIF_INFO ) {
                         log_info("push from '%s' '%s'", msg->source, js_str);
                     }
+                    free(js_str);
                 }
-                free(js_str);
 
                 if ((msg->level <= submit_level) && notification_pipe) {
-                    if (js_len + strlen(msg->source) < MAX_NOTIFICATION_LEN) {
-                        struct JsonValue *pkt = json_object();
-                        json_object_insert(pkt, msg->source, msg->message);
-                        send_notification_packet(pkt);
-                        json_delete(pkt);
-                    } else {
-                        log_error("can't send push from '%s' length %u", msg->source, js_len);
-                    }
+                    struct JsonValue *jm = json_object();
+                    json_object_insert(jm, msg->source, msg->message);
+                    json_object_insert(jm, "push_level",
+                            json_string(notification_string_from_level(msg->level)));
+                    unsigned js_len;
+                    char *js_str = json_serialize(jm, &js_len);
+                    json_delete(jm);
+                    send_notification_message(js_str, js_len);
                 } else {
                     json_delete(msg->message);
                 }
@@ -189,57 +221,32 @@ static void *notification_thread(void *arg)
         } else {
             // timeout, let's pull from everybody
             if (pull_enabled && notification_pipe) {
-                pthread_mutex_lock(&sources_lock);
-                unsigned total_length = 0;
                 struct JsonValue *pkt = json_object();
-                ++pull_seq;
+                unsigned pull_count = 0;
 
-                HASHMAP_ITERATE(sources, s) { //TODO hashmap_foreach_sorted?
+                pthread_mutex_lock(&sources_lock);
+                HASHMAP_ITERATE(sources, s) {
                     struct NotificationSource *source = (struct NotificationSource *)hash_iterator_value(&s);
                     const char *src = hash_iterator_key(&s);
                     struct JsonValue *js;
                     NotificationLevel level = source->pull(source->self, &js);
+                    (void)level; //TODO will we ever need the level?
                     if (js) {
+                        pull_count++;
                         log_debug("pull from '%s'", hash_iterator_key(&s));
-                        log_debug("level from pull fn: '%d' log_level: '%d' submit level: '%d'", level, log_level, submit_level);
-                        unsigned js_len;
-                        char *js_str = json_serialize(js, &js_len);
-
-                        if (level <= log_level) {
-                            if (level == NOTIF_ERROR) {
-                                log_error("pull from '%s' '%s'", src, js_str);
-                            } else if (level == NOTIF_WARNING) {
-                                log_warning("pull from '%s' '%s'", src, js_str);
-                            } else if (level == NOTIF_INFO || level == NOTIF_PULL) {
-                                log_info("pull from '%s' '%s'", src, js_str);
-                            }
-
-                        }
-                        free(js_str);
-
-                        if (level <= submit_level) {
-                            json_object_insert(pkt, "pull_seq", json_number(pull_seq));
-                            if (total_length + js_len + strlen(src) < MAX_NOTIFICATION_LEN) {
-                                json_object_insert(pkt, src, js);
-                                total_length += js_len + strlen(src);
-                            } else {
-                                // send what we have collected, start new object
-                                send_notification_packet(pkt);
-                                json_delete(pkt);
-                                pkt = json_object();
-                                json_object_insert(pkt, "pull_seq", json_number(pull_seq));
-                                json_object_insert(pkt, src, js);
-                                total_length = js_len + strlen(src);
-                            }
-                        } else {
-                            json_delete(js);
-                        }
+                        json_object_insert(pkt, src, js);
                     }
                 }
                 pthread_mutex_unlock(&sources_lock);
-                if (json_object_count(pkt))
-                    send_notification_packet(pkt);
-                json_delete(pkt);
+
+                if (pull_count) {
+                    unsigned js_len;
+                    char *js_str = json_serialize(pkt, &js_len);
+                    json_delete(pkt);
+                    send_notification_message(js_str, js_len);
+                } else {
+                    json_delete(pkt);
+                }
             }
 
             struct timespec now;
