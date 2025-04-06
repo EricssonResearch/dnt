@@ -79,10 +79,13 @@ The main OAM commands are `ping` and `rping`. There also are several helping com
 
 The available commands are:
 
-* `help` get help
+* `help`, `?` get help
 * `exit`, `quit`, `CTRL+D` exit OAM
 * `log [module newlevel]` get current log levels or set it for the given module
-* `mode <mode>` set ping reply printing mode, can be 'dump' or 'json'
+* `notify [{LOG|SUBMIT} newlevel]` get current notification levels or set them
+* `sysmon <command> <type> <target> [period_ms]` add/rem system monitoring. Type: delay, tc, modem. Target: specific
+* `notif_pull [enable|disable]` enable or disable the pull notifications
+* `mode [mode]` set ping reply printing mode, can be 'dump' or 'json'
 * `list` list monitoring start points
 * `returns` list return interfaces
 * `sessions [stream]` list active sessions for stream, lists all sessions if no 'stream' is specified
