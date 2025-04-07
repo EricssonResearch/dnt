@@ -10,7 +10,7 @@ We will use the following topology, which consists:
 * a talker node called **plague** which will generate IPv4 traffic
 * a listener node called **dread** which receives the traffic coming from the **talker**
 * two R2DTWO instances, running on the **pandora** and **minion** nodes.
-* a node called __terror__ which interconnects the __pandora__ and __minion__ nodes, it forwards traffic between the neighbour nodes.
+* a node called __terror__ which interconnects the __pandora__ and __minion__ nodes and forwards the traffic between them.
 
 ```
       ╔═══════╗                             ╔═══════╗    
@@ -37,12 +37,8 @@ We will use the following topology, which consists:
      R2DTWO
 ```
 
-
-Also, FRER/PREOF was intended to protect against path failures.
-Therefore administration of R2DTWO over the production network would be a bad idea since it is expected to fail from time to time.
-
 The __pandora__ node replicates the traffic arriving from the talker and the __minion__ node does the elimination.
-(To have bi-directional traffic or the ping test, the backward direction is also configured: replication at the node __minion__ and elimination at the node __pandora__ for the traffic from the __listener__ towards the __talker__.)
+(To have bi-directional traffic /e.g. ping test/, the backward direction is also configured: for the traffic from the __listener__ towards the __talker__ replication is at the node __minion__ and elimination is at the node __pandora__ .)
 
 ## R2DTWO OAM configuration
 
@@ -50,9 +46,10 @@ The basic concepts and generic operation of the notification framework can be fo
 
 In this guide, we discuss only the notification-related parts of the configuration that is specific for this scenario.
 
-The notification aggregation point where the notification messages are sent is on the node __minion__ (eno1 interface, IP address: 10.10.10.2). To collect the the notification messages the simple json receiver will be run and collect the notification messages on this node.  
+The notification aggregation point where the notification messages are sent to and collected is on the node __minion__ (eno1 interface, IP address: 10.10.10.2). To collect the the notification messages a simple json receiver will be run on this node.  
 R2DTWO on node __pandora__ is configured to send its notification messages on two interfaces (ens2f0 and ans2f1) to have redundancy for the notification. 
-R2DTWO on node __minion__ sends its notification messages without redundancy to the aggregation point (simple json receiver).
+There is also a continuous oam ping initiated from c_pandora_tx to any destination, this will generate oam traffic that can be monitored with the oam packet and octet counters. 
+R2DTWO on node __minion__ sends its notification messages without redundancy to the same aggregation point (the simple json receiver collects messages from both nodes).
 
 The corresponding configuration of `pandora.ini` related to notification is the following:
 
@@ -80,7 +77,7 @@ notification_session = send ifNotify
 
 ## Notification framework in action
 
-This scenario runs in mininet. The `testnet.py` script initiates the network and the nodes and also starts the two R2DTWO instances, the notification receiver script and two telnet OAM session to each R2DTWO, altoghether 5 xterm is opened. 
+This scenario runs in mininet. The `testnet.py` script creates the network topology with the nodes. It also starts the two R2DTWO instances, the notification receiver script and two telnet OAM session to each R2DTWO in separate xterms, altoghether 5 xterm is opened. 
 
 The OAM telnet xterms' title shows the node name, and the following lines. In the following we reference these xterms as **oam-pandora** and **oam-minion**.
 ```
@@ -94,57 +91,69 @@ Anther two xterms show the logging output of the two R2DTWO instances, and the t
 
 The fifth xterm (with title __minion__) show sthe received notification messages as formatted JSON output. In the following we reference this xterm as **notif-recv**.
 
-As the dafault setting is to disable pull notifications, R2DTWO startup related push notifications can be observed in **notif-recv** xterm (You may need to scroll back to the beginning in the xterm):
+As the dafault setting is to disable pull notifications, only push notifications are shown: loading the configuration file, startup completed, and telnet session onnected can be observed in **notif-recv** xterm (You may need to scroll back to the beginning of the messages in the xterm):
 
 ```
 JSON receiver server started on 10.10.10.2 : 6000
 
-Received 118 bytes from pandora , 192.168.1.2 : 56452 with sequence number 0
+Received 218 bytes from pandora , 192.168.1.2 : 36951 with sequence number 0
 ========== JSON data begin ==========
 {
   "notif_hostname": "pandora",
+  "notif_msg": {
+    "push_level": "INFO",
+    "transaction": {
+      "add_ifaces": 10,
+      "add_objects": 3,
+      "add_streams": 3,
+      "committed": "pandora.ini"
+    }
+  },
   "notif_seq": 0,
-  "notif_tstamp": 1743778867.2204173,
-  "transaction": {
-    "committed": "pandora.ini"
-  }
+  "notif_tstamp": 1744037778.721275
 }
 ........... JSON data end ...........
-Message with sequence number  0 from  pandora  already received, not showing the replica
+Message with sequence number  0 from  pandora  with fragment ID  None  already received, not showing the replica
 
-Received 116 bytes from pandora , 192.168.1.2 : 56452 with sequence number 1
+Received 162 bytes from pandora , 192.168.1.2 : 36951 with sequence number 1
 ========== JSON data begin ==========
 {
   "notif_hostname": "pandora",
+  "notif_msg": {
+    "push_level": "INFO",
+    "r2dtwo": {
+      "status": "startup completed"
+    }
+  },
   "notif_seq": 1,
-  "notif_tstamp": 1743778867.2249691,
-  "r2dtwo": {
-    "status": "startup completed"
-  }
+  "notif_tstamp": 1744037778.7405703
 }
 ........... JSON data end ...........
-Message with sequence number  1 from  pandora  already received, not showing the replica
+Message with sequence number  1 from  pandora  with fragment ID  None  already received, not showing the replica
 
-Received 142 bytes from pandora , 192.168.1.2 : 56452 with sequence number 2
+Received 194 bytes from pandora , 192.168.1.2 : 36951 with sequence number 2
 ========== JSON data begin ==========
 {
   "notif_hostname": "pandora",
+  "notif_msg": {
+    "push_level": "INFO",
+    "telnet": {
+      "ip": "::ffff:127.0.0.1",
+      "login": "conn 13",
+      "port": 36354
+    }
+  },
   "notif_seq": 2,
-  "notif_tstamp": 1743778868.1634479,
-  "telnet": {
-    "ip": "::ffff:127.0.0.1",
-    "login": "conn 13",
-    "port": 36532
-  }
+  "notif_tstamp": 1744037779.6541355
 }
 ........... JSON data end ...........
-
+Message with sequence number  2 from  pandora  with fragment ID  None  already received, not showing the replica
 ```
 
-Since node __pandora__ sends redundant notification messages on two interfaces the receiver detects the duplicates and does not display the replica by matching an already seen sequence number from a given R2DTWO. This is indicated by:
+Since node __pandora__ sends redundant notification messages on two interfaces, the receiver detects the duplicates and does not display the replica by matching an already seen sequence number from a given R2DTWO. This is indicated by:
 
 ```
-Message with sequence number  X from  <host>  already received, not showing the replica
+Message with sequence number  X from  <host>  with fragment ID  None already received, not showing the replica
 ```
 
 ### Pull notifications
@@ -160,12 +169,12 @@ Notification pull is now enabled
 In **notif-recv** xterm the pull notification messages are shown from node __pandora__, and the replicated notification messages are not shown.
 There is a lot of data and counters received with 2 second interval about the objects, interfaces, etc.
 
-There are Maintanence Points defined in the configuration files for R2DTWO instances. For node __pandora__, direction talker -> listener:
+There are Maintanence Points defined in the configuration files of the R2DTWO instances. For node __pandora__, in direction talker -> listener:
 
 - before the replication: c_pandora_tx 
 - after the replication: path1_pandora_tx and path2_pandora_tx
 
-#### User traffic statistics
+#### Traffic statistics
 
 For user traffic statistics look for octet (key "octets_passed") and packet (key "packets_passed") counters in the notification messages. Before sending any user traffic all these counters show 0 values:
 ```
@@ -202,7 +211,13 @@ For user traffic statistics look for octet (key "octets_passed") and packet (key
   ...  
 ``` 
 
-Start an xterm for the talker from the mininet CLI:
+The oam traffic counters are also 0, except in c_pandora_tx, because there is a oam ping session configured in `pandora.ini` shown below. These counters will increase in the following samples as the oam ping is running continuously.
+```
+[oam]
+compound_ping = ping c_pandora_tx any 3 -o -i 2
+```
+
+Start an xterm for the talker node from the mininet CLI for sending user traffic from talker:
 ```
 mininet> xterm plague
 ```
@@ -249,7 +264,7 @@ Hereafter look again in the notification messages for the octet (key "octets_pas
 
 #### Failing one path
 
-To investigate the case of a network failure the path going over the ens2f0 interfaces can be interrupted with the following command from the mininet CLI:
+To investigate the case of a network failure, the path going over the ens2f0 interfaces between nodes **plague** and **terror** can be interrupted with the following command from the mininet CLI:
 ```
 mininet> terror ip link set dev ens2f0 down
 ```
@@ -258,7 +273,7 @@ Then we send again 5 ping request from the talker (xterm plague):
 ping -c 5 10.10.11.2
 ```
 Observations:
-The ping request (and responses) are still transferred over the network via the remaining redundant path.
+The ping requests (and responses) are still transferred over the network via the remaining redundant path.
 
 Hereafter look again in the notification messages for the octet (key "octets_passed") and packet (key "packets_passed") counters. 
 Now the counters show 10 packets and 920 octets, since the failure is after this node, it tries to send all packets on both paths.
@@ -302,7 +317,7 @@ To investigate the elimination side, enable the pull notifications for node __mi
 notif_pull enable
 ```
 
-The Maintanence Points defined for node __minion__, direction talker -> listener:
+The Maintanence Points defined for node __minion__, in direction talker -> listener:
 
 - before the elimination: path1_minion_rx and path2_minion_rx
 - after the elimination: c_minion_rx 
@@ -430,9 +445,135 @@ Restore the original state by unmasking path1 with the following comannd in __oa
 unmask tx1
 ```
 
-#### Disable pull notifications
-
-
-
 #### Notification trigger
-TODO
+
+The notification trigger initiates push notifications at the trigger source and receiver nodes, therefore let's disable pull notifications for both node __pandora__ in xterm **oam-pandora** and node __minion__ in xterm **oam-minion**:
+```
+notif_pull disable
+```
+
+We initate a notification trigger from c_pandora_tx (before replication) towards c_minion_rx (after elimination) in xterm **oam-pandora** with the following command:
+```
+notif_trigger c_pandora_tx c_minion_rx 3 -n 1
+```
+The notif_msg section of the push message from node __pandora__ (triggered_source) contains all relevant information about maintenance point states and counters:
+
+```
+========== JSON data begin ==========
+{
+  "notif_hostname": "pandora",
+  "notif_msg": {
+    "push_level": "INFO",
+    "triggered_source": {
+      "level": 3,
+      "mep": [
+        {
+          "mask_signal_state": "unmasked",
+          "name": "c_pandora_tx",
+          "oam_octets_passed": 364089,
+          "oam_packets_passed": 1036,
+          "octets_passed": 0,
+          "packets_passed": 0,
+          "type": "mep_state"
+        },
+        {
+          "mask_signal_state": "unmasked",
+          "name": "path1_pandora_tx",
+          "oam_octets_passed": 0,
+          "oam_packets_passed": 0,
+          "octets_passed": 0,
+          "packets_passed": 0,
+          "type": "mep_state"
+        },
+        {
+          "name": "prf",
+          "octets_passed": 364089,
+          "packets_passed": 1036,
+          "pipelines": [
+            {
+              "action_count": 3,
+              "mask_state": "unmasked",
+              "name": "tx1"
+            },
+            {
+              "action_count": 3,
+              "mask_state": "unmasked",
+              "name": "tx2"
+            }
+          ],
+          "type": "replicate"
+        }
+      ],
+      "node_id": 1,
+      "seq": 0,
+      "session": 2,
+      "source": "c_pandora_tx",
+      "stream": "stream_uni",
+      "target": "c_minion_rx"
+    }
+  },
+  "notif_seq": 1407,
+  "notif_tstamp": 1744039850.6794293
+}
+........... JSON data end ...........
+```
+
+The notif_msg section of the push message from node __minion__ (triggered_receiver) contains all relevant information about maintenance point states and counters:
+
+```
+========== JSON data begin ==========
+{
+  "notif_hostname": "minion",
+  "notif_msg": {
+    "push_level": "INFO",
+    "triggered_receiver": {
+      "level": 3,
+      "mep": [
+        {
+          "mask_signal_state": "unmasked",
+          "name": "c_minion_rx",
+          "oam_octets_passed": 0,
+          "oam_packets_passed": 0,
+          "octets_passed": 0,
+          "packets_passed": 0,
+          "type": "mep_state"
+        },
+        {
+          "mask_signal_state": "unmasked",
+          "name": "path2_minion_rx",
+          "oam_octets_passed": 0,
+          "oam_packets_passed": 0,
+          "octets_passed": 0,
+          "packets_passed": 0,
+          "type": "mep_state"
+        },
+        {
+          "discarded_packets": 0,
+          "history_length": 512,
+          "latent_error_paths": 2,
+          "latent_error_resets": 0,
+          "latent_errors": 0,
+          "name": "pef",
+          "passed_packets": 0,
+          "recovery_algorithm": "vector",
+          "recovery_seq_num": 65535,
+          "reset_msec": 2000,
+          "seq_recovery_resets": 1,
+          "type": "seqrec",
+          "use_init_flag": false,
+          "use_reset_flag": false
+        }
+      ],
+      "node_id": 1,
+      "seq": 0,
+      "session": 2,
+      "source": "c_pandora_tx",
+      "stream": "stream_uni",
+      "target": "c_minion_rx"
+    }
+  },
+  "notif_seq": 4,
+  "notif_tstamp": 1744039850.679749
+}
+........... JSON data end ...........      
+```
