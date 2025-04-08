@@ -25,6 +25,8 @@
 
 DEFAULT_LOGGING_MODULE(NOTIFICATION, INFO);
 
+// json header overhead is about 120 bytes
+// so the payload in total is expected to be around 1320
 #define MAX_NOTIFICATION_LEN 1200
 
 #define DEFAULT_TIMEOUT 2*1000*1000
@@ -97,9 +99,15 @@ static void send_notification_message(char *msg, unsigned len)
         json_object_insert(pkt, "notif_hostname", json_string(hostname));
     }
 
-    log_debug("sending message len %u seq %u", len, notif_seq);
+    // the quote characters will be backslashed by the second serialize
+    unsigned quotes = 0;
+    for (unsigned i=0; i<len; i++) {
+        if (msg[i] == '"') quotes++;
+    }
 
-    if (len <= MAX_NOTIFICATION_LEN) {
+    log_debug("sending message seq %u len %u quotes %u", notif_seq, len, quotes);
+
+    if (len + quotes <= MAX_NOTIFICATION_LEN) {
         json_object_insert(pkt, "notif_msg", json_string(msg));
         free(msg);
         unsigned pkt_len;
@@ -107,16 +115,31 @@ static void send_notification_message(char *msg, unsigned len)
         json_delete(pkt);
         send_packet(pkt_str, pkt_len);
     } else {
-        unsigned fragments = len / MAX_NOTIFICATION_LEN;
-        fragments += len > fragments * MAX_NOTIFICATION_LEN;
+        unsigned fragments = (len+quotes) / MAX_NOTIFICATION_LEN;
+        fragments += (len+quotes) > fragments * MAX_NOTIFICATION_LEN;
+        unsigned frag_begin = 0;
         for (unsigned i=0; i<fragments; i++) {
             char frag_str[32];
             snprintf(frag_str, sizeof(frag_str), "%u/%u", i+1, fragments);
             json_object_insert(pkt, "notif_fragment", json_string(frag_str));
 
             char msg_frag[MAX_NOTIFICATION_LEN+1];
-            strncpy(msg_frag, msg + MAX_NOTIFICATION_LEN*i, MAX_NOTIFICATION_LEN);
-            msg_frag[MAX_NOTIFICATION_LEN] = 0;
+
+            // separate counter for the backslashes before the '"'
+            unsigned l = 0, q = 0;
+            while (l + q < MAX_NOTIFICATION_LEN) {
+                if (msg[frag_begin+l] == 0)
+                    break;
+                if (msg[frag_begin+l] == '"')
+                    q++;
+                l++;
+            }
+            //log_debug("l %u q %u", l, q);
+
+            strncpy(msg_frag, msg + frag_begin, l);
+            msg_frag[l] = 0;
+            frag_begin += l;
+
             json_object_insert(pkt, "notif_msg", json_string(msg_frag));
 
             unsigned pkt_len;
