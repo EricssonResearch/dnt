@@ -27,10 +27,12 @@ pkts_delay = [
     Ether(dst="ab:bb:cc:aa:bb:cd")/IP(src="9.9.9.9", dst="8.8.8.8")/UDP()
 ]
 
-SEQ_HISTORY_SIZE = 10
+SEQ_HISTORY_SIZE = 100  # keep it high, as we also use it as frag/seq counter
 dups = 0
 index = 0
-last_seqnums=[]
+last_seqnums=[0] * SEQ_HISTORY_SIZE
+mpart_collector={}
+
 notif_messages=[]       # hold the messages received
 
 class UDPReceiver(asyncio.DatagramProtocol):
@@ -38,7 +40,10 @@ class UDPReceiver(asyncio.DatagramProtocol):
         self.version = version  # Track whether it's IPv4 or IPv6
 
     def datagram_received(self, data, addr):
-        global dups, index, last_seqnums
+        global dups, index, last_seqnums, mpart_collector
+
+        supress = False
+        omit_fragment = False
 
         if self.version == "IPv6":
             host, port, *_ = addr  # Unpack only first two values (IPv6 has extra fields)
@@ -47,15 +52,88 @@ class UDPReceiver(asyncio.DatagramProtocol):
 
         try:
             jsonReceived = json.loads(data.decode())
-            #print(jsonReceived)
             seq_num = jsonReceived.get("notif_seq")
-            if seq_num != None:
-                if seq_num in last_seqnums:
+            hostname = jsonReceived.get("notif_hostname")
+            frag_id = jsonReceived.get("notif_fragment")
+            timestamp = jsonReceived.get("notif_tstamp")
+
+            if ( frag_id == None  or frag_id == "1/1" ): # not multipart message
+                if (hostname, seq_num, frag_id) in last_seqnums:
+                    supress = True
                     dups = dups + 1
                 else:
-                    last_seqnums.append(seq_num)
+                    last_seqnums[index] = (hostname, seq_num, frag_id)
                     index = ( index + 1 ) % SEQ_HISTORY_SIZE
+
+                if not supress:
+                    jsonReceived["notif_msg"] = json.loads(jsonReceived["notif_msg"])
                     notif_messages.append(jsonReceived)
+
+                supress = False
+
+            else: # multipart message, first collect, then print by each sender host
+                if ( mpart_collector.get(hostname) == None ): # init collector data
+                    mpart_collector[hostname] = {}
+                    mpart_collector[hostname]["message"] = {}
+                    mpart_collector[hostname]["last_seqnum"] = -1
+                    mpart_collector[hostname]["frag_count"] = 0
+
+                idx = int(frag_id[0:frag_id.find('/')])
+                items = int(frag_id[frag_id.find('/')+1:])
+
+                if (hostname, seq_num, frag_id) in last_seqnums:
+                    omit_fragment = True
+                    dups = dups + 1
+                else:
+                    last_seqnums[index] = (hostname, seq_num, frag_id)
+                    index = ( index + 1 ) % SEQ_HISTORY_SIZE
+
+                if (not omit_fragment):
+                    if (mpart_collector[hostname]["last_seqnum"] == -1 ):  # thiis ir the the first multipart message or there was change in the seq_num, therefore we reset "last_seqnum"
+                        mpart_collector[hostname]["last_seqnum"] = seq_num
+
+                    # collecting message parts
+                    if (mpart_collector[hostname]["last_seqnum"] == seq_num ) :
+                        mpart_collector[hostname]["frag_count"] += 1
+                    else:
+                        mpart_collector[hostname]["frag_count"] = 1
+                        mpart_collector[hostname]["message"].clear()
+
+                    mpart_collector[hostname]["message"][idx] = jsonReceived.get("notif_msg")
+
+                    if ( mpart_collector[hostname]["frag_count"] == items ) : # all parts received
+                        # assembling message parts and build the full message
+                        frag_missing = False
+                        concat_string = ""
+                        for i in range(1,items+1) :
+                            if mpart_collector[hostname]["message"].get(i) != None :
+                                concat_string += mpart_collector[hostname]["message"][i]
+                            else :
+                                frag_missing = True
+                                break
+
+                        if frag_missing:
+                            print(f'\nWARNING: Missing part(s) of multipart message reassembly from {hostname} , {host_ip} : {port} with sequence number {seq_num}')
+                        else:
+                            fullmsg_with_header={}
+                            fullmsg_with_header["notif_seq"] = seq_num
+                            fullmsg_with_header["notif_hostname"] = hostname
+                            fullmsg_with_header["notif_tstamp"] = timestamp
+                            fullmsg_with_header["notif_msg"] = json.loads(concat_string)
+
+                            notif_messages.append(fullmsg_with_header)
+
+                            mpart_collector[hostname]["last_seqnum"] = -1
+                            mpart_collector[hostname]["message"].clear()
+                            mpart_collector[hostname]["frag_count"] = 0
+
+                    elif (seq_num != mpart_collector[hostname]["last_seqnum"] ): # some parts are missing and a new seq_num was received
+                        print(f'\nWARNING: Missing part(s) of multipart message from {hostname} , {host_ip} : {port} with sequence number {mpart_collector[hostname]["last_seqnum"]}')
+                        # reset parts collection and counters
+                        mpart_collector[hostname]["last_seqnum"] = seq_num
+
+                omit_fragment = False
+
         except json.JSONDecodeError:
             print(f"[{self.version}] Invalid JSON from {host}:{port}: {data}")
 
@@ -140,7 +218,7 @@ def send_cli_commands():
         print("Error: ", msg)
         ret = False
 
-    cli.send("notification_source add tc r2rx") # send add notification command
+    cli.send("sysmon add tc r2rx") # send add notification command
     msg = cli.recv()
     if "Success" not in msg:
         print("Error: ", msg)
@@ -207,15 +285,16 @@ async def start_meas():
     sendp(pkts_delay, verbose=0, iface="to_r2")
     return 0
 
-def test_delay():
+def test_notifications():
     global dups, notifications
     failed = 0
 
     print("Test notification message replication...", end=" ")
-    if len(notif_messages) == dups:
+#    if len(notif_messages) == dups:
+    if index == dups:
         print("✔")
     else:
-        print(f"✘ - received {len(notif_messages)} and {dups} duplicate notifications")
+        print(f"✘ - received {index} and {dups} duplicate notifications")
         failed = failed+1
 
     # collect the latest messages for each notification
@@ -236,8 +315,9 @@ def test_delay():
     post_prf_nni1_msg = None
     trig_start = None
     trig = None
-    for msg in notif_messages:
-        print(f"Received last -> {msg}")
+    for notif_msg in notif_messages:
+        print(f"Received last -> {notif_msg}")
+        msg = notif_msg.get("notif_msg")
         if msg.get("telnet"):
             telnet_push = True
         if msg.get("mask"):
@@ -421,7 +501,7 @@ async def main():
     await asyncio.sleep(6)
 
     print("Checking results:")
-    result = test_delay()
+    result = test_notifications()
     if result == -1:
         print("Error running tests.")
 
