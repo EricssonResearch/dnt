@@ -279,7 +279,7 @@ static void *notification_thread(void *arg)
             if (timeout_us < 0) {
                 log_debug("next wake time is in the past, rebooting the cycle");
                 //start at next even second
-                next_wake.tv_sec = now.tv_sec;
+                next_wake.tv_sec = now.tv_sec + 1;
                 next_wake.tv_sec += next_wake.tv_sec % 2;
                 next_wake.tv_nsec = 0;
                 timeout_us = time_diff_us(next_wake, now);
@@ -312,7 +312,9 @@ void finish_notification(void)
     notif_q = delete_messagequeue(notif_q);
     if (notification_pipe)
         pipeline_unref(notification_pipe);
+    pthread_mutex_lock(&sources_lock); //TODO we may need to protect more than @sources
     sources = delete_hashmap(sources);
+    pthread_mutex_unlock(&sources_lock);
     free(myhostname);
     myhostname = NULL;
 }
