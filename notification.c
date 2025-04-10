@@ -155,7 +155,7 @@ static void *notification_thread(void *arg)
 {
     (void)arg;
     int period_us = 0;
-    int timeout_us = -1;
+    int64_t timeout_us = -1;
     struct timespec next_wake;
 
     if (hashmap_count(sources) != 0) {
@@ -177,7 +177,7 @@ static void *notification_thread(void *arg)
 
         timeout_us = time_diff_us(next_wake, now);
     }
-    log_debug("initial period %u first timeout %d", period_us, timeout_us);
+    log_debug("initial period %u first timeout %ld", period_us, timeout_us);
 
     while (1) {
         struct NotificationMessage *msg = (struct NotificationMessage *)messagequeue_pop(notif_q, timeout_us);
@@ -239,7 +239,7 @@ static void *notification_thread(void *arg)
             } else {
                 timeout_us = -1;
             }
-            log_debug("after push period %u now %ld.%.9lu next_wake %ld.%.09lu timeout %d",
+            log_debug("after push period %u now %ld.%.9lu next_wake %ld.%.09lu timeout %ld",
                     period_us, now.tv_sec, now.tv_nsec, next_wake.tv_sec, next_wake.tv_nsec, timeout_us);
         } else {
             // timeout, let's pull from everybody
@@ -285,7 +285,7 @@ static void *notification_thread(void *arg)
                 timeout_us = time_diff_us(next_wake, now);
             }
 
-            log_debug("after timeout period %u now %ld.%.9lu next_wake %ld.%.09lu timeout %d",
+            log_debug("after timeout period %u now %ld.%.9lu next_wake %ld.%.09lu timeout %ld",
                     period_us, now.tv_sec, now.tv_nsec, next_wake.tv_sec, next_wake.tv_nsec, timeout_us);
         }
     }
