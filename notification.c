@@ -201,6 +201,10 @@ static void *notification_thread(void *arg)
                     period_us = 0;
                 }
                 log_debug("new period %u", period_us);
+            } else if (strcmp(msg->source, "notification_shutdown") == 0) {
+                free(msg);
+                log_debug("exiting notification thread");
+                return NULL;
             } else {
                 log_debug("push from '%s'", msg->source);
                 if (msg->level <= log_level) {
@@ -300,19 +304,36 @@ void init_notification(struct HashMap *conf_streams)
         notification_pipe = assemble_actions("notification_session", notif_sess->actions);
         pipeline_ref_send_interfaces(notification_pipe);
     }
+    pthread_mutex_lock(&sources_lock);
     if (sources == NULL)
         sources = new_hashmap(13, NULL, NULL);
     notif_q = new_messagequeue();
+    pthread_mutex_unlock(&sources_lock);
     notif_thread = thread_launch(notification_thread, NULL, "notification");
 }
 
 void finish_notification(void)
 {
-    notif_thread = thread_stop(notif_thread);
-    notif_q = delete_messagequeue(notif_q);
-    if (notification_pipe)
+    struct NotificationMessage *msg = calloc_struct(NotificationMessage);
+    msg->source = "notification_shutdown";
+    messagequeue_push(notif_q, msg);
+    notif_thread = thread_join(notif_thread);
+    if (notification_pipe) {
+        // this will want to unregister, which must grab the lock
         pipeline_unref(notification_pipe);
-    pthread_mutex_lock(&sources_lock); //TODO we may need to protect more than @sources
+    }
+
+    pthread_mutex_lock(&sources_lock);
+    // empty the queue before deleting it
+    while (1) {
+        struct NotificationMessage *m = (struct NotificationMessage*)messagequeue_pop(notif_q, 0);
+        if (m) {
+            log_debug("finish popped %p '%s'", m, m->source);
+            free(m);
+        } else
+            break;
+    }
+    notif_q = delete_messagequeue(notif_q);
     sources = delete_hashmap(sources);
     pthread_mutex_unlock(&sources_lock);
     free(myhostname);
@@ -321,17 +342,25 @@ void finish_notification(void)
 
 bool notification_register_source(const char *name, notification_pull_fn *callback, void *self, unsigned period_ms)
 {
-    //TODO this is extremely ugly, but we have to allow this for pipeline objects
-    //      they are created before init_notification() and deleted after finish_notification()
-    if (sources == NULL && callback != NULL) {
-        log_warning("register source %s before init", name);
-        sources = new_hashmap(13, NULL, NULL);
+    pthread_mutex_lock(&sources_lock);
+    if (sources == NULL) {
+        if (callback != NULL) {
+            log_warning("register source %s before init", name);
+            //TODO this is extremely ugly, but we have to allow this for pipeline objects
+            //      they are created before init_notification()
+            sources = new_hashmap(13, NULL, NULL);
+        } else {
+            log_warning("unregister source %s after finish", name);
+            pthread_mutex_unlock(&sources_lock);
+            return true;
+        }
     }
 
     struct NotificationSource *existing = (struct NotificationSource *)hashmap_find(sources, name);
     if (callback) {
         if (existing) {
             log_error("source '%s' already exists", name);
+            pthread_mutex_unlock(&sources_lock);
             return false;
         }
 
@@ -339,19 +368,16 @@ bool notification_register_source(const char *name, notification_pull_fn *callba
         src->pull = callback;
         src->self = self;
         src->period_ms = period_ms;
-        pthread_mutex_lock(&sources_lock);
         hashmap_insert(sources, strdup(name), src);
-        pthread_mutex_unlock(&sources_lock);
         log_info("new source %s", name);
     } else {
         if (!existing) {
             log_error("can't remove unregistered source '%s'", name);
+            pthread_mutex_unlock(&sources_lock);
             return false;
         }
 
-        pthread_mutex_lock(&sources_lock);
         hashmap_remove(sources, name);
-        pthread_mutex_unlock(&sources_lock);
         log_info("removed source %s", name);
     }
 
@@ -361,6 +387,7 @@ bool notification_register_source(const char *name, notification_pull_fn *callba
         msg->source = "notification_register_source";
         messagequeue_push(notif_q, msg);
     }
+    pthread_mutex_unlock(&sources_lock);
     return true;
 }
 
