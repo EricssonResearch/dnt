@@ -12,9 +12,13 @@
 
 #include "if_oam.h"
 #include "log.h"
+#include "notification.h"
 #include "state.h"
 #include "thread_utils.h"
 #include "utils.h"
+
+#include "delay.h"
+#include "sysmon.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,6 +34,8 @@ DEFAULT_LOGGING_MODULE(OAM, INFO);
 
 struct CommandConnection {
     char *name;
+    char *remote_ip;
+    unsigned short remote_port;
     int socket_fd; // RW
     FILE *cmd_w; // WRONLY
     int w_users;
@@ -87,10 +93,13 @@ enum TerminalFormat command_connection_get_format(const struct CommandConnection
 
 static const char help_str[] =
     "Available commands:\n"
-    "help - get help\n"
+    "help, ? - get help\n"
     "exit, quit, CTRL+D - exit OAM\n"
     "log [module newlevel] - get current log levels or set it for the given module\n"
-    "mode <mode> - set ping reply printing mode, can be 'dump' or 'json'\n"
+    "notify [{LOG|SUBMIT} newlevel] - get current notification levels or set them\n"
+    "sysmon <command> <type> <target> [period_ms] - add/rem system monitoring. Type: delay, tc, modem. Target: specific\n"
+    "notif_pull [enable|disable] - enable or disable the pull notifications\n"
+    "mode [mode] - set ping reply printing mode, can be 'dump' or 'json'\n"
     "list - list monitoring start points\n"
     "returns - list return interfaces\n"
     "sessions [stream] - list active sessions for stream, lists all sessions if no 'stream' is specified\n"
@@ -98,6 +107,7 @@ static const char help_str[] =
     "rlist[@if] <mep-start/mip> <mep-stop/mip/any> <level> - list monitoring start points of the remote node\n"
     "ping[@if] <mep-start/mip> <mep-stop/mip/any> <level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]\n"
     "rping[@if] <mep-start/mip> <mep-stop/mip> <level> <remote mep-start/mip> <remote mep-stop/mip/any> <remote level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]\n"
+    "notif_trigger <mep-start> <mep-stop/mip/any> <level> [-i <interval>] [-n <count>] [-t <ttl>]\n"
     "stop [stream session_id] - stop a running OAM session identified by 'stream:session_id', without parameter it stops the last session\n"
     ;
 
@@ -217,11 +227,16 @@ static void command_loop(struct CommandConnection *conn)
 
     const char *last_stream=NULL; // the stream name of the last issued command
 
-    if (have_default_iface()) {
-        fprintf(cmd_w, "\033[32mOAM ready.\033[0m\n");
-    } else {
-        fprintf(cmd_w, "\033[32mOAM ready\033[0m, but has no configured return interface.\n");
-    }
+    while (conn->name == NULL) usleep(1000); // this is generated after the thread has been launched
+
+    fprintf(cmd_w, "\033[32mOAM '%s' ready\033[0m%s\n", conn->name,
+            have_default_iface()?"":", but has no configured return interface");
+
+    struct JsonValue *msg = json_object();
+    json_object_insert(msg, "login", json_string(conn->name));
+    json_object_insert(msg, "ip", json_string(conn->remote_ip));
+    json_object_insert(msg, "port", json_number(conn->remote_port));
+    notification_push_event("telnet", NOTIF_INFO, msg);
 
     while (true) {
         int n = read(cmd_fd, oam_command, sizeof(oam_command)-1);
@@ -272,7 +287,7 @@ static void command_loop(struct CommandConnection *conn)
                 }
                 fprintf(cmd_w, "Display mode is %s\n", terminal_format_name(conn->mode));
             }
-            else if(strcmp(oam_command, "help") == 0){
+            else if (strcmp(oam_command, "help") == 0 || strcmp(oam_command, "?") == 0) {
                 fprintf(cmd_w, help_str);
             }
             else if (strcmp(oam_command, "list") == 0) {
@@ -300,6 +315,64 @@ static void command_loop(struct CommandConnection *conn)
                 } else {
                     fprintf(cmd_w, "Invalid parameters for 'log' command.\n");
                 }
+            }
+            else if (strncmp(oam_command, "notify", 6) == 0) {
+                char target[32];
+                char newlevel[16];
+                int k = sscanf(oam_command, "notify %s %s", target, newlevel);
+                if (k == 0 || k == EOF) {
+                    fprintf(cmd_w, "Notification level limits:\n  LOG    %s\n  SUBMIT %s\n",
+                            notification_string_from_level(notification_log_level()),
+                            notification_string_from_level(notification_submit_level()));
+                } else if (k == 2) {
+                    if (notification_level_valid(newlevel)) {
+                        NotificationLevel nlvl = notification_level_from_string(newlevel);
+                        if (strcmp(target, "LOG") == 0) {
+                            notification_set_log_level(nlvl);
+                        } else if (strcmp(target, "SUBMIT") == 0) {
+                            notification_set_submit_level(nlvl);
+                        } else {
+                            fprintf(cmd_w, "Invalid notification target '%s'.\n", target);
+                        }
+                    } else {
+                        fprintf(cmd_w, "Invalid notification level '%s'.\n", newlevel);
+                    }
+                } else {
+                    fprintf(cmd_w, "Invalid parameters for 'notify' command.\n");
+                }
+            }
+            else if (strncmp(oam_command, "sysmon", 6) == 0) {
+                char target[32];
+                char type[16];
+                char cmd[16];
+                unsigned period_ms = 2000;
+                bool ret = false, add = false;
+                int k = sscanf(oam_command, "sysmon %s %s %s %u", cmd, type, target, &period_ms);
+                if (k <= 2 || k == EOF) {
+                    fprintf(cmd_w, "sysmon <cmd> <type> <target> [period]\n");
+                } else if (k <= 4) {
+                    if ((strcmp(cmd, "add") == 0) || (strcmp(cmd, "rem") == 0)) {   // rem instead of del to avoid mixing up with delay
+                        if (strcmp(cmd, "add") == 0)
+                            add = true;
+                        if (strcmp(type, "tc") == 0) {
+                            ret = register_tc_notification(add, target, period_ms);
+                        } else if (strcmp(type, "delay") == 0) {
+                            ret =register_delay_notification(add, target, period_ms);
+                        } else if (strcmp(target, "modem") == 0) {
+                            ret = register_modem_notification(add, target, period_ms);
+                        } else {
+                            fprintf(cmd_w, "Invalid monitor type '%s'.\n", type);
+                        }
+                        if(ret)
+                            fprintf(cmd_w, "Success\n");
+                        else
+                            fprintf(cmd_w, "Error.\n");
+                    } else {
+                        fprintf(cmd_w, "Invalid command '%s'. Command should be 'add' or 'rem'\n", cmd);
+                    }
+                } else {
+                   fprintf(cmd_w, "Invalid parameters for 'sysmon' command.\n");
+               }
             }
             else if (strncmp(oam_command, "sessions", 8) == 0) {
                 int k=sscanf(oam_command, "sessions %s", streamname);
@@ -352,6 +425,30 @@ static void command_loop(struct CommandConnection *conn)
                     ERROR("sending rping command failed");
                 }
             }
+            else if (strncmp(oam_command, "notif_trigger", 13) == 0) {
+                struct OamRequest *trig_req = parse_trigger_command(oam_command+13, true, strdup(conn->name));
+                CHECK_REQUEST(trig_req);
+                if (!initiate_request(trig_req)) {
+                    ERROR("sending notif_trigger command failed");
+                }
+            }
+            else if (strncmp(oam_command, "notif_pull", 10) == 0) {
+                if (strlen(oam_command) == 10) {
+                    // no params, just query the state
+                    fprintf(cmd_w, "Notification pull is %s\n", notification_enable_pull(-1) ? "enabled" : "disabled");
+                } else {
+                    // parse the param
+                    if (strcmp(oam_command+10, " enable") == 0) {
+                        notification_enable_pull(1);
+                        fprintf(cmd_w, "Notification pull is now enabled\n");
+                    } else if (strcmp(oam_command+10, " disable") == 0) {
+                        notification_enable_pull(0);
+                        fprintf(cmd_w, "Notification pull is now disabled\n");
+                    } else {
+                        fprintf(cmd_w, "Notification pull setting '%s' is invalid\n", oam_command+10);
+                    }
+                }
+            }
             else if (strncmp(oam_command, "rlist", 5) == 0) {
                 struct OamRequest *rlist_req = parse_rlist_command(oam_command+5, strdup(conn->name));
                 CHECK_REQUEST(rlist_req);
@@ -394,7 +491,7 @@ static void *command_thread(void *arg)
     return NULL;
 }
 
-void oam_start_command_connection(int fd)
+void oam_start_command_connection(int fd, const char *remote_ip, unsigned short remote_port)
 {
     struct CommandConnection *conn = calloc_struct(CommandConnection);
     conn->socket_fd = fd;
@@ -405,11 +502,14 @@ void oam_start_command_connection(int fd)
     //FILE *cmd_r = fdopen(cmd_fd_dup, "r");
 
     setvbuf(conn->cmd_w, NULL, _IOLBF, 0);
+    conn->remote_ip = strdup(remote_ip);
+    conn->remote_port = remote_port;
 
     conn->thread = thread_launch(command_thread, conn, "command");
     if (conn->thread == NULL) {
         log_perror("could not create new oam thread");
         fclose(conn->cmd_w); // we only need to close the FILE*
+        free(conn->remote_ip);
         free(conn);
         return;
     }
@@ -451,6 +551,7 @@ static int command_connection_delete_cb(const char *key, void *value, void *user
     thread_stop(conn->thread);
     fclose(conn->cmd_w); // we only need to close the FILE*
     free(conn->name);
+    free(conn->remote_ip);
     free(conn);
     return 1;
 }

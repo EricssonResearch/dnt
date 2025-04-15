@@ -305,6 +305,12 @@ static void *iface_address_monitoring(void *arg)
                 strcpy(ip_str, "<none>");
             }
             log_info("udp-in %s new ip %s port %u", iface->name, ip_str, uid->port);
+
+            struct JsonValue *js = json_object();
+            json_object_insert(js, "interface", json_string(iface->name));
+            json_object_insert(js, "ip", json_string(ip_str));
+            json_object_insert(js, "port", json_number(uid->port));
+            notification_push_event("new src", NOTIF_INFO, js);
         }
 
         struct timespec now;
@@ -503,6 +509,7 @@ static bool udpin_open(struct Interface *iface)
     log_info("Udp-in interface %s on device %s ip %s port %u", iface->name, iface->ifname, if_ip, uid->port);
 
     uid->ifmon = thread_launch(iface_address_monitoring, iface, "ifmon %s", iface->name);
+    notification_register_source(iface->name, iface_notification_pull_fn, iface, 2000);
 
     iface->recvfd = sock;
     iface->state = IFS_OPEN;
@@ -512,6 +519,7 @@ static bool udpin_open(struct Interface *iface)
 static bool udpin_close(struct Interface *iface)
 {
     struct UdpInIfData *uid = (struct UdpInIfData *)iface->iface_private;
+    notification_register_source(iface->name, NULL, NULL, 2000);
     close(iface->recvfd);
     thread_stop(uid->ifmon);
     delete_senderlist(uid->senders);
@@ -605,8 +613,6 @@ struct Interface *new_udp_in_interface(const char *name, const char *ifname,
     uid->port = port;
     uid->family = ipversion == 6 ? AF_INET6 : AF_INET;
     uid->senders = sender_list;
-
-    iface->parsetree_ = new_parsetree(iface);
 
     return iface;
 }

@@ -213,7 +213,12 @@ struct Packet *iface_common_recv(struct Interface *iface, msghdr_process_cb *msg
 
     if (res > 0) {
         p->len = res;
+    } else {
+        return delete_packet(p);
     }
+
+    __atomic_add_fetch(&iface->recv_packets, 1, __ATOMIC_RELAXED);
+    __atomic_add_fetch(&iface->recv_octets, p->len, __ATOMIC_RELAXED);
 
     get_rx_tstamp(&msg, p, userdata);
     log_debug("Used timestamp: %ld.%09ld", p->recv_time.tv_sec, p->recv_time.tv_nsec);
@@ -229,7 +234,7 @@ struct Packet *iface_common_recv(struct Interface *iface, msghdr_process_cb *msg
 
 static void dropstat(struct Interface *iface, int socket)
 {
-    if (iface->dropstat_cntr > 5000) {
+    if (iface->dropstat_cntr++ > 5000) {
         struct tpacket_stats stats;
         unsigned optlen = sizeof(stats);
         if (getsockopt(socket, SOL_PACKET, PACKET_STATISTICS, &stats, &optlen) < 0) {
@@ -250,11 +255,6 @@ static void dropstat(struct Interface *iface, int socket)
 
 bool iface_common_send(struct Interface *iface, struct Packet *p, int socket, void *dst, unsigned dstlen)
 {
-    if (iface->state != IFS_OPEN) {
-        log_warning("send on %s: interface is not open", iface->name);
-        return false;
-    }
-
     if (p->header_count < 1) {
         log_error("send on %s: packet doesn't have headers", iface->name);
         return false;
@@ -309,12 +309,27 @@ bool iface_common_send(struct Interface *iface, struct Packet *p, int socket, vo
     }
 #endif
 
+    packet_logcat(p, "%s ", iface->name);
+
+    __atomic_add_fetch(&iface->send_packets, 1, __ATOMIC_RELAXED);
+    __atomic_add_fetch(&iface->send_octets, packet_length(p), __ATOMIC_RELAXED);
+
     if (sendmsg(socket, &msg, 0) < 0) {
-        log_perror("sendmsg on %s", iface->name);
+        // rate limit the error reports
+        struct timespec now;
+        clock_gettime(CLOCK_REALTIME, &now);
+        if (time_diff_us(now, iface->last_alert) > 1000*1000*5) {
+            log_perror("sendmsg on %s", iface->name);
+            struct JsonValue *js = json_object();
+            json_object_insert(js, "interface", json_string(iface->name));
+            char err[2048];
+            strerror_r(errno, err, sizeof(err));
+            json_object_insert(js, "error", json_string(err));
+            notification_push_event("send", NOTIF_ERROR, js);
+            iface->last_alert = now;
+        }
         return false;
     }
-
-    packet_logcat(p, "%s ", iface->name);
 
     dropstat(iface, socket);
 
@@ -323,6 +338,10 @@ bool iface_common_send(struct Interface *iface, struct Packet *p, int socket, vo
 
 bool iface_common_process(struct Interface *iface, struct Packet *p)
 {
+    if (iface->parsetree_ == NULL) {
+        iface->parsetree_ = new_parsetree(iface);
+    }
+
     struct PipelineIterator *pi = parsetree_identify(iface->parsetree_, p);
     if (pi == NULL) {
         delete_packet(p);
@@ -391,7 +410,7 @@ static void *socket_monitor_thread(void *param)
                 char errstr[1024] = {0}; // initialize because strerror_r() can fail
                 strerror_r(serr->ee_errno, errstr, sizeof(errstr));
                 // serr->ee_origin = 2 (SO_EE_ORIGIN_ICMP)
-                log_error("got ICMP error message on %s '%s' (type %u code %u)",
+                log_warning("got ICMP error message on %s '%s' (type %u code %u)",
                         st->name, errstr,
                         serr->ee_type, serr->ee_code);
             } else if (cmsg->cmsg_level == SOL_IPV6 && cmsg->cmsg_type == IPV6_RECVERR) {
@@ -399,11 +418,11 @@ static void *socket_monitor_thread(void *param)
                 char errstr[1024] = {0}; // initialize because strerror_r() can fail
                 strerror_r(serr->ee_errno, errstr, sizeof(errstr));
                 // serr->ee_origin = 3 (SO_EE_ORIGIN_ICMP6)
-                log_error("got ICMPv6 error message on %s '%s' (type %u code %u)",
+                log_warning("got ICMPv6 error message on %s '%s' (type %u code %u)",
                         st->name, errstr,
                         serr->ee_type, serr->ee_code);
             } else {
-                log_error("got unexpected error on %s level %u type %u",
+                log_warning("got unexpected error on %s level %u type %u",
                         st->name, cmsg->cmsg_level, cmsg->cmsg_type);
             }
         }
@@ -466,6 +485,20 @@ struct MonitorState *stop_monitoring_error_queue(struct MonitorState *st)
     }
     free(st);
     return NULL;
+}
+
+NotificationLevel iface_notification_pull_fn(void *self, struct JsonValue **msg)
+{
+    struct Interface *iface = (struct Interface *)self;
+
+    struct JsonValue *ret = json_object();
+    json_object_insert(ret, "recv_packets", json_number(iface->recv_packets));
+    json_object_insert(ret, "recv_octets", json_number(iface->recv_octets));
+    json_object_insert(ret, "send_packets", json_number(iface->send_packets));
+    json_object_insert(ret, "send_octets", json_number(iface->send_octets));
+
+    *msg = ret;
+    return NOTIF_PULL;
 }
 
 void print_ifaddrs(struct ifaddrs *ifa)

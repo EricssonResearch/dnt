@@ -4,6 +4,7 @@
 
 #include "seq_gen.h"
 #include "json.h"
+#include "notification.h"
 #include "packet.h"
 #include "pipeline.h"
 #include "seq_recov.h"
@@ -59,6 +60,13 @@ char *seq_gen_sprintf_state_json(struct JsonValue *json, const char *record_sep,
     }
 }
 
+static NotificationLevel seq_gen_notification_pull_fn(void *self, struct JsonValue **msg)
+{
+    struct PipelineObject *rep = (struct PipelineObject *)self;
+    struct JsonValue *js = get_state_json(rep);
+    *msg = js;
+    return NOTIF_PULL;
+}
 
 static void sequence_generation_reset(struct SequenceGenerator *gen)
 {
@@ -141,14 +149,16 @@ struct PipelineObject *new_seq_gen(const char *name, bool use_reset_flag, bool u
     ret->reset_flag = use_reset_flag;
     ret->use_init_seq_space = use_init_flag;
 
+    notification_register_source(name, seq_gen_notification_pull_fn, ret, 2000);
+
     return (struct PipelineObject *)ret;
 }
 
 struct PipelineObject *delete_seq_gen(struct PipelineObject *gen)
 {
+    notification_register_source(gen->name, NULL, NULL, 2000);
     //TODO throw if gen->type is not PO_SEQGEN
     free(gen->name);
     free(gen);
     return NULL;
 }
-

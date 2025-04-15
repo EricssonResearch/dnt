@@ -61,6 +61,7 @@ Currently available modules:
 * `HEADER`
 * `INTERFACE`
 * `MAIN`
+* `NOTIFICATION`
 * `OAM`
 * `PACKET`
 * `PACKETTRACE`

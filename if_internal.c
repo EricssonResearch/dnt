@@ -77,20 +77,37 @@ static bool int_recv(struct Interface *iface)
     if (ret < 0)
         log_perror("read interface %s", iface->name);
     struct Packet *p = packetfifo_get(pf);
+
+    __atomic_add_fetch(&iface->recv_packets, 1, __ATOMIC_RELAXED);
+    __atomic_add_fetch(&iface->recv_octets, p->len, __ATOMIC_RELAXED);
+
     return iface_common_process(iface, p);
 }
 
 static bool int_send(struct Interface *iface, struct Packet *p)
 {
-    struct PacketFifo *pf = (struct PacketFifo *)iface->iface_private;
-    if (iface->state == IFS_OPEN) {
-        struct Packet *newp = serialize_packet(p);
-        packetfifo_insert(pf, newp);
-        uint64_t one = 1;
-        int ret = write(iface->recvfd, &one, 8);
-        if (ret < 0)
-            log_perror("write interface %s", iface->name);
+    if (iface->state == IFS_INIT) {
+        log_error("internal %s send: not opened yet", iface->name);
+        return false;
     }
+
+    if (p->header_count < 1) {
+        log_error("internal %s send: packet doesn't have headers", iface->name);
+        return false;
+    }
+
+    struct PacketFifo *pf = (struct PacketFifo *)iface->iface_private;
+    packet_logcat(p, "%s ", iface->name);
+
+    __atomic_add_fetch(&iface->send_packets, 1, __ATOMIC_RELAXED);
+    __atomic_add_fetch(&iface->send_octets, packet_length(p), __ATOMIC_RELAXED);
+
+    struct Packet *newp = serialize_packet(p);
+    packetfifo_insert(pf, newp);
+    uint64_t one = 1;
+    int ret = write(iface->recvfd, &one, 8);
+    if (ret < 0)
+        log_perror("write interface %s", iface->name);
     return true;
 }
 
@@ -100,6 +117,7 @@ static bool int_open(struct Interface *iface)
         log_error("open internal interface %s: already opened", iface->name);
         return false;
     }
+    notification_register_source(iface->name, iface_notification_pull_fn, iface, 2000);
     log_info("Internal interface %s", iface->name);
     iface->recvfd = eventfd(0, EFD_SEMAPHORE);
     iface->state = IFS_OPEN;
@@ -115,6 +133,7 @@ static bool int_close(struct Interface *iface)
     }
     free(pf); // the sentinel
     close(iface->recvfd);
+    notification_register_source(iface->name, NULL, NULL, 2000);
     log_info("Internal interface %s closed", iface->name);
     return true;
 }
@@ -130,8 +149,6 @@ struct Interface *new_internal_interface(const char *name)
     iface->get_property_reader = NULL;
 
     iface->iface_private = new_packetfifo();
-
-    iface->parsetree_ = new_parsetree(iface);
 
     return iface;
 }

@@ -5,7 +5,9 @@
 #include "pipeline.h"
 #include "action.h"
 #include "interface.h"
+#include "json.h"
 #include "log.h"
+#include "notification.h"
 #include "packet.h"
 #include "utils.h"
 
@@ -85,6 +87,12 @@ bool pipe_set_mask(struct Pipeline *pipe, bool new_mask)
 {
     if (pipe->mask != new_mask) {
         pipe->mask = new_mask;
+
+        struct JsonValue *noti = json_object();
+        json_object_insert(noti, "source_pipeline", json_string(pipe->name));
+        json_object_insert(noti, "status", json_string(new_mask ? "masked" : "unmasked"));
+        notification_push_event("mask", NOTIF_INFO, noti);
+
         return true;
     }
     return false;
@@ -115,4 +123,13 @@ void pipe_iterator_run(struct PipelineIterator *pi)
 void pipe_iteraror_cancel(struct PipelineIterator *pi)
 {
     delete_iterator(pi);
+}
+
+struct JsonValue *pipe_get_state(const struct Pipeline *pipe)
+{
+    struct JsonValue *state = json_object();
+    json_object_insert(state, "name", json_string(pipe->name));
+    json_object_insert(state, "mask_state", json_string(pipe->mask ? "masked" : "unmasked"));
+    json_object_insert(state, "action_count", json_number((double) pipe->action_count));
+    return state;
 }

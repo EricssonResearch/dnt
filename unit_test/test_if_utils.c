@@ -32,6 +32,12 @@ struct PipelineIterator *parsetree_identify(struct ParseTree *pt, struct Packet 
 void pipe_iterator_run(struct PipelineIterator *pi);
 void pipe_iterator_run(struct PipelineIterator *pi)
     { (void)pi; }
+bool notification_push_event(const char *source, NotificationLevel level, struct JsonValue *message)
+    { (void)source; (void)level; (void)message; return true; }
+struct ParseTree *new_parsetree(const struct Interface *iface);
+struct ParseTree *new_parsetree(const struct Interface *iface)
+    { (void)iface; return NULL; }
+
 // XXX end stubs
 
 

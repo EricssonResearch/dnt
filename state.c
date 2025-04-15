@@ -8,6 +8,7 @@
 #include "conf_streams.h"
 #include "interface.h"
 #include "log.h"
+#include "notification.h"
 #include "oam.h"
 #include "object.h"
 #include "pipeline.h"
@@ -86,6 +87,7 @@ struct StateTransaction *new_transaction(const char *name)
     ret->objects = new_hashmap(11, obj_delete_cb, NULL);
     ret->streams = new_hashmap(22, stream_delete_cb, NULL);
     ret->oam = new_hashmap(7, NULL, NULL);
+    ret->del_ifaces = new_hashmap(7, NULL, NULL);
     return ret;
 }
 
@@ -100,9 +102,24 @@ struct StateTransaction *delete_transaction(struct StateTransaction *tr)
     delete_hashmap(tr->iface_streams);
     delete_hashmap(tr->oam);
     delete_hashmap(tr->ifaces);
+    delete_hashmap(tr->del_ifaces);
     free(tr);
 
     return NULL;
+}
+
+static int del_interfaces_cb(const char *key, void *value, void *userdata)
+{
+    (void)value;
+    const char *trname = (const char*)userdata;
+    //TODO validate the whole transaction before committing anything
+    if (!hashmap_find(state_interfaces, key)) {
+        log_error("transaction '%s' del_iface '%s' not found", trname, key);
+        return 0;
+    }
+    hashmap_remove(state_interfaces, key);
+    log_debug("removed interface %s", key);
+    return 1;
 }
 
 static int add_new_objects_cb(const char *key, void *value, void *userdata)
@@ -113,6 +130,7 @@ static int add_new_objects_cb(const char *key, void *value, void *userdata)
     //TODO do we error check here or when we add items to the transaction?
     pipeline_object_ref(obj);
     hashmap_insert(state_objects, obj->name, obj);
+    log_debug("added object %s", obj->name);
     return 1;
 }
 
@@ -124,15 +142,20 @@ static int add_new_ifaces_cb(const char *key, void *value, void *userdata)
     //TODO do we error check here or when we add items to the transaction?
     iface_ref(iface);
     hashmap_insert(state_interfaces, iface->name, iface);
+    log_debug("added interface %s", iface->name);
     return 1;
 }
 
 static int open_new_ifaces_cb(const char *key, void *value, void *userdata)
 {
     (void)userdata;
-    log_debug("opening interface %s", key);
     struct Interface *iface = (struct Interface *)value;
-    return iface->open(iface);
+    if (iface->state == IFS_INIT) {
+        log_debug("opening interface %s", key);
+        return iface->open(iface);
+    } else {
+        return 1;
+    }
 }
 
 struct AddstreamState {
@@ -200,13 +223,20 @@ static bool add_streams_to_interfaces(struct StateTransaction *tr)
     return true;
 }
 
-static int purge_unused_cb(const char *key, void *value, void *userdata)
+static int purge_unused_objects_cb(const char *key, void *value, void *userdata)
 {
-    struct HashMap *objects = (struct HashMap *)userdata;
+    struct HashMap *transaction_objects = (struct HashMap *)userdata;
     struct PipelineObject *obj = (struct PipelineObject *)value;
     if (obj->reference_count == 1) {
-        // this means only the hashmap holds reference
-        hashmap_remove(objects, key);
+        // this means only the state hashmap holds reference
+        log_debug("purging unused object %s", key);
+        hashmap_remove(state_objects, key);
+    } else if (obj->reference_count == 2) {
+        // if the second reference is the transaction, then it's unused
+        if (hashmap_contains(transaction_objects, key)) {
+            log_debug("purging newly added but unused object %s", key);
+            hashmap_remove(state_objects, key);
+        }
     }
     return 1;
 }
@@ -218,6 +248,18 @@ static int start_oam_ping_cb(const char *key, void *value, void *userdata)
     return oam_start_background_ping(key, command);
 }
 
+static unsigned count_added_streams(struct HashMap *iface_streams)
+{
+    unsigned ret = 0;
+    HASHMAP_ITERATE(iface_streams, it) {
+        struct ConfStreamList *streamlist = (struct ConfStreamList *)hash_iterator_value(&it);
+        while (streamlist) {
+            ret++;
+            streamlist = streamlist->next;
+        }
+    }
+    return ret;
+}
 
 struct Interface *state_get_interface(const char *ifname)
 {
@@ -265,10 +307,15 @@ int state_foreach_objects(state_foreach_obj_cb *cb, void *userdata)
 
 bool state_commit_transaction(struct StateTransaction *tr)
 {
+    log_info("committing transaction '%s' ...", tr->name);
     // note: the order of operations is important
 
     //TODO remove streams that are on the del list (no such list yet)
-    //TODO remove interfaces that are on the del list (no such list yet)
+
+    if (!hashmap_foreach(tr->del_ifaces, del_interfaces_cb, tr->name)) {
+        //TODO rollback
+        return false;
+    }
 
     if (!hashmap_foreach(tr->objects, add_new_objects_cb, NULL)) {
         //TODO rollback
@@ -290,7 +337,7 @@ bool state_commit_transaction(struct StateTransaction *tr)
         return false;
     }
 
-    if (!hashmap_foreach(state_objects, purge_unused_cb, state_objects)) {
+    if (!hashmap_foreach(state_objects, purge_unused_objects_cb, tr->objects)) {
         //TODO rollback
         return false;
     }
@@ -299,6 +346,20 @@ bool state_commit_transaction(struct StateTransaction *tr)
         //TODO rollback
         return false;
     }
+
+    struct JsonValue *msg = json_object();
+    json_object_insert(msg, "committed", json_string(tr->name));
+    if (hashmap_count(tr->del_ifaces))
+        json_object_insert(msg, "del_ifaces", json_number(hashmap_count(tr->del_ifaces)));
+    if (hashmap_count(tr->ifaces))
+        json_object_insert(msg, "add_ifaces", json_number(hashmap_count(tr->ifaces)));
+    if (hashmap_count(tr->objects))
+        json_object_insert(msg, "add_objects", json_number(hashmap_count(tr->objects)));
+    unsigned add_streams = count_added_streams(tr->iface_streams);
+    if (add_streams)
+        json_object_insert(msg, "add_streams", json_number(add_streams));
+    notification_push_event("transaction", NOTIF_INFO, msg);
+    log_info("transaction '%s' committed successfully", tr->name);
 
     return true;
 }

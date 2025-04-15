@@ -1,19 +1,21 @@
 // Copyright (c) 2023, Ericsson AB and Ericsson Telecommunication Hungary
 // All rights reserved.
 
-
 #include "action.h"
 #include "delay.h"
 #include "log.h"
 #include "pipeline.h"
 #include "utils.h"
 #include "thread_utils.h"
+#include "notification.h"
 
 #include <stdlib.h>
+#include <stdio.h>
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <errno.h>
 #include <pthread.h>
+#include <string.h>
 #include <semaphore.h>
 #include <sys/eventfd.h>
 #include <sys/select.h>
@@ -21,18 +23,59 @@
 
 DEFAULT_LOGGING_MODULE(DELAY, WARNING);
 
+int delay_actions = 0;
+
+struct DelayStat {
+    unsigned long long delayed_packets;
+    unsigned long long delay_exceeded_packets;
+};
+
 struct DelayQueue {
     struct PipelineIterator *pi;
     struct timespec delay;
     struct timespec due_time;
+    struct DelayStat *stat;
     struct DelayQueue *next;
 };
+
+static struct HashMap *stats = NULL;
 
 static struct DelayQueue *delay_queue = NULL;
 static struct Thread *thread = NULL;
 static sem_t delay_sem;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 struct timespec delay_timer;
+struct timespec last_alert;
+
+
+static NotificationLevel delay_notification_pull_fn(void *self, struct JsonValue **msg)
+{
+    (void)self;
+    struct JsonValue *ret = json_object();
+
+    HASHMAP_ITERATE(stats, s) {
+        struct DelayStat *stat = (struct DelayStat *)hash_iterator_value(&s);
+        const char *pipeline_name = hash_iterator_key(&s);
+        struct JsonValue *js = json_object();
+        json_object_insert(js, "delayed_packets", json_number(stat->delayed_packets));
+        json_object_insert(js, "delay_exceeded_packets", json_number(stat->delay_exceeded_packets));
+        json_object_insert(ret, pipeline_name, js);
+    }
+
+/*    unsigned len;
+    log_info("js=%s\n", json_serialize(ret, &len));
+*/
+    *msg = ret;
+    return NOTIF_PULL;
+}
+
+bool register_delay_notification(bool add, char *target, unsigned period_ms)
+{
+    if(add)
+        return notification_register_source("delay", delay_notification_pull_fn, target, period_ms);
+    else
+        return notification_register_source("delay", NULL, target, period_ms);
+}
 
 static void *delay_thread(void *arg)
 {
@@ -69,6 +112,8 @@ static void *delay_thread(void *arg)
         struct PipelineIterator *pi = pDelayQueueFirst->pi;
         //struct Action *a = pi->pipe->actions[pi->pos];
 
+        pDelayQueueFirst->stat->delayed_packets++;
+
         // Move to the next frame in tt queue
         delay_queue = pDelayQueueFirst->next;
         free(pDelayQueueFirst);
@@ -103,6 +148,8 @@ bool init_delay(void)
         return false;
     }
 
+    stats = new_hashmap(13, NULL, NULL);
+
     //delay_queue = calloc_struct(DelayQueue);
     thread = thread_launch_priority(delay_thread, NULL, 97, "delay thread");
     if (thread == NULL) {
@@ -114,6 +161,11 @@ bool init_delay(void)
         log_warning("Could not set priority for delay thread");
     }
 
+    clock_gettime(CLOCK_REALTIME, &last_alert);
+
+    static char name[] = "delay";  // ToDo: per pipeline delay stat?
+    notification_register_source(name, delay_notification_pull_fn, name, 2000);
+
     return true;
 }
 
@@ -122,6 +174,7 @@ void fini_delay(void)
     thread_stop(thread);
     sem_destroy(&delay_sem);
     free(delay_queue);
+    delete_hashmap(stats);
 }
 
 void delay_insert(struct PipelineIterator *pi, unsigned timestamp, const struct timespec delay)
@@ -134,8 +187,16 @@ void delay_insert(struct PipelineIterator *pi, unsigned timestamp, const struct 
         return;
     }
 
+    // find the stats related to pipe
+    struct DelayStat *stat = (struct DelayStat *)hashmap_find(stats, pi->pipe->name);
+    if (!stat) {
+        stat = calloc_struct(DelayStat);
+        hashmap_insert(stats, strdup(pi->pipe->name), stat);
+    }
+
     pDelayQueueEntry->pi = pi;
     pDelayQueueEntry->delay = delay;
+    pDelayQueueEntry->stat = stat;
     pDelayQueueEntry->next = NULL;
 
     // get current time
@@ -147,6 +208,21 @@ void delay_insert(struct PipelineIterator *pi, unsigned timestamp, const struct 
     struct timespec result;
     timespecadd(&pDelayQueueEntry->due_time, &delay, &result);
     pDelayQueueEntry->due_time = result;
+
+    if(time_diff_us(now_ts, pDelayQueueEntry->due_time) > 0){
+        stat->delay_exceeded_packets++;
+        // already over due time, send notification once per sec
+        if (time_diff_us(now_ts, last_alert) > 1000*1000*5) {
+            log_perror("delay %s", pi->pipe->name);
+/*          // push notification
+            struct JsonValue *js = json_object();
+            json_object_insert(js, "delay", json_string(pi->pipe->name));
+            json_object_insert(js, "error", json_string("Delay already exceeded"));
+            notification_push_event("delay", NOTIF_ERROR, js);
+            last_alert = now_ts;
+*/
+        }
+    }
 
     // handling the delay queue should not be interrupted
     pthread_mutex_lock(&mutex);

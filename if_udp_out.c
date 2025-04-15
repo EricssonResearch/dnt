@@ -50,13 +50,18 @@ static bool udpout_recv(struct Interface *iface)
 static bool udpout_send(struct Interface *iface, struct Packet *p)
 {
     struct UdpOutIfData *uid = (struct UdpOutIfData *)iface->iface_private;
-    if (iface->state == IFS_OPEN) {
-        bool ret = iface_common_send(iface, p, uid->sock, uid->dstaddr, uid->dstaddr_size);
-        return ret;
-    } else {
-        // we don't know the dst address yet
+
+    if (iface->state == IFS_INIT) {
+        log_error("udp-out %s send: not opened yet", iface->name);
         return false;
     }
+
+    if (uid->sock == 0) {
+        log_error("udp-out %s send: no destination set", iface->name);
+        return false;
+    }
+
+    return iface_common_send(iface, p, uid->sock, uid->dstaddr, uid->dstaddr_size);
 }
 
 static bool udpout_open(struct Interface *iface)
@@ -200,6 +205,7 @@ static bool udpout_open(struct Interface *iface)
 */
 
     uid->errq_monitor = monitor_error_queue(sock, uid->family, iface->name);
+    notification_register_source(iface->name, iface_notification_pull_fn, iface, 2000);
 
     log_info("Udp-out interface %s on device %s destination %s port %u", iface->name, iface->ifname, uid->dst_ip, uid->dport);
     iface->dropstat_cntr = 0;
@@ -212,6 +218,9 @@ static bool udpout_close(struct Interface *iface)
 {
     struct UdpOutIfData *uid = (struct UdpOutIfData *)iface->iface_private;
     stop_monitoring_error_queue(uid->errq_monitor);
+    // note: we only register after we've opened the socket to a known target ip
+    if (uid->sock)
+        notification_register_source(iface->name, NULL, NULL, 2000);
     close(uid->sock);
     free(uid->dst_ip);
     free(uid->dstaddr);
@@ -395,6 +404,12 @@ bool udp_out_set_dst(struct Interface *iface, const char *dst_ip, unsigned dst_p
     } else {
         uid->dstip.v4 = dst4;
     }
+
+    struct JsonValue *js = json_object();
+    json_object_insert(js, "interface", json_string(iface->name));
+    json_object_insert(js, "ip", json_string(dst_ip));
+    json_object_insert(js, "port", json_number(dst_port));
+    notification_push_event("new dst", NOTIF_INFO, js);
 
     if (iface->state == IFS_INIT) {
         if (uid->opened) {

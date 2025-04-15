@@ -20,8 +20,6 @@ struct Thread;
 
 struct StreamSessions *get_stream_sessions(const char *stream_name);
 
-bool known_stream(const char *stream_name);
-
 int alloc_session_id(struct StreamSessions *stream, struct OamRequest *req,
         const char *conn_name, unsigned interval_ms);
 
@@ -41,7 +39,7 @@ struct Thread *session_get_thread(struct StreamSessions *stream, int session);
 
 void session_touch(struct StreamSessions *stream, int session);
 
-void init_msg_module(bool have_command_iface, bool have_reply_iface);
+void init_msg_module(bool have_reply_iface);
 
 void finish_msg_module(void);
 

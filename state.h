@@ -21,6 +21,9 @@ struct StateTransaction {
     struct HashMap *streams; // name -> struct ConfStream
     struct HashMap *iface_streams; // ifname -> ConfStreamList
     struct HashMap *oam;     // name -> command string
+
+    struct HashMap *del_ifaces; // name -> NULL
+    struct HashMap *del_streams; //TODO tuples of {iface name, stream name}
 };
 
 struct StateTransaction *new_transaction(const char *name);

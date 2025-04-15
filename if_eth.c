@@ -91,6 +91,11 @@ static bool eth_send(struct Interface *iface, struct Packet *p)
 {
     struct EthIfData *eid = (struct EthIfData *)iface->iface_private;
 
+    if (iface->state == IFS_INIT) {
+        log_error("eth %s send: not opened yet", iface->name);
+        return false;
+    }
+
     if (p->header_count < 1) {
         log_error("eth %s send: packet doesn't have headers", iface->name);
         return false;
@@ -134,19 +139,22 @@ static bool eth_open(struct Interface *iface)
         int sock = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
         if (sock < 0) {
             log_perror("if_eth %s socket %d", iface->name, i);
-            return false; //TODO cleanup on error
+            return false;
         }
 
         if (setsockopt(sock, SOL_SOCKET, SO_PRIORITY, &i, sizeof(i)) < 0) {
             log_perror("setsockopt SO_PRIORITY");
             close(sock);
-            return false; //TODO cleanup on error
+            return false;
         }
 
         // enable so_txtime sockopt on the socket because delay offload appeared in actions
-        if (iface->delay_offload)
-            if (!enable_so_txtime(sock, "eth", iface->ifname, false))
+        if (iface->delay_offload) {
+            if (!enable_so_txtime(sock, "eth", iface->ifname, false)) {
+                close(sock);
                 return false;
+            }
+        }
 
         if (i == 0) {
             struct ifreq if_mtu, if_mac, if_idx;
@@ -158,14 +166,17 @@ static bool eth_open(struct Interface *iface)
             strncpy(if_idx.ifr_name, iface->ifname, IFNAMSIZ-1);
             if (ioctl(sock, SIOCGIFMTU, &if_mtu) < 0) {
                 log_perror("SIOCGIFMTU");
+                close(sock);
                 return false;
             }
             if (ioctl(sock, SIOCGIFHWADDR, &if_mac) < 0) {
                 log_perror("SIOCGIFHWADDR");
+                close(sock);
                 return false;
             }
             if (ioctl(sock, SIOCGIFINDEX, &if_idx) < 0) {
                 log_perror("SIOCGIFINDEX");
+                close(sock);
                 return false;
             }
             eid->mtu = if_mtu.ifr_mtu;
@@ -176,6 +187,7 @@ static bool eth_open(struct Interface *iface)
             int enable = 1;
             if (setsockopt(sock, SOL_PACKET, PACKET_AUXDATA, &enable, sizeof(enable)) < 0) {
                 log_perror("setsockopt PACKET_AUXDATA");
+                close(sock);
                 return false;
             }
 
@@ -189,6 +201,7 @@ static bool eth_open(struct Interface *iface)
             socket_address.sll_ifindex = if_idx.ifr_ifindex;
             if (bind(sock, (struct sockaddr *)&socket_address, sizeof(socket_address)) < 0) {
                 log_perror("bind sock to iface");
+                close(sock);
                 return false;
             }
             // set iface to promiscuous mode
@@ -199,15 +212,16 @@ static bool eth_open(struct Interface *iface)
             memset(&mreq.mr_address, 0, sizeof(mreq.mr_address));
             if (setsockopt(sock, SOL_PACKET, PACKET_ADD_MEMBERSHIP, &mreq, sizeof(mreq)) < 0) {
                 log_perror("setsockopt mreq promisc");
+                close(sock);
                 return false;
             }
 
             // Ignore outgoing packets sent on other priority sockets (since Linux 4.20)
             int true_flag = 1;
-            if (setsockopt(sock, SOL_PACKET, PACKET_IGNORE_OUTGOING, &true_flag, sizeof(i)) < 0) {
+            if (setsockopt(sock, SOL_PACKET, PACKET_IGNORE_OUTGOING, &true_flag, sizeof(true_flag)) < 0) {
                 log_perror("setsockopt PACKET_IGNORE_OUTGOING");
                 close(sock);
-                return false; //TODO cleanup on error
+                return false;
             }
         } else {
             // set socket receive buffer to minimum (setting to zero will set it to minimum)
@@ -215,10 +229,12 @@ static bool eth_open(struct Interface *iface)
             socklen_t sl = sizeof(recvbuf_len);
             if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF, &recvbuf_len, sl) < 0) {
                 log_perror("setsockopt SO_RCVBUF");
+                close(sock);
                 return false;
             }
             /*if (getsockopt(sock, SOL_SOCKET, SO_RCVBUF, &recvbuf_len, &sl) < 0) {
                 log_perror("getsockopt SO_RCVBUF");
+                close(sock);
                 return false;
             }
             printf("eth %s %s sock %u recvbuf_len %d\n", iface->name, iface->ifname, i, recvbuf_len);*/
@@ -226,6 +242,8 @@ static bool eth_open(struct Interface *iface)
         eid->sockfd[i] = sock;
         eid->pcp_used[i] = 1;
     }
+
+    notification_register_source(iface->name, iface_notification_pull_fn, iface, 2000);
 
     log_info("Eth interface %s on device %s", iface->name, iface->ifname);
     iface->recvfd = eid->sockfd[0];
@@ -244,6 +262,7 @@ static bool eth_close(struct Interface *iface)
         }
     }
     free(eid);
+    notification_register_source(iface->name, NULL, NULL, 2000);
     log_info("Eth interface %s closed", iface->name);
     return true;
 }
@@ -290,8 +309,6 @@ struct Interface *new_eth_interface(const char *name, const char *ifname)
 
     struct EthIfData *eid = calloc_struct(EthIfData);
     iface->iface_private = eid;
-
-    iface->parsetree_ = new_parsetree(iface);
 
     return iface;
 }

@@ -3,6 +3,7 @@
 
 
 #include "packet.h"
+#include "notification.h"
 #include "protocol.h"
 #include "utils.h"
 #include "log.h"
@@ -139,7 +140,7 @@ bool packet_identify_header(struct Packet *p, enum ProtocolID type, unsigned off
 // returns the start offset of the allocated space, or -1 on error
 static int scratch_alloc(struct Packet *p, unsigned len)
 {
-    if (p->scratch_len + len >= PACKET_START_OFFSET) return -1;
+    if (p->scratch_len + len >= p->start) return -1;
     off_t ret = p->scratch_len;
     p->scratch_len += len;
     return ret;
@@ -195,12 +196,36 @@ void packet_clear_headers(struct Packet *p)
     p->scratch_len = 0;
 }
 
+void packet_enlarge_scratch(struct Packet *p)
+{
+    if (p->len == 0) {
+        p->start = PACKET_BUF_LEN;
+    }
+}
+
 void packets_check_performance(void)
 {
     if (packet_count > PACKET_COUNT_LIMIT * 0.9) {
         log_warning("SEVERE PERFORMANCE WARNING: too many packets in the system");
+
+        // rate is limited by the caller
+        struct JsonValue *js = json_object();
+
+        json_object_insert(js, "warning", json_string("performance"));
+        json_object_insert(js, "cause", json_string("too many packets in the system"));
+        json_object_insert(js, "severity", json_string("high"));
+        notification_push_event("send", NOTIF_WARNING, js);
+
     } else if (packet_count > PACKET_COUNT_LIMIT * 0.5) {
         log_warning("PERFORMANCE WARNING: too many packets in the system");
+
+        // rate is limited by the caller
+        struct JsonValue *js = json_object();
+        json_object_insert(js, "warning", json_string("performance"));
+        json_object_insert(js, "cause", json_string("too many packets in the system"));
+        json_object_insert(js, "severity", json_string("medium"));
+        notification_push_event("send", NOTIF_WARNING, js);
+
     }
 }
 

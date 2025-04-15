@@ -3,6 +3,7 @@
 
 
 #include "json.h"
+#include "notification.h"
 #include "object.h"
 #include "pipeline.h"
 #include "replicate.h"
@@ -28,7 +29,23 @@ static struct JsonValue *get_state_json(const struct PipelineObject *obj)
     json_object_insert(js, "name", json_string(obj->name));
     json_object_insert(js, "packets_passed", json_number(rep->packets_passed));
     json_object_insert(js, "octets_passed", json_number(rep->octets_passed));
+    struct JsonValue *pipe_states = json_array();
+    struct PipelineList *iter = rep->pipes;
+    while (iter) {
+        struct JsonValue *pstate = pipe_get_state(iter->pipe);
+        json_array_push(pipe_states, pstate);
+        iter = iter->next;
+    }
+    json_object_insert(js, "pipelines", pipe_states);
     return js;
+}
+
+static NotificationLevel repl_notification_pull_fn(void *self, struct JsonValue **msg)
+{
+    struct PipelineObject *rep = (struct PipelineObject *)self;
+    struct JsonValue *js = get_state_json(rep);
+    *msg = js;
+    return NOTIF_PULL;
 }
 
 struct PipelineList *replicate_get_pipes(struct PipelineObject *rep)
@@ -59,9 +76,7 @@ static enum ActionResult replicate_packet_passed(struct PipelineObject *rep, str
 {
     struct Replicate *r = (struct Replicate *)rep;
     __atomic_fetch_add(&r->packets_passed, 1, __ATOMIC_RELAXED);
-    //TODO this is not correct if a header was deleted, but
-    //      summing the header lengths would be too slow
-    __atomic_fetch_add(&r->octets_passed, pi->packet->len + pi->packet->scratch_len, __ATOMIC_RELAXED);
+    __atomic_fetch_add(&r->octets_passed, packet_length(pi->packet), __ATOMIC_RELAXED);
     return ACR_CONTINUE;
 }
 
@@ -73,11 +88,13 @@ struct PipelineObject *new_replicate(const char *name)
     ret->base.process_packet = replicate_packet_passed;
     ret->base.get_state = get_state_json;
     ret->base.reference_count = 1;
+    notification_register_source(name, repl_notification_pull_fn, ret, 2000);
     return (struct PipelineObject *)ret;
 }
 
 struct PipelineObject *delete_replicate(struct PipelineObject *rep)
 {
+    notification_register_source(rep->name, NULL, NULL, 2000);
     free(rep->name);
     free(rep);
     return NULL;

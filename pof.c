@@ -7,6 +7,7 @@
 
 #include "pof.h"
 #include "log.h"
+#include "notification.h"
 #include "oam.h"
 #include "object.h"
 #include "packet.h"
@@ -74,7 +75,7 @@ static inline __attribute__((unused)) void pof_debug(const struct Pof *pof)
     }
 }
 
-static struct JsonValue *get_state_json(const struct PipelineObject *obj)
+static struct JsonValue *pof_get_state_json(const struct PipelineObject *obj)
 {
     const struct Pof *pof = (const struct Pof *)obj;
     struct JsonValue *js = json_object();
@@ -108,6 +109,14 @@ char *pof_sprintf_state_json(struct JsonValue *json, const char *record_sep, con
     } else {
         return strdup("<invalid pof state>");
     }
+}
+
+static NotificationLevel pof_notification_pull_fn(void *self, struct JsonValue **msg)
+{
+    const struct PipelineObject *pof = (struct PipelineObject *) self;
+    struct JsonValue *state = pof_get_state_json(pof);
+    *msg = state;
+    return NOTIF_PULL;
 }
 
 
@@ -202,6 +211,12 @@ static void pof_reset(struct Pof *pof)
         pof_pop_item(pof->q_head);
     if (pof->take_any == false) {
         log_info("reset");
+
+        struct JsonValue *noti = json_object();
+        json_object_insert(noti, "name", json_string(pof->base.name));
+        json_object_insert(noti, "message", json_string("reset"));
+        notification_push_event("pof", NOTIF_INFO, noti);
+
         pof->take_any = true;
     }
 }
@@ -325,7 +340,7 @@ struct PipelineObject *new_pof(const char *name, unsigned pof_max_delay, unsigne
     }
     ret->base.type = PO_POF;
     ret->base.name = strdup(name);
-    ret->base.get_state = get_state_json;
+    ret->base.get_state = pof_get_state_json;
     ret->base.process_packet = pof_insert;
     ret->base.reference_count = 1;
 
@@ -347,6 +362,7 @@ struct PipelineObject *new_pof(const char *name, unsigned pof_max_delay, unsigne
         log_perror("pthread_create");
         goto err_thread;
     }
+    notification_register_source(ret->base.name, pof_notification_pull_fn, ret, 2000);
     return (struct PipelineObject*)ret;
 
 err_thread:
@@ -360,6 +376,7 @@ err_evfd:
 struct PipelineObject *delete_pof(struct PipelineObject *p)
 {
     struct Pof *pof = (struct Pof*)p;
+    notification_register_source(p->name, NULL, NULL, 2000);
     pthread_cancel(pof->thread_id);
     pthread_join(pof->thread_id, NULL);
     pthread_mutex_destroy(&pof->lock);

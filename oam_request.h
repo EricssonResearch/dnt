@@ -27,6 +27,11 @@ struct OamRequest *parse_rping_command(const char *oam_command,
 
 // always returns a request, sets ret->error to an error message
 // @conn_name will be owned by the request
+struct OamRequest *parse_trigger_command(const char *oam_command, bool allow_num,
+        char *conn_name);
+
+// always returns a request, sets ret->error to an error message
+// @conn_name will be owned by the request
 struct OamRequest *parse_rlist_command(const char *oam_command,
         char *conn_name);
 

@@ -245,11 +245,11 @@ def test_ipv6():
     print(" packet sizes...", end=" ")
     #input("Press Enter to continue...")
     r=check_log(pids['r2'], r'if4\s+(\d+)\s+s3\s+\|ipv6\|ipv6\|payload\|', 144)
-    if r!=2*PING_NUM:
+    if r!=PING_NUM:
         print(f"found {r} log lines instead of {PING_NUM}")
         retval=0
     r=check_log(pids['r4'], r'if4\s+(\d+)\s+s5\s+\|ipv6\|ipv6\|payload\|', 144)
-    if r!=2*PING_NUM:
+    if r!=PING_NUM:
         print(f"found {r} log lines instead of {PING_NUM}")
         retval=0
 
@@ -313,11 +313,11 @@ def test_ipv4():
     print(" packet sizes...", end=" ")
     #input("Press Enter to continue...")
     r=check_log(pids['r2'], r'if4\s+(\d+)\s+s3\s+\|ipv6\|ipv4\|payload\|', 124)
-    if r!=2*PING_NUM:
+    if r!=PING_NUM:
         print(f"found {r} log lines instead of {PING_NUM}")
         retval=0
     r=check_log(pids['r4'], r'if4\s+(\d+)\s+s5\s+\|ipv6\|ipv4\|payload\|', 124)
-    if r!=2*PING_NUM:
+    if r!=PING_NUM:
         print(f"found {r} log lines instead of {PING_NUM}")
         retval=0
 
@@ -380,11 +380,11 @@ def test_tsn():
     print(" packet sizes...", end=" ")
     #input("Press Enter to continue...")
     r=check_log(pids['r2'], r'if4\s+(\d+)\s+s3\s+\|ipv6\|eth\|payload\|', 142)
-    if r!=2*PING_NUM:
+    if r!=PING_NUM:
         print(f"found {r} log lines instead of {PING_NUM}")
         retval=0
     r=check_log(pids['r4'], r'if4\s+(\d+)\s+s5\s+\|ipv6\|eth\|payload\|', 142)
-    if r!=2*PING_NUM:
+    if r!=PING_NUM:
         print(f"found {r} log lines instead of {PING_NUM}")
         retval=0
 

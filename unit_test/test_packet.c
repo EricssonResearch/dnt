@@ -3,11 +3,19 @@
 
 #include "packet.h"
 #include "log.h"
+#include "notification.h"
 #include "utils.h"
 
 #include <string.h>
 
 TEST_INIT("Packet");
+
+// XXX stubs for stuff that we depend on but don't need
+bool notification_push_event(const char *source, NotificationLevel level, struct JsonValue *message)
+    { (void)source; (void)level; (void)message; return false; }
+bool notification_register_source(const char *name, notification_pull_fn *callback, void *self, unsigned period_ms)
+    { (void)name; (void)callback; (void)self; (void)period_ms; return true; }
+// XXX end stubs
 
 static void fill_packet(struct Packet *p, unsigned offset, unsigned count)
 {
@@ -320,6 +328,14 @@ static void test_add_del(void)
     OK(packet_add_header(p, 0, PROTO_ID_IPv4, PACKET_START_OFFSET) == false, "scratch space overflow");
     OK(packet_add_header(p, 0, PROTO_ID_IPv4, PACKET_START_OFFSET-1) == true, "scratch space fill");
     OK(packet_length(p) == PACKET_START_OFFSET-1, "length %u", packet_length(p));
+
+    packet_clear_headers(p);
+    packet_enlarge_scratch(p);
+    OK(p->start == PACKET_BUF_LEN, "start");
+    OK(p->len == 0, "len %u", p->len);
+    OK(packet_add_header(p, 0, PROTO_ID_IPv4, PACKET_START_OFFSET) == true, "scratch space enough");
+    OK(packet_add_header(p, 1, PROTO_ID_IPv6, PACKET_START_OFFSET) == true, "scratch space enough");
+    OK(packet_length(p) == PACKET_START_OFFSET*2, "length %u", packet_length(p));
 
     OK(delete_packet(p) == NULL, "always returns null");
 }

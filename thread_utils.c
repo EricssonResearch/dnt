@@ -98,6 +98,8 @@ struct Thread *thread_stop(struct Thread *thread)
     if (thread->tid == pthread_self()) return NULL;
     log_debug("stopping thread '%s'", thread->name);
     pthread_cancel(thread->tid);
+    // we could check for a returned error code, but
+    // we cannot do anything about any of the possible errors :(
     pthread_join(thread->tid, NULL);
     free(thread->name);
     free(thread);
@@ -116,6 +118,27 @@ void thread_exit(struct Thread *thread)
     pthread_cancel(tid);
 }
 
+struct Thread *thread_join(struct Thread *thread)
+{
+    if (thread == NULL) return NULL;
+    if (thread->tid == pthread_self()) return NULL;
+    log_debug("joining thread '%s'", thread->name);
+    // we could check for a returned error code, but
+    // we cannot do anything about any of the possible errors :(
+    pthread_join(thread->tid, NULL);
+    free(thread->name);
+    free(thread);
+    return NULL;
+}
+
+void thread_wakeup(const struct Thread *thread)
+{
+    if (thread) {
+        log_debug("waking up thread '%s'", thread->name);
+        pthread_kill(thread->tid, SIGALRM);
+    }
+}
+
 const char *thread_getname(const struct Thread *thread)
 {
     return thread->name;
@@ -126,13 +149,6 @@ unsigned thread_getid(const struct Thread *thread)
     return thread->id;
 }
 
-void thread_wakeup(const struct Thread *thread)
-{
-    if (thread) {
-        log_debug("waking up thread '%s'", thread->name);
-        pthread_kill(thread->tid, SIGALRM);
-    }
-}
 
 struct Message {
     void *data;
@@ -260,4 +276,3 @@ int messagequeue_foreach(struct MessageQueue *q, int (*cb)(const void *item, voi
     pthread_mutex_unlock(&q->mutex);
     return 1;
 }
-

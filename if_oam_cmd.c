@@ -24,7 +24,7 @@
 
 DEFAULT_LOGGING_MODULE(INTERFACE, INFO);
 
-#define BACKLOG 2   // how many pending connections queue will hold
+#define BACKLOG 2   // how many pending connections the queue will hold
 
 struct OamCmdIfData {
     unsigned port;
@@ -35,10 +35,8 @@ struct OamCmdIfData {
     } srcip;
 };
 
-void *get_in_addr(struct sockaddr *sa);
-
 // get sockaddr, IPv4 or IPv6:
-void *get_in_addr(struct sockaddr *sa)
+static void *get_in_addr(struct sockaddr *sa)
 {
     if (sa->sa_family == AF_INET) {
         return &(((struct sockaddr_in*)sa)->sin_addr);
@@ -53,7 +51,7 @@ static bool oam_cmd_recv(struct Interface *iface)
 
     socklen_t sin_size;
     char s[INET6_ADDRSTRLEN];
-    struct sockaddr_storage their_addr; // connector's address information
+    struct sockaddr_storage their_addr; // remote's address information
     sin_size = sizeof their_addr;
     int new_fd = accept(iface->recvfd, (struct sockaddr *)&their_addr, &sin_size);
     if (new_fd == -1) {
@@ -62,9 +60,11 @@ static bool oam_cmd_recv(struct Interface *iface)
     }
 
     inet_ntop(their_addr.ss_family, get_in_addr((struct sockaddr *)&their_addr), s, sizeof s);
-    log_info("got Telnet connection from %s", s);
+    // sockaddr_in6 has the port at the same offset
+    struct sockaddr_in *sa4 = (struct sockaddr_in *)&their_addr;
+    log_debug("oam_cmd connection from %s port %u", s, ntohs(sa4->sin_port));
 
-    oam_start_command_connection(new_fd);
+    oam_start_command_connection(new_fd, s, ntohs(sa4->sin_port));
     return true;
 }
 
@@ -136,7 +136,7 @@ static bool oam_cmd_open(struct Interface *iface)
 
     iface->recvfd = sock;
     if (set_oam_cmd_if(iface)) {
-        log_info("OAM Command interface on IPv%d", oid->family==AF_INET6?6:4);
+        log_info("OAM Command interface on IPv%d port %u", oid->family==AF_INET6?6:4, oid->port);
         iface->state = IFS_OPEN;
         return true;
     } else {

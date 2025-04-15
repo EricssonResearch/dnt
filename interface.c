@@ -66,8 +66,7 @@ void iface_del_sender(struct Interface *iface)
 bool iface_add_stream(struct Interface *iface, struct HeaderDescriptor *headers, struct Pipeline *pipe)
 {
     if (iface->parsetree_ == NULL) {
-        log_error("%s can't receive stream %s without a parsetree", iface->name, pipe->name);
-        return false;
+        iface->parsetree_ = new_parsetree(iface);
     }
     if (!parsetree_add_stream(iface->parsetree_, headers, pipe)) {
         log_error("failed to add stream %s to parsetree", pipe->name);

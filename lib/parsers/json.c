@@ -582,7 +582,6 @@ static char *serialize_string(const char *string, char *buf, unsigned *buflen, u
     *slen += 1;
 
     // note: '/' can also be escaped (important in "</script>")
-
     for (const char *c=string; *c; c++) {
         // note: iscntrl() is also true for 0x7f (DEL) but we don't have to escape it
         if (*(unsigned char*)c <= 0x1f) {

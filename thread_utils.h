@@ -5,6 +5,15 @@
 #ifndef R2_THREAD_H
 #define R2_THREAD_H
 
+// finishing a thread can be done in 3 mutually exclusive ways:
+//  @thread_stop terminates another thread immediately
+//      use this when the thread doesn't have to clean up before exiting
+//  @thread_exit the thread terminates itself
+//      no other thread needs to do anyhing about this
+//  @thread_join waits for another thread to stop
+//      somehow send a signal to the thread to finish its job and cleanup
+//      then use this to wait for it to finish
+
 // handle for a named background thread
 struct Thread;
 
@@ -31,6 +40,12 @@ struct Thread *thread_stop(struct Thread *thread);
 // the other threads don't need to wait for it or join with it
 // doesn't do anything if called from another thread
 void thread_exit(struct Thread *thread);
+
+// waits for the thread to stop
+// has no timeout, so make sure the thread will stop
+// doesn't do anything if called from the thread itself
+// always returns NULL
+struct Thread *thread_join(struct Thread *thread);
 
 // send alarm signal for a thread
 void thread_wakeup(const struct Thread *thread);

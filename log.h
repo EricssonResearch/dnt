@@ -54,6 +54,7 @@ bool log_level_valid(const char *level);
 // unknown level is translated to NONE
 LOGGING_LEVELS log_level_from_string(const char *level);
 
+// @returns a string representation of the given @level
 const char *log_string_from_level(LOGGING_LEVELS level);
 
 struct __log_module {

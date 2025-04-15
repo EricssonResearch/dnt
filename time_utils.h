@@ -5,6 +5,7 @@
 #ifndef R2_TIME_UTILS_H
 #define R2_TIME_UTILS_H
 
+#include <stdint.h>
 #include <time.h>
 
 /* Operations on timespecs */
@@ -93,6 +94,26 @@
             (tsp)->tv_sec = (now)->tv_sec - 1;              \
         }                                                   \
     } while (0)
+
+//TODO convert the macros above into inline functions
+
+// returns t1-t2
+static inline int64_t time_diff_us(struct timespec t1, struct timespec t2)
+{
+    int64_t timediff;
+    timediff = (t1.tv_nsec - t2.tv_nsec) / 1000;
+    timediff += (t1.tv_sec - t2.tv_sec) * 1000000;
+    return timediff;
+}
+
+static inline struct timespec time_add_us(struct timespec t, unsigned increase_us)
+{
+    t.tv_sec += increase_us / 1000000;
+    t.tv_nsec += (increase_us % 1000000) * 1000;
+    t.tv_sec += t.tv_nsec / 1000000000;
+    t.tv_nsec %= 1000000000;
+    return t;
+}
 
 
 #endif // R2_TIME_UTILS_H

@@ -3,14 +3,15 @@
 
 
 #include "seq_recov.h"
+#include "json.h"
 #include "log.h"
+#include "notification.h"
 #include "oam.h"
 #include "packet.h"
 #include "pipeline.h"
 #include "time_utils.h"
 #include "thread_utils.h"
 #include "utils.h"
-#include "json.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -76,15 +77,19 @@ struct SequenceRecovery {
 // currently the only state of the session is the seq recovery
 static struct HashMap *oam_seq_recoveries = NULL; // session_id -> struct SequenceRecovery
 
+static void __attribute__((destructor)) cleanup_oam_seq_recoveries(void)
+{
+    delete_hashmap(oam_seq_recoveries);
+}
+
 TESTABLE char *oam_session_id(const struct Packet *p)
 {
-    // TODO: we can assume headers[1] indentified?
-    /* g_ach[4]; //node ID MSB */
-    /* g_ach[5]; //node ID LSB */
-    /* g_ach[7] & 0x0f; //session id */
-    const uint8_t *g_ach = p->buf + p->headers[1].start;
-    uint16_t node_id = (g_ach[4] << 8) + g_ach[5];
-    return strdup_printf("%d:%d", node_id, g_ach[7] & 0x0f);
+    if (p->header_count > 1 && p->headers[1].type == PROTO_ID_OAM) {
+        INTERPRET_DACH(p->buf + p->headers[1].start);
+        return strdup_printf("%d:%d", dach.nodeid, dach.session);
+    } else {
+        return NULL;
+    }
 }
 
 static int oam_rcvy_del_cb(const char *key, void *value, void *userdata)
@@ -151,14 +156,17 @@ static struct JsonValue *get_state_json(const struct PipelineObject *obj)
         json_object_insert(js, "latent_error_resets", json_number((double) rec->latent_error_resets));
         json_object_insert(js, "latent_errors", json_number((double) rec->latent_errors));
 
-        char *hist_content = (char *)calloc(1, rec->history_length + 1);
-        for (int i = 0; i < rec->history_length; ++i) {
-            if (rec->history[i] == 1)
-                hist_content[i] = '1';
-            else if (rec->history[i] == 0)
-                hist_content[i] = '0';
+        if (log_enabled(DEBUG)) {
+            char *hist_content = (char *)calloc(1, rec->history_length + 1);
+            for (int i = 0; i < rec->history_length; ++i) {
+                if (rec->history[i] == 1)
+                    hist_content[i] = '1';
+                else if (rec->history[i] == 0)
+                    hist_content[i] = '0';
+            }
+            json_object_insert(js, "history", json_string(hist_content));
+            free(hist_content);
         }
-        json_object_insert(js, "history", json_string(hist_content));
     }
     return js;
 }
@@ -183,7 +191,7 @@ char *seq_rec_sprintf_state_json(struct JsonValue *json, const char *record_sep,
             struct JsonValue *history = json_object_get_string(json, "history");
 
             if (use_init_flag && use_reset_flag && history_length &&
-                    latent_error_paths && latent_error_resets && latent_errors && history) {
+                    latent_error_paths && latent_error_resets && latent_errors) {
                 return strdup_printf("recovery_algorithm %s%sreset_timer %.0fms%s"
                         "use_init_flag %s%suse_reset_flag %s%shistory_length %.0f%s"
                         "history_content %s%s"
@@ -194,7 +202,7 @@ char *seq_rec_sprintf_state_json(struct JsonValue *json, const char *record_sep,
                         (use_init_flag->type == JSON_TRUE) ? "true" : "false", record_sep,
                         (use_reset_flag->type == JSON_TRUE) ? "true" : "false", record_sep,
                         history_length->v.number, line_sep,
-                        history->v.string, line_sep,
+                        history ? history->v.string : "...", line_sep,
                         latent_error_paths->v.number, record_sep, latent_error_resets->v.number, record_sep,
                         latent_errors->v.number, line_sep,
                         recovery_seq_num->v.number, record_sep,
@@ -215,6 +223,14 @@ char *seq_rec_sprintf_state_json(struct JsonValue *json, const char *record_sep,
     } else {
         return strdup("<invalid seq_rec state>");
     }
+}
+
+static NotificationLevel seq_rec_notification_pull_fn(void *self, struct JsonValue **msg)
+{
+    struct PipelineObject *rep = (struct PipelineObject *)self;
+    struct JsonValue *js = get_state_json(rep);
+    *msg = js;
+    return NOTIF_PULL;
 }
 
 static void shift_seq_history(struct SequenceRecovery *rec, char *history,  unsigned new_zero)
@@ -418,6 +434,7 @@ static enum ActionResult seq_recovery(struct PipelineObject *r, struct PipelineI
             accept =  match_seq_recovery(oam_rec, oam_seq);
             seq = oam_seq;
         }
+        free(session_id);
     }
     if (accept){
         packet_logcat(p, "(%d pass) ", seq);
@@ -430,6 +447,10 @@ static enum ActionResult seq_recovery(struct PipelineObject *r, struct PipelineI
 static void seq_recovery_reset(struct SequenceRecovery *rec)
 {
     log_info("%s%s: Sequence recovery reset.", rec->session_id ? "(OAM)" : "", rec->base.name);
+    struct JsonValue *noti = json_object();
+    json_object_insert(noti, "source", json_string(rec->base.name));
+    json_object_insert(noti, "message", json_string("recovery reset"));
+    notification_push_event("seq_rcvy", NOTIF_INFO, noti);
     rec->seq_recovery_resets += 1;
     rec->take_any = true;
     switch (rec->algorithm) {
@@ -444,11 +465,24 @@ static void seq_recovery_reset(struct SequenceRecovery *rec)
 
 static void recovery_diagnostic(struct SequenceRecovery *rec)
 {
-#define ALERT(msg, ...)                                     \
-    do {                                                    \
-        log_warning_m(DIAGNOSTIC, msg, ##__VA_ARGS__);      \
-        oam_cli_alert(msg, ##__VA_ARGS__);                  \
-    } while (0)                                             \
+#define ALERT(msg, ...)                                                     \
+    do {                                                                    \
+        log_warning_m(DIAGNOSTIC, msg, ##__VA_ARGS__);                      \
+        oam_cli_alert(msg, ##__VA_ARGS__);                                  \
+        char *notistr = strdup_printf(msg, ##__VA_ARGS__);                  \
+        struct JsonValue *noti = json_object();                             \
+        json_object_insert(noti, "source", json_string(rec->base.name));    \
+        json_object_insert(noti, "alert", json_string(notistr));            \
+        notification_push_event("diagnostic", NOTIF_WARNING, noti);         \
+        free(notistr);                                                      \
+    } while (0)                                                             \
+
+    const char *fmt_more = "%s: MORE_PACKETS_THAN_EXPECTED with %d percent";
+    const char *fmt_absent = "%s: PACKET_ABSENT";
+    const char *fmt_disfunct = "%s: DISFUNCTIONING_PATHS: %d path(s)";
+    const char *fmt_disfunct_absent = "%s: DISFUNCTIONING_PATHS: %d path(s) and PACKET_ABSENT";
+    const char *fmt_outofwin = "%s: OUTOFWINDOW_PACKETS: %d";
+    const char *fmt_loss = "%s: PACKET_LOSS: %d consecutive packets and %d aggregate lost";
 
     const struct RecoveryDiagnosticConf *diag = &rec->diag;
     int diff, discarded_diff, passed_diff;
@@ -466,31 +500,29 @@ static void recovery_diagnostic(struct SequenceRecovery *rec)
         goto update;
     } else if (diff >= diag->latent_error_difference) {
         int more_percent = (discarded_diff * 100) / ((diag->latent_error_paths - 1) * passed_diff);
-        ALERT("%s: MORE_PACKETS_THAN_EXPECTED with %d percent", rec->base.name, more_percent);
+        ALERT(fmt_more, rec->base.name, more_percent);
         goto update;
     }
     if (discarded_diff < diag->latent_error_difference) {
         disfunctioning_paths = diag->latent_error_paths - 1;
-        ALERT("%s: DISFUNCTIONING_PATHS: %d path(s)", rec->base.name, disfunctioning_paths);
+        ALERT(fmt_disfunct, rec->base.name, disfunctioning_paths);
     } else if (working_ceil == working_floor) {
         disfunctioning_paths = diag->latent_error_paths - 2 - working_ceil;
         if (disfunctioning_paths > 0) {
-            ALERT("%s: DISFUNCTIONING_PATHS: %d path(s) and PACKET_ABSENT",
-                     rec->base.name, disfunctioning_paths);
+            ALERT(fmt_disfunct_absent, rec->base.name, disfunctioning_paths);
         } else {
-        ALERT("%s: PACKET_ABSENT", rec->base.name);
+            ALERT(fmt_absent, rec->base.name);
         }
     } else {
         disfunctioning_paths = diag->latent_error_paths - 1 - working_ceil;
-    ALERT("%s: DISFUNCTIONING_PATHS: %d path(s)", rec->base.name, disfunctioning_paths);
+        ALERT(fmt_disfunct, rec->base.name, disfunctioning_paths);
     }
     if (rec->rogue_packets != rec->rogue_packets_last) {
-    ALERT("%s: OUTOFWINDOW_PACKETS: %d", rec->base.name, rec->rogue_packets);
+        ALERT(fmt_outofwin, rec->base.name, rec->rogue_packets);
         rec->rogue_packets_last = rec->rogue_packets;
     }
     if (rec->consecutive_loss_max > diag->outage_threshold) {
-    ALERT("%s: PACKET_LOSS: %d consecutive packets and %d aggregate lost",
-                 rec->base.name, rec->consecutive_loss_max, rec->lost_packets);
+        ALERT(fmt_loss, rec->base.name, rec->consecutive_loss_max, rec->lost_packets);
         rec->consecutive_loss_max = 0;
     }
 update:
@@ -523,7 +555,7 @@ static void latent_error_reset(struct SequenceRecovery *rec)
 static bool decrement_ticks(struct SequenceRecovery *rec)
 {
     rec->latent_reset_counter += 1000 / FRER_TICKS_PER_SEC;
-    if (rec->latent_reset_counter >= rec->diag.latent_reset_period) {
+    if (rec->diag.latent_reset_period && (rec->latent_reset_counter >= rec->diag.latent_reset_period)) {
         latent_error_reset(rec);
         rec->latent_reset_counter = 0;
     }
@@ -571,7 +603,9 @@ static void *reset_thread(void *arg)
         should_run = decrement_ticks(rec);
         timespecadd(&now, &delta, &sleep_until);
     }
+    struct Thread *reset_thread = rec->reset_thread;
     hashmap_remove(oam_seq_recoveries, rec->session_id);
+    thread_exit(reset_thread);
     return rec;
 }
 
@@ -624,6 +658,7 @@ struct PipelineObject *new_seq_rec(const char *name, enum SequenceRecoveryAlgori
         log_error("cant't create reset thread for %s", name);
         return delete_seq_rec((struct PipelineObject *)ret);
     }
+    notification_register_source(name, seq_rec_notification_pull_fn, ret, 2000);
 
     return (struct PipelineObject *)ret;
 }
@@ -631,8 +666,8 @@ struct PipelineObject *new_seq_rec(const char *name, enum SequenceRecoveryAlgori
 struct PipelineObject *delete_seq_rec(struct PipelineObject *r)
 {
     struct SequenceRecovery *rec = (struct SequenceRecovery *)r;
-    thread_stop(rec->reset_thread);
-    rec->reset_thread = NULL;
+    notification_register_source(r->name, NULL, NULL, 2000);
+    rec->reset_thread = thread_stop(rec->reset_thread);
     free(rec->history);
     free(rec->init_history);
     free(rec->session_id);

@@ -37,7 +37,7 @@ int foreach_oam_ifaces(hashmap_cb *cb, void *userdata);
 
 bool have_default_iface(void);
 
-unsigned short get_node_id(void);
+unsigned short get_default_node_id(void);
 
 struct MepStart *find_mep_start(const char *name);
 
@@ -49,6 +49,10 @@ bool mep_start_in_stream(const struct MepStart *start, const char *stream);
 
 void mep_start_wakeup_mask_checker(struct MepStart *start);
 
-void mep_start_count_passed(struct MepStart *start, struct Packet *pkt);
+void mep_start_count_passed(struct MepStart *start, const struct Packet *pkt);
+
+struct JsonValue *mep_start_get_state(const struct MepStart *mep_start);
+
+struct JsonValue *mep_start_get_state_by_target(struct MepStart *mep_start);
 
 #endif // R2_OAM_CORE_H
