@@ -3,6 +3,7 @@
 
 
 #include "seq_recov.h"
+#include "action.h"
 #include "json.h"
 #include "log.h"
 #include "notification.h"

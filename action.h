@@ -5,8 +5,9 @@
 #ifndef R2_ACTION_H
 #define R2_ACTION_H
 
-#include "protocol.h"
-#include "value.h"
+#include "header.h"
+#include "pipeline.h"
+#include "replicate.h"
 #include "time_utils.h"
 
 enum ActionType {
@@ -38,19 +39,7 @@ enum ActionResult {
     ACR_HOLD, // stop processing, keep the packet
 };
 
-//TODO can we include the respective headers without having a loop?
 struct Action;
-struct HeaderField;
-struct HeaderFieldAssign;
-struct Interface;
-struct Oam;
-struct Packet;
-struct PipelineIterator;
-struct PipelineObject;
-struct Pof;
-struct Replicate;
-struct SequenceGenerator;
-struct SequenceRecovery;
 
 typedef enum ActionResult action_execute(struct Action *a, struct PipelineIterator *pi);
 
@@ -69,14 +58,7 @@ struct Action {
     char *text; // textual representation (as it was in the config)
 };
 
-// this is the state of Replicate
-struct PipelineList {
-    struct Pipeline *pipe;
-    const char *text;
-    struct PipelineList *next;
-};
-
-// this is the state of Edit
+// this is the state of the Edit action
 // if @read is NULL then it is a constant value
 struct EditAssign {
     value_consumer *write;

@@ -6,7 +6,15 @@
 #define R2_REPLICATE_H
 
 #include "object.h"
-#include "packet.h"
+#include "pipeline.h"
+
+// this is the state of Replicate action
+struct PipelineList {
+    struct Pipeline *pipe;
+    const char *text;
+    struct PipelineList *next;
+};
+
 
 struct PipelineObject *new_replicate(const char *name);
 

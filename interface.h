@@ -5,6 +5,7 @@
 #ifndef R2_INTERFACE_H
 #define R2_INTERFACE_H
 
+#include "pipeline.h"
 #include "protocol.h"
 #include "time_utils.h"
 #include "value.h"
@@ -14,9 +15,7 @@
 struct Interface;
 
 struct HeaderDescriptor;
-struct Packet;
 struct ParseTree;
-struct Pipeline;
 
 enum IfaceType {
     IF_ETH = 1,

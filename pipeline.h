@@ -8,7 +8,6 @@
 #include <stdbool.h>
 
 struct Action;
-struct Interface;
 struct Packet;
 
 struct Pipeline {

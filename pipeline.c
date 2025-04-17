@@ -8,7 +8,6 @@
 #include "json.h"
 #include "log.h"
 #include "notification.h"
-#include "packet.h"
 #include "utils.h"
 
 #include <stdlib.h>

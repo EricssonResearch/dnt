@@ -3,14 +3,8 @@
 
 
 #include "action.h"
-#include "object.h"
 #include "delay.h"
-#include "header.h"
-#include "interface.h"
 #include "oam.h"
-#include "packet.h"
-#include "pipeline.h"
-#include "replicate.h"
 #include "seq_gen.h"
 #include "seq_recov.h"
 #include "utils.h"

@@ -2,11 +2,13 @@
 // All rights reserved.
 
 
+#include "replicate.h"
+#include "action.h"
 #include "json.h"
 #include "notification.h"
 #include "object.h"
+#include "packet.h"
 #include "pipeline.h"
-#include "replicate.h"
 #include "state.h"
 #include "utils.h"
 
@@ -100,6 +102,7 @@ struct PipelineObject *delete_replicate(struct PipelineObject *rep)
     return NULL;
 }
 
+//TODO if Repl actions share their state object this might get mixed up
 void store_replication_pipelines(struct PipelineObject *obj, struct PipelineList *pipes)
 {
     struct Replicate *r = (struct Replicate *)obj;
@@ -130,6 +133,7 @@ static int match_pipeline_by_name_cb(struct PipelineObject *obj, void *userdata)
     return 1;
 }
 
+//TODO refactor this ugly thing
 struct Pipeline *replicate_lookup_pipeline(const char *name, struct PipelineObject **repl)
 {
     (void) repl;

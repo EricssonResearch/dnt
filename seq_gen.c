@@ -3,6 +3,7 @@
 
 
 #include "seq_gen.h"
+#include "action.h"
 #include "json.h"
 #include "notification.h"
 #include "packet.h"

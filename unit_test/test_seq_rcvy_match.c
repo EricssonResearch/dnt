@@ -1,6 +1,7 @@
 
 #include "testing.h"
 
+#include "action.h"
 #include "notification.h"
 #include "packet.h"
 #include "pipeline.h"

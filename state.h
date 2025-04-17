@@ -6,22 +6,23 @@
 #define R2_STATE_H
 
 #include "hashmap.h"
+#include "interface.h"
+#include "object.h"
 
 #include <stdbool.h>
-
-struct Interface;
-struct PipelineObject;
 
 // holds all the data we change in one step
 struct StateTransaction {
     char *name;
-    //TODO all of these are things to be added, we need a remove list too
+
+    // things to add
     struct HashMap *ifaces; // name -> struct Interface
     struct HashMap *objects; // name -> struct PipelineObject
     struct HashMap *streams; // name -> struct ConfStream
     struct HashMap *iface_streams; // ifname -> ConfStreamList
     struct HashMap *oam;     // name -> command string
 
+    // things to remove
     struct HashMap *del_ifaces; // name -> NULL
     struct HashMap *del_streams; //TODO tuples of {iface name, stream name}
 };

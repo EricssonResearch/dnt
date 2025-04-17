@@ -5,9 +5,9 @@
 #ifndef R2_OBJECT_H
 #define R2_OBJECT_H
 
-#include "action.h"
 #include "json.h"
 #include "hashmap.h"
+#include "pipeline.h"
 
 #include <stdbool.h>
 
@@ -17,8 +17,6 @@ enum PipelineObjectType {
     PO_POF,
     PO_REPL,
 };
-
-struct PipelineIterator;
 
 // base class for the objects used by the action pipeline
 struct PipelineObject {

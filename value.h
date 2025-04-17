@@ -5,9 +5,11 @@
 #ifndef R2_VALUE_H
 #define R2_VALUE_H
 
+
+#include "packet.h"
+
 #include <stddef.h>
 #include <stdbool.h>
-
 
 // describes the value passed from a Producer function to a Consumer function
 // the Edit action does packet header manipulations with Value objects
@@ -21,7 +23,6 @@ struct Value {
     unsigned bitcount;
 };
 
-struct Packet;
 
 // this struct is typically stored by value in other structs, so no allocation here
 static inline struct Value init_value(unsigned bitoffset, unsigned bitcount)
