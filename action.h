@@ -6,8 +6,6 @@
 #define R2_ACTION_H
 
 #include "header.h"
-#include "pipeline.h"
-#include "replicate.h"
 #include "time_utils.h"
 
 enum ActionType {
@@ -68,6 +66,13 @@ struct EditAssign {
     struct Value constant;
     char *text;
     bool owns_read_state;
+};
+
+// this is the state of the Replicate action
+struct PipelineList {
+    struct Pipeline *pipe;
+    const char *text;
+    struct PipelineList *next;
 };
 
 

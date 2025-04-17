@@ -5,6 +5,7 @@
 #include "action.h"
 #include "delay.h"
 #include "oam.h"
+#include "replicate.h"
 #include "seq_gen.h"
 #include "seq_recov.h"
 #include "utils.h"
