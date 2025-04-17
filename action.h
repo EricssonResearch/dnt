@@ -6,6 +6,7 @@
 #define R2_ACTION_H
 
 #include "header.h"
+#include "pipeline.h"
 #include "time_utils.h"
 
 enum ActionType {
@@ -38,6 +39,7 @@ enum ActionResult {
 };
 
 struct Action;
+struct PipelineObject; // we can't include object.h
 
 typedef enum ActionResult action_execute(struct Action *a, struct PipelineIterator *pi);
 
