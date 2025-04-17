@@ -1,6 +1,6 @@
 # R2DTWO notifications
 
-R2DTWO supports observability by sending notifications to aggregation points. OAM can also provide similar information by directing OAM replies to an aggregation point. The main difference is that OAM replies are always generated in a response to an OAM message (like *ping*), while notifications can be generated periodically or triggered by events or trigger messages.
+R2DTWO supports observability by sending notifications to collection points. OAM can also provide similar information by directing OAM replies to an specific collector point. The main difference is that OAM replies are always generated in a response to an OAM message (like *ping*), while notifications can be generated periodically or triggered by events or trigger messages.
 
 Notifications can be completely disabled either by not specifying notification stream in configuration file, telnet command and filtering.
 
@@ -23,12 +23,12 @@ The *push* notifications are triggered by events, and they are sent immediately.
 * "pof", type NOTIF_INFO: packet ordering function has encountered an error
 * "seq_rcvy", type NOTIF_INFO: sequence recovery event
 * "diagnostic", type NOTIF_WARNING: diagnostic module message
-* "transaction", type NOTIF_INFO:
-* "triggered_receiver", type NOTIF_INFO: trigger push message, MIP received a trigger message
-* "triggered_source", type NOTIF_INFO: trigger push message, MIP initiates a trigger message
+* "transaction", type NOTIF_INFO: ???_???
+* "triggered_receiver", type NOTIF_INFO: trigger push message, MP received a trigger message
+* "triggered_source", type NOTIF_INFO: trigger push message, MP initiates a trigger message
 
-It is possible to trigger push notifications with a special *trigger* OAM message. The *trigger* OAM message can be started from telnet command. Its main purpose is to have a controlled way of triggering notifications (almost) synchronously from different nodes even when nodes are not in sync. The *trigger* message can be triggered by the *notif_trigger* telnet command, which has as parameter the source MIP and destination MIP, just like a *ping* command. When the command is executed, the source MIP triggers a push notification, sending the starting MIP statistics, the target object statistics and all MIP statistics where the target object is common. This typically results in sending pre-object and post-object statistics along with the object stats.
-When AutoMIP is used, the target objects are automatically filled, so notifications will contain all related information. However, when MIPs are added manually, specifying target MIP is optional. When no target object is specified, the notification will only contain the source MIP stats.
+It is possible to trigger push notifications with a special *trigger* OAM message. The *trigger* OAM message can be generated from telnet command. Its main purpose is to have a controlled way of triggering notifications (almost) synchronously from different nodes even when nodes are not in sync. (Note: *trigger* OAM messages can be treated also as separator between set of data flow packets.) The *trigger* message can be triggered by the *notif_trigger* telnet command, which has as parameter the source MP and destination MP, just like a *ping* command. When the command is executed, the source MP triggers a push notification, sending the starting MP statistics, the target object statistics and all MP statistics where the target object is common. This typically results in sending pre-object and post-object statistics along with the object stats.
+When AutoMIP is used, the target objects are automatically filled, so notifications will contain all related information. However, when MIPs are added manually, specifying target MIP is optional. When no target object is specified, the notification will only contain the source MP stats.
 
 
 ## Pull notifications
