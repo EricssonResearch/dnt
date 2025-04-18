@@ -6,14 +6,13 @@
 #define R2_PARSETREE_H
 
 #include "header.h"
-#include "protocol.h"
+#include "interface.h"
+#include "packet.h"
+#include "pipeline.h"
 #include "value.h"
 
 #include <stdbool.h>
 
-struct Interface;
-struct Packet;
-struct Pipeline;
 
 struct HeaderMatch {
     struct HeaderField field;

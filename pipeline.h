@@ -7,8 +7,9 @@
 
 #include <stdbool.h>
 
+#include "packet.h"
+
 struct Action;
-struct Packet;
 
 struct Pipeline {
     struct Action *actions; // array of actions
