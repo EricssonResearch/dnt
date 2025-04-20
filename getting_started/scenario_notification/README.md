@@ -24,13 +24,13 @@ We will use the following topology, which consists:
        │                                           │     
 ┌──────┴─────────┐       ┌───────────┐             │     
 │    eno1        │       │           │             │     
-│                │       │           │       ┌─────┴───┐ 
-│          ens2f0├───────┤ens2f0     │       │   eno2  │ 
-│                │       │           │       │         │ 
-│                │       │       eno1├───────┤eno1     │ 
-│                │       │           │       │         │ 
-│                │       │           │       │         │ 
-│          ens2f1├───────│ens2f1     │       └╔═══════╗┘ 
+│                │       │           │       ┌─────┴───┐
+│          ens2f0├───────┤ens2f0     │       │   eno2  │
+│                │       │           │       │         │
+│                │       │       eno1├───────┤eno1     │
+│                │       │           │       │         │
+│                │       │           │       │         │
+│          ens2f1├───────│ens2f1     │       └╔═══════╗┘
 └───╔═══════╗────┘       └─╔═══════╗─┘        ║minion ║  
     ║pandora║              ║terror ║          ╚═══════╝  
     ╚═══════╝              ╚═══════╝           R2DTWO    
@@ -47,8 +47,8 @@ The basic concepts and generic operation of the notification framework can be fo
 In this guide, we discuss only the notification-related parts of the configuration that is specific for this scenario.
 
 The notification aggregation point where the notification messages are sent to and collected is on the node __minion__ (eno1 interface, IP address: 10.10.10.2). To collect the the notification messages a simple json receiver will be run on this node.  
-R2DTWO on node __pandora__ is configured to send its notification messages on two interfaces (ens2f0 and ans2f1) to have redundancy for the notification. 
-There is also a continuous oam ping initiated from c_pandora_tx to any destination, this will generate oam traffic that can be monitored with the oam packet and octet counters. 
+R2DTWO on node __pandora__ is configured to send its notification messages on two interfaces (ens2f0 and ans2f1) to have redundancy for the notification.
+There is also a continuous oam ping initiated from c_pandora_tx to any destination, this will generate oam traffic that can be monitored with the oam packet and octet counters.
 R2DTWO on node __minion__ sends its notification messages without redundancy to the same aggregation point (the simple json receiver collects messages from both nodes).
 
 The corresponding configuration of `pandora.ini` related to notification is the following:
@@ -77,7 +77,8 @@ notification_session = send ifNotify
 
 ## Notification framework in action
 
-This scenario runs in mininet. The `testnet.py` script creates the network topology with the nodes. It also starts the two R2DTWO instances, the notification receiver script and two telnet OAM session to each R2DTWO in separate xterms, altoghether 5 xterm is opened. 
+This scenario runs in mininet. The `testnet.py` script creates the network topology with the nodes. It also starts the two R2DTWO instances, the notification receiver script and two telnet OAM session to each R2DTWO in separate xterms, altoghether 5 xterm is opened.
+The `testnet.py` script has an optional input parameter, *AutoMIP*. When *AutoMIP* is specified, a different configuration is used that uses AutoMIP to set up MIPs automatically for each replication/elimination object. With *AutoMIP* enabled, the MIP/MEP names are automatically generated, thus the OAM commands will be different. In this document for each OAM command, the AutoMIP command is also shown.
 
 The OAM telnet xterms' title shows the node name, and the following lines. In the following we reference these xterms as **oam-pandora** and **oam-minion**.
 ```
@@ -87,7 +88,7 @@ Escape character is '^]'.
 OAM 'conn XY' ready
 ```
 
-Anther two xterms show the logging output of the two R2DTWO instances, and the title of the xterm denotes the node name. 
+Anther two xterms show the logging output of the two R2DTWO instances, and the title of the xterm denotes the node name.
 
 The fifth xterm (with title __minion__) show sthe received notification messages as formatted JSON output. In the following we reference this xterm as **notif-recv**.
 
@@ -171,8 +172,13 @@ There is a lot of data and counters received with 2 second interval about the ob
 
 There are Maintanence Points defined in the configuration files of the R2DTWO instances. For node __pandora__, in direction talker -> listener:
 
-- before the replication: c_pandora_tx 
+- before the replication: c_pandora_tx
 - after the replication: path1_pandora_tx and path2_pandora_tx
+
+AutoMIP version:
+- before the replication: o_stream_uni_L3_pre-prfp
+- after the replication: o_tx1_L3_post-prfp and o_tx2_L3_post-prfp
+
 
 #### Traffic statistics
 
@@ -209,12 +215,18 @@ For user traffic statistics look for octet (key "octets_passed") and packet (key
     "type": "mep_state"
   },
   ...  
-``` 
+```
 
 The oam traffic counters are also 0, except in c_pandora_tx, because there is a oam ping session configured in `pandora.ini` shown below. These counters will increase in the following samples as the oam ping is running continuously.
 ```
 [oam]
 compound_ping = ping c_pandora_tx any 3 -o -i 2
+```
+
+AutoMIP version:
+```
+[oam]
+compound_ping = ping o_stream_uni_L3_pre-prfp o_mcompound_L3_post-pefm 3 -o -i 2
 ```
 
 Start an xterm for the talker node from the mininet CLI for sending user traffic from talker:
@@ -275,7 +287,7 @@ ping -c 5 10.10.11.2
 Observations:
 The ping requests (and responses) are still transferred over the network via the remaining redundant path.
 
-Hereafter look again in the notification messages for the octet (key "octets_passed") and packet (key "packets_passed") counters. 
+Hereafter look again in the notification messages for the octet (key "octets_passed") and packet (key "packets_passed") counters.
 Now the counters show 10 packets and 920 octets, since the failure is after this node, it tries to send all packets on both paths.
 
 ```
@@ -320,9 +332,9 @@ notif_pull enable
 The Maintanence Points defined for node __minion__, in direction talker -> listener:
 
 - before the elimination: path1_minion_rx and path2_minion_rx
-- after the elimination: c_minion_rx 
+- after the elimination: c_minion_rx
 
-In the notification messages from node __minion__ look for the octet (key "octets_passed") and packet (key "packets_passed") counters. 
+In the notification messages from node __minion__ look for the octet (key "octets_passed") and packet (key "packets_passed") counters.
 The counters show 10 packets and 920 octets, but only for c_minion_rx and path2_minion_rx, and only 5 packets and 460 octets for path1_minion_rx since this is the receiving side of the failing path.
 
 ```
@@ -456,6 +468,12 @@ We initate a notification trigger from c_pandora_tx (before replication) towards
 ```
 notif_trigger c_pandora_tx c_minion_rx 3 -n 1
 ```
+
+AutoMIP version:
+```
+notif_trigger o_stream_uni_L3_pre-prfp o_mcompound_L3_post-pefm 3 -n 1
+```
+
 The notif_msg section of the push message from node __pandora__ (triggered_source) contains all relevant information about maintenance point states and counters:
 
 ```

@@ -7,14 +7,12 @@ from scapy.all import sendp
 from utils import *
 import json
 import socket
-import time
+import time, os
 import asyncio
 
-SEQ_HISTORY_SIZE = 10
-dups = 0
-index = 0
-last_seqnums=[]
-notif_messages=[]       # hold the messages received
+import sys
+sys.path.append('../json_receiver/')
+from notification_receiver import NotificationReceiver  # Assuming you save the class in this file
 
 NUM_PACKETS_S2 = 5
 NUM_PACKETS_S3 = 5
@@ -31,39 +29,36 @@ pkts_delay = [
     Ether(dst="0a:bb:cc:aa:bb:cc")/Dot1Q(vlan=2000)/IP()/UDP(),
 ]
 
+notif_messages=[]       # hold the messages received
+
 class UDPReceiver(asyncio.DatagramProtocol):
-    def __init__(self, version):
+    def __init__(self, version, receiver):
         self.version = version  # Track whether it's IPv4 or IPv6
+        self.receiver = receiver
 
     def datagram_received(self, data, addr):
-        global dups, index, last_seqnums
+        global notif_messages
 
         if self.version == "IPv6":
             host, port, *_ = addr  # Unpack only first two values (IPv6 has extra fields)
         else:
             host, port = addr  # Standard IPv4 format
 
-        try:
-            jsonReceived = json.loads(data.decode())
-            seq_num = jsonReceived.get("notif_seq")
-            if seq_num != None:
-                if seq_num in last_seqnums:
-                    dups = dups + 1
-                else:
-                    last_seqnums.append(seq_num)
-                    index = ( index + 1 ) % SEQ_HISTORY_SIZE
-                    notif_messages.append(jsonReceived)
-        except json.JSONDecodeError:
-            print(f"[{self.version}] Invalid JSON from {host}:{port}: {data}")
+        json_received = self.receiver.process_notification(host, port, data)
+        if json_received is not None:
+            notif_messages.append(json_received)
+
 
     def connection_lost(self, exc):
         print(f"[{self.version}] receiver closed.")
 
+    def error_received(self, exc):
+        print("Exception thrown: %s" % exc)
 
-async def start_udp_listener(host, port, family, version, transports):
+async def start_udp_listener(host, port, family, version, transports, receiver):
     loop = asyncio.get_running_loop()
     listen = loop.create_datagram_endpoint(
-        lambda: UDPReceiver(version),
+        lambda: UDPReceiver(version, receiver),
         local_addr=(host, port),
         family=family
     )
@@ -72,7 +67,6 @@ async def start_udp_listener(host, port, family, version, transports):
 
 # Cleanup function
 async def cleanup_udp(transports):
-    #print("\nShutting down UDP receivers...")
     for transport in transports:
         transport.close()  # Close UDP sockets
     await asyncio.sleep(1)  # Allow time for cleanup messages
@@ -117,13 +111,25 @@ def send_cli_commands():
     cli = Telnet("0", 8000)
     _ = cli.recv() # recv first msg
 
+    cli.send("notif_pull")
+    msg = cli.recv()
+    if "Notification pull is disabled" not in msg:
+        print("Error: ", msg)
+        ret = False
+
+    cli.send("notif_pull enable")
+    msg = cli.recv()
+    if "Notification pull is now enabled" not in msg:
+        print("Error: ", msg)
+        ret = False
+
     cli.send("mask to_nni0") # send mask command
     msg = cli.recv()
     if "Pipeline 'to_nni0' masked" not in msg:
         print("Error: ", msg)
         ret = False
 
-    cli.send("notification_source add tc r2rx") # send add notification command
+    cli.send("sysmon add tc r2rx") # send add notification command
     msg = cli.recv()
     if "Success" not in msg:
         print("Error: ", msg)
@@ -131,18 +137,42 @@ def send_cli_commands():
 
     cli.send("exit") # send add notification command
     msg = cli.recv()
-    time.sleep(0.5)
+    time.sleep(0.1)
 
     cli.close()
     return ret
 
-async def test_delay():
-    global dups, notifications
+def validate_json(json_msg, checks):
     failed = 0
 
-    config_ifaces()
-    start_r2dtwo()
-    await asyncio.sleep(0.3)
+    js = None
+    if json_msg is not None:
+        js = json_msg.get(checks[0])
+
+    if js is None:
+        print(f"✘ - {checks[1]}")
+        return failed + 1
+
+    # If the value is a list, get the first element
+    if isinstance(js, list):
+        js = js[0]
+
+    for i in range(2, len(checks), 3):
+        key = checks[i]
+        expected_value = checks[i + 1]
+        error_message = checks[i + 2]
+
+        pkt = js.get(key)
+        if pkt == expected_value:
+            print(f"{key} ✔", end=" ")
+        else:
+            print(f"✘ - {error_message.format(pkt, expected_value)}")
+            failed += 1
+
+    return failed
+
+async def start_meas():
+    print("Sending Telnet commands")
     if not send_cli_commands():
         print("Cli commands failed.")
         return -1
@@ -151,17 +181,16 @@ async def test_delay():
         print("Could not set ip address.")
         return -1
 
-    await asyncio.sleep(1)  # wait
+    time.sleep(1)
+
+    print("Sending traffic")
     sendp(pkts_delay, verbose=0, iface="to_r2")
-    await asyncio.sleep(5)
+    return 0
 
-    print("Test notification message replication...", end=" ")
-    if len(notif_messages) == dups:
-        print("✔")
-    else:
-        print(f"✘ - received {len(notif_messages)} and {dups} duplicate notifications")
-        failed = failed+1
+def test_notifications():
+    failed = 0
 
+    # collect the latest messages for each notification
     telnet_push = False
     mask_push = False
     newip_push = False
@@ -171,8 +200,9 @@ async def test_delay():
     delay_msg = None
     rep_msg = None
     rec_msg = None
-    for msg in notif_messages:
-        #print(f"Received last -> {msg}")
+    for notif_msg in notif_messages:
+        print(f"Received last -> {notif_msg}")      # comment to have a clean output
+        msg = notif_msg.get("notif_msg")
         if msg.get("telnet"):
             telnet_push = True
         if msg.get("mask"):
@@ -191,6 +221,14 @@ async def test_delay():
             rep_msg = msg
         if msg.get("srcvy1"):
             rec_msg = msg
+
+    print("Test notification message replication...", end=" ")
+    seq = notif_msg.get("notif_seq")    # seq from last message
+    if len(notif_messages) == seq+1:
+        print("✔")
+    else:
+        print(f"✘ - received {len(notif_messages)}, expected {seq+1}")
+        failed = failed+1
 
     print("Test telnet login push notification...", end=" ")
     if telnet_push:
@@ -214,6 +252,9 @@ async def test_delay():
         failed = failed + 1
 
     print("Test delay notification report...", end=" ")
+    checks = [ "s3", "No stream s3 delay statistic received.",
+                  "delayed_packets", NUM_PACKETS_S2*2, "Received {} delayed packets - should be {}",
+                  "delay_exceeded_packets", NUM_PACKETS_S2, "Received {} delay exceeded packets - should be {}" ]
     dly_js = None
     if delay_msg is not None:
         dly_js = delay_msg.get("delay")
@@ -221,97 +262,42 @@ async def test_delay():
         print("✘  - No delay statistic received.")
         failed = failed + 1
     else:
-        dly_s3 = dly_js.get("s3")
-        if dly_s3 is not None:
-            dly_exceeded = dly_s3.get("delay_exceeded_packets")
-            dly = dly_s3.get("delayed_packets")
-            if dly == NUM_PACKETS_S2*2 and dly_exceeded == NUM_PACKETS_S2:
-                print("✔")
-            else:
-                print(f"✘ - Received {dly} delayed and {dly_exceeded} delay exceeded packets - should be {NUM_PACKETS_S2*2} and {NUM_PACKETS_S2}")
-                failed = failed+1
-        else:
-            print("✘  - No delay stream s3 statistic received.")
-            failed = failed + 1
+        failed = failed + validate_json(dly_js, checks)
 
+    print("\nTest tc notification report...", end=" ")
+    checks = [ "tc_r2rx", "No TC statistic received.",
+                  "root", True, "Root is {} - should be {}"]
+    failed = failed + validate_json(if_msg, checks)
 
-    print("Test tc notification report...", end=" ")
-    tc_js = None
-    if tc_msg is not None:
-        tc_js = tc_msg.get("tc_r2rx")
-    if tc_js is None:
-        print("✘  - No TC statistic received.")
-        failed = failed + 1
-    else:
-        print("✔")
+    print("\nTest if2 report...", end=" ")
+    checks = [ "if2", "No if2 statistic received.",
+                  "send_packets", NUM_PACKETS_S2+NUM_PACKETS_S3, "Received {} sent packets - should be {}"]
+    failed = failed + validate_json(if_msg, checks)
 
-    print("Test if2 report...", end=" ")
-    if_js = None
-    if if_msg is not None:
-        if_js = if_msg.get("if2")
-    if if_js is None:
-        print("✘  - No if2 statistic received.")
-        failed = failed + 1
-    else:
-        sent = if_js.get("send_packets")
-        if sent == NUM_PACKETS_S2*2:
-            print("✔")
-        else:
-            print(f"✘ - Received {sent} sent packets - should be {NUM_PACKETS_S2*2}")
-            failed = failed+1
+    print("\nTest if1 parser report...", end=" ")
+    checks = [ "if1 parser", "No if1 parser statistic received.",
+                  "s2 packets", NUM_PACKETS_S2, "Received {} s2 packets - should be {}",
+                  "s3 packets", NUM_PACKETS_S3, "Received {} s3 packets - should be {}" ]
+    failed = failed + validate_json(parser_msg, checks)
 
-    print("Test if1 parser report...", end=" ")
-    parser_js = None
-    if parser_msg is not None:
-        parser_js = parser_msg.get("if1 parser")
-    if parser_js is None:
-        print("✘  - No if1 parser statistic received.")
-        failed = failed + 1
-    else:
-        pkt = parser_js.get("s2 packets")
-        if pkt == NUM_PACKETS_S2:
-            print("s2 ✔", end=" ")
-        else:
-            print(f"✘ - Received {pkt} s2 packets - should be {NUM_PACKETS_S2}")
-            failed = failed+1
-        pkt = parser_js.get("s3 packets")
-        if pkt == NUM_PACKETS_S2:
-            print("s3 ✔")
-        else:
-            print(f"✘ - Received {pkt} s3 packets - should be {NUM_PACKETS_S3}")
-            failed = failed+1
-
-    print("Test replication report...", end=" ")
-    rep_js = None
-    if rep_msg is not None:
+    print("\nTest replication report...", end=" ")
+    checks = [ "rep", "No replication statistic received.",
+                  "packets_passed", NUM_PACKETS_S2, "Received {} passed packets - should be {}"]
+    f=validate_json(rep_msg, checks)
+    if f == 0:
         rep_js = rep_msg.get("rep")
-    if rep_js is None:
-        print("✘  - No replication statistic received.")
-        failed = failed + 1
+        checks = [ "pipelines", "No pipelines in replication statistic.",
+                     "mask_state",  "masked", "Mask state is {} - should be {}"]
+        failed = failed + validate_json(rep_js, checks)
     else:
-        rep_pass = rep_js.get("packets_passed")
-        pipe_js = rep_js.get("pipelines")
-        first_mask_state = pipe_js[0].get("mask_state")
-        if rep_pass == NUM_PACKETS_S2 and "masked" in first_mask_state:
-            print("✔")
-        else:
-            print(f"✘ - Received {rep_pass} passed packets - should be {NUM_PACKETS_S2}, mask state {first_mask_state} should be 'masked'")
-            failed = failed+1
+        failed = failed + f
 
-    print("Test sequence recovery report...", end=" ")
-    rec_js = None
-    if rec_msg is not None:
-        rec_js = rec_msg.get("srcvy1")
-    if rec_js is None:
-        print("✘  - No sequence recovery statistic received.")
-        failed = failed + 1
-    else:
-        rec_pass = rec_js.get("passed_packets")
-        if rec_pass == NUM_PACKETS_S2:
-            print("✔")
-        else:
-            print(f"✘ - Received {rec_pass} passed packets - should be {NUM_PACKETS_S2}")
-            failed = failed+1
+    print("\nTest sequence recovery report...", end=" ")
+    checks = [ "srcvy1", "No sequence recovery statistic received.",
+                  "passed_packets", NUM_PACKETS_S2, "Received {} passed packets - should be {}"]
+    failed = failed + validate_json(rec_msg, checks)
+
+    print()
 
     return failed
 
@@ -320,12 +306,28 @@ async def main():
 
     print("R2DTWO notifications tests - TSN")
     ret = 0
+
+    receiver = NotificationReceiver(seq_history_size=200)
     # Start both IPv4 and IPv6 listeners
-    task_ipv4 = asyncio.create_task(start_udp_listener("127.0.0.1", 9000, AF_INET, "IPv4", transports))
-    task_ipv6 = asyncio.create_task(start_udp_listener("::1", 9600, AF_INET6, "IPv6", transports))
+    task_ipv4 = asyncio.create_task(start_udp_listener("127.0.0.1", 9000, AF_INET, "IPv4", transports, receiver))
+    task_ipv6 = asyncio.create_task(start_udp_listener("::1", 9600, AF_INET6, "IPv6", transports, receiver))
     await asyncio.gather(task_ipv4, task_ipv6)  # Keep tasks running
 
-    result = await test_delay()
+    result = 0
+    config_ifaces()
+
+    start_r2dtwo()
+    # run with sudo ../r2dtwo -of notification/notification-detnet.ini -v ALL:ALL
+    #input("Press Enter to continue...")
+
+    await asyncio.sleep(1)
+    await start_meas()
+
+    print("Waiting for results")
+    await asyncio.sleep(6)
+
+    print("Checking results:")
+    result = test_notifications()
     if result == -1:
         print("Error running tests.")
 
