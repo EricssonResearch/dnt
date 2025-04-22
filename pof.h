@@ -1,4 +1,4 @@
-// Copyright (c) 2023, Ericsson AB and Ericsson Telecommunication Hungary
+// Copyright (c) 2023-2025, Ericsson AB and Ericsson Telecommunication Hungary
 // All rights reserved.
 
 #ifndef R2_POF_H

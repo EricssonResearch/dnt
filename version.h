@@ -1,11 +1,11 @@
-// Copyright (c) 2023, Ericsson AB and Ericsson Telecommunication Hungary
+// Copyright (c) 2023-2025, Ericsson AB and Ericsson Telecommunication Hungary
 // All rights reserved.
 
 
 #ifndef R2_VERSION_H
 #define R2_VERSION_H
 
-#define VERSION_MAJOR 6
-#define VERSION_MINOR 3
+#define VERSION_MAJOR 7
+#define VERSION_MINOR 1
 
 #endif // R2_VERSION_H
