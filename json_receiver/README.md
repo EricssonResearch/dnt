@@ -5,7 +5,7 @@ The notifications are sent via UDP in json format, fragmented into 1200 byte chu
 
 To identify the fragments, two fields are used: the *notif_seq* and the *notif_fragment*. The *notif_seq* identifies the individual messages, which may be longer than 1200 byte. The *notif_fragment* tells how many fragments are in total, and also which fragment is the current.
 
-```
+```json
     "notif_msg": { the actual json content of the message, fragmented in 1200 byte chunks }
     "notif_hostname": "hostname",
     "notif_seq": 0,    
@@ -30,7 +30,7 @@ receiver = NotificationReceiver()
 
 Then, for each received message the *process_notification* method is called. This method either returns the full message, or returns "None" when the received message is still incomplete.
 
-```
+```python
 json_received = receiver.process_notification(host_ip, port, data)
 if json_received is not None:
     print(json.dumps(jsonReceived, indent=2))   # display the message
@@ -42,4 +42,3 @@ The library has the following limitations:
 * Fragment loss results in the loss of the whole message. (Note that fragment loss means that the fragment is lost from all sending sources.)
 * *notif_hostname* is used to identify the message sources. Thus, when running in Mininet environment it is crucial to set the hostname by specifying the "-h hostname" parameter.
 
- 
