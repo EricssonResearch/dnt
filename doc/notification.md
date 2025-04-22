@@ -4,12 +4,12 @@ R2DTWO supports observability by sending notifications to collection points. OAM
 
 ## Notification framework operation
 
-The Notification framework is enabled when a session named *notification_session* is created in the configuration file. The notifications are sent according to the pipeline defined by the *notification_session*. While this makes possible any actions supported by R2DTWO, we suggest the following usage scenarios:
+The Notification framework is enabled when a session named *notification_session* is created in the configuration file. The notifications are sent according to the pipeline defined by the *notification_session*. While this supports using any actions supported by R2DTWO pipelines, we suggest the following usage scenarios:
 
-* New stream for notifications (with designated replication). In this case a DetNet stream is defined for the notification messages, with replication at the source and elimination at the destination. Note that all intermediate nodes must be aware of this session. In this case path selection, redundancy is all handled by the DetNet stream.
-* Use the management network. A simpler method is to use the management network to send the notification messages. In this case all messages are sent out-of-band, in a best effort manner. Sending on multiple paths may still be possible even in this case. Such an example is given in the */getting_started/scenario_notification*: when 2 paths are available through 2 interfaces, we can send the messages on both. De-duplication is still possible at higher level since each message is identified by a *notif_seq* field. The notification receiver example (in */json_receiver*) gives an example for the high level elimination.
+* New stream specifically for notifications. In this case a DetNet stream is defined for the notification messages, possibly with replication at the source and elimination at the destination. Note that all intermediate nodes must be aware of this session. In this case path selection and redundancy are handled by the DetNet stream.
+* Use a management network. A simpler method is to use the management network for sending the notification messages. In this case all messages are sent out-of-band, in a best effort manner. Sending on multiple paths may still be possible even in this case. Such an example is given in the */getting_started/scenario_notification*: when 2 paths are available through 2 different interfaces, we can send the messages on both. De-duplication is still possible at higher level since each message is identified by a *notif_seq* (and a *notif_fragment*) field. The notification receiver example (in */json_receiver*) shows how to implement the high level elimination.
 
-Notifications can be completely disabled either by not specifying notification stream in configuration file, telnet command and filtering.
+Notifications can be completely disabled either by not specifying notification stream in configuration file, or via a telnet command that enables their filtering.
 
 There are 2 notification types:
 
@@ -21,65 +21,67 @@ There are 2 notification types:
 The *push* notifications are triggered by events, and they are sent immediately. For example, when a user connects to R2DTWO via a telnet interface, a push notification is sent indicating a telnet login. The following notification *push* sources are currently defined:
 
 * "delay", type NOTIF_ERROR : a packet arrived later than the delay specified
-* "new src", type NOTIF_INFO: a new notification source has been registered
-* "new dst", type  NOTIF_INFO:  a new destination IP address has been set
-* "r2dtwo", type  NOTIF_INFO: r2dtwo start notification
-* "telnet", type NOTIF_INFO: new telnet client
+* "new src", type NOTIF_INFO: an udp-in interface detected an IP address change on its HW interface
+* "new dst", type  NOTIF_INFO: an udp-out interface was notified about a new destination IP
+* "r2dtwo", type  NOTIF_INFO: r2dtwo startup notification
+* "telnet", type NOTIF_INFO: new telnet client connected
 * "send", type NOTIF_ERROR or NOTIF_WARNING: packet sending related information, error or warning
 * "mask", type NOTIF_INFO: a replication path has been masked
-* "pof", type NOTIF_INFO: packet ordering function has encountered an error
-* "seq_rcvy", type NOTIF_INFO: sequence recovery event
-* "diagnostic", type NOTIF_WARNING: diagnostic module message
-* "transaction", type NOTIF_INFO: ???_???
-* "triggered_receiver", type NOTIF_INFO: trigger push message, MP received a trigger message
-* "triggered_source", type NOTIF_INFO: trigger push message, MP initiates a trigger message
+* "pof", type NOTIF_INFO: packet ordering function was reset on timeout
+* "seq_rcvy", type NOTIF_INFO: sequence recovery was reset on timeout
+* "diagnostic", type NOTIF_WARNING: sequence recovery module diagnostic message
+* "transaction", type NOTIF_INFO: a configuration transaction has been committed
+* "triggered_receiver", type NOTIF_INFO: trigger push message, MP received a *trigger* message
+* "triggered_source", type NOTIF_INFO: trigger push message, MP initiates a *trigger* message (see the *notif_trigger* telnet command)
 
-It is possible to trigger push notifications with a special *trigger* OAM message. The *trigger* OAM message can be generated from telnet command. Its main purpose is to have a controlled way of triggering notifications (almost) synchronously from different nodes even when nodes are not in sync. (Note: *trigger* OAM messages can be treated also as separator between set of data flow packets.) The *trigger* message can be triggered by the *notif_trigger* telnet command, which has as parameter the source MP and destination MP, just like a *ping* command. When the command is executed, the source MP triggers a push notification, sending the starting MP statistics, the target object statistics and all MP statistics where the target object is common. This typically results in sending pre-object and post-object statistics along with the object stats.
-When AutoMIP is used, the target objects are automatically filled, so notifications will contain all related information. However, when MIPs are added manually, specifying target MIP is optional. When no target object is specified, the notification will only contain the source MP stats.
+It is possible to trigger push notifications with a special *trigger* in-band OAM message, which can be initiated with a telnet command. Its main purpose is to have a controlled way of triggering notifications from MPs (almost) synchronously from different nodes even when nodes are not in sync. (Note: *trigger* OAM messages can be treated also as separator between set of data flow packets.) The *trigger* message can be sent by the *notif_trigger* telnet command, which has as parameter the source MP and destination MP, just like a *ping* command. When the command is executed, the source MP triggers a push notification, sending the statistics of the starting MP, the target object statistics and all MP statistics where the target object is common. This typically results in sending pre-object and post-object statistics along with the object stats. The receiver MP of the *trigger* message acts similarly, generating a *triggered_receiver* notification.
+
+When AutoMIP is used on an object, the target objects of the created MIPs are all set to be that object, so their trigger notifications will contain statistics of all the related MIPs. When MIPs are added manually, specifying their target object is optional. When a MIP has no target object, its trigger notification will only contain its own stats.
 
 
 ## Pull notifications
 
-The *pull* notifications are triggered periodically, with a fixed period currently set to 2 seconds. The reporting period is aligned to the 2 second reporting from epoch so when all devices running R2DTWO are in sync, the reporting periods will also be in sync. On startup, all notification sources register themselves to the notification module. When reporting, all notification sources are queried and all provide a json report which will be collected and sent to the notification destination. So in each 2 seconds all registered pull notification sources will report their information.
+The *pull* notifications are triggered periodically, with a fixed period of 2 seconds. The reporting period is aligned to the even seconds according to the node's clock, therefore when all nodes running R2DTWO are in sync (with PTP), their reporting periods will also be in sync.
+
+On startup, all notification sources in R2DTWO register themselves to the notification module. When reporting, the notification module queries all the registered notification sources, which all provide a json report about their state. The notification module collects these, and runs the *notification_session* pipeline in the resulting packets.
+
+When the collected data is too big for a single packet, the notification module fragments it into multiple packets. Each of these packets have the same *notif_seq*, they carry part of the data in their *notif_msg*, and the fragmentation information is set in *notif_fragment* in the format of "1/3", "2/3" etc.
 
 Currently the following pull notification sources are implemented:
 
-* interface, identifier: interface name
-* MIP, identifier: name
-* parser, identifier name+" parser"
-* pof, identifier: name
-* replicate, identifier: name
-* sequence generator, identifier: name
-* sequence recovery, identifier: name
-* delay, identifier "delay"
-* sysmon TC, identifier: "tc_"+target interface
-* sysmon modem, identifier: "modem_"+target interface
+* interface: packets sent/received
+* parser: per-stream packets received (and packets that did not match any stream)
+* MP: state and packet counters
+* pipeline object states (seq_gen, seq_recovery, pof, replicate)
+* delay statistics per-stream (correctly delayed, delay exceeded)
+* sysmon: tc and modem monitoring state
 
-Each *pull* notification source provides a specific json message, which will be collected in notification pull messages. One notification pull message may contain json from one or more notification sources, depending on their specific json length.
 
 ## Traffic characteristic collection with notifications
 
 To collect periodic statistics for traffic management, 2 models are supported:
 
-1. based on pull notifications (in a synchronized network)
+1. based on pull notifications (mainly useful in a synchronized network)
 2. based on push notifications triggered by *trigger* messages (does not require synchronization)
 
-Pull notifications can be used in a synchronized network to provide periodic statistics. All pull statistics are reported periodically, with a pre-defined period of 2s (hardcoded currently) starting at 0 second border. This means that all nodes will send their stats in sync, periodically.
+Pull notifications can be used in a synchronized network to provide periodic statistics. All pull statistics are reported periodically, with a pre-defined period of 2s (hardcoded currently) at every even second according to the local clock. This means that all nodes will send their stats in sync, if the nodes are synchronized via PTP. These pull notifications contain all the data about the state of R2DTWO.
 
-However, synchronization may not be available/feasible in all cases. In such cases, the *trigger* notification can be used to perform periodic measurements. When a *trigger* message is sent, a local push is also performed. Upon reception of the *trigger* message, a push is also performed at the destination. Although the push messages are not completely in sync, only a one-way delay is between them so they can be used for traffic measurement etc.
+However, synchronization may not be available/feasible in all cases. In such cases, the *trigger* notification can be used to perform periodic measurements. When a *trigger* message is sent, a local push of *triggered_source* is also performed. Upon reception of the *trigger* message, a push of *triggered_receiver* is performed. These triggered notifications only contain statistics about the MIPs involved in the message exchange, and the other MIPs that have the same target object.
 
-Note that by default the pull notifications are disabled. They can be enabled using the 'notif_pull enable' telnet command.
+Although these two push messages are not sent at the exact same time, there is only a one-way delay between them so they can be used for traffic measurement etc.
+
+Note that by default the pull notifications are disabled. They can be enabled with the *notif_pull enable* telnet command.
 
 
 ## Filtering of notifications
 
-By default, push notification sources are enabled and pull notifications are disabled. To enable pull notifications, the *notif_pull enable* command can be used.
+By default, push notification sources are enabled and pull notifications are disabled. To enable pull notifications, use the *notif_pull enable* telnet command.
 
-Notifications have a *source* and a *level*. The source is a string, describing the notification source.
+Notifications have a *source* and a *level*. The source is a string, identifying the notification source module.
 
-For push notifications the *source* can be "transaction", "r2dtwo", "new src", "telnet", "mask", "triggered_source" and "triggered_receiver". For pull notifications the name can be the reporting module name as described [here](#Message formats)
+For push notifications the *source* can be "transaction", "r2dtwo", "new src", "telnet", "mask", "triggered_source", "triggered_receiver" etc. For pull notifications the name can be the reporting module name as described [here](#Message formats)
 
-The notification level can be the following:  NONE, ERROR, WARNING, INFO, PULL, ALL. It is possible to filter sending notifications according to the level, from command line parameter:
+The notification level can be the following:  ERROR, WARNING, INFO, PULL (currently all pull sources use the PULL level). It is possible to filter sending notifications according to the level, from command line parameter:
 
 ```
 -n, --notify={LOG|SUBMIT}:LEVEL
@@ -87,28 +89,33 @@ The notification level can be the following:  NONE, ERROR, WARNING, INFO, PULL, 
                            PULL, ALL
 ```
 
-This means that we can filter sending notifications based on level. However, the *source* field is present in message thus at the destination is possible to implement any filtering desired.
+This means that we can filter sending notifications based on level. The notification collector can also filter based on these levels and the *source* names.
+
+The LOG setting controls which notification messages get logged on the node (by default only WARNING and up). The SUBMIT setting controls which notification messages get sent to the collector via the *notification_session* (by default everything).
 
 
 ## Configuration file
 
-In configuration file the *notification_session* keyword is used under the [streams]. If the *notification_session* stream is present, the notifications will be sent according to this pipeline. An *udp-out* interface is also needed to send the packets.
-It is recommended to use one or more specific udp-out interface(s) for notifications.
+In the configuration file the *notification_session* in the **[streams]** section is a special stream, if it is present, the notifications will be sent according to this pipeline.
+It is recommended to use one or more *udp-out* interfaces for sending notifications for simplicity.
 Thus, the minimal configuration changes to enable notifications are the following:
 
-```
+```ini
 [interfaces]
-...
+
 notif = udp-out iface=eno1 dstip=10.10.10.2 dstport=6000
 
 [streams]
-...
+
 notification_session = send notif
 ```
-Of course, multiple notification interfaces can be used, using different paths to the destination. At the destination the hostname and notification message sequence number can be used to drop notification message duplicates.
-It is also possible to use PRF/PEF for the notification messages as well, but in most cases a simple sequence number based elimination is enough. An example receiver script is available in /json_receiver/json_udp_receiver.py file.
 
-In some cases (for example in mininet) the same hostname is used for multiple nodes. In this case the R2DTWO has a command line parameter *-h* which specifies the hostname. In this case the given hostname will be used instead of the system reported hostname.
+Of course, multiple notification interfaces can be used, using different paths to the destination for reliability. At the destination the *notif_hostname* and the *notif_seq* sequence number can be used to filter duplicate notification messages.
+
+It is also possible to use the standard DetNet PRF/PEF functionalities for the notification messages as well, but in most cases a simple sequence number based elimination is enough. An example receiver script is available in the */json_receiver* directory.
+
+In some cases (for example in ?ininet) multiple nodes have the same hostname. For this case R2DTWO has a command line parameter *-h* which overrides the hostname for the notification messages.
+
 
 ## Related telnet commands
 
@@ -123,25 +130,25 @@ The pull messages can be enabled/disabled from telnet command.
 
 ## Message formats
 
-Each notification message contains a notification-specific structure, and contains the reports sent by the different objects.
+Each component of R2DTWO reports its state in the notification message in a specific structure
 First, the object-specific JSON messages are described, then the notification messages themselves.
 
 ### Object report JSONs
 
-* MIP report:
+* MP report:
 
 ```
-    "mip_name": {
-        "mask_signal_state": masked/unmasked,   - used by mask signaling
-        "name": "mip_name",                     - the name of the sender
+    "mp_name": {
+        "mask_signal_state": "masked"/"unmasked",   - used by mask signaling
+        "name": "mip_name",                         - the name of the sender
         "oam_octets_passed": 0,
         "oam_packets_passed": 0,
         "octets_passed": 0,
         "packets_passed": 0,
-        "type": "mep_state"                     - type
+        "type": "mep_state"                         - type
     }
 ```
-  The MEP/MIP differentiates between OAM and TSN/DetNet traffic within a stream. Since OAM packets share fate with the normal traffic, identification at interface/parser is not possible: the statistics include both normal and OAM traffic.
+  The MEP/MIP differentiates between OAM and regular TSN/DetNet traffic received within a stream. Since OAM packets share fate with the normal traffic, their identification at interface/parser level is not possible: those statistics include both normal and OAM traffic.
 
 * Sequence generator report:
 
@@ -149,16 +156,17 @@ First, the object-specific JSON messages are described, then the notification me
     "name": {
         "name": "name",                         - name of the object
         "type": "seqgen",
-        "use_init_flag": True/False,
-        "use_reset_flag": True/False
+        "use_init_flag": true/false,
+        "use_reset_flag": true/false
         }
 ```
+
 * Sequence recovery report:
 
 ```
     "name": {
         "discarded_packets": 0,
-        *"history": "000000000000000",*         - only in debug mode
+        "history": "000000000000000",           - only in debug mode
         "history_length": 15,                   - configured parameters
         "latent_error_paths": 2,
         "latent_error_resets": 4,
@@ -170,11 +178,12 @@ First, the object-specific JSON messages are described, then the notification me
         "reset_msec": 2000,
         "seq_recovery_resets": 2,
         "type": "seqrec",
-        "use_init_flag": True/False,
-        "use_reset_flag": True/False
+        "use_init_flag": true/false,
+        "use_reset_flag": true/false
         }
 ```
-   *History is only sent in debug mode.*
+
+*The history vector is only sent in debug mode.*
 
 * Replication report:
 
@@ -190,6 +199,7 @@ First, the object-specific JSON messages are described, then the notification me
         "type": "replicate"
         }
 ```
+
 * Delay report:
 
 ```
@@ -197,8 +207,9 @@ First, the object-specific JSON messages are described, then the notification me
         "stream": {"delay_exceeded_packets": 0, "delayed_packets": 0}
         }
 ```
-    The *delayed_packets* are the packets delayed in total by the delay module.
-    The *delay_exceeded_packets* are the packets which arrived so late, that their delay is already exceeded at the moment of reception. This indicates that either the delay in the network increased significantly, or the *delay_ms* parameter in the configuration is too low.
+
+The *delayed_packets* are the packets delayed in total by the delay module.
+The *delay_exceeded_packets* are the packets which arrived so late: their delay is already exceeded at the moment of reception. This indicates that either the delay in the network increased significantly, or the *delay_ms* parameter in the configuration is too low.
 
 * Interface report:
 
@@ -210,6 +221,7 @@ First, the object-specific JSON messages are described, then the notification me
         "send_packets": 0
     }
 ```
+
 * Interface parser report:
 
 ```
@@ -221,6 +233,7 @@ First, the object-specific JSON messages are described, then the notification me
         "stream2 octets": 0,
         "stream2 packets": 0}
 ```
+
 Increasing number of "no match packets" indicates that traffic other than TSN/DetNet reaches the R2DTWO.
 Usually we use TC filters or OVS to decouple the background traffic. However, in some cases traffic like ARP can still reach the R2DTWO. Excessive increase of "no match packets" indicates configuration error or misconfiguration of streams.
 
@@ -231,66 +244,73 @@ Usually we use TC filters or OVS to decouple the background traffic. However, in
         json from TC output, specific to the TC qdisc used. The "tc -s -j qdisc show dev `interface` handle 0" command output is added here.
     }
 ```
+
+
 ### Notification message JSONs
 
-The notification system uses a message fragmentation, which ensures that each fragment fits into an UDP packet.
-To identify the fragments, two fields are used: the *notif_seq* and the *notif_fragment*. The *notif_seq* identifies the individual messages, which may be longer than 1200 byte. The *notif_fragment* tells how many fragments are in total, and also which fragment is the current.
+The notification system uses message fragmentation, which ensures that each fragment fits into an UDP packet.
+To identify the fragments, two fields are used: the *notif_seq* and the *notif_fragment*. The *notif_seq* identifies the individual messages, which may be longer than 1200 byte. The *notif_fragment* tells which fragment this is, and how many fragments are in total.
 
-```
-    "notif_msg": { the actual json content of the message, fragmented in 1200 byte chunks }
+```json
+    "notif_msg": "the actual json content of the message, fragmented in 1200 byte chunks",
     "notif_hostname": "hostname",
-    "notif_seq": 0,    
+    "notif_seq": 0,
     "notif_fragment": "1/2",
     "notif_tstamp": 1743628439.8999681
 ```
-The *notif_message* holds the JSON message chuncks, and by concatenating the fragments we restore the original JSON message.
-Note that even if no fragmentation is needed, the message still contains a *"notif_fragment": "1/1"* field.
 
-In the following, we present the full message formats, without the *notif_fragment* field. This field is not needed after reassembly, so the *notification_receiver* class removes it.
+The *notif_message* holds the notification JSON message chunks, and by concatenating the fragments we restore the original JSON message.
+
+In the following, we present the full message formats, without the *notif_fragment* field. This field is not needed after reassembly, so the provided *NotificationReceiver* Python class removes it.
 
 ##### Pull notifications
 
 * Pull notification
 
-```
-"notif_msg": {
-    source_1: object report 1
-    source_2: object report 2
-
-    source_n: object report n
+```json
+{
+    "notif_msg": "{
+              source_1: object report 1
+              source_2: object report 2
+              source_n: object report n
+    }",
+    "notif_hostname": "hostname",
+    "notif_seq": 0,
+    "notif_tstamp": 1743628439.8999681
 }
-"notif_hostname": "hostname",
-"notif_seq": 0,
-"notif_tstamp": 1743628439.8999681
 ```
 Where source_1...n are the registered pull notification sources, that can be the ones described in the previous section.
 
 ##### Push notifications
 
-* Configration file commit notification:
+* Configuration file commit notification:
 
-```
-    "notif_msg": {
-        "push_level": "INFO",
-        "transaction": {"committed": "notification/notification-detnet.ini"}
-    }
+```json
+{
+    "notif_msg": "{
+        \"push_level\": \"INFO\",
+        \"transaction\": {\"committed\": \"notification/notification-detnet.ini\"}
+    }",
     "notif_hostname": "hostname",
     "notif_seq": 0,
     "notif_tstamp": 1743628439.8999681
+}
 ```
 
 Sent whenever R2DTWO commits a valid configuration.
 
 * Startup notification:
 
-```
+```json
+{
     "notif_hostname": "hostname",
     "notif_seq": 1,
     "notif_tstamp": 1743628439.9162316,
-    "notif_msg": {
-        "push_level": "INFO",
-        "r2dtwo": {"status": "startup completed"}
-    }
+    "notif_msg": "{
+        \"push_level\": \"INFO\",
+        \"r2dtwo\": {\"status\": \"startup completed\"}
+    }"
+}
 ```
 Sent when R2DTWO is ready to process the incoming traffic.
 
@@ -395,7 +415,7 @@ The notification framework currently is limited to DetNet operation. There is no
 This means that:
 
 * Notification messages should be sent on UDP-out interfaces
-* MEP/MIP statistics are DetNet only (AutoMIP does not work with TSN)
-* Also, trigger messages are DetNet OAM specific.
+* MEP/MIP statistics are DetNet only (the MP functionality does not work with TSN)
+* Trigger messages are specific to the DetNet OAM
 
 However, TSN over DetNet is fully supported.
