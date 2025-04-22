@@ -99,11 +99,11 @@ Thus, the minimal configuration changes to enable notifications are the followin
 ```
 [interfaces]
 ...
-*notif = udp-out iface=lo dstip=127.0.0.1 dstport=9000*
+notif = udp-out iface=eno1 dstip=10.10.10.2 dstport=6000
 
 [streams]
 ...
-*notification_session = send notif*
+notification_session = send notif
 ```
 Of course, multiple notification interfaces can be used, using different paths to the destination. At the destination the hostname and notification message sequence number can be used to drop notification message duplicates.
 It is also possible to use PRF/PEF for the notification messages as well, but in most cases a simple sequence number based elimination is enough. An example receiver script is available in /json_receiver/json_udp_receiver.py file.
