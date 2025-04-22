@@ -185,10 +185,10 @@ First, the object-specific JSON messages are described, then the notification me
 The notification system uses a message fragmentation, which ensures that each fragment fits into an UDP packet.
 To identify the fragments, two fields are used: the *notif_seq* and the *notif_fragment*. The *notif_seq* identifies the individual messages, which may be longer than 1200 byte. The *notif_fragment* tells how many fragments are in total, and also which fragment is the current.
 
-    "notif_msg": { the actual json content of the messgage, fragmented in 1200 byte chunks }
+    "notif_msg": { the actual json content of the message, fragmented in 1200 byte chunks }
     "notif_hostname": "hostname",
     "notif_seq": 0,    
-    c
+    "notif_fragment": "1/2",
     "notif_tstamp": 1743628439.8999681
 
 The *notif_message* holds the JSON message chuncks, and by concatenating the fragments we restore the original JSON message.

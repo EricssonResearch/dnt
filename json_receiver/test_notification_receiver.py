@@ -11,7 +11,7 @@ class TestNotificationReceiver(unittest.TestCase):
             "notif_seq": 1,
             "notif_hostname": "host1",
             "notif_fragment": "1/1",
-            "notif_tstamp": "2024-01-01T00:00:00Z",
+            "notif_tstamp": 1743628439.1234567,
             "notif_msg": json.dumps({"message": "Hello"})
         })
         result = self.receiver.process_notification("127.0.0.1", 12345, data)
@@ -25,7 +25,7 @@ class TestNotificationReceiver(unittest.TestCase):
             "notif_seq": 2,
             "notif_hostname": "host2",
             "notif_fragment": "1/1",
-            "notif_tstamp": "2024-01-01T00:00:01Z",
+            "notif_tstamp": 1743628439.1234567,
             "notif_msg": json.dumps({"message": "World"})
         })
         first_result = self.receiver.process_notification("127.0.0.1", 12345, data)
@@ -37,7 +37,7 @@ class TestNotificationReceiver(unittest.TestCase):
         base_data = {
             "notif_seq": 3,
             "notif_hostname": "host3",
-            "notif_tstamp": "2024-01-01T00:00:02Z",
+            "notif_tstamp": 1743628439.1234567,
         }
 
         # Simulate two fragments

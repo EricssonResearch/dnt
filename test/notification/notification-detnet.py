@@ -12,7 +12,7 @@ import asyncio
 
 import sys
 sys.path.append('../json_receiver/')
-from notification_receiver import NotificationReceiver  # Assuming you save the class in this file
+from notification_receiver import NotificationReceiver
 
 NUM_PACKETS_S2 = 5
 NUM_PACKETS_S3 = 5

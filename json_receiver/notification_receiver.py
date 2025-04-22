@@ -4,11 +4,22 @@ from collections import deque
 
 class NotificationReceiver:
     def __init__(self, seq_history_size=20):
+        """
+        Initialize NotificationReceiver. Optional parameter is
+        @seq_history_size, the size of the history window, default value is 20.
+        """
         self.SEQ_HISTORY_SIZE = seq_history_size
         self.last_seqnums = deque(maxlen=self.SEQ_HISTORY_SIZE)
         self.mpart_collector = {}
 
     def process_notification(self, host, port, data):
+        """
+        Performs the reassembly of message fragments and also elimination
+        of duplicate messages. Returns only full json messages.
+        @host, @port - sender host and port, needed for elimination
+        @data - the received json fragment
+        @return None if message is partial, or the full json message.
+        """
         try:
             jsonReceived = self._parse_json(data)
             self._validate_input(jsonReceived)
