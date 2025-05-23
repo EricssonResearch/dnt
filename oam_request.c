@@ -31,7 +31,7 @@
 #include <arpa/inet.h>
 
 #define OAM_PING_TTL 64
-#define OAM_CHANNEL 1 /* Management Communication Channel (MCC), similar format to ours */
+#define OAM_CHANNEL 0x7fff /* Experimental channel type, we are not compatible with anything */
 
 struct OamRequest {
     char *conn_name; // NULL if not issued from a command connection
