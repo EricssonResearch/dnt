@@ -25,7 +25,6 @@ struct ConfAction *delete_confaction_list(struct ConfAction *ca_list);
 
 // creates an action pipeline from the action descriptor list
 // @returns NULL if @ca_list is empty
-// doesn't add reference to the returned pipeline
 struct Pipeline *assemble_actions(const char *stream_name, const struct ConfAction *ca_list);
 
 void confactions_print(const struct ConfAction *ca_list, unsigned indent);

@@ -38,7 +38,9 @@ struct OamRequest *parse_rlist_command(const char *oam_command,
 // always returns a request, sets ret->error to an error message
 struct OamRequest *parse_mask_command(const char *oam_command, char *conn_name);
 
+// always returns NULL
 struct OamRequest *delete_oam_request(struct OamRequest *req);
+
 
 const char *request_get_type(const struct OamRequest *req);
 

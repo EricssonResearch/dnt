@@ -15,12 +15,11 @@
 // public interface of the OAM module
 
 struct PipelineObject;
-struct MepStart;
 
 // state object for a point that receives OAM packets
 struct OamEndPoint;
 
-// initialized the OAM module
+// initialize the OAM module
 // @returns true on success
 bool init_oam(void);
 

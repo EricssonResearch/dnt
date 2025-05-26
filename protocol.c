@@ -313,7 +313,7 @@ const struct Protocol protocol_list[] = {
     {"oam", oam_fields, ARRAY_SIZE(oam_fields), 8, NULL, NULL, NULL, 0},
 };
 
-const unsigned protocol_count = ARRAY_SIZE(protocol_list);
+static const unsigned protocol_count = ARRAY_SIZE(protocol_list);
 
 const struct Protocol *protocol_from_id(enum ProtocolID id)
 {

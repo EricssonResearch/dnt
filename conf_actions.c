@@ -907,7 +907,6 @@ static bool process_token(char *token, void *userdata)
                 pstst.must_write = copy_mustwrite_list(stst, pstst.headers);
                 pstst.depth += 1;
                 if (stst->must_write && !pstst.must_write) {
-                    //TODO we need a stst destructor
                     CLEANUP_PSTST(pstst);
                     THROW("failed to copy the must_write list?!?");
                 }
@@ -1726,6 +1725,12 @@ struct ConfAction *delete_confaction_list(struct ConfAction *ca_list)
             case CA_JUMP:
                 free(del->jump.pipename);
                 break;
+            case CA_MEPSTART:
+            case CA_MEPSTOP:
+            case CA_MIP:
+                free(del->oam.name);
+                free(del->oam.stream);
+                break;
             case CA_POF:
                 break;
             case CA_READSEQ:
@@ -1745,12 +1750,6 @@ struct ConfAction *delete_confaction_list(struct ConfAction *ca_list)
                 break;
             case CA_TTLREDUCE:
                 free(del->ttl.field);
-                break;
-            case CA_MEPSTART:
-            case CA_MEPSTOP:
-            case CA_MIP:
-                free(del->oam.name);
-                free(del->oam.stream);
                 break;
         }
         free(del);
@@ -2015,6 +2014,12 @@ void confactions_print(const struct ConfAction *ca_list, unsigned indent)
             case CA_JUMP:
                 log_debug("%*s%s", indent+2, "", ca->jump.pipename);
                 break;
+            case CA_MEPSTART:
+            case CA_MEPSTOP:
+            case CA_MIP:
+                log_debug("%*sname %s stream %s level %d object %s", indent+2, "",
+                        ca->oam.name, ca->oam.stream, ca->oam.level, ca->oam.obj?ca->oam.obj->name:"<none>");
+                break;
             case CA_POF:
                 log_debug("%*sobject %s", indent+2, "", ca->pof.pof->name);
                 break;
@@ -2042,12 +2047,6 @@ void confactions_print(const struct ConfAction *ca_list, unsigned indent)
             case CA_TTLREDUCE:
                 log_debug("%*sfield idx %u bitoffset %u bitcount %u", indent+2, "",
                         ca->ttl.field->header_idx, ca->ttl.field->bitoffset, ca->ttl.field->bitcount);
-                break;
-            case CA_MEPSTART:
-            case CA_MEPSTOP:
-            case CA_MIP:
-                log_debug("%*sname %s level %d object %s", indent+2, "",
-                        ca->oam.name, ca->oam.level, ca->oam.obj?ca->oam.obj->name:"<none>");
                 break;
         }
     }
