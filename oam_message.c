@@ -75,8 +75,7 @@ static int process_reply(const char *msg)
         return -1;                          \
     } while (0)
 
-    //TODO _json should be the first arg
-#define JS_OBJECT_GET(_key, _type, _json)                           \
+#define JS_OBJECT_GET(_json, _key, _type)                           \
     struct JsonValue *_key = json_object_get_##_type(_json, #_key); \
     if (_key == NULL) {                                             \
         THROW("No " #_key " in reply.");                            \
@@ -94,23 +93,23 @@ static int process_reply(const char *msg)
     struct CommandConnection *conn = NULL;
     FILE *cmd_w = NULL;
 
-    JS_OBJECT_GET(type, string, j);
+    JS_OBJECT_GET(j, type, string);
 
     if (strcmp(type->v.string, "newaddress") == 0) {
-        JS_OBJECT_GET(code, string, j);
+        JS_OBJECT_GET(j, code, string);
         if (strcmp(code->v.string, "notify") != 0) {
             THROW("newaddress message is '%s' instead of 'notify'", code->v.string);
         }
 
-        JS_OBJECT_GET(sendiface, string, j);
+        JS_OBJECT_GET(j, sendiface, string);
         struct Interface *sendif = state_get_interface(sendiface->v.string);
         if (sendif == NULL) {
             THROW("got newaddress notification for non-existing interface '%s'", sendiface->v.string);
         }
 
-        JS_OBJECT_GET(address, object, j);
-        JS_OBJECT_GET(ip, string, address);
-        JS_OBJECT_GET(port, number, address);
+        JS_OBJECT_GET(j, address, object);
+        JS_OBJECT_GET(address, ip, string);
+        JS_OBJECT_GET(address, port, number);
         log_debug("newaddress notification for %s is %s %.0f",
                 sendiface->v.string, ip->v.string, port->v.number);
         if (udp_out_set_dst(sendif, ip->v.string, port->v.number)) {
@@ -122,13 +121,13 @@ static int process_reply(const char *msg)
         }
     }
 
-    JS_OBJECT_GET(nodeid, number, j);
-    JS_OBJECT_GET(target, string, j);
-    JS_OBJECT_GET(sequence, number, j);
-    JS_OBJECT_GET(level, number, j);
-    JS_OBJECT_GET(receiver, string, j);
-    JS_OBJECT_GET(stream, string, j);
-    JS_OBJECT_GET(session, number, j);
+    JS_OBJECT_GET(j, nodeid, number);
+    JS_OBJECT_GET(j, target, string);
+    JS_OBJECT_GET(j, sequence, number);
+    JS_OBJECT_GET(j, level, number);
+    JS_OBJECT_GET(j, receiver, string);
+    JS_OBJECT_GET(j, stream, string);
+    JS_OBJECT_GET(j, session, number);
 
     log_packet("recv reply %s:%.0f seq %.0f lvl %.0f - %s",
             stream->v.string, session->v.number, sequence->v.number, level->v.number, msg);
@@ -142,12 +141,12 @@ static int process_reply(const char *msg)
         cmd_w = command_connection_get_w(conn);
 
     if (strcmp(type->v.string, "rlist") == 0) {
-        JS_OBJECT_GET(code, string, j);
+        JS_OBJECT_GET(j, code, string);
         if (strcmp(code->v.string, "reply") != 0) {
             THROW("rlist result is not a reply.");
         }
 
-        JS_OBJECT_GET(list, array, j);
+        JS_OBJECT_GET(j, list, array);
         sprintf(reply_str, "Rlist result from %s:\n", receiver->v.string);
         for (unsigned i=0; i<json_array_size(list); i++) {
             struct JsonValue *str = json_array_at(list, i);
@@ -161,18 +160,18 @@ static int process_reply(const char *msg)
         if (cmd_w) fprintf(cmd_w, "%s\n", reply_str);
     }
     else if (strcmp(type->v.string, "rping") == 0) {
-        JS_OBJECT_GET(code, string, j);
+        JS_OBJECT_GET(j, code, string);
         if (strcmp(code->v.string, "error") != 0) {
             THROW("rping response is not error.");
         }
 
-        JS_OBJECT_GET(error, string, j);
+        JS_OBJECT_GET(j, error, string);
         snprintf(reply_str, sizeof(reply_str), "Rping error from %s : %s\n", receiver->v.string, error->v.string);
         json_delete(j);
         if (cmd_w) fprintf(cmd_w, "%s\n", reply_str);
     }
     else if (strcmp(type->v.string, "ping") == 0) {
-        JS_OBJECT_GET(code, string, j);
+        JS_OBJECT_GET(j, code, string);
         if (strcmp(code->v.string, "reply") != 0) {
             THROW("ping result is not a reply.");
         }
@@ -180,12 +179,15 @@ static int process_reply(const char *msg)
         struct JsonValue *delay = json_object_get_bool(j, "delay");
         if (delay != NULL && delay->type == JSON_TRUE) {
             // calculate delay
-            // TODO use JS_OBJECT_GET
+            JS_OBJECT_GET(j, send_s, number);
+            JS_OBJECT_GET(j, send_ns, number);
+            JS_OBJECT_GET(j, recv_s, number);
+            JS_OBJECT_GET(j, recv_ns, number);
             struct timespec sendtime, receivetime, delay_diff;
-            sendtime.tv_sec = json_object_get_number(j, "send_s")->v.number;
-            sendtime.tv_nsec = json_object_get_number(j, "send_ns")->v.number;
-            receivetime.tv_sec = json_object_get_number(j, "recv_s")->v.number;
-            receivetime.tv_nsec = json_object_get_number(j, "recv_ns")->v.number;
+            sendtime.tv_sec = send_s->v.number;
+            sendtime.tv_nsec = send_ns->v.number;
+            receivetime.tv_sec = recv_s->v.number;
+            receivetime.tv_nsec = recv_ns->v.number;
             timespecsub(&receivetime, &sendtime, &delay_diff);
 
             sprintf(reply_str,"  oam_r %s:%.0f seq %.0f lvl %.0f R - %s on stream %s target %s; reply from %s delay %ld.%09ld",
@@ -246,13 +248,11 @@ static int process_reply(const char *msg)
             }
             fprintf(cmd_w, "%s\n", reply_str);
         }
-        release_command_connection(conn);
     }
     else {
         THROW("invalid reply type '%s'", type->v.string);
-        json_delete(j);
-        return -1;
     }
+    release_command_connection(conn);
     return 0;
 #undef JS_OBJECT_GET
 #undef THROW
@@ -264,6 +264,9 @@ static void *reply_thread_fn(void *arg)
 
     while (1) {
         char *msg = (char *)messagequeue_pop(reply_q, -1);
+        if (msg == NULL)
+            return NULL;
+
         process_reply(msg);
         free(msg);
     }
@@ -816,6 +819,9 @@ static void *request_thread_fn(void *arg)
 
     while (1) {
         struct request_msg *msg = (struct request_msg *)messagequeue_pop(request_q, -1);
+        if (msg == NULL)
+            return NULL;
+
         struct MepStart *mep = msg->oam->mep;
         if (mep) {
             //TODO __atomic_fetch_add
@@ -864,8 +870,10 @@ void init_message_module(bool have_reply_iface)
 
 void finish_message_module(void)
 {
-    thread_stop(request_thread);
-    thread_stop(reply_thread);
+    messagequeue_push(request_q, NULL);
+    messagequeue_push(reply_q, NULL);
+    thread_join(request_thread);
+    thread_join(reply_thread);
     delete_messagequeue(request_q);
     delete_messagequeue(reply_q);
 }
