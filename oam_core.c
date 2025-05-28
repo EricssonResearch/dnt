@@ -9,6 +9,7 @@
 #include "oam_core.h"
 #include "oam_message.h"
 #include "oam_request.h"
+#include "oam_session.h"
 
 #include "if_oam.h"
 #include "hashmap.h"
@@ -417,7 +418,8 @@ bool init_oam(void)
 {
     if (oam_initialized) return true;
 
-    init_msg_module(oam_default_iface != NULL);
+    init_session_module();
+    init_message_module(oam_default_iface != NULL);
 
     if (oam_default_iface || oam_cmd_iface) {
         log_info("Init OAM fuctionality:%s%s",
@@ -438,7 +440,8 @@ void finish_oam(void)
 {
     stop_all_sessions_of_connection(NULL); // stop the background sessions
     finish_cmd_module();
-    finish_msg_module();
+    finish_message_module();
+    finish_session_module();
     delete_hashmap(mep_starts);
     delete_hashmap(oam_ifaces);
 

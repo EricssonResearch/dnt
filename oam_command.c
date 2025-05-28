@@ -9,6 +9,7 @@
 #include "oam_core.h"
 #include "oam_message.h"
 #include "oam_request.h"
+#include "oam_session.h"
 
 #include "if_oam.h"
 #include "log.h"
