@@ -18,15 +18,19 @@ enum TerminalFormat {
 
 struct CommandConnection;
 
-const char *terminal_format_name(enum TerminalFormat f);
-
+// acquire a reference to command connection named @name
+// @returns NULL if there is no such connection
+// the returned reference MUST be released with @release_command_connection
 struct CommandConnection *find_command_connection(const char *name);
 
+// release the reference to @conn
+void release_command_connection(struct CommandConnection *conn);
+
+// they are the same if @conn has the same name as @name
 bool command_connection_is_same(const struct CommandConnection *conn, const char *name);
 
+// @returns the write filehandle of the command interface
 FILE *command_connection_get_w(struct CommandConnection *conn);
-
-void command_connection_release_w(struct CommandConnection *conn);
 
 enum TerminalFormat command_connection_get_format(const struct CommandConnection *conn);
 

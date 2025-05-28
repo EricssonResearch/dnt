@@ -72,7 +72,7 @@ struct StreamSessions *get_stream_sessions(const char *stream_name)
     return stream;
 }
 
-// returns true if something was stopped
+// @returns true if something was stopped
 // @session_lock must be acquired before calling this
 static int stop_session_locked(struct SessionTracker *s)
 {
@@ -154,46 +154,45 @@ int stream_live_session_count(const struct StreamSessions *stream)
     return live_session_count;
 }
 
-void stop_session(const char *stream_name, int session, struct CommandConnection *conn)
+int stop_session(const char *stream_name, int session)
 {
     struct StreamSessions *stream = get_stream_sessions(stream_name);
     if (stream == NULL)
-        return;
+        return -1;
+    if (session < 0 || session > 15)
+        return 0;
     pthread_mutex_lock(&session_lock);
     if (session==-1)
         session = stream->last_session; //TODO the caller should do this
-    FILE *cmd_w = command_connection_get_w(conn);
     int res = stop_session_locked(&stream->sessions[session]);
-    if (cmd_w) fprintf(cmd_w, "Stopping stream:session %s:%d - %s\n", stream_name, session,
-            res ? "stopped" : "not running");
-    command_connection_release_w(conn);
     pthread_mutex_unlock(&session_lock);
+    return res;
 }
 
-static int stop_connection_sessions_cb(const char *key, void *value, void *userdata)
+int stop_all_sessions_of_connection(struct CommandConnection *conn)
 {
-    struct StreamSessions *stream = (struct StreamSessions *)value;
-    struct CommandConnection *conn = (struct CommandConnection *)userdata;
     FILE *cmd_w = command_connection_get_w(conn);
+    int ret = 0;
 
-    for (int i=0; i<16; i++) {
-        struct SessionTracker *s = &stream->sessions[i];
-        if (s->live == false) continue;
-        if (command_connection_is_same(conn, s->conn_name)) {
-            int res = stop_session_locked(s);
-            if (cmd_w) fprintf(cmd_w, "Stopping stream:session %s:%d - %s\n", key, i,
-                    res ? "stopped" : "not running");
+    pthread_mutex_lock(&session_lock);
+    HASHMAP_ITERATE(session_ids, it) {
+        const char *stream_name = hash_iterator_key(&it);
+        struct StreamSessions *stream = (struct StreamSessions *)hash_iterator_value(&it);
+
+        for (int i=0; i<16; i++) {
+            struct SessionTracker *s = &stream->sessions[i];
+            if (s->live == false) continue;
+
+            if (command_connection_is_same(conn, s->conn_name)) {
+                int res = stop_session_locked(s);
+                if (cmd_w) fprintf(cmd_w, "Stopping stream:session %s:%d - %s\n", stream_name, i,
+                        res ? "stopped" : "not running");
+                ret += res;
+            }
         }
     }
-    command_connection_release_w(conn);
-    return 1;
-}
-
-void stop_all_sessions_of_connection(struct CommandConnection *conn)
-{
-    pthread_mutex_lock(&session_lock);
-    hashmap_foreach(session_ids, stop_connection_sessions_cb, conn);
     pthread_mutex_unlock(&session_lock);
+    return ret;
 }
 
 int list_sessions_of_stream(struct StreamSessions *stream, FILE *cmd_w)

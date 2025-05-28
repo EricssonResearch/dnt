@@ -28,6 +28,7 @@
 #include <ctype.h>
 
 #include <unistd.h>
+#include <pthread.h>
 #include <arpa/inet.h>
 
 
@@ -39,15 +40,16 @@ struct CommandConnection {
     unsigned short remote_port;
     int socket_fd; // RW
     FILE *cmd_w; // WRONLY
-    int w_users;
+    int refcount;
     enum TerminalFormat mode;
     struct Thread *thread;
 };
 
 
 static struct HashMap *command_connections = NULL; // name -> struct command_connection
+static pthread_mutex_t command_connections_lock;
 
-const char *terminal_format_name(enum TerminalFormat f)
+static const char *terminal_format_name(enum TerminalFormat f)
 {
     switch (f) {
         case TF_DUMP:
@@ -61,7 +63,19 @@ const char *terminal_format_name(enum TerminalFormat f)
 struct CommandConnection *find_command_connection(const char *name)
 {
     if (name == NULL) return NULL;
-    return (struct CommandConnection *)hashmap_find(command_connections, name);
+    pthread_mutex_lock(&command_connections_lock);
+    struct CommandConnection *ret = (struct CommandConnection *)hashmap_find(command_connections, name);
+    pthread_mutex_unlock(&command_connections_lock);
+    if (ret)
+        __atomic_fetch_add(&ret->refcount, 1, __ATOMIC_RELAXED);
+    return ret;
+}
+
+void release_command_connection(struct CommandConnection *conn)
+{
+    if (conn) {
+        __atomic_fetch_sub(&conn->refcount, 1, __ATOMIC_RELAXED);
+    }
 }
 
 bool command_connection_is_same(const struct CommandConnection *conn, const char *name)
@@ -77,14 +91,7 @@ bool command_connection_is_same(const struct CommandConnection *conn, const char
 FILE *command_connection_get_w(struct CommandConnection *conn)
 {
     if (conn == NULL) return NULL;
-    __atomic_fetch_add(&conn->w_users, 1, __ATOMIC_RELAXED);
     return conn->cmd_w;
-}
-
-void command_connection_release_w(struct CommandConnection *conn)
-{
-    if (conn == NULL) return;
-    __atomic_fetch_sub(&conn->w_users, 1, __ATOMIC_RELAXED);
 }
 
 enum TerminalFormat command_connection_get_format(const struct CommandConnection *conn)
@@ -226,7 +233,9 @@ static void command_loop(struct CommandConnection *conn)
     char oam_command[255], last_command[255];
     char streamname[32];
 
-    const char *last_stream=NULL; // the stream name of the last issued command
+    // stream name and session id of the last issued command
+    char *last_stream = NULL;
+    unsigned last_session = 0;
 
     while (conn->name == NULL) usleep(1000); // this is generated after the thread has been launched
 
@@ -394,17 +403,31 @@ static void command_loop(struct CommandConnection *conn)
                 }
             }
             else if (strncmp(oam_command, "stop", 4) == 0) {
-                int session;
-                int k=sscanf(oam_command, "stop %s %d", streamname, &session);
-                if(k==0 || k==EOF){
-                    if(last_stream == NULL)
-                        fprintf(cmd_w,"No previous command to stop.\n");
-                    else
-                        stop_session(last_stream, -1, conn);
-                } else if(k==2){
-                    stop_session(streamname, session, conn);
-                } else
-                    fprintf(cmd_w,"invalid parameters for stop.\n");
+                unsigned session;
+                int k=sscanf(oam_command, "stop %s %u", streamname, &session);
+                if (k==0 || k==EOF) {
+                    if (last_stream == NULL) {
+                        fprintf(cmd_w, "No previous command to stop.\n");
+                    } else {
+                        int res = stop_session(last_stream, last_session);
+                        fprintf(cmd_w, "Stopping stream:session %s:%d - %s\n",
+                                last_stream, -1,
+                                res > 0 ? "stopped" : "not running");
+                        free(last_stream);
+                        last_stream = 0;
+                    }
+                } else if (k==2) {
+                    int res = stop_session(streamname, session);
+                    fprintf(cmd_w, "Stopping stream:session %s:%d - %s\n",
+                            streamname, session,
+                            res > 0 ? "stopped" : "not running");
+                    if (strcmp(streamname, last_stream) == 0 && session == last_session) {
+                        free(last_stream);
+                        last_stream = 0;
+                    }
+                } else {
+                    fprintf(cmd_w, "invalid parameters for stop.\n");
+                }
             }
             else if (strcmp(oam_command, "returns") == 0) {
                 fprintf(cmd_w, "Available OAM return interfaces:\n");
@@ -413,11 +436,13 @@ static void command_loop(struct CommandConnection *conn)
             else if (strncmp(oam_command, "ping", 4) == 0) {
                 struct OamRequest *ping_req = parse_ping_command(oam_command+4, true, true, strdup(conn->name));
                 CHECK_REQUEST(ping_req);
-                const char *req_stream = request_get_stream_name(ping_req);
                 if (!initiate_request(ping_req)) {
                     ERROR("sending ping command failed");
                 }
-                last_stream = req_stream;
+                if (last_stream)
+                    free(last_stream);
+                last_stream = strdup(request_get_stream_name(ping_req));
+                last_session = request_get_session_id(ping_req);
             }
             else if (strncmp(oam_command, "rping", 5) == 0) {
                 struct OamRequest *rping_req = parse_rping_command(oam_command+5, strdup(conn->name));
@@ -487,7 +512,9 @@ static void *command_thread(void *arg)
     command_loop(conn);
     struct Thread *thread = conn->thread;
     // the hash delete callback will call thread_stop, but it does nothing to its own thread
+    pthread_mutex_lock(&command_connections_lock);
     hashmap_remove(command_connections, conn->name);
+    pthread_mutex_unlock(&command_connections_lock);
     thread_exit(thread);
     return NULL;
 }
@@ -515,18 +542,9 @@ void oam_start_command_connection(int fd, const char *remote_ip, unsigned short 
         return;
     }
     conn->name = strdup_printf("conn %u", thread_getid(conn->thread));
+    pthread_mutex_lock(&command_connections_lock);
     hashmap_insert(command_connections, conn->name, conn);
-}
-
-static int alert_cb(const char *key, void *value, void *userdata)
-{
-    (void)key;
-    struct CommandConnection *conn = (struct CommandConnection *)value;
-    char *msg = (char *)userdata;
-    FILE *cmd_w = command_connection_get_w(conn);
-    if (cmd_w) fprintf(cmd_w, "\n\33[0;33m%s\033[0m\n", msg);
-    command_connection_release_w(conn);
-    return 1;
+    pthread_mutex_unlock(&command_connections_lock);
 }
 
 void oam_cli_alert(const char *fmt, ...)
@@ -537,7 +555,12 @@ void oam_cli_alert(const char *fmt, ...)
     vsnprintf(msg, sizeof(msg), fmt, args);
     va_end(args);
 
-    hashmap_foreach(command_connections, alert_cb, msg);
+    pthread_mutex_lock(&command_connections_lock);
+    HASHMAP_ITERATE(command_connections, it) {
+        struct CommandConnection *conn = (struct CommandConnection *)hash_iterator_value(&it);
+        fprintf(conn->cmd_w, "\n\33[1;33m%s\033[0m\n", msg);
+    }
+    pthread_mutex_unlock(&command_connections_lock);
 }
 
 static int command_connection_delete_cb(const char *key, void *value, void *userdata)
@@ -545,7 +568,7 @@ static int command_connection_delete_cb(const char *key, void *value, void *user
     (void)key; // same as conn->name
     (void)userdata;
     struct CommandConnection *conn = (struct CommandConnection *)value;
-    while (conn->w_users > 0) {
+    while (conn->refcount > 0) {
         usleep(1000);
     }
     stop_all_sessions_of_connection(conn);
@@ -559,6 +582,7 @@ static int command_connection_delete_cb(const char *key, void *value, void *user
 
 void init_cmd_module(void)
 {
+    pthread_mutex_init(&command_connections_lock, NULL);
     command_connections = new_hashmap(7, command_connection_delete_cb, NULL);
 }
 

@@ -51,6 +51,8 @@ const char *request_get_error(const struct OamRequest *req);
 
 const char *request_get_stream_name(const struct OamRequest *req);
 
+unsigned request_get_session_id(const struct OamRequest *req);
+
 const char *request_get_start_name(const struct OamRequest *req);
 
 const char *request_get_stop_name(const struct OamRequest *req);

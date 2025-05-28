@@ -447,7 +447,7 @@ struct OamRequest *parse_mask_command(const char *oam_command, char *conn_name)
         struct CommandConnection *conn = find_command_connection(conn_name);
         FILE *cmd_w = command_connection_get_w(conn);
         fprintf(cmd_w, "Pipeline '%s' %sed\n", pipename, mask_req->type);
-        command_connection_release_w(conn);
+        release_command_connection(conn);
 
         char *postmip_name = strdup_printf("o_%s_L%u_post-%s", pipename, repl->auto_mip_level, repl->name);
         mask_req->mep_start = find_mep_start(postmip_name);
@@ -489,6 +489,11 @@ const char *request_get_error(const struct OamRequest *req)
 const char *request_get_stream_name(const struct OamRequest *req)
 {
     return req->mep_start->stream_name;
+}
+
+unsigned request_get_session_id(const struct OamRequest *req)
+{
+    return req->session_id;
 }
 
 const char *request_get_start_name(const struct OamRequest *req)
@@ -703,7 +708,7 @@ bool initiate_request(struct OamRequest *req)
     if (!req->mep_start) {
         req->error = strdup_printf("mep start not found for '%s' command\n", req->type);
         if (cmd_w) fprintf(cmd_w, "%s", req->error);
-        command_connection_release_w(conn);
+        release_command_connection(conn);
         return false;
     }
 
@@ -711,7 +716,7 @@ bool initiate_request(struct OamRequest *req)
     if (!pipe) {
         req->error = strdup_printf("mep start '%s' has no pipeline!?!\n", req->mep_start->name);
         if (cmd_w) fprintf(cmd_w, "%s", req->error);
-        command_connection_release_w(conn);
+        release_command_connection(conn);
         return false;
     }
 
@@ -720,7 +725,7 @@ bool initiate_request(struct OamRequest *req)
     if (session_id < 0) {
         req->error = strdup_printf("stream %s has no free session id\n", req->mep_start->stream_name);
         if (cmd_w) fprintf(cmd_w, "%s", req->error);
-        command_connection_release_w(conn);
+        release_command_connection(conn);
         return false;
     }
 
@@ -748,11 +753,11 @@ bool initiate_request(struct OamRequest *req)
             req->error = strdup("could not create new request thread");
             log_error("%s", req->error);
             if (cmd_w) fprintf(cmd_w, "%s\n", req->error);
-            command_connection_release_w(conn);
+            release_command_connection(conn);
             return false;
         }
     }
 
-    command_connection_release_w(conn);
+    release_command_connection(conn);
     return true;
 }

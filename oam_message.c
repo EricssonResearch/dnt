@@ -67,12 +67,19 @@ struct OamEndPoint *oam_delete_endpoint(struct OamEndPoint *end)
 
 static int process_reply(const char *msg)
 {
+#define THROW(msg, ...)                     \
+    do {                                    \
+        log_error(msg, ##__VA_ARGS__);      \
+        json_delete(j);                     \
+        release_command_connection(conn);   \
+        return -1;                          \
+    } while (0)
+
+    //TODO _json should be the first arg
 #define JS_OBJECT_GET(_key, _type, _json)                           \
     struct JsonValue *_key = json_object_get_##_type(_json, #_key); \
     if (_key == NULL) {                                             \
-        log_error("No " #_key " in reply.");                        \
-        json_delete(j);                                             \
-        return -1;                                                  \
+        THROW("No " #_key " in reply.");                            \
     }
 
     char reply_str[1400], rr_str[512];
@@ -84,22 +91,21 @@ static int process_reply(const char *msg)
         return -1;
     }
 
+    struct CommandConnection *conn = NULL;
+    FILE *cmd_w = NULL;
+
     JS_OBJECT_GET(type, string, j);
 
     if (strcmp(type->v.string, "newaddress") == 0) {
         JS_OBJECT_GET(code, string, j);
         if (strcmp(code->v.string, "notify") != 0) {
-            log_error("newaddress message is '%s' instead of 'notify'", code->v.string);
-            json_delete(j);
-            return -1;
+            THROW("newaddress message is '%s' instead of 'notify'", code->v.string);
         }
 
         JS_OBJECT_GET(sendiface, string, j);
         struct Interface *sendif = state_get_interface(sendiface->v.string);
         if (sendif == NULL) {
-            log_error("got newaddress notification for non-existing interface '%s'", sendiface->v.string);
-            json_delete(j);
-            return -1;
+            THROW("got newaddress notification for non-existing interface '%s'", sendiface->v.string);
         }
 
         JS_OBJECT_GET(address, object, j);
@@ -128,19 +134,17 @@ static int process_reply(const char *msg)
             stream->v.string, session->v.number, sequence->v.number, level->v.number, msg);
 
     if (session->v.number < 0 || session->v.number > 15) {
-        log_error("session id %.0f in reply is invalid", session->v.number);
-        json_delete(j);
-        return -1;
+        THROW("session id %.0f in reply is invalid", session->v.number);
     }
 
-    struct CommandConnection *conn = command_connection_for_session(stream->v.string, session->v.number);
+    conn = command_connection_for_session(stream->v.string, session->v.number);
+    if (conn)
+        cmd_w = command_connection_get_w(conn);
 
     if (strcmp(type->v.string, "rlist") == 0) {
         JS_OBJECT_GET(code, string, j);
         if (strcmp(code->v.string, "reply") != 0) {
-            log_error("rlist result is not a reply.");
-            json_delete(j);
-            return -1;
+            THROW("rlist result is not a reply.");
         }
 
         JS_OBJECT_GET(list, array, j);
@@ -148,48 +152,35 @@ static int process_reply(const char *msg)
         for (unsigned i=0; i<json_array_size(list); i++) {
             struct JsonValue *str = json_array_at(list, i);
             if (str->type != JSON_STRING) {
-                log_error("rlist result is not string.");
-                json_delete(j);
-                return -1;
+                THROW("rlist result is not string.");
             }
             strcat(reply_str, str->v.string);
             strcat(reply_str, "\n");
         }
         json_delete(j);
-        if (conn) {
-            FILE *cmd_w = command_connection_get_w(conn);
-            if (cmd_w) fprintf(cmd_w, "%s\n", reply_str);
-            command_connection_release_w(conn);
-        }
+        if (cmd_w) fprintf(cmd_w, "%s\n", reply_str);
     }
     else if (strcmp(type->v.string, "rping") == 0) {
         JS_OBJECT_GET(code, string, j);
         if (strcmp(code->v.string, "error") != 0) {
-            log_error("rping response is not error.");
-            json_delete(j);
-            return -1;
+            THROW("rping response is not error.");
         }
 
         JS_OBJECT_GET(error, string, j);
         snprintf(reply_str, sizeof(reply_str), "Rping error from %s : %s\n", receiver->v.string, error->v.string);
         json_delete(j);
-        if (conn) {
-            FILE *cmd_w = command_connection_get_w(conn);
-            if (cmd_w) fprintf(cmd_w, "%s\n", reply_str);
-            command_connection_release_w(conn);
-        }
+        if (cmd_w) fprintf(cmd_w, "%s\n", reply_str);
     }
     else if (strcmp(type->v.string, "ping") == 0) {
         JS_OBJECT_GET(code, string, j);
         if (strcmp(code->v.string, "reply") != 0) {
-            log_error("ping result is not a reply.");
-            json_delete(j);
-            return -1;
+            THROW("ping result is not a reply.");
         }
 
-        struct JsonValue *dly = json_object_get_bool(j, "delay");
-        if(dly != NULL && dly->type == JSON_TRUE){
+        struct JsonValue *delay = json_object_get_bool(j, "delay");
+        if (delay != NULL && delay->type == JSON_TRUE) {
             // calculate delay
+            // TODO use JS_OBJECT_GET
             struct timespec sendtime, receivetime, delay_diff;
             sendtime.tv_sec = json_object_get_number(j, "send_s")->v.number;
             sendtime.tv_nsec = json_object_get_number(j, "send_ns")->v.number;
@@ -214,9 +205,7 @@ static int process_reply(const char *msg)
             for (unsigned i=0; i<json_array_size(jrr); i++) {
                 struct JsonValue *rritem = json_array_at(jrr, i);
                 if (rritem->type != JSON_STRING) {
-                    log_error("record route item is not string");
-                    json_delete(j);
-                    return -1;
+                    THROW("record route item is not string");
                 }
                 strcat(rr_str, " ");
                 strcat(rr_str, rritem->v.string);
@@ -238,15 +227,14 @@ static int process_reply(const char *msg)
         log_info("%s %s %s", reply_str, rr_str, obj_str_log);
         free(obj_str_log);
 
-        json_delete(j);
+        j = json_delete(j);
 
         // check if we need to print to a telnet session
         if (conn == NULL) return 0; // this is a background ping
 
-        FILE *cmd_w = command_connection_get_w(conn);
-        if(command_connection_get_format(conn) == TF_JSON){
-            if (cmd_w) fprintf(cmd_w, "%s\n", msg);
-        } else {                                               // DUMP mode
+        if (command_connection_get_format(conn) == TF_JSON) {
+            fprintf(cmd_w, "%s\n", msg);
+        } else { // DUMP mode
             if (rr_str[0]) {
                 strcat(reply_str, "\n\t");
                 strcat(reply_str, rr_str);
@@ -256,18 +244,18 @@ static int process_reply(const char *msg)
                 strcat(reply_str, obj_str);
                 free(obj_str);
             }
-            if (cmd_w) fprintf(cmd_w, "%s\n", reply_str);
+            fprintf(cmd_w, "%s\n", reply_str);
         }
-        command_connection_release_w(conn);
-
+        release_command_connection(conn);
     }
     else {
-        log_error("invalid reply type '%s'", type->v.string);
+        THROW("invalid reply type '%s'", type->v.string);
         json_delete(j);
         return -1;
     }
     return 0;
-    #undef JS_OBJECT_GET
+#undef JS_OBJECT_GET
+#undef THROW
 }
 
 static void *reply_thread_fn(void *arg)

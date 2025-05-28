@@ -26,9 +26,11 @@ int alloc_session_id(struct StreamSessions *stream, struct OamRequest *req,
 
 int stream_live_session_count(const struct StreamSessions *stream);
 
-void stop_session(const char *stream_name, int session, struct CommandConnection *conn);
+// @returns the number of sessions stopped, or -1 on no such stream
+int stop_session(const char *stream_name, int session);
 
-void stop_all_sessions_of_connection(struct CommandConnection *conn);
+// @returns the number of sessions stopped
+int stop_all_sessions_of_connection(struct CommandConnection *conn);
 
 int list_sessions_of_stream(struct StreamSessions *stream, FILE *cmd_w);
 
