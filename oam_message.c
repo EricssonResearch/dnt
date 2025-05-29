@@ -871,7 +871,8 @@ void init_message_module(bool have_reply_iface)
 void finish_message_module(void)
 {
     messagequeue_push(request_q, NULL);
-    messagequeue_push(reply_q, NULL);
+    if (reply_q)
+        messagequeue_push(reply_q, NULL);
     thread_join(request_thread);
     thread_join(reply_thread);
     delete_messagequeue(request_q);
