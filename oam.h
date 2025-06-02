@@ -6,6 +6,7 @@
 #define R2_OAM_H
 
 #include "interface.h"
+#include "object.h"
 #include "pipeline.h"
 #include "hashmap.h"
 
@@ -13,8 +14,6 @@
     (ntohl(seq) & 0x10000000u)
 
 // public interface of the OAM module
-
-struct PipelineObject;
 
 // state object for a point that receives OAM packets
 struct OamEndPoint;

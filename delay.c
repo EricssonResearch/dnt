@@ -211,9 +211,9 @@ void delay_insert(struct PipelineIterator *pi, unsigned timestamp, const struct 
 
     if(time_diff_us(now_ts, pDelayQueueEntry->due_time) > 0){
         stat->delay_exceeded_packets++;
-        // already over due time, send notification once per sec
+        // rate-limit the notification
         if (time_diff_us(now_ts, last_alert) > 1000*1000*5) {
-            log_perror("delay %s", pi->pipe->name);
+            log_warning("delay %s exceeded %llu", pi->pipe->name, stat->delay_exceeded_packets);
 /*          // push notification
             struct JsonValue *js = json_object();
             json_object_insert(js, "delay", json_string(pi->pipe->name));
