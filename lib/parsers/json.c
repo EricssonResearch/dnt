@@ -20,6 +20,8 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
+#define JSON_WANT_PRETTY_PRINT
+
 #include "json.h"
 #include "parserutils.h"
 
@@ -380,7 +382,12 @@ static struct JsonValue *parse_value(const char *text, unsigned length, unsigned
 
             struct JsonValue *val = parse_value(text, length, i, depth+1, error);
             if (val == NULL) { free(key); THROW("object value is invalid"); }
-            hashmap_insert(ret->v.object, key, val);
+            if (hashmap_contains(ret->v.object, key)) {
+                free(key);
+                json_delete(val);
+            } else {
+                hashmap_insert(ret->v.object, key, val);
+            }
 
             SKIP_WS;
             if (*i == length) THROW("object is unfinished");
@@ -491,9 +498,14 @@ struct JsonValue *json_parse(const char *text, unsigned length, char **error)
     }
 
     while (i < length && isspace(text[i])) i++;
-    if (i < length && text[i] != 0) {
-        *error = u_strdup_printf("extra character '%c' found after the JSON value", text[i]);
-        return json_delete(ret);
+    if (i < length) {
+        if (i == length-1 && text[i] == 0) {
+            // okay, the buffer is null-terminated
+        } else {
+            *error = u_strdup_printf("extra character '%c' found after the JSON value",
+                    text[i]?text[i]:'0');
+            return json_delete(ret);
+        }
     }
 
     return ret;
@@ -557,8 +569,11 @@ struct objparams {
     char *buf;
     unsigned *buflen;
     unsigned *slen;
+    FILE *out;
     unsigned indent;
     unsigned increment;
+    unsigned printed;
+    unsigned total;
 };
 
 static char *serialize_number(double number, char *buf, unsigned *buflen, unsigned *slen)
@@ -577,11 +592,21 @@ static char *serialize_number(double number, char *buf, unsigned *buflen, unsign
 
 static char *serialize_string(const char *string, char *buf, unsigned *buflen, unsigned *slen)
 {
+    if (string == NULL) {
+        CHECK_BUF(3);
+        buf[*slen] = '\"';
+        buf[*slen+1] = '\"';
+        buf[*slen+2] = 0;
+        *slen += 2;
+        return buf;
+    }
+
     CHECK_BUF(2);
     buf[*slen] = '\"';
     *slen += 1;
 
     // note: '/' can also be escaped (important in "</script>")
+
     for (const char *c=string; *c; c++) {
         // note: iscntrl() is also true for 0x7f (DEL) but we don't have to escape it
         if (*(unsigned char*)c <= 0x1f) {
@@ -662,10 +687,12 @@ static int obj_print_cb(const char *key, void *value, void *userdata)
         return 0;
     }
 
-    CHECK_BUF_OBJ(2);
-    buf[*slen+0] = ',';
-    buf[*slen+1] = 0;
-    *slen += 1;
+    if (++op->printed < op->total) {
+        CHECK_BUF_OBJ(2);
+        buf[*slen+0] = ',';
+        buf[*slen+1] = 0;
+        *slen += 1;
+    }
     op->buf = buf;
 
     return 1;
@@ -689,9 +716,9 @@ static char *serialize_value(const struct JsonValue *json, char *buf, unsigned *
             strcpy(buf+*slen, "false");
             *slen += 5;
             break;
-        case JSON_NUMBER: {
+        case JSON_NUMBER:
             buf = serialize_number(json->v.number, buf, buflen, slen);
-            break; }
+            break;
         case JSON_STRING:
             buf = serialize_string(json->v.string, buf, buflen, slen);
             break;
@@ -700,24 +727,20 @@ static char *serialize_value(const struct JsonValue *json, char *buf, unsigned *
             strcpy(buf+*slen, "{");
             *slen += 1;
 
-            struct objparams op = { buf, buflen, slen, 0, 0 };
+            struct objparams op = { buf, buflen, slen, NULL, 0, 0,
+                0, hashmap_count(json->v.object) };
             if (hashmap_foreach_sorted(json->v.object, obj_print_cb, &op) == 0) {
                 return NULL;
             }
             buf = op.buf;
             buflen = op.buflen;
             slen = op.slen;
-            if (hashmap_count(json->v.object)) {
-                // overwrite the last ','
-                *slen -= 1;
-                buf[*slen] = 0;
-            }
 
             CHECK_BUF(2);
             strcpy(buf+*slen, "}");
             *slen += 1;
             break; }
-        case JSON_ARRAY: {
+        case JSON_ARRAY:
             CHECK_BUF(2);
             strcpy(buf+*slen, "[");
             *slen += 1;
@@ -738,7 +761,7 @@ static char *serialize_value(const struct JsonValue *json, char *buf, unsigned *
             CHECK_BUF(2);
             strcpy(buf+*slen, "]");
             *slen += 1;
-            break; }
+            break;
     }
     return buf;
 }
@@ -792,14 +815,19 @@ static int obj_print_pretty_cb(const char *key, void *value, void *userdata)
         return 0;
     }
 
-    CHECK_BUF_OBJ(3);
-    buf[*slen+0] = ',';
-    buf[*slen+1] = '\n';
-    buf[*slen+2] = 0;
-    *slen += 2;
+    if (++op->printed < op->total) {
+        CHECK_BUF_OBJ(3);
+        buf[*slen+0] = ',';
+        buf[*slen+1] = '\n';
+        buf[*slen+2] = 0;
+        *slen += 2;
+    } else {
+        CHECK_BUF_OBJ(2);
+        buf[*slen+0] = '\n';
+        buf[*slen+1] = 0;
+        *slen += 1;
+    }
     op->buf = buf;
-    op->buflen = buflen;
-    op->slen = slen;
 
     return 1;
 }
@@ -834,14 +862,14 @@ static char *serialize_value_pretty(const struct JsonValue *json, char *buf, uns
             strcpy(buf+*slen, "false");
             *slen += 5;
             break;
-        case JSON_NUMBER: {
+        case JSON_NUMBER:
             PRINT_INDENT;
             buf = serialize_number(json->v.number, buf, buflen, slen);
-            break; }
-        case JSON_STRING: {
+            break;
+        case JSON_STRING:
             PRINT_INDENT;
             buf = serialize_string(json->v.string, buf, buflen, slen);
-            break; }
+            break;
         case JSON_OBJECT: {
             PRINT_INDENT;
             CHECK_BUF(2);
@@ -854,7 +882,8 @@ static char *serialize_value_pretty(const struct JsonValue *json, char *buf, uns
                 *slen += 1;
             }
 
-            struct objparams op = { buf, buflen, slen, indent+increment, increment };
+            struct objparams op = { buf, buflen, slen, NULL, indent+increment, increment,
+                0, hashmap_count(json->v.object)};
             if (hashmap_foreach_sorted(json->v.object, obj_print_pretty_cb, &op) == 0) {
                 return NULL;
             }
@@ -863,10 +892,6 @@ static char *serialize_value_pretty(const struct JsonValue *json, char *buf, uns
             slen = op.slen;
 
             if (hashmap_count(json->v.object)) {
-                // overwrite the last ",\n" to "\n"
-                *slen -= 1;
-                buf[*slen-1] = '\n';
-                buf[*slen] = 0;
                 PRINT_INDENT;
             }
 
@@ -874,7 +899,7 @@ static char *serialize_value_pretty(const struct JsonValue *json, char *buf, uns
             strcpy(buf+*slen, "}");
             *slen += 1;
             break; }
-        case JSON_ARRAY: {
+        case JSON_ARRAY:
             PRINT_INDENT;
             CHECK_BUF(2);
             strcpy(buf+*slen, "[");
@@ -909,7 +934,7 @@ static char *serialize_value_pretty(const struct JsonValue *json, char *buf, uns
             CHECK_BUF(2);
             strcpy(buf+*slen, "]");
             *slen += 1;
-            break; }
+            break;
     }
     return buf;
 #undef PRINT_INDENT
@@ -926,6 +951,126 @@ char *json_serialize_pretty(const struct JsonValue *json, unsigned *length, unsi
     if (buf)
         *length = len;
     return buf;
+}
+
+static void print_number_colorful(double number, FILE *out)
+{
+    if (isinf(number))
+        fputs("\033[34m<inf>\033[0m", out);
+    else if (isnan(number))
+        fputs("\033[34m<nan>\033[0m", out);
+    else
+        fprintf(out, "\033[34m%.17g\033[0m", number); // blue
+}
+
+static void print_string_colorful(const char *string, FILE *out, unsigned color)
+{
+    char *buf = NULL;
+    unsigned buflen = 0;
+    unsigned slen = 0;
+    buf = serialize_string(string, buf, &buflen, &slen);
+    fprintf(out, "\033[%um%s\033[0m", color, buf);
+    free(buf);
+}
+
+static void print_value_colorful(const struct JsonValue *json, FILE *out, unsigned indent, unsigned increment);
+
+static int obj_print_colorful_cb(const char *key, void *value, void *userdata)
+{
+    const struct JsonValue *val = (const struct JsonValue *)value;
+    struct objparams *op = (struct objparams *)userdata;
+
+    // write simple values on the same line, compound values on new line with indent
+    unsigned val_indent = 0;
+    char after_colon = ' ';
+    if ((val->type == JSON_ARRAY && !json_array_empty(val)) ||
+            (val->type == JSON_OBJECT && hashmap_count(val->v.object))) {
+        val_indent = op->indent + op->increment;
+        after_colon = '\n';
+    }
+
+    for (unsigned i=0; i<op->indent; i++)
+        fputc(' ', op->out);
+    print_string_colorful(key, op->out, 36); // cyan
+    fprintf(op->out, " :%c", after_colon);
+    print_value_colorful(val, op->out, val_indent, op->increment);
+    fprintf(op->out, "%s\n", ++op->printed < op->total ? "," : "");
+
+    return 1;
+}
+
+static void print_value_colorful(const struct JsonValue *json, FILE *out, unsigned indent, unsigned increment)
+{
+#define PRINT_INDENT \
+    do {\
+    for (unsigned i_=0; i_<indent; i_++) \
+        fputc(' ', out); \
+    } while (0)
+
+    switch (json->type) {
+        case JSON_NULL:
+            PRINT_INDENT;
+            fprintf(out, "\033[35mnull\033[0m"); // purple
+            break;
+        case JSON_TRUE:
+            PRINT_INDENT;
+            fprintf(out, "\033[33mtrue\033[0m"); // yellow
+            break;
+        case JSON_FALSE:
+            PRINT_INDENT;
+            fprintf(out, "\033[33mfalse\033[0m"); // yellow
+            break;
+        case JSON_NUMBER:
+            PRINT_INDENT;
+            print_number_colorful(json->v.number, out);
+            break;
+        case JSON_STRING:
+            PRINT_INDENT;
+            print_string_colorful(json->v.string, out, 32); // green
+            break;
+        case JSON_OBJECT: {
+            PRINT_INDENT;
+            fputc('{', out);
+            if (hashmap_count(json->v.object)) {
+                fputc('\n', out);
+            }
+
+            struct objparams op = { NULL, NULL, NULL, out, indent+increment, increment,
+                0, hashmap_count(json->v.object) };
+            hashmap_foreach_sorted(json->v.object, obj_print_colorful_cb, &op);
+
+            if (hashmap_count(json->v.object)) {
+                PRINT_INDENT;
+            }
+            fputc('}', out);
+            break; }
+        case JSON_ARRAY:
+            PRINT_INDENT;
+            fputc('[', out);
+            if (!json_array_empty(json)) {
+                fputc('\n', out);
+            }
+
+            for (unsigned i=0; i<json->v.array->num; i++) {
+                print_value_colorful(json->v.array->vals[i], out, indent+increment, increment);
+                if (i < json->v.array->num - 1) {
+                    fputs(",\n", out);
+                }
+            }
+
+            if (!json_array_empty(json)) {
+                fputc('\n', out);
+                PRINT_INDENT;
+            }
+            fputc(']', out);
+            break;
+    }
+#undef PRINT_INDENT
+}
+
+void json_pretty_colorful_print(const struct JsonValue *json, FILE *out, unsigned indent)
+{
+    return print_value_colorful(json, out, 0, indent);
 }
 
 int json_check_locale(void)
@@ -954,6 +1099,13 @@ struct JsonValue *json_false(void)
 {
     struct JsonValue *ret = calloc_struct(JsonValue);
     ret->type = JSON_FALSE;
+    return ret;
+}
+
+struct JsonValue *json_bool(int n)
+{
+    struct JsonValue *ret = calloc_struct(JsonValue);
+    ret->type = n ? JSON_TRUE : JSON_FALSE;
     return ret;
 }
 
@@ -989,8 +1141,41 @@ struct JsonValue *json_object(void)
     return ret;
 }
 
+struct JsonValue *json_duplicate(const struct JsonValue *json)
+{
+    switch (json->type) {
+        case JSON_NULL:
+            return json_null();
+        case JSON_TRUE:
+            return json_true();
+        case JSON_FALSE:
+            return json_false();
+        case JSON_NUMBER:
+            return json_number(json->v.number);
+        case JSON_STRING:
+            return json_string(json->v.string);
+        case JSON_OBJECT: {
+            struct JsonValue *obj = json_object();
+            HASHMAP_ITERATE(json->v.object, it) {
+                const char *key = hash_iterator_key(&it);
+                struct JsonValue *val = (struct JsonValue *)hash_iterator_value(&it);
+                json_object_insert(obj, key, json_duplicate(val));
+            }
+            return obj; }
+        case JSON_ARRAY: {
+            struct JsonValue *arr = json_array();
+            arr->v.array->num = json_array_size(json);
+            arr->v.array->vals = (struct JsonValue **)malloc(arr->v.array->num * sizeof(struct JsonValue **));
+            for (unsigned i=0; i<json_array_size(json); i++) {
+                arr->v.array->vals[i] = json_duplicate(json_array_at(json, i));
+            }
+            return arr; }
+    }
+    return NULL;
+}
 
-struct JsonValue *json_array_at(struct JsonValue *array, unsigned i)
+
+struct JsonValue *json_array_at(const struct JsonValue *array, unsigned i)
 {
     if (i >= json_array_size(array)) return NULL;
     return array->v.array->vals[i];

@@ -104,9 +104,6 @@ struct HashMap *delete_hashmap(struct HashMap *hash)
 
 int hashmap_insert(struct HashMap *hash, char *key, void *value)
 {
-    if (!hash) return 0;
-    if (!key) return 0;
-
     unsigned h = djb2_hash(key) % hash->bucketcount;
 
     if (hash->buckets[h].key) {
@@ -145,9 +142,6 @@ int hashmap_insert(struct HashMap *hash, char *key, void *value)
 
 int hashmap_remove(struct HashMap *hash, const char *key)
 {
-    if (!hash) return 0;
-    if (!key) return 0;
-
     unsigned h = djb2_hash(key) % hash->bucketcount;
 
     if (hash->buckets[h].key) {
@@ -192,9 +186,6 @@ int hashmap_remove(struct HashMap *hash, const char *key)
 
 void *hashmap_find(const struct HashMap *hash, const char *key)
 {
-    if (!hash) return NULL;
-    if (!key) return NULL;
-
     unsigned h = djb2_hash(key) % hash->bucketcount;
 
     if (hash->buckets[h].key) {
@@ -210,9 +201,6 @@ void *hashmap_find(const struct HashMap *hash, const char *key)
 
 int hashmap_contains(const struct HashMap *hash, const char *key)
 {
-    if (!hash) return 0;
-    if (!key) return 0;
-
     unsigned h = djb2_hash(key) % hash->bucketcount;
 
     if (hash->buckets[h].key) {
@@ -228,19 +216,16 @@ int hashmap_contains(const struct HashMap *hash, const char *key)
 
 unsigned hashmap_count(const struct HashMap *hash)
 {
-    if (!hash) return 0;
     return hash->elemcount;
 }
 
 unsigned hashmap_bucketcount(const struct HashMap *hash)
 {
-    if (!hash) return 0;
     return hash->bucketcount;
 }
 
 unsigned hashmap_usedbuckets(const struct HashMap *hash)
 {
-    if (!hash) return 0;
     unsigned count = 0;
     for (unsigned i=0; i<hash->bucketcount; i++) {
         if (hash->buckets[i].key) {
@@ -252,7 +237,6 @@ unsigned hashmap_usedbuckets(const struct HashMap *hash)
 
 int hashmap_foreach(const struct HashMap *hash, hashmap_cb *cb, void *userdata)
 {
-    if (!hash) return 0;
     if (!cb) return 0;
 
     for (unsigned i=0; i<hash->bucketcount; i++) {
@@ -289,7 +273,6 @@ static int hash_key_cmp(const void *p1, const void *p2)
 
 int hashmap_foreach_sorted(const struct HashMap *hash, hashmap_cb *cb, void *userdata)
 {
-    if (!hash) return 0;
     if (!cb) return 0;
 
     struct HashBucket **buckets = (struct HashBucket **)malloc(hash->elemcount*sizeof(struct HashBucket *));
@@ -329,7 +312,6 @@ static int rehash_item_move_cb(const char *key, void *value, void *userdata)
 
 void hashmap_rehash(struct HashMap *hash, unsigned bucketcount)
 {
-    if (!hash) return;
     if (bucketcount == 0) return;
     if (bucketcount == hash->bucketcount) return;
 

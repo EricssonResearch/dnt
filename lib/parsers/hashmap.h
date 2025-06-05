@@ -92,12 +92,15 @@ void *hashmap_find(const struct HashMap *hash, const char *key);
 int hashmap_contains(const struct HashMap *hash, const char *key);
 
 // @returns the number of entries in the hash
+// runtime: zero
 unsigned hashmap_count(const struct HashMap *hash);
 
 // @returns the number of buckets in the hash
+// runtime: zero
 unsigned hashmap_bucketcount(const struct HashMap *hash);
 
 // @returns the number of buckets that contain value
+// runtime: linear
 unsigned hashmap_usedbuckets(const struct HashMap *hash);
 
 // calls @cb for each element in the hash

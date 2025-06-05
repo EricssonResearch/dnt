@@ -40,9 +40,9 @@ static void test_read_good(void)
         char *error = NULL;                                         \
         struct JsonValue *j = json_parse(_js, _len, &error);        \
         free(_js);                                                  \
+        OK(error == NULL, "got error '%s'", error);                 \
         OK_FATAL(j != NULL, "json string %u should be valid", i);   \
-        OK_FATAL(j->type == type_, "type");                         \
-        OK(error == NULL, "got error '%s'", error);
+        OK_FATAL(j->type == type_, "type");
 
 #define END_TEST_TYPE                                               \
         OK(json_delete(j) == NULL, "delete must return NULL");      \
@@ -181,6 +181,15 @@ static void test_read_good(void)
         OK(strcmp(val->v.string, "日本語") == 0, "correct value '%s'", val->v.string);
     END_TEST_TYPE
 
+    const char *test_object_duplicate[] = {"{\"key\":1,\"key\":2,\"key\":3}"};
+    TEST_TYPE(JSON_OBJECT, test_object_duplicate)
+        OK_FATAL(j->v.object != NULL, "object always has hashmap");
+        OK(hashmap_count(j->v.object) == 1, "one item");
+        struct JsonValue *val = json_object_get_number(j, "key");
+        OK_FATAL(val != NULL, "have value");
+        OK(val->v.number == 1, "correct value %.9f", val->v.number);
+    END_TEST_TYPE
+
     const char *test_aina1[] = {"[[]]", "  [  [  ]  ]  "};
     TEST_TYPE(JSON_ARRAY, test_aina1)
         OK_FATAL(json_array_size(j) == 1, "size %u", json_array_size(j));
@@ -243,15 +252,17 @@ static void test_read_good(void)
 #undef TEST_TYPE
 #undef END_TEST_TYPE
 
-    // test null-terminated string
+    // here we also have a null termination at the end of the buffer
+    const char *test_nullterminated = {"{\"key\": \"value\"}"};
     do {
-        const char *test_nullterm = " 42\0 this part is ignored";
+        unsigned len = strlen(test_nullterminated)+1;
+        char *js = (char*)u_memdup(test_nullterminated, len);
         char *error = NULL;
-        struct JsonValue *j = json_parse(test_nullterm, 10, &error);
-        OK_FATAL(j != NULL, "json string should be valid");
-        OK_FATAL(j->type == JSON_NUMBER, "type");
+        struct JsonValue *j = json_parse(js, len, &error);
+        free(js);
         OK(error == NULL, "got error '%s'", error);
-        OK(j->v.number == 42, "number %.9f", j->v.number);
+        OK_FATAL(j != NULL, "json string should be valid");
+        OK_FATAL(j->type == JSON_OBJECT, "type");
         OK(json_delete(j) == NULL, "delete must return NULL");
     } while (0);
 }
@@ -316,6 +327,31 @@ static void test_read_bad(void)
         OK(j == NULL, "string %u '%s' should be invalid", i, strings[i]);
         OK(error != NULL, "string %u '%s' got no error string", i, strings[i]);
         //printf("json error '%s'\n", error);
+        free(error);
+    }
+
+    // strings with \0 in the middle
+    struct {
+        const char *str;
+        unsigned len;
+    } nullstrings[] = {
+        {" 42 \0  ", 7},
+        {" 42 \0 x", 7},
+        {" \"string\"\0 ", 11},
+        {" \"string\0  ", 11},
+        {" \"string\0\" ", 11},
+        {"[1, \0]", 6},
+        {"{\"x\":1\0}", 8},
+        {"{\"x\0\":1}", 8},
+    };
+
+    for (unsigned i=0; i<sizeof(nullstrings)/sizeof(nullstrings[0]); i++) {
+        char *js = (char*)u_memdup(nullstrings[i].str, nullstrings[i].len);
+        char *error;
+        struct JsonValue *j = json_parse(js, nullstrings[i].len, &error);
+        free(js);
+        OK(j == NULL, "string %u '%s' should be invalid", i, nullstrings[i].str);
+        OK(error != NULL, "string %u '%s' got no error string", i, nullstrings[i].str);
         free(error);
     }
 }

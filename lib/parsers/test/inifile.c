@@ -199,8 +199,6 @@ static void test_read(void)
     OK(named == ini_sections5, "find 5");
     named = inisection_find_section(ini_sections, "no such section");
     OK(named == NULL, "find none");
-    named = inisection_find_section(ini_sections, NULL);
-    OK(named == NULL, "find null");
     named = inisection_find_section(NULL, NULL);
     OK(named == NULL, "find null in null");
     OK(delete_inisection(ini_sections) == NULL, "delete returns null");
@@ -313,14 +311,10 @@ static void test_modify(void)
     OK(inisection_count(ini) == 1, "overwrite");
     OK(inisection_add(ini, "key2", "value2") == 1, "add should succeed");
     OK(inisection_add(ini, "key3", NULL) == 0, "NULL value should be invalid");
-    OK(inisection_add(ini, NULL, "value") == 0, "NULL key should be invalid");
-    OK(inisection_add(NULL, "key4", "value4") == 0, "NULL ini should be invalid");
     OK(inisection_count(ini) == 2, "should have key1 and key2");
 
     OK(inisection_remove(ini, "key2") == 1, "remove should succeed");
     OK(inisection_remove(ini, "key2") == 0, "can't remove again");
-    OK(inisection_remove(ini, NULL) == 0, "can't remove NULL");
-    OK(inisection_remove(NULL, "key2") == 0, "can't remove from NULL");
     OK(inisection_count(ini) == 1, "should have key1");
 
     OK(delete_inisection(ini) == NULL, "delete returns null");
