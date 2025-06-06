@@ -7,6 +7,7 @@
 #include "oam.h"
 #include "oam_command.h"
 #include "oam_core.h"
+#include "oam_maintenance.h"
 #include "oam_message.h"
 #include "oam_request.h"
 #include "oam_session.h"
@@ -35,6 +36,12 @@ static struct Thread *request_thread = NULL;
 static struct MessageQueue *request_q = NULL;
 static struct Thread *reply_thread = NULL;
 static struct MessageQueue *reply_q = NULL;
+
+static struct Thread *inband_receiver_thread = NULL;
+static struct MessageQueue *inband_q = NULL;
+static struct Thread *outofband_receiver_thread = NULL;
+static struct MessageQueue *outofband_q = NULL;
+
 
 //TODO new module for the MP state
 struct OamEndPoint {
@@ -850,6 +857,244 @@ void oam_recv_request(struct OamEndPoint *oam, struct PipelineIterator *pi)
     messagequeue_push(request_q, msg);
 }
 
+
+
+
+static bool send_message_outofband(struct JsonValue *msg, struct JsonValue *address)
+{
+    struct JsonValue *ip = json_object_get_string(address, "ip");
+    struct JsonValue *port = json_object_get_number(address, "port");
+    struct JsonValue *dmac = json_object_get_string(address, "dmac");
+    struct JsonValue *vlan = json_object_get_string(address, "vlan");
+
+    unsigned msg_len;
+    char *msg_str = json_serialize(msg, &msg_len);
+    json_delete(msg);
+    if (msg_str == NULL) {
+        log_error("failed to serialize out-of-band message");
+        return false;
+    }
+
+    //TODO log_packet("successful send ...");
+    if (ip && port) {
+        //TODO this function needs a new name
+        int err = oam_send_reply(ip->v.string, port->v.number, msg_str, msg_len);
+        free(msg_str);
+        json_delete(address);
+        return err == 0;
+    } else if (dmac && vlan) {
+        //TODO packet socket, construct eth, cvlan etc.
+    } else if (dmac) {
+        //TODO packet socket, construct eth etc.
+    } else {
+        log_error("can't send message out-of-band without proper address");
+        return false;
+    }
+    return false; //TODO we shouldn't need this
+}
+
+#define THROW(msg, ...)                     \
+    do {                                    \
+        log_error(msg, ##__VA_ARGS__);      \
+        json_delete(js);                    \
+        return false;                       \
+    } while (0)
+
+#define JS_OBJECT_GET(_json, _key, _type)                           \
+    struct JsonValue *_key = json_object_get_##_type(_json, #_key); \
+    if (_key == NULL) {                                             \
+        THROW("No " #_key " in OAM message.");                      \
+    }
+
+static bool new_process_ping_request(struct OAM_MaintenancePoint *mp, struct JsonValue *js, struct timespec recv_time)
+{
+    //JS_OBJECT_GET(js, return, object); XXX we can't do this because return is a keyword
+    struct JsonValue *return_addr = json_object_get_object(js, "return");
+    if (return_addr == NULL) {
+        THROW("No return address in OAM message.");
+    }
+    struct JsonValue *return_dup = json_duplicate(return_addr);
+    json_object_remove(js, "return");
+
+    //JS_OBJECT_GET(js, object, any); XXX we can't do this because any is not a type
+    struct JsonValue *jos = json_object_get_any(js, "object");
+    if (jos != NULL) {
+        json_object_insert(js, "target_info", mp_get_state_json(mp, 1));
+    }
+
+    const char *stream = "<unknown>";
+    struct JsonValue *jstream = json_object_get_string(js, "stream");
+    if (stream != NULL) {
+        stream = jstream->v.string;
+    }
+
+    json_object_insert(js, "code", json_string("reply"));
+
+    //TODO the old code also added the mpls label from the packet header, but we can't do that here
+
+    json_object_insert(js, "recv_s", json_number(recv_time.tv_sec));
+    json_object_insert(js, "recv_ns", json_number(recv_time.tv_nsec));
+
+    return send_message_outofband(js, return_dup);
+}
+
+static bool process_inband_message(struct OAM_MaintenancePoint *mp, struct JsonValue *js,
+        unsigned ttl, struct timespec recv_time, bool *message_modified)
+{
+    JS_OBJECT_GET(js, level, number);
+    int levelcmp = mp_compare_level(mp, level->v.number);
+    if (levelcmp < 0) {
+        json_delete(js);
+        return false;
+    }
+    if (levelcmp > 0) {
+        json_delete(js);
+        return true;
+    }
+
+    JS_OBJECT_GET(js, type, string);
+    JS_OBJECT_GET(js, code, string);
+    JS_OBJECT_GET(js, target, string);
+
+    log_packet("%s received OAM type '%s' code '%s' target '%s' level %f",
+            mp_get_name(mp), type->v.string, code->v.string,
+            target->v.string, level->v.number);
+
+    if (strcmp(type->v.string, "ping") == 0) {
+        if (strcmp(code->v.string, "request") == 0) {
+            THROW("OAM ping is '%s' not request", code->v.string);
+        }
+
+        struct JsonValue *jrr = json_object_get_array(js, "rr");
+        if (jrr) {
+            json_array_push(jrr, json_string(mp_get_name(mp)));
+            *message_modified = true;
+        }
+
+        if (ttl == 0) {
+            new_process_ping_request(mp, js, recv_time);
+            return false;
+        }
+        if (strcmp(target->v.string, mp_get_name(mp)) == 0) {
+            new_process_ping_request(mp, js, recv_time);
+            return false;
+        }
+        if (strcmp(target->v.string, "any") == 0) {
+            if (!new_process_ping_request(mp, js, recv_time))
+                return false;
+            return mp_get_type(mp) == OAM_Stop ? false : true;
+        }
+        return mp_get_type(mp) == OAM_Stop ? false : true;
+
+    } else if (strcmp(type->v.string, "rping") == 0) {
+    } else if (strcmp(type->v.string, "rlist") == 0) {
+    } else if (strcmp(type->v.string, "trigger") == 0) {
+    } else if (strcmp(type->v.string, "mask") == 0) {
+    } else if (strcmp(type->v.string, "unmask") == 0) {
+    } else {
+        log_error("%s received unknown OAM type '%s'",
+                mp_get_name(mp), type->v.string);
+        return false;
+    }
+    return false; //TODO we shouldn't need this
+}
+
+#undef JS_OBJECT_GET
+#undef THROW
+
+struct inband_msg {
+    struct OAM_MaintenancePoint *mp;
+    struct PipelineIterator *pi;
+};
+static void *inband_receiver_th(void *arg)
+{
+    (void)arg;
+
+    while (1) {
+        struct inband_msg *msg = (struct inband_msg *)messagequeue_pop(inband_q, -1);
+        if (msg == NULL)
+            return NULL;
+
+        mp_count_received_message(msg->mp, msg->pi->packet);
+
+        if (mp_reinterpret_oam_packet(msg->mp, msg->pi->packet) == false) {
+            log_error("packet structure is not valid for OAM");
+            pipe_iteraror_cancel(msg->pi);
+            continue;
+        }
+
+        struct JsonValue *js = mp_unpack_message(msg->mp, msg->pi->packet);
+        if (js == NULL) {
+            log_error("invalid JSON payload in received message");
+            pipe_iteraror_cancel(msg->pi);
+            continue;
+        }
+
+        bool message_modified = false;
+
+        //TODO TSN has no ttl, so p->ttl=0 and we are in trouble
+        if (process_inband_message(msg->mp, js, msg->pi->packet->ttl, msg->pi->packet->recv_time, &message_modified)) {
+            if (message_modified) {
+                if (!mp_update_message_payload(msg->mp, msg->pi->packet, js)) {
+                    log_error("could not update JSON payload in received message");
+                    pipe_iteraror_cancel(msg->pi);
+                    continue;
+                }
+            }
+
+            log_packet("%s forwarding message", mp_get_name(msg->mp));
+
+            //TODO pipe_iterator_resume(msg->pi);
+            msg->pi->pos += 1;
+            pipe_iterator_run(msg->pi);
+        } else {
+            log_packet("%s dropping message", mp_get_name(msg->mp));
+            pipe_iteraror_cancel(msg->pi);
+        }
+
+        free(msg);
+    }
+
+    return NULL;
+}
+
+void oam_receive_inband(struct OAM_MaintenancePoint *mp, struct PipelineIterator *pi)
+{
+    struct inband_msg *msg = calloc_struct(inband_msg);
+    msg->mp = mp;
+    msg->pi = pi;
+    messagequeue_push(inband_q, msg);
+}
+
+
+struct outofband_msg {
+    struct Interface *iface;
+    const char *message;
+};
+static void *outofband_receiver_th(void *arg)
+{
+    (void)arg;
+
+    while (1) {
+        struct outofband_msg *msg = (struct outofband_msg *)messagequeue_pop(outofband_q, -1);
+        if (msg == NULL)
+            return NULL;
+
+        process_reply(msg->message); //TODO do we need to adjust this?
+        free(msg);
+    }
+
+    return NULL;
+}
+
+void oam_receive_outofband(struct Interface *iface, const char *message)
+{
+    struct outofband_msg *msg = calloc_struct(outofband_msg);
+    msg->iface = iface;
+    msg->message = strdup(message);
+    messagequeue_push(outofband_q, msg);
+}
+
 void oam_count_packet(struct OamEndPoint *oam, struct Packet *p)
 {
     struct MepStart *mep = find_mep_start(oam->name);
@@ -866,6 +1111,11 @@ void init_message_module(bool have_reply_iface)
         reply_q = new_messagequeue();
         reply_thread = thread_launch(reply_thread_fn, NULL, "oam reply");
     }
+
+    inband_q = new_messagequeue();
+    outofband_q = new_messagequeue();
+    inband_receiver_thread = thread_launch(inband_receiver_th, NULL, "oam inband rcv");
+    outofband_receiver_thread = thread_launch(outofband_receiver_th, NULL, "oam outband rcv");
 }
 
 void finish_message_module(void)
@@ -877,4 +1127,11 @@ void finish_message_module(void)
     thread_join(reply_thread);
     delete_messagequeue(request_q);
     delete_messagequeue(reply_q);
+
+    messagequeue_push(inband_q, NULL);
+    messagequeue_push(outofband_q, NULL);
+    thread_join(inband_receiver_thread);
+    thread_join(outofband_receiver_thread);
+    delete_messagequeue(inband_q);
+    delete_messagequeue(outofband_q);
 }

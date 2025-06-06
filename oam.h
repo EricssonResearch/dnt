@@ -21,6 +21,8 @@ struct OamEndPoint;
 
 enum OAM_MP_Type { OAM_Start, OAM_Stop, OAM_Intermediate };
 
+enum OAM_MP_Flavor { OAM_PW, OAM_TSN, OAM_SRv6 };
+
 // state object for a pipeline action that sends/receives OAM packets
 struct OAM_MaintenancePoint;
 
@@ -44,8 +46,8 @@ void oam_recv_request(struct OamEndPoint *oam, struct PipelineIterator *pi);
 void oam_receive_inband(struct OAM_MaintenancePoint *mp, struct PipelineIterator *pi);
 
 // receive on a return interface
-// makes a copy of @msg
-void oam_receive_outofband(struct Interface *iface, const char *msg);
+// makes a copy of @message
+void oam_receive_outofband(struct Interface *iface, const char *message);
 
 // receive connection on the command (telnet) interface
 void oam_start_command_connection(int fd, const char *remote_ip, unsigned short remote_port);
