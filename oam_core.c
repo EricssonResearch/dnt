@@ -231,7 +231,10 @@ bool oam_create_mep_start(const char *stream_name, const char *mep_name, int lev
 
 struct MepStart *find_mep_start(const char *name)
 {
-    return (struct MepStart *)hashmap_find(mep_starts, name);
+    if (mep_starts)
+        return (struct MepStart *)hashmap_find(mep_starts, name);
+    else
+        return NULL;
 }
 
 int foreach_mep_start(hashmap_cb *cb, void *userdata)
