@@ -570,7 +570,7 @@ static int addstart_cb(const char *key, void *value, void *userdata)
     struct AddstartState *st = (struct AddstartState *)userdata;
     struct MepStart *mep = (struct MepStart *)value;
 
-    if (mep_start_in_stream(mep, st->oam->stream)) {
+    if (same_compound_stream(mep->name, st->oam->stream)) {
         //TODO supply more info: level, type
         json_array_push(st->jlist, json_string(key));
     }

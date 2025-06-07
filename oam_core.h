@@ -45,8 +45,6 @@ int foreach_mep_start(hashmap_cb *cb, void *userdata);
 
 int print_mep_start(const struct MepStart *start, FILE *cmd_w);
 
-bool mep_start_in_stream(const struct MepStart *start, const char *stream);
-
 void mep_start_wakeup_mask_checker(struct MepStart *start);
 
 void mep_start_count_passed(struct MepStart *start, const struct Packet *pkt);

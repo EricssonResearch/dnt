@@ -27,6 +27,7 @@ struct StateTransaction {
     struct HashMap *del_streams; //TODO tuples of {iface name, stream name}
 };
 
+// creates a new empty transaction named @name
 struct StateTransaction *new_transaction(const char *name);
 
 // always returns NULL
@@ -50,5 +51,20 @@ int state_foreach_objects(state_foreach_obj_cb *cb, void *userdata);
 // make the changes described in in @tr to the active configuration
 // @returns true if the commit was successful
 bool state_commit_transaction(struct StateTransaction *tr);
+
+
+// the name of the stream can change throughout an action pipeline (by jump, replicate, eliminate)
+//  with this we know what names are associated with the same stream
+//  OAM needs this to correctly associate maintenance points with streams
+// @parse_actions_line calls this to report the stream names seen in an action pipeline
+//  TODO do this reporting in the pipeline assembler
+// only the keys of the hash are processed
+void stream_names_in_pipeline(struct HashMap *names);
+
+// @returns true if @s1 and @s2 are part of the same compound stream
+// the stream name can change throughout an action pipeline (by jump, replicate, eliminate)
+// this function uses the data submitted via @stream_names_in_pipeline
+bool same_compound_stream(const char *s1, const char *s2);
+
 
 #endif // R2_STATE_H

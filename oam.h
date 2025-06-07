@@ -83,12 +83,6 @@ struct OAM_MaintenancePoint *new_maintenance_point(const char *stream_name, cons
 // @mp is deleted when its reference count reaches zero
 void unref_maintenance_point(struct OAM_MaintenancePoint *mp);
 
-// the name of the stream can change within an action pipeline (by jump, replicate, eliminate)
-//  with this we know what names are associated with the same stream
-//  we need this to correctly associate monitoring start points with streams
-// @parse_actions_line uses this to report the stream names seen in an action pipeline
-// only the keys of the hash are processed
-void oam_stream_names_in_pipeline(struct HashMap *names);
 
 // specify the command interface that receives telnet connections
 // see @oam_start_command_connection

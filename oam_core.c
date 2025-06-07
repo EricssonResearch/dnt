@@ -17,6 +17,7 @@
 #include "notification.h"
 #include "object.h"
 #include "seq_recov.h"
+#include "state.h"
 #include "thread_utils.h"
 #include "utils.h"
 
@@ -31,13 +32,6 @@ static struct Interface *oam_default_iface = NULL;
 static struct Interface *oam_cmd_iface = NULL;
 
 static struct HashMap *mep_starts = NULL; // name -> struct MEPStart
-
-struct StreamNameAssociation {
-    struct HashMap *names;
-    struct StreamNameAssociation *next;
-};
-
-static struct StreamNameAssociation *stream_names = NULL;
 
 static bool oam_initialized = false;
 
@@ -152,7 +146,7 @@ static int addtrig_cb(const char *key, void *value, void *userdata)
     struct AddMepState *st = (struct AddMepState *)userdata;
     struct MepStart *mep = (struct MepStart *)value;
 
-    if (mep_start_in_stream(mep, st->mep->stream_name)) {
+    if (same_compound_stream(mep->name, st->mep->stream_name)) {
         // limit to meps with the same target
         if(mep->target == st->mep->target) {
             struct JsonValue *state = mep_start_get_state(mep);
@@ -246,15 +240,6 @@ int print_mep_start(const struct MepStart *start, FILE *cmd_w)
 {
     return fprintf(cmd_w, "%s level %d in pipe %s at pos %d\n",
             start->name, start->level, start->pipe->name, start->pipe_pos_idx);
-}
-
-bool mep_start_in_stream(const struct MepStart *start, const char *stream)
-{
-    for (struct StreamNameAssociation *s=stream_names; s; s=s->next) {
-        if (hashmap_contains(s->names, start->stream_name) && hashmap_contains(s->names, stream))
-            return 1;
-    }
-    return 0;
 }
 
 // check when the last mask heartbeat received
@@ -353,33 +338,6 @@ void mep_start_wakeup_mask_checker(struct MepStart *start)
     }
 }
 
-static int copy_streamname(const char *key, void *value, void *userdata)
-{
-    struct HashMap *snames = (struct HashMap *)userdata;
-    hashmap_insert(snames, strdup(key), value); // value is NULL
-    return 1;
-}
-
-void oam_stream_names_in_pipeline(struct HashMap *names)
-{
-    for (struct StreamNameAssociation *s=stream_names; s; s=s->next) {
-        HASHMAP_ITERATE(names, it) {
-            const char *key = hash_iterator_key(&it);
-            if (hashmap_contains(s->names, key)) {
-                hashmap_foreach(names, copy_streamname, s->names);
-                return;
-            }
-        }
-    }
-
-    // no existing stream set has a common subset with @names
-    struct StreamNameAssociation *sa = calloc_struct(StreamNameAssociation);
-    sa->names = new_hashmap(11, NULL, NULL);
-    hashmap_foreach(names, copy_streamname, sa->names);
-    sa->next = stream_names;
-    stream_names = sa;
-}
-
 bool oam_start_background_ping(const char *name, const char *command)
 {
     if (oam_initialized == false) {
@@ -447,13 +405,6 @@ void finish_oam(void)
     finish_session_module();
     delete_hashmap(mep_starts);
     delete_hashmap(oam_ifaces);
-
-    for (struct StreamNameAssociation *s=stream_names; s;) {
-        struct StreamNameAssociation *d = s;
-        s = s->next;
-        delete_hashmap(d->names);
-        free(d);
-    }
 
     log_info("Stopped OAM functionality");
 }

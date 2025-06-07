@@ -23,6 +23,15 @@ DEFAULT_LOGGING_MODULE(STATE, INFO);
 static struct HashMap *state_interfaces = NULL;
 static struct HashMap *state_objects = NULL;
 
+
+struct StreamNameAssociation {
+    struct HashMap *names;
+    struct StreamNameAssociation *next;
+};
+
+static struct StreamNameAssociation *stream_names = NULL;
+
+
 static int iface_delete_cb(const char *key, void *value, void *userdata)
 {
     (void)key; // owned by the interface
@@ -75,6 +84,13 @@ static void __attribute__((destructor)) finish_state(void)
     delete_hashmap(state_interfaces);
     delete_hashmap(state_objects);
     //TODO we may need to wait for things to finish what they are doing
+
+    for (struct StreamNameAssociation *s=stream_names; s;) {
+        struct StreamNameAssociation *d = s;
+        s = s->next;
+        delete_hashmap(d->names);
+        free(d);
+    }
 }
 
 
@@ -363,3 +379,43 @@ bool state_commit_transaction(struct StateTransaction *tr)
 
     return true;
 }
+
+
+
+static int copy_streamname(const char *key, void *value, void *userdata)
+{
+    struct HashMap *snames = (struct HashMap *)userdata;
+    hashmap_insert(snames, strdup(key), value); // value is NULL
+    return 1;
+}
+
+void stream_names_in_pipeline(struct HashMap *names)
+{
+    for (struct StreamNameAssociation *s=stream_names; s; s=s->next) {
+        HASHMAP_ITERATE(names, it) {
+            const char *key = hash_iterator_key(&it);
+            if (hashmap_contains(s->names, key)) {
+                hashmap_foreach(names, copy_streamname, s->names);
+                return;
+            }
+        }
+    }
+
+    // no existing stream set has a common subset with @names
+    struct StreamNameAssociation *sa = calloc_struct(StreamNameAssociation);
+    sa->names = new_hashmap(11, NULL, NULL);
+    hashmap_foreach(names, copy_streamname, sa->names);
+    sa->next = stream_names;
+    stream_names = sa;
+}
+
+bool same_compound_stream(const char *s1, const char *s2)
+{
+    for (struct StreamNameAssociation *s=stream_names; s; s=s->next) {
+        if (hashmap_contains(s->names, s1) && hashmap_contains(s->names, s2))
+            return true;
+    }
+    return false;
+}
+
+

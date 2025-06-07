@@ -1660,7 +1660,8 @@ struct ConfAction *parse_actions_line(const char *stream, const char *line,
 
     delete_header_list(stst.headers);
 
-    oam_stream_names_in_pipeline(stst.stream_names);
+    //TODO we should do this in assemble_actions()
+    stream_names_in_pipeline(stst.stream_names);
     delete_hashmap(stst.stream_names);
 
     return stst.actions;
