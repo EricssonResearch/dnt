@@ -104,3 +104,41 @@ int ether_pton(const char *src, void *dst)
     memcpy(dst, buf, 6);
     return 1;
 }
+
+bool parse_mac_vlan(const char *str, char **mac, unsigned *vlan)
+{
+    const char *plus = strchr(str, '+');
+    if (plus) {
+        // mac+vlan
+        char *tmpmac = strndup(str, plus-str);
+        unsigned char dstmac[6];
+        if (ether_pton(tmpmac, dstmac)) {
+            // mac okay, parse vlan
+            unsigned vl;
+            char *end;
+            vl = strtoul(plus+1, &end, 0);
+            if (end == plus+1) {
+                // invalid number
+                free(tmpmac);
+                return false;
+            } else {
+                *mac = tmpmac;
+                *vlan = vl;
+                return true;
+            }
+        } else {
+            free(tmpmac);
+            return false;
+        }
+    } else {
+        // only mac
+        unsigned char dstmac[6];
+        if (ether_pton(str, dstmac)) {
+            *mac = strdup(str);
+            *vlan = 0;
+            return true;
+        } else {
+            return false;
+        }
+    }
+}
