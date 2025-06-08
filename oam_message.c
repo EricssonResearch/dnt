@@ -570,7 +570,7 @@ static int addstart_cb(const char *key, void *value, void *userdata)
     struct AddstartState *st = (struct AddstartState *)userdata;
     struct MepStart *mep = (struct MepStart *)value;
 
-    if (same_compound_stream(mep->name, st->oam->stream)) {
+    if (same_compound_stream(mep->stream_name, st->oam->stream)) {
         //TODO supply more info: level, type
         json_array_push(st->jlist, json_string(key));
     }
@@ -906,12 +906,19 @@ static bool send_message_outofband(struct JsonValue *msg, struct JsonValue *addr
         THROW("No " #_key " in OAM message.");                      \
     }
 
+//TODO there is a huge deduplication opportunity in these new_process_*_request() functions
+
 static bool new_process_ping_request(struct OAM_MaintenancePoint *mp, struct JsonValue *js, struct timespec recv_time)
 {
+    JS_OBJECT_GET(js, code, string);
+    if (strcmp(code->v.string, "request") == 0) {
+        THROW("OAM ping is '%s' not request", code->v.string);
+    }
+
     //JS_OBJECT_GET(js, return, object); XXX we can't do this because return is a keyword
     struct JsonValue *return_addr = json_object_get_object(js, "return");
     if (return_addr == NULL) {
-        THROW("No return address in OAM message.");
+        THROW("No return address in OAM ping request message.");
     }
     struct JsonValue *return_dup = json_duplicate(return_addr);
     json_object_remove(js, "return");
@@ -922,18 +929,175 @@ static bool new_process_ping_request(struct OAM_MaintenancePoint *mp, struct Jso
         json_object_insert(js, "target_info", mp_get_state_json(mp, 1));
     }
 
-    const char *stream = "<unknown>";
+    json_object_insert(js, "code", json_string("reply"));
+    json_object_insert(js, "recv_s", json_number(recv_time.tv_sec));
+    json_object_insert(js, "recv_ns", json_number(recv_time.tv_nsec));
+    json_object_insert(js, "receiver", json_string(mp_get_name(mp)));
+
+    //TODO the old code also added the mpls label from the packet header, but we can't do that here
+
+    const char *stream = "<unknown>"; //TODO this is only used for the log_packet()
     struct JsonValue *jstream = json_object_get_string(js, "stream");
     if (stream != NULL) {
         stream = jstream->v.string;
     }
+    //TODO log_packet
+
+    return send_message_outofband(js, return_dup);
+}
+
+static bool new_send_rping_error(struct OAM_MaintenancePoint *mp, struct JsonValue *js, struct timespec recv_time,
+        const char *error)
+{
+    struct JsonValue *return_addr = json_object_get_object(js, "return");
+    struct JsonValue *return_dup = json_duplicate(return_addr);
+    json_object_remove(js, "return");
+
+    json_object_insert(js, "code", json_string("error"));
+    json_object_insert(js, "recv_s", json_number(recv_time.tv_sec));
+    json_object_insert(js, "recv_ns", json_number(recv_time.tv_nsec));
+    json_object_insert(js, "receiver", json_string(mp_get_name(mp)));
+    json_object_insert(js, "error", json_string(error));
+
+    const char *stream = "<unknown>"; //TODO this is only used for the log_packet()
+    struct JsonValue *jstream = json_object_get_string(js, "stream");
+    if (stream != NULL) {
+        stream = jstream->v.string;
+    }
+    //TODO log_packet
+
+    return send_message_outofband(js, return_dup);
+}
+
+static bool new_process_rping_request(struct OAM_MaintenancePoint *mp, struct JsonValue *js, struct timespec recv_time)
+{
+    JS_OBJECT_GET(js, code, string);
+    if (strcmp(code->v.string, "request") == 0) {
+        THROW("OAM rping is '%s' not request", code->v.string);
+    }
+
+    //JS_OBJECT_GET(js, return, object); XXX we can't do this because return is a keyword
+    struct JsonValue *return_addr = json_object_get_object(js, "return");
+    if (return_addr == NULL) {
+        THROW("No return address in OAM rping request message.");
+    }
+
+    JS_OBJECT_GET(js, stream, string);
+    JS_OBJECT_GET(js, session, number);
+    JS_OBJECT_GET(js, command, string);
+
+    struct OamRequest *ping_req = parse_ping_command(command->v.string, false, true, NULL);
+    if (request_get_error(ping_req) == NULL) {
+        if (!same_compound_stream(request_get_stream_name(ping_req), mp_get_stream_name(mp))) {
+            const char *error = strdup_printf("could not create ping request: streams '%s' and '%s' are not related",
+                    request_get_stream_name(ping_req), mp_get_stream_name(mp));
+            delete_oam_request(ping_req);
+            return new_send_rping_error(mp, js, recv_time, error);
+        }
+
+        //TODO request_set_return(ping_req, reply_address, port); TODO support TSN
+
+        request_set_originator(ping_req, strdup(stream->v.string), session->v.number);
+
+        if (!initiate_request(ping_req)) {
+            const char *error = strdup_printf("could not send ping request: %s", request_get_error(ping_req));
+            delete_oam_request(ping_req);
+            return new_send_rping_error(mp, js, recv_time, error);
+        }
+    } else {
+        const char *error = strdup_printf("could not create ping request: %s", request_get_error(ping_req));
+        delete_oam_request(ping_req);
+        return new_send_rping_error(mp, js, recv_time, error);
+    }
+    json_delete(js);
+    return false;
+}
+
+struct AddMPState {
+    struct JsonValue *jlist;
+    const char *mp_stream;
+};
+static int add_mp_cb(const char *key, void *value, void *userdata)
+{
+    struct AddMPState *st = (struct AddMPState *)userdata;
+    struct OAM_MaintenancePoint *mp = (struct OAM_MaintenancePoint *)value;
+
+    if (same_compound_stream(mp_get_stream_name(mp), st->mp_stream))
+        json_array_push(st->jlist, json_string(key));
+
+    return 1;
+}
+
+static bool new_process_rlist_request(struct OAM_MaintenancePoint *mp, struct JsonValue *js, struct timespec recv_time)
+{
+    JS_OBJECT_GET(js, code, string);
+    if (strcmp(code->v.string, "request") == 0) {
+        THROW("OAM rlist is '%s' not request", code->v.string);
+    }
+
+    //JS_OBJECT_GET(js, return, object); XXX we can't do this because return is a keyword
+    struct JsonValue *return_addr = json_object_get_object(js, "return");
+    if (return_addr == NULL) {
+        THROW("No return address in OAM rping request message.");
+    }
+
+    struct JsonValue *return_dup = json_duplicate(return_addr);
+    json_object_remove(js, "return");
 
     json_object_insert(js, "code", json_string("reply"));
+    json_object_insert(js, "recv_s", json_number(recv_time.tv_sec));
+    json_object_insert(js, "recv_ns", json_number(recv_time.tv_nsec));
+    json_object_insert(js, "receiver", json_string(mp_get_name(mp)));
+
+    struct JsonValue *jlist = json_array();
+    struct AddMPState st = { jlist, mp_get_stream_name(mp) };
+    foreach_mep_start(add_mp_cb, &st);
+    json_object_insert(js, "list", jlist);
 
     //TODO the old code also added the mpls label from the packet header, but we can't do that here
 
+    const char *stream = "<unknown>"; //TODO this is only used for the log_packet()
+    struct JsonValue *jstream = json_object_get_string(js, "stream");
+    if (stream != NULL) {
+        stream = jstream->v.string;
+    }
+    //TODO log_packet
+
+    return send_message_outofband(js, return_dup);
+}
+
+static bool new_process_trigger_request(struct OAM_MaintenancePoint *mp, struct JsonValue *js, struct timespec recv_time)
+{
+    JS_OBJECT_GET(js, code, string);
+    if (strcmp(code->v.string, "request") == 0) {
+        THROW("OAM rlist is '%s' not request", code->v.string);
+    }
+
+    //JS_OBJECT_GET(js, return, object); XXX we can't do this because return is a keyword
+    struct JsonValue *return_addr = json_object_get_object(js, "return");
+    if (return_addr == NULL) {
+        THROW("No return address in OAM rping request message.");
+    }
+
+    struct JsonValue *return_dup = json_duplicate(return_addr);
+    json_object_remove(js, "return");
+
+    json_object_insert(js, "code", json_string("reply"));
     json_object_insert(js, "recv_s", json_number(recv_time.tv_sec));
     json_object_insert(js, "recv_ns", json_number(recv_time.tv_nsec));
+    json_object_insert(js, "receiver", json_string(mp_get_name(mp)));
+
+    struct JsonValue *jlist = mp_get_state_json_by_object(mp);
+    json_object_insert(js, "mp", jlist);
+
+    //TODO the old code also added the mpls label from the packet header, but we can't do that here
+
+    const char *stream = "<unknown>"; //TODO this is only used for the log_packet()
+    struct JsonValue *jstream = json_object_get_string(js, "stream");
+    if (stream != NULL) {
+        stream = jstream->v.string;
+    }
+    //TODO log_packet
 
     return send_message_outofband(js, return_dup);
 }
@@ -961,10 +1125,6 @@ static bool process_inband_message(struct OAM_MaintenancePoint *mp, struct JsonV
             target->v.string, level->v.number);
 
     if (strcmp(type->v.string, "ping") == 0) {
-        if (strcmp(code->v.string, "request") == 0) {
-            THROW("OAM ping is '%s' not request", code->v.string);
-        }
-
         struct JsonValue *jrr = json_object_get_array(js, "rr");
         if (jrr) {
             json_array_push(jrr, json_string(mp_get_name(mp)));
@@ -975,22 +1135,59 @@ static bool process_inband_message(struct OAM_MaintenancePoint *mp, struct JsonV
             new_process_ping_request(mp, js, recv_time);
             return false;
         }
+        if (strcmp(target->v.string, "any") == 0) {
+            if (!new_process_ping_request(mp, js, recv_time))
+                return false;
+            return mp_get_type(mp) != OAM_Stop;
+        }
         if (strcmp(target->v.string, mp_get_name(mp)) == 0) {
             new_process_ping_request(mp, js, recv_time);
             return false;
         }
-        if (strcmp(target->v.string, "any") == 0) {
-            if (!new_process_ping_request(mp, js, recv_time))
-                return false;
-            return mp_get_type(mp) == OAM_Stop ? false : true;
-        }
-        return mp_get_type(mp) == OAM_Stop ? false : true;
-
+        return mp_get_type(mp) != OAM_Stop;
     } else if (strcmp(type->v.string, "rping") == 0) {
+        if (ttl == 0) {
+            return false;
+        }
+        if (strcmp(target->v.string, "any") == 0) {
+            return false;
+        }
+        if (strcmp(target->v.string, mp_get_name(mp)) == 0) {
+            new_process_rping_request(mp, js, recv_time);
+            return false;
+        }
+        return mp_get_type(mp) != OAM_Stop;
     } else if (strcmp(type->v.string, "rlist") == 0) {
+        if (ttl == 0) {
+            return false;
+        }
+        if (strcmp(target->v.string, "any") == 0) {
+            if (!new_process_rlist_request(mp, js, recv_time))
+                return false;
+            return mp_get_type(mp) != OAM_Stop;
+        }
+        if (strcmp(target->v.string, mp_get_name(mp)) == 0) {
+            new_process_rlist_request(mp, js, recv_time);
+            return false;
+        }
+        return mp_get_type(mp) != OAM_Stop;
     } else if (strcmp(type->v.string, "trigger") == 0) {
+        if (ttl == 0) {
+            return false;
+        }
+        if (strcmp(target->v.string, "any") == 0) {
+            if (!new_process_trigger_request(mp, js, recv_time))
+                return false;
+            return mp_get_type(mp) != OAM_Stop;
+        }
+        if (strcmp(target->v.string, mp_get_name(mp)) == 0) {
+            new_process_trigger_request(mp, js, recv_time);
+            return false;
+        }
+        return mp_get_type(mp) != OAM_Stop;
     } else if (strcmp(type->v.string, "mask") == 0) {
-    } else if (strcmp(type->v.string, "unmask") == 0) {
+        //TODO figure out how process_mask_request() works (most likely it doesn't)
+    } else if (strcmp(type->v.string, "unamask") == 0) { // compatibility with the old code :)
     } else {
         log_error("%s received unknown OAM type '%s'",
                 mp_get_name(mp), type->v.string);

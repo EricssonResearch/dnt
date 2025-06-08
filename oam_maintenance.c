@@ -296,6 +296,11 @@ const char *mp_get_name(const struct OAM_MaintenancePoint *mp)
     return mp->name;
 }
 
+const char *mp_get_stream_name(const struct OAM_MaintenancePoint *mp)
+{
+    return mp->stream_name;
+}
+
 enum OAM_MP_Type mp_get_type(const struct OAM_MaintenancePoint *mp)
 {
     return mp->type;
@@ -325,11 +330,47 @@ struct JsonValue *mp_get_state_json(const struct OAM_MaintenancePoint *mp, int o
     return ret;
 }
 
+struct AddMPState {
+    struct JsonValue *jlist;
+    struct PipelineObject *object;
+};
+static int add_mp_cb(const char *key, void *value, void *userdata)
+{
+    (void)key;
+    struct AddMPState *st = (struct AddMPState *)userdata;
+    struct OAM_MaintenancePoint *mp = (struct OAM_MaintenancePoint *)value;
+
+    if (mp->object == st->object) {
+        json_array_push(st->jlist, mp_get_state_json(mp, 0));
+    }
+    return 1;
+}
+
+struct JsonValue *mp_get_state_json_by_object(const struct OAM_MaintenancePoint *mp)
+{
+    struct JsonValue *jlist = json_array();
+
+    if (mp->object) {
+        json_array_push(jlist, mp_get_state_json(mp, 0));
+    } else {
+        struct AddMPState st = { jlist, mp->object };
+        foreach_mp(add_mp_cb, &st);
+    }
+
+    return jlist;
+}
+
+int foreach_mp(hashmap_cb *cb, void *userdata)
+{
+    return hashmap_foreach(mp_hash, cb, userdata);
+}
+
 bool mp_reinterpret_oam_packet(struct OAM_MaintenancePoint *mp, struct Packet *p)
 {
     if (mp->flavor == OAM_PW) {
         return reinterpret_pw_packet(p);
     }
+    //TODO other flavors
     return false;
 }
 
@@ -374,3 +415,4 @@ void mp_inject_packet(struct OAM_MaintenancePoint *mp, struct Packet *p)
     pi->pos = mp->pipe_pos_idx;
     pipe_iterator_run(pi);
 }
+
