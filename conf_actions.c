@@ -7,18 +7,11 @@
 #include "conf_object.h"
 #include "conf_packet.h"
 #include "conf_utils.h"
-#include "hashmap.h"
 #include "header.h"
-#include "if_oam_cmd.h"
-#include "inifile.h"
-#include "interface.h"
 #include "log.h"
 #include "oam.h"
 #include "packet.h"
-#include "parsetree.h"
-#include "pipeline.h"
 #include "protocol.h"
-#include "seq_gen.h"
 #include "state.h"
 #include "utils.h"
 #include "value.h"
@@ -214,8 +207,8 @@ static void replicatelist_push(struct ReplicateList **list, char *name, struct C
     struct ReplicateList *l = calloc_struct(ReplicateList);
     l->name = name;
     l->actions = actions;
-    l->next = *list;
     l->masked = masked;
+    l->next = *list;
     *list = l;
 }
 
@@ -795,8 +788,7 @@ static bool process_token(char *token, void *userdata)
                 if (sscanf(token, "%d%c", &newaction->oam.level, &err) != 1) {
                     THROW("invalid OAM level '%s'", token);
                 }
-                if (newaction->oam.level < 0 ||
-                        newaction->oam.level > 7) {
+                if (newaction->oam.level < 0 || newaction->oam.level > 7) {
                     THROW("invalid OAM level %d (valid range is 0-7)",
                             newaction->oam.level);
                 }
@@ -860,18 +852,19 @@ static bool process_token(char *token, void *userdata)
             }
             break;
         case CA_REPL: {
-             /* The replication pipelines can be masked from config at the start or at runtime from CLI.
-             * Here we handle the config case. Pipeline is masked if definition ends with ":masked".
-             * As a result "pipename:masked" and "pipename" represents the same pipeline: having both is config error.
-             * */
-            char *token_masked = strdup_printf("%s:masked", token);
-            char *pstring_masked = inisection_get(stst->streams_sec, token_masked);
             char *pstring = inisection_get(stst->streams_sec, token);
 
+             /* The replication pipelines can be masked from config at the start or at runtime from CLI.
+              * Here we handle the config case. Pipeline is masked if definition ends with ":masked".
+              * As a result "pipename:masked" and "pipename" represents the same pipeline: having both is config error.
+              */
+            char *token_masked = strdup_printf("%s:masked", token);
+            char *pstring_masked = inisection_get(stst->streams_sec, token_masked);
             bool masked = false;
             free(token_masked);
+
             if (pstring && pstring_masked) {
-                THROW("redefinition of pipeline '%s'", token);
+                THROW("pipeline '%s' is defined both as normal and masked", token);
             } else if (pstring_masked != NULL) {
                 pstring = pstring_masked;
                 masked = true;
@@ -1450,17 +1443,12 @@ static bool process_action(struct StageState *stst)
             if (newaction->oam.level == -1) {
                 THROW("no level specified for '%s' OAM action", newaction->oam.name);
             }
+            //TODO derive MP flavor from the header stack
             enum ProtocolID expected[] = {PROTO_ID_MPLS, PROTO_ID_DCW};
             if (check_header_stack(stst->headers, expected, 2) == false) {
-                if (newaction->oam.auto_generated == false)
-                    THROW("header stack is not suitable for OAM point");
-                else {
-                    // for auto-generated MIPs it is just a warning
-                    log_warning("stream '%s' action '%s': header stack is not suitable for OAM point",
-                                stst->stream, newaction->text);
-                    return false;
-                }
+                THROW("header stack is not suitable for OAM point");
             }
+            //TODO replace @must_write with a pipeline analyzer
             //TODO remove CA_MIP for now, it should be there but causes trouble
             if (newaction->type == CA_MEPSTART /*|| newaction->type == CA_MIP*/) {
                 // this is a packet injection point, user must write label before sending
@@ -1835,15 +1823,18 @@ struct Pipeline *assemble_actions(const char *stream_name, const struct ConfActi
         return NULL;
     }
 
-    struct Pipeline *ret = calloc_struct(Pipeline);
-
     struct Action *actions = calloc_struct_array(Action, count);
+    struct Pipeline *ret = calloc_struct(Pipeline);
+    ret->actions = actions;
+    ret->action_count = count;
+    ret->name = strdup(stream_name);
+    ret->reference_count = 1; // the initial owner is the caller of assemble_actions()
 
     unsigned i = 0;
     for (const struct ConfAction *ca = ca_list; ca; ca=ca->next) {
         switch (ca->type) {
             case CA_UNDEF:
-                log_error("cannot assemble undefined action");
+                THROW("cannot assemble undefined action");
                 break;
             case CA_ADD:
                 create_action_add(actions+i, ca->add.pos_idx, ca->add.id, ca->add.len, ca->text);
@@ -1942,10 +1933,6 @@ struct Pipeline *assemble_actions(const char *stream_name, const struct ConfActi
             i++;
     }
 
-    ret->actions = actions;
-    ret->action_count = count;
-    ret->name = strdup(stream_name);
-    ret->reference_count = 1; // the initial owner is the caller of assemble_actions()
     return ret;
 #undef THROW
 }

@@ -5,9 +5,9 @@
 #ifndef R2_CONF_PACKET_H
 #define R2_CONF_PACKET_H
 
-#include <stdbool.h>
+#include "parsetree.h"
 
-struct HeaderDescriptor;
+#include <stdbool.h>
 
 // parse the "*:packet" line for a stream
 // @stream name is used in error messages

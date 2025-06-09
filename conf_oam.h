@@ -5,10 +5,9 @@
 #ifndef R2_CONF_OAM_H
 #define R2_CONF_OAM_H
 
-#include <stdbool.h>
+#include "inifile.h"
 
-struct IniSection;
-struct HashMap;
+#include <stdbool.h>
 
 // parses the commands in the config
 // @returns false on error

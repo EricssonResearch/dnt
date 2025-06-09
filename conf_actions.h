@@ -5,11 +5,11 @@
 #ifndef R2_CONF_ACTIONS_H
 #define R2_CONF_ACTIONS_H
 
+#include "inifile.h"
+#include "parsetree.h"
+#include "pipeline.h"
+
 struct ConfAction;
-struct HeaderDescriptor;
-struct HashMap;
-struct IniSection;
-struct Pipeline;
 
 // parse the "*:actions" line for a stream
 // @ifaces and @objects are the new ones added in the transaction

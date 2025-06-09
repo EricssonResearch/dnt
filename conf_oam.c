@@ -3,7 +3,6 @@
 
 
 #include "conf_oam.h"
-#include "inifile.h"
 #include "log.h"
 
 #include <stdlib.h>

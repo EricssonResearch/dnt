@@ -4,7 +4,6 @@
 
 #include "conf_object.h"
 #include "conf_utils.h"
-#include "inifile.h"
 #include "log.h"
 #include "pof.h"
 #include "replicate.h"

@@ -5,13 +5,10 @@
 #ifndef R2_CONF_STREAMS_H
 #define R2_CONF_STREAMS_H
 
-#include <stdbool.h>
+#include "inifile.h"
+#include "parsetree.h"
 
-struct ConfAction;
-struct IniSection;
-struct Interface;
-struct HashMap;
-struct HeaderDescriptor;
+#include <stdbool.h>
 
 struct ConfStream {
     struct ConfAction *actions;
