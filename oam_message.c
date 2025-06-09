@@ -513,7 +513,7 @@ static bool process_rping_request(struct OamEndPoint *oam, struct Packet *p, str
             request_set_error(ping_req, strdup("rping request contains no stream name"));
             return send_rping_error(oam, p, j, ping_req);
         }
-        request_set_originator(ping_req, strdup(jstream->v.string), dach.session);
+        request_set_originator(ping_req, jstream->v.string, dach.session);
 
         if (!initiate_request(ping_req)) {
             request_set_error(ping_req, strdup_printf("ping request could not be sent: %s", request_get_error(ping_req)));
@@ -865,7 +865,7 @@ static bool send_message_outofband(struct JsonValue *msg, struct JsonValue *addr
     struct JsonValue *ip = json_object_get_string(address, "ip");
     struct JsonValue *port = json_object_get_number(address, "port");
     struct JsonValue *dmac = json_object_get_string(address, "dmac");
-    struct JsonValue *vlan = json_object_get_string(address, "vlan");
+    struct JsonValue *vlan = json_object_get_number(address, "vlan");
 
     unsigned msg_len;
     char *msg_str = json_serialize(msg, &msg_len);
@@ -875,11 +875,12 @@ static bool send_message_outofband(struct JsonValue *msg, struct JsonValue *addr
         return false;
     }
 
-    //TODO log_packet("successful send ...");
     if (ip && port) {
         //TODO this function needs a new name
         int err = oam_send_reply(ip->v.string, port->v.number, msg_str, msg_len);
         free(msg_str);
+        log_packet("sent out-of-band message len %u to %s %g err %d", msg_len,
+                ip->v.string, port->v.number, err);
         json_delete(address);
         return err == 0;
     } else if (dmac && vlan) {
@@ -906,7 +907,36 @@ static bool send_message_outofband(struct JsonValue *msg, struct JsonValue *addr
         THROW("No " #_key " in OAM message.");                      \
     }
 
-//TODO there is a huge deduplication opportunity in these new_process_*_request() functions
+static bool logpacket_reply(struct OAM_MaintenancePoint *mp, struct JsonValue *js, struct JsonValue *return_dup,
+        const char *type)
+{
+    if (!log_enabled(PACKET))
+        return false;
+
+    const char *stream = "<unknown>";
+    struct JsonValue *jstream = json_object_get_string(js, "stream");
+    if (stream != NULL) {
+        stream = jstream->v.string;
+    }
+    JS_OBJECT_GET(js, session, number);
+    JS_OBJECT_GET(js, seq, number);
+    JS_OBJECT_GET(js, level, number);
+
+    struct JsonValue *ip = json_object_get_string(return_dup, "ip");
+    struct JsonValue *port = json_object_get_number(return_dup, "port");
+    struct JsonValue *dmac = json_object_get_string(return_dup, "dmac");
+    struct JsonValue *vlan = json_object_get_number(return_dup, "vlan");
+    const char *addr = ip ? ip->v.string : dmac->v.string;
+    unsigned num = port ? port->v.number : vlan->v.number;
+
+    log_packet("%s send %s %s:%g seq %g lvl %g to %s %u",
+            mp_get_name(mp), type, stream,
+            session->v.number, seq->v.number, level->v.number,
+            addr, num);
+    return true;
+}
+
+//TODO there is a huge deduplication opportunity in the new_process_*_request() functions
 
 static bool new_process_ping_request(struct OAM_MaintenancePoint *mp, struct JsonValue *js, struct timespec recv_time)
 {
@@ -936,12 +966,7 @@ static bool new_process_ping_request(struct OAM_MaintenancePoint *mp, struct Jso
 
     //TODO the old code also added the mpls label from the packet header, but we can't do that here
 
-    const char *stream = "<unknown>"; //TODO this is only used for the log_packet()
-    struct JsonValue *jstream = json_object_get_string(js, "stream");
-    if (stream != NULL) {
-        stream = jstream->v.string;
-    }
-    //TODO log_packet
+    logpacket_reply(mp, js, return_dup, "ping reply");
 
     return send_message_outofband(js, return_dup);
 }
@@ -959,12 +984,7 @@ static bool new_send_rping_error(struct OAM_MaintenancePoint *mp, struct JsonVal
     json_object_insert(js, "receiver", json_string(mp_get_name(mp)));
     json_object_insert(js, "error", json_string(error));
 
-    const char *stream = "<unknown>"; //TODO this is only used for the log_packet()
-    struct JsonValue *jstream = json_object_get_string(js, "stream");
-    if (stream != NULL) {
-        stream = jstream->v.string;
-    }
-    //TODO log_packet
+    logpacket_reply(mp, js, return_dup, "rping error");
 
     return send_message_outofband(js, return_dup);
 }
@@ -995,9 +1015,9 @@ static bool new_process_rping_request(struct OAM_MaintenancePoint *mp, struct Js
             return new_send_rping_error(mp, js, recv_time, error);
         }
 
-        //TODO request_set_return(ping_req, reply_address, port); TODO support TSN
+        request_set_return_addr(ping_req, json_duplicate(return_addr));
 
-        request_set_originator(ping_req, strdup(stream->v.string), session->v.number);
+        request_set_originator(ping_req, stream->v.string, session->v.number);
 
         if (!initiate_request(ping_req)) {
             const char *error = strdup_printf("could not send ping request: %s", request_get_error(ping_req));
@@ -1056,12 +1076,7 @@ static bool new_process_rlist_request(struct OAM_MaintenancePoint *mp, struct Js
 
     //TODO the old code also added the mpls label from the packet header, but we can't do that here
 
-    const char *stream = "<unknown>"; //TODO this is only used for the log_packet()
-    struct JsonValue *jstream = json_object_get_string(js, "stream");
-    if (stream != NULL) {
-        stream = jstream->v.string;
-    }
-    //TODO log_packet
+    logpacket_reply(mp, js, return_dup, "rlist reply");
 
     return send_message_outofband(js, return_dup);
 }
@@ -1073,33 +1088,31 @@ static bool new_process_trigger_request(struct OAM_MaintenancePoint *mp, struct 
         THROW("OAM rlist is '%s' not request", code->v.string);
     }
 
-    //JS_OBJECT_GET(js, return, object); XXX we can't do this because return is a keyword
-    struct JsonValue *return_addr = json_object_get_object(js, "return");
-    if (return_addr == NULL) {
-        THROW("No return address in OAM rping request message.");
-    }
+    //TODO de-duplicate this with trigger_mep_push_notification() in oam_request.c
+    JS_OBJECT_GET(js, seq, number);
+    JS_OBJECT_GET(js, level, number);
+    JS_OBJECT_GET(js, nodeid, number);
+    JS_OBJECT_GET(js, session, number);
+    JS_OBJECT_GET(js, source, string);
+    JS_OBJECT_GET(js, stream, string);
+    JS_OBJECT_GET(js, target, string);
 
-    struct JsonValue *return_dup = json_duplicate(return_addr);
-    json_object_remove(js, "return");
-
-    json_object_insert(js, "code", json_string("reply"));
-    json_object_insert(js, "recv_s", json_number(recv_time.tv_sec));
-    json_object_insert(js, "recv_ns", json_number(recv_time.tv_nsec));
-    json_object_insert(js, "receiver", json_string(mp_get_name(mp)));
+    struct JsonValue *notif = json_object();
+    json_object_insert(notif, "seq", json_number(seq->v.number));
+    json_object_insert(notif, "level", json_number(level->v.number));
+    json_object_insert(notif, "node_id", json_number(nodeid->v.number));
+    json_object_insert(notif, "session", json_number(session->v.number));
+    json_object_insert(notif, "recv_s", json_number(recv_time.tv_sec));
+    json_object_insert(notif, "recv_ns", json_number(recv_time.tv_nsec));
+    json_object_insert(notif, "source", json_string(source->v.string));
+    json_object_insert(notif, "stream", json_string(stream->v.string));
+    json_object_insert(notif, "target", json_string(target->v.string));
 
     struct JsonValue *jlist = mp_get_state_json_by_object(mp);
-    json_object_insert(js, "mp", jlist);
+    json_object_insert(notif, "mp", jlist);
 
-    //TODO the old code also added the mpls label from the packet header, but we can't do that here
-
-    const char *stream = "<unknown>"; //TODO this is only used for the log_packet()
-    struct JsonValue *jstream = json_object_get_string(js, "stream");
-    if (stream != NULL) {
-        stream = jstream->v.string;
-    }
-    //TODO log_packet
-
-    return send_message_outofband(js, return_dup);
+    notification_push_event("triggered_receiver", NOTIF_INFO, notif);
+    return false;
 }
 
 static bool process_inband_message(struct OAM_MaintenancePoint *mp, struct JsonValue *js,

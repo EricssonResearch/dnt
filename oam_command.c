@@ -434,7 +434,7 @@ static void command_loop(struct CommandConnection *conn)
                 foreach_oam_ifaces(list_oam_ifaces_cb, conn->cmd_w);
             }
             else if (strncmp(oam_command, "ping", 4) == 0) {
-                struct OamRequest *ping_req = parse_ping_command(oam_command+4, true, true, strdup(conn->name));
+                struct OamRequest *ping_req = parse_ping_command(oam_command+4, true, true, conn->name);
                 CHECK_REQUEST(ping_req);
                 if (!initiate_request(ping_req)) {
                     ERROR("sending ping command failed");
@@ -445,14 +445,14 @@ static void command_loop(struct CommandConnection *conn)
                 last_session = request_get_session_id(ping_req);
             }
             else if (strncmp(oam_command, "rping", 5) == 0) {
-                struct OamRequest *rping_req = parse_rping_command(oam_command+5, strdup(conn->name));
+                struct OamRequest *rping_req = parse_rping_command(oam_command+5, conn->name);
                 CHECK_REQUEST(rping_req);
                 if (!initiate_request(rping_req)) {
                     ERROR("sending rping command failed");
                 }
             }
             else if (strncmp(oam_command, "notif_trigger", 13) == 0) {
-                struct OamRequest *trig_req = parse_trigger_command(oam_command+13, true, strdup(conn->name));
+                struct OamRequest *trig_req = parse_trigger_command(oam_command+13, true, conn->name);
                 CHECK_REQUEST(trig_req);
                 if (!initiate_request(trig_req)) {
                     ERROR("sending notif_trigger command failed");
@@ -476,14 +476,14 @@ static void command_loop(struct CommandConnection *conn)
                 }
             }
             else if (strncmp(oam_command, "rlist", 5) == 0) {
-                struct OamRequest *rlist_req = parse_rlist_command(oam_command+5, strdup(conn->name));
+                struct OamRequest *rlist_req = parse_rlist_command(oam_command+5, conn->name);
                 CHECK_REQUEST(rlist_req);
                 if (!initiate_request(rlist_req)) {
                     ERROR("sending rlist command failed");
                 }
             }
             else if (!strncmp(oam_command, "mask", 4) || !strncmp(oam_command, "unmask", 6)) {
-                struct OamRequest *mask_req = parse_mask_command(oam_command, strdup(conn->name));
+                struct OamRequest *mask_req = parse_mask_command(oam_command, conn->name);
                 CHECK_REQUEST(mask_req);
                 if (!initiate_request(mask_req)) {
                     log_info("sending '%s' signal failed (AutoMIP enabled?)", request_get_type(mask_req));

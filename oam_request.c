@@ -35,14 +35,14 @@
 #define OAM_CHANNEL 0x7fff /* Experimental channel type, we are not compatible with anything */
 
 struct OamRequest {
-    char *conn_name; // NULL if not issued from a command connection
-    char *return_ip;
-    unsigned return_port;
-    unsigned session_id, seq;
-    unsigned short node_id;
     const char *type;
-    struct MepStart *mep_start;
-    char mep_stop[32];               // destination mep/mip
+    char *conn_name; // NULL if not issued from a command connection
+    struct JsonValue *return_addr;
+    unsigned session_id;
+    unsigned seq;
+    unsigned node_id;
+    struct MepStart *mep_start; //TODO OAM_MaintenancePoint
+    char mep_stop[32]; //TODO target (or destination?)
     int level;
     bool record_route;
     bool object_state;
@@ -59,41 +59,58 @@ struct OamRequest {
 DEFAULT_LOGGING_MODULE(OAM, INFO);
 
 // @conn_name will be owned by the request
-static struct OamRequest *new_oam_request(const char *type, char *conn_name)
+static struct OamRequest *new_oam_request(const char *type, const char *conn_name)
 {
     struct OamRequest *req = calloc_struct(OamRequest);
 
-    req->conn_name = conn_name;
+    req->conn_name = conn_name ? strdup(conn_name) : NULL; //TODO when do we get NULL?
     req->type = type;
     req->ttl = OAM_PING_TTL;
     req->count = 1;
     req->interval_ms = 1000;
+    req->return_addr = json_object();
+    req->node_id = get_default_node_id();
 
     return req;
 }
 
-static bool parse_ping_returnif(struct OamRequest *ping_req, const char *ifname)
+static bool parse_returnif(struct OamRequest *req, const char *ifname)
 {
     struct Interface *iface = get_oam_interface(ifname);
     if (iface == NULL) {
-        ping_req->return_port = OAM_PORT;
-        // in addition to an interface name @ifname can also be an ip:port string
-        if (parse_ip_port(ifname, &ping_req->return_ip, &ping_req->return_port)) {
-            ping_req->node_id = get_default_node_id();
-            log_debug("return ip '%s' port %u", ping_req->return_ip, ping_req->return_port);
+        // not an interface name, try interpreting as ip:port
+        char *ip = NULL;
+        unsigned port = OAM_PORT;
+        if (parse_ip_port(ifname, &ip, &port)) {
+            json_object_insert(req->return_addr, "ip", json_string(ip));
+            json_object_insert(req->return_addr, "port", json_number(port));
+            log_debug("return ip '%s' port %u", ip, port);
+            free(ip);
             return true;
+        } else {
+            // not interface name, not ip:port, try interpreting as mac+vlan
+            char *mac = NULL;
+            unsigned vlan = 0;
+            if (parse_mac_vlan(ifname, &mac, &vlan)) {
+                json_object_insert(req->return_addr, "mac", json_string(mac));
+                if (vlan)
+                    json_object_insert(req->return_addr, "vlan", json_number(vlan));
+                log_debug("return mac '%s' vlan %u", mac, vlan);
+                free(mac);
+                return true;
+            }
         }
 
         if (have_default_iface()) {
-            ping_req->error = strdup_printf("invalid return interface name: %s", ifname);
+            req->error = strdup_printf("invalid return interface name: %s", ifname);
         } else {
-            ping_req->error = strdup("config has no return interface, need to specify an IP to send requests");
+            req->error = strdup("config has no return interface, need to specify a return IP to send requests");
         }
         return false;
     } else {
-        ping_req->node_id = oamif_get_uid(iface);
-        ping_req->return_ip = strdup(oamif_get_ip(iface));
-        ping_req->return_port = oamif_get_port(iface);
+        //TODO depends on the type of the return interface
+        json_object_insert(req->return_addr, "ip", json_string(oamif_get_ip(iface)));
+        json_object_insert(req->return_addr, "port", json_number(oamif_get_port(iface)));
         return true;
     }
 }
@@ -173,7 +190,7 @@ static bool parse_ping_options(struct OamRequest *ping_req, const char *options_
 
 // always returns a request, sets ret->error to an error message
 struct OamRequest *parse_ping_command(const char *oam_command, bool allow_returniface, bool allow_num,
-        char *conn_name)
+        const char *conn_name)
 {
     int l;
     char start_name[32];
@@ -208,7 +225,7 @@ struct OamRequest *parse_ping_command(const char *oam_command, bool allow_return
         return ping_req;
     }
 
-    if (!parse_ping_returnif(ping_req, iface_name)) {
+    if (!parse_returnif(ping_req, iface_name)) {
         return ping_req;
     }
 
@@ -221,7 +238,7 @@ struct OamRequest *parse_ping_command(const char *oam_command, bool allow_return
 
 // always returns a request, sets ret->error to an error message
 struct OamRequest *parse_rping_command(const char *oam_command,
-        char *conn_name)
+        const char *conn_name)
 {
     int l;
     char start_name[32];
@@ -252,7 +269,7 @@ struct OamRequest *parse_rping_command(const char *oam_command,
         return rping_req;
     }
 
-    if (!parse_ping_returnif(rping_req, iface_name)) {
+    if (!parse_returnif(rping_req, iface_name)) {
         return rping_req;
     }
 
@@ -331,7 +348,7 @@ static bool parse_trigger_options(struct OamRequest *trig_req, const char *optio
 }
 
 struct OamRequest *parse_trigger_command(const char *oam_command, bool allow_num,
-        char *conn_name)
+        const char *conn_name)
 {
     int l;
     char start_name[32];
@@ -362,7 +379,7 @@ struct OamRequest *parse_trigger_command(const char *oam_command, bool allow_num
 
 // always returns a request, sets ret->error to an error message
 struct OamRequest *parse_rlist_command(const char *oam_command,
-        char *conn_name)
+        const char *conn_name)
 {
     int l;
     char start_name[32];
@@ -393,7 +410,7 @@ struct OamRequest *parse_rlist_command(const char *oam_command,
         return rlist_req;
     }
 
-    if (!parse_ping_returnif(rlist_req, iface_name)) {
+    if (!parse_returnif(rlist_req, iface_name)) {
         return rlist_req;
     }
 
@@ -406,7 +423,7 @@ struct OamRequest *parse_rlist_command(const char *oam_command,
     return rlist_req;
 }
 
-struct OamRequest *parse_mask_command(const char *oam_command, char *conn_name)
+struct OamRequest *parse_mask_command(const char *oam_command, const char *conn_name)
 {
     struct OamRequest *mask_req = NULL;
     bool new_mask = true;
@@ -422,7 +439,6 @@ struct OamRequest *parse_mask_command(const char *oam_command, char *conn_name)
         mask_req->count = 0; // heartbeat until unmask
     }
     sprintf(mask_req->mep_stop, "nexthop");
-    mask_req->return_ip = strdup("<none>");
 
     // called by mask_checker_thread (the re-generator codepath, no CLI or repl obj involved)
     // in that case we dont have CLI session or error cases
@@ -463,9 +479,9 @@ struct OamRequest *parse_mask_command(const char *oam_command, char *conn_name)
 struct OamRequest *delete_oam_request(struct OamRequest *req)
 {
     if (req == NULL) return NULL;
+    json_delete(req->return_addr);
     free(req->error);
     free(req->remote_command);
-    free(req->return_ip);
     free(req->conn_name);
     free(req);
     return NULL;
@@ -526,25 +542,57 @@ void request_set_mepstart(struct OamRequest *req, struct MepStart *start)
     req->mep_start = start;
 }
 
+void request_set_return_addr(struct OamRequest *req, struct JsonValue *addr)
+{
+    json_delete(req->return_addr);
+    req->return_addr = addr;
+}
+
+char *request_get_return_addr_string(struct OamRequest *req)
+{
+    struct JsonValue *ip = json_object_get_string(req->return_addr, "ip");
+    struct JsonValue *port = json_object_get_number(req->return_addr, "port");
+    struct JsonValue *dmac = json_object_get_string(req->return_addr, "dmac");
+    struct JsonValue *vlan = json_object_get_number(req->return_addr, "vlan");
+
+    if (ip && port) {
+        return strdup_printf("[reply to ip %s port %g]", ip->v.string, port->v.number);
+    } else if (dmac && vlan) {
+        return strdup_printf("[reply to mac %s vlan %g]", dmac->v.string, vlan->v.number);
+    } else if (dmac) {
+        return strdup_printf("[reply to mac %s]", dmac->v.string);
+    } else {
+        return strdup("[no reply address]");
+    }
+}
+
 void request_set_return(struct OamRequest *req, char *return_address, int return_port)
 {
-    req->return_ip = return_address;
-    req->return_port = return_port;
+    (void)req;
+    (void)return_address;
+    (void)return_port;
+    //req->return_ip = return_address;
+    //req->return_port = return_port;
 }
 
 const char *request_get_return_ip(const struct OamRequest *req)
 {
-    return req->return_ip;
+    (void)req;
+    return NULL;
+    //return req->return_ip;
 }
 
 int request_get_return_port(const struct OamRequest *req)
 {
-    return req->return_port;
+    (void)req;
+    return 0;
+    //return req->return_port;
 }
 
-void request_set_originator(struct OamRequest *req, char *stream, unsigned char session_id)
+void request_set_originator(struct OamRequest *req, const char *stream, unsigned char session_id)
 {
-    req->originator_stream = stream;
+    free(req->originator_stream);
+    req->originator_stream = stream ? strdup(stream) : NULL;
     req->originator_session_id = session_id;
 }
 
@@ -614,10 +662,7 @@ static bool send_request(const struct OamRequest *req){
     json_object_insert(js, "target", json_string(req->mep_stop));
 
     if(strcmp(req->type, "trigger")!=0){   // these are not needed for trig type
-        struct JsonValue *jret = json_object();
-        json_object_insert(jret, "ip", json_string(req->return_ip));
-        json_object_insert(jret, "port", json_number(req->return_port));
-        json_object_insert(js, "return", jret);
+        json_object_insert(js, "return", json_duplicate(req->return_addr));
     } else {
         json_object_insert(js, "seq", json_number(req->seq));
         json_object_insert(js, "source", json_string(req->mep_start->name));
@@ -705,7 +750,7 @@ bool initiate_request(struct OamRequest *req)
 {
     struct CommandConnection *conn = find_command_connection(req->conn_name);
     FILE *cmd_w = command_connection_get_w(conn);
-    if (!req->mep_start) {
+    if (!req->mep_start) { //TODO this can only happen for mask
         req->error = strdup_printf("mep start not found for '%s' command\n", req->type);
         if (cmd_w) fprintf(cmd_w, "%s", req->error);
         release_command_connection(conn);
@@ -732,16 +777,18 @@ bool initiate_request(struct OamRequest *req)
     req->session_id = session_id;
     req->seq = 0;
 
+    char *return_str = request_get_return_addr_string(req);
     log_info("request %s stream %s:%d seq %d lvl %d type %s mep %s -> %s"
-            " count %d interval %d, rr: %s os: %s [reply to ip: %s, port: %u]",
+            " count %d interval %d, rr: %s os: %s %s",
              req->mep_start->name, req->mep_start->stream_name, req->session_id,
              req->seq, req->level, req->type, req->mep_start->name, req->mep_stop, req->count, req->interval_ms,
-             req->record_route?"yes":"no", req->object_state?"yes":"no", req->return_ip, req->return_port);
+             req->record_route?"yes":"no", req->object_state?"yes":"no", return_str);
 
     if (cmd_w) fprintf(cmd_w, "OAM request %s session %u seq %u, %s -> %s level %d count %d interval %d,"
-            " rr: %s os: %s\t[reply to ip: %s, port: %u]\n",
+            " rr: %s os: %s\t%s\n",
             req->type, req->session_id, req->seq, req->mep_start->name, req->mep_stop, req->level, req->count, req->interval_ms,
-            req->record_route?"yes":"no", req->object_state?"yes":"no", req->return_ip, req->return_port);
+            req->record_route?"yes":"no", req->object_state?"yes":"no", return_str);
+    free(return_str);
 
     if(req->count == 1){
         session_set_thread(stream, session_id, NULL);
