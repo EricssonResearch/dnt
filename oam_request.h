@@ -9,6 +9,8 @@
 #error "this header is internal to the OAM module"
 #endif
 
+#include "json.h"
+
 #include <stdbool.h>
 
 struct OamRequest;

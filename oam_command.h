@@ -9,7 +9,10 @@
 #error "this header is internal to the OAM module"
 #endif
 
+#include "hashmap.h"
+
 #include <stdio.h>
+#include <stdbool.h>
 
 enum TerminalFormat {
     TF_DUMP, //TODO why is this called dump mode?

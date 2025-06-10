@@ -9,6 +9,8 @@
 #error "this header is internal to the OAM module"
 #endif
 
+#include <stdbool.h>
+
 void init_message_module(bool have_reply_iface);
 
 void finish_message_module(void);

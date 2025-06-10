@@ -4,17 +4,16 @@
 
 #define OAM_INTERNAL
 
-#include "oam.h"
 #include "oam_command.h"
 #include "oam_core.h"
 #include "oam_maintenance.h"
-#include "oam_message.h"
 #include "oam_request.h"
 #include "oam_session.h"
 
 #include "if_oam.h"
 #include "log.h"
 #include "notification.h"
+#include "oam.h"
 #include "state.h"
 #include "thread_utils.h"
 #include "utils.h"

@@ -9,6 +9,10 @@
 #error "this header is internal to the OAM module"
 #endif
 
+#include "hashmap.h"
+
+#include <stdbool.h>
+#include <stdio.h>
 #include <time.h>
 
 struct Packet;

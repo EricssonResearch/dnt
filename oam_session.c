@@ -4,14 +4,12 @@
 
 #define OAM_INTERNAL
 
-#include "oam.h"
-#include "oam_command.h"
-//#include "oam_core.h"
-//#include "oam_message.h"
-#include "oam_request.h"
 #include "oam_session.h"
+#include "oam_command.h"
+#include "oam_request.h"
 
 #include "log.h"
+#include "oam.h"
 #include "thread_utils.h"
 #include "utils.h"
 
@@ -23,8 +21,6 @@
 
 
 DEFAULT_LOGGING_MODULE(OAM, INFO);
-
-//TODO move the session handling into a separate unit
 
 struct SessionTracker {
     char *conn_name; // NULL if not issued from a command connection

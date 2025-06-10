@@ -4,11 +4,11 @@
 
 #define OAM_INTERNAL
 
-#include "oam.h"
 #include "oam_maintenance.h"
 
 #include "hashmap.h"
 #include "log.h"
+#include "oam.h"
 #include "utils.h"
 
 #include <stdlib.h>

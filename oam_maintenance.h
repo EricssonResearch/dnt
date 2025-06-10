@@ -12,6 +12,7 @@
 #include "oam_request.h"
 
 #include "json.h"
+#include "oam.h"
 #include "packet.h"
 
 struct OAM_MaintenancePoint;
