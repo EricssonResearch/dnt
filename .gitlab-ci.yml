@@ -17,7 +17,8 @@ image: mtmkls/ci-runner:v2
 stages:
   - verify
   - build
-  - test
+  - unit-test
+  - integration-test
 
 verify-ci-config:
   stage: verify
@@ -91,7 +92,7 @@ build-unit_test:
 
 
 .pytest.common:
-  stage: test
+  stage: integration-test
   tags:
     - tsn
   dependencies:
@@ -155,7 +156,7 @@ pytest_srv6:
   allow_failure: false
 
 .unit_test.common:
-  stage: test
+  stage: unit-test
   tags:
     - rosetta-docker
   dependencies:
