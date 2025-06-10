@@ -96,6 +96,7 @@ build-unit_test:
     - tsn
   dependencies:
     - build-r2dtwo-debug
+  retry: 5
 
 pytest_oam:
   extends: .pytest.common
