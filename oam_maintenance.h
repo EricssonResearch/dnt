@@ -15,11 +15,15 @@
 #include "oam.h"
 #include "packet.h"
 
+#include <stdio.h>
+
 struct OAM_MaintenancePoint;
 
 struct OAM_MaintenancePoint *find_maintenance_point(const char *name);
 
 const char *mp_type_to_str(enum OAM_MP_Type type);
+
+const char *mp_flavor_to_str(enum OAM_MP_Flavor flavor);
 
 const char *mp_get_name(const struct OAM_MaintenancePoint *mp);
 
@@ -36,6 +40,10 @@ struct JsonValue *mp_get_state_json(const struct OAM_MaintenancePoint *mp, int o
 
 // @returns an array of JSON objects for all maintenance points that are linked to the same object as @mp
 struct JsonValue *mp_get_state_json_by_object(const struct OAM_MaintenancePoint *mp);
+
+// prints information about @mp to @out
+// without @details it just prints the name and the stream information
+void mp_print_info(const struct OAM_MaintenancePoint *mp, FILE *out, bool details);
 
 // calls @cb for each mp in the system
 // @userdata is supplied to @cb

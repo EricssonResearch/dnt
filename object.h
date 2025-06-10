@@ -20,14 +20,15 @@ enum PipelineObjectType {
 };
 
 // base class for the objects used by the action pipeline
+// TODO make the internals private to the object codes
 struct PipelineObject {
-    enum PipelineObjectType type;
     char *name;
     enum ActionResult (*process_packet)(struct PipelineObject *self, struct PipelineIterator *pi);
     struct JsonValue *(*get_state)(const struct PipelineObject *self);
+    enum PipelineObjectType type;
     int auto_mip_level;
     int reference_count;
-    struct HashMap *meps;
+    struct HashMap *meps; //TODO rework the mask signalling
 };
 
 // add a reference to the object

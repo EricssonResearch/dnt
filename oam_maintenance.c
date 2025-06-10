@@ -309,6 +309,19 @@ const char *mp_type_to_str(enum OAM_MP_Type type)
     return NULL;
 }
 
+const char *mp_flavor_to_str(enum OAM_MP_Flavor flavor)
+{
+    switch (flavor) {
+        case OAM_PW:
+            return "PseudoWire";
+        case OAM_TSN:
+            return "TSN";
+        case OAM_SRv6:
+            return "SRv6";
+    }
+    return NULL;
+}
+
 const char *mp_get_name(const struct OAM_MaintenancePoint *mp)
 {
     return mp->name;
@@ -390,6 +403,22 @@ struct JsonValue *mp_get_state_json_by_object(const struct OAM_MaintenancePoint 
     }
 
     return jlist;
+}
+
+void mp_print_info(const struct OAM_MaintenancePoint *mp, FILE *out, bool details)
+{
+    fprintf(out, "%s in %s level %u %s",
+            mp->name, mp->stream_name, mp->level, mp_flavor_to_str(mp->flavor));
+    if (mp->pipe)
+        fprintf(out, " (pipe %s idx %u)", mp->pipe->name, mp->pipe_pos_idx);
+
+    if (details) {
+        if (mp->object)
+            fprintf(out, "\n    object %s type %s",
+                    pipelineobject_get_name(mp->object), pipelineobject_name_from_type(mp->object->type));
+        fprintf(out, "\n    send %u recv %u",
+                mp->oam_send, mp->oam_recv);
+    }
 }
 
 int foreach_mp(bool sorted, hashmap_cb *cb, void *userdata)

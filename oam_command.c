@@ -121,9 +121,11 @@ static const char help_str[] =
 
 static int list_startpoints_cb(const char *key, void *value, void *userdata)
 {
+    (void)key;
     struct OAM_MaintenancePoint *mp = (struct OAM_MaintenancePoint*)value;
     FILE *cmd_w = (FILE *)userdata;
-    fprintf(cmd_w, "%s in %s level %u\n", key, mp_get_stream_name(mp), mp_get_level(mp));
+    mp_print_info(mp, cmd_w, false);
+    fprintf(cmd_w, "\n");
     return 1;
 }
 
