@@ -130,14 +130,14 @@ static int process_reply(const char *msg)
 
     JS_OBJECT_GET(j, nodeid, number);
     JS_OBJECT_GET(j, target, string);
-    JS_OBJECT_GET(j, sequence, number);
+    JS_OBJECT_GET(j, seq, number);
     JS_OBJECT_GET(j, level, number);
     JS_OBJECT_GET(j, receiver, string);
     JS_OBJECT_GET(j, stream, string);
     JS_OBJECT_GET(j, session, number);
 
     log_packet("recv reply %s:%.0f seq %.0f lvl %.0f - %s",
-            stream->v.string, session->v.number, sequence->v.number, level->v.number, msg);
+            stream->v.string, session->v.number, seq->v.number, level->v.number, msg);
 
     if (session->v.number < 0 || session->v.number > 15) {
         THROW("session id %.0f in reply is invalid", session->v.number);
@@ -198,12 +198,12 @@ static int process_reply(const char *msg)
             timespecsub(&receivetime, &sendtime, &delay_diff);
 
             sprintf(reply_str,"  oam_r %s:%.0f seq %.0f lvl %.0f R - %s on stream %s target %s; reply from %s delay %ld.%09ld",
-                    stream->v.string, session->v.number, sequence->v.number, level->v.number,
+                    stream->v.string, session->v.number, seq->v.number, level->v.number,
                     type->v.string, stream->v.string, target->v.string, receiver->v.string, delay_diff.tv_sec, delay_diff.tv_nsec);
         }
         else
             sprintf(reply_str,"  oam_r %s:%.0f seq %.0f lvl %.0f R - %s on stream %s target %s; reply from %s",
-                    stream->v.string, session->v.number, sequence->v.number, level->v.number,
+                    stream->v.string, session->v.number, seq->v.number, level->v.number,
                     type->v.string, stream->v.string, target->v.string, receiver->v.string);
 
         // Recorded route is single line, no difference between log/dump
@@ -941,7 +941,7 @@ static bool logpacket_reply(struct OAM_MaintenancePoint *mp, struct JsonValue *j
 static bool new_process_ping_request(struct OAM_MaintenancePoint *mp, struct JsonValue *js, struct timespec recv_time)
 {
     JS_OBJECT_GET(js, code, string);
-    if (strcmp(code->v.string, "request") == 0) {
+    if (strcmp(code->v.string, "request") != 0) {
         THROW("OAM ping is '%s' not request", code->v.string);
     }
 
@@ -992,7 +992,7 @@ static bool new_send_rping_error(struct OAM_MaintenancePoint *mp, struct JsonVal
 static bool new_process_rping_request(struct OAM_MaintenancePoint *mp, struct JsonValue *js, struct timespec recv_time)
 {
     JS_OBJECT_GET(js, code, string);
-    if (strcmp(code->v.string, "request") == 0) {
+    if (strcmp(code->v.string, "request") != 0) {
         THROW("OAM rping is '%s' not request", code->v.string);
     }
 
@@ -1043,7 +1043,8 @@ static int add_mp_cb(const char *key, void *value, void *userdata)
     struct OAM_MaintenancePoint *mp = (struct OAM_MaintenancePoint *)value;
 
     if (same_compound_stream(mp_get_stream_name(mp), st->mp_stream))
-        json_array_push(st->jlist, json_string(key));
+        if (mp_can_send(mp))
+            json_array_push(st->jlist, json_string(key));
 
     return 1;
 }
@@ -1051,7 +1052,7 @@ static int add_mp_cb(const char *key, void *value, void *userdata)
 static bool new_process_rlist_request(struct OAM_MaintenancePoint *mp, struct JsonValue *js, struct timespec recv_time)
 {
     JS_OBJECT_GET(js, code, string);
-    if (strcmp(code->v.string, "request") == 0) {
+    if (strcmp(code->v.string, "request") != 0) {
         THROW("OAM rlist is '%s' not request", code->v.string);
     }
 
@@ -1071,7 +1072,7 @@ static bool new_process_rlist_request(struct OAM_MaintenancePoint *mp, struct Js
 
     struct JsonValue *jlist = json_array();
     struct AddMPState st = { jlist, mp_get_stream_name(mp) };
-    foreach_mep_start(add_mp_cb, &st);
+    foreach_mp(true, add_mp_cb, &st);
     json_object_insert(js, "list", jlist);
 
     //TODO the old code also added the mpls label from the packet header, but we can't do that here
@@ -1084,7 +1085,7 @@ static bool new_process_rlist_request(struct OAM_MaintenancePoint *mp, struct Js
 static bool new_process_trigger_request(struct OAM_MaintenancePoint *mp, struct JsonValue *js, struct timespec recv_time)
 {
     JS_OBJECT_GET(js, code, string);
-    if (strcmp(code->v.string, "request") == 0) {
+    if (strcmp(code->v.string, "request") != 0) {
         THROW("OAM rlist is '%s' not request", code->v.string);
     }
 

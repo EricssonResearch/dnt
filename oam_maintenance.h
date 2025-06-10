@@ -16,13 +16,19 @@
 
 struct OAM_MaintenancePoint;
 
+struct OAM_MaintenancePoint *find_maintenance_point(const char *name);
+
 const char *mp_type_to_str(enum OAM_MP_Type type);
 
 const char *mp_get_name(const struct OAM_MaintenancePoint *mp);
 
 const char *mp_get_stream_name(const struct OAM_MaintenancePoint *mp);
 
+unsigned mp_get_level(const struct OAM_MaintenancePoint *mp);
+
 enum OAM_MP_Type mp_get_type(const struct OAM_MaintenancePoint *mp);
+
+bool mp_can_send(const struct OAM_MaintenancePoint *mp);
 
 // @returns a JSON object that describes the state of @mp
 struct JsonValue *mp_get_state_json(const struct OAM_MaintenancePoint *mp, int object_info);
@@ -32,7 +38,7 @@ struct JsonValue *mp_get_state_json_by_object(const struct OAM_MaintenancePoint 
 
 // calls @cb for each mp in the system
 // @userdata is supplied to @cb
-int foreach_mp(hashmap_cb *cb, void *userdata);
+int foreach_mp(bool sorted, hashmap_cb *cb, void *userdata);
 
 // rewrites the header list in @p to reflect that this is an OAM message
 // (OAM packets mimic the user data packets, but they have different format)

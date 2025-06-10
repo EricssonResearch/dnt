@@ -185,7 +185,7 @@ static bool update_pw_payload(struct Packet *p, const struct JsonValue *msg)
 }
 
 
-struct OAM_MaintenancePoint *new_maintenance_point(const char *stream_name, const char *mp_name,
+struct OAM_MaintenancePoint *oam_new_maintenance_point(const char *stream_name, const char *mp_name,
         enum OAM_MP_Type type, unsigned level,
         struct PipelineObject *obj, struct Pipeline *pipe, unsigned idx)
 {
@@ -229,18 +229,23 @@ struct OAM_MaintenancePoint *new_maintenance_point(const char *stream_name, cons
             return NULL;
         }
 
+        if (pipe != NULL && mp->pipe == NULL) {
+            mp->pipe = pipe;
+            mp->pipe_pos_idx = idx;
+        }
         int refcount = __atomic_add_fetch(&mp->reference_count, 1, __ATOMIC_RELAXED);
         log_debug("%s ref refcount %d", mp_name, refcount);
         return mp;
     }
 
-    if (type != OAM_Stop) {
+    //TODO for MIP we first create the receiver that has no pipe pointer
+    /*if (type != OAM_Stop) {
         if (pipe == NULL) {
             log_error("%s '%s' needs a pipeline injection point",
                     mp_type_to_str(type), mp_name);
             return NULL;
         }
-    }
+    }*/
 
     mp = calloc_struct(OAM_MaintenancePoint);
     mp->name = strdup(mp_name);
@@ -268,13 +273,26 @@ struct OAM_MaintenancePoint *new_maintenance_point(const char *stream_name, cons
     return mp;
 }
 
-void unref_maintenance_point(struct OAM_MaintenancePoint *mp)
+void oam_unref_maintenance_point(struct OAM_MaintenancePoint *mp)
 {
     int refcount = __atomic_sub_fetch(&mp->reference_count, 1, __ATOMIC_RELAXED);
     log_debug("%s unref refcount %d", mp->name, refcount);
 
     if (refcount == 0) {
         hashmap_remove(mp_hash, mp->name);
+    }
+
+    if (hashmap_count(mp_hash) == 0) {
+        mp_hash = delete_hashmap(mp_hash);
+    }
+}
+
+struct OAM_MaintenancePoint *find_maintenance_point(const char *name)
+{
+    if (mp_hash) {
+        return (struct OAM_MaintenancePoint *)hashmap_find(mp_hash, name);
+    } else {
+        return NULL;
     }
 }
 
@@ -301,9 +319,23 @@ const char *mp_get_stream_name(const struct OAM_MaintenancePoint *mp)
     return mp->stream_name;
 }
 
+unsigned mp_get_level(const struct OAM_MaintenancePoint *mp)
+{
+    return mp->level;
+}
+
 enum OAM_MP_Type mp_get_type(const struct OAM_MaintenancePoint *mp)
 {
     return mp->type;
+}
+
+bool mp_can_send(const struct OAM_MaintenancePoint *mp)
+{
+    if (mp->type == OAM_Stop)
+        return false;
+    if (mp->pipe == NULL)
+        return false;
+    return true;
 }
 
 struct JsonValue *mp_get_state_json(const struct OAM_MaintenancePoint *mp, int object_info)
@@ -354,15 +386,18 @@ struct JsonValue *mp_get_state_json_by_object(const struct OAM_MaintenancePoint 
         json_array_push(jlist, mp_get_state_json(mp, 0));
     } else {
         struct AddMPState st = { jlist, mp->object };
-        foreach_mp(add_mp_cb, &st);
+        foreach_mp(false, add_mp_cb, &st);
     }
 
     return jlist;
 }
 
-int foreach_mp(hashmap_cb *cb, void *userdata)
+int foreach_mp(bool sorted, hashmap_cb *cb, void *userdata)
 {
-    return hashmap_foreach(mp_hash, cb, userdata);
+    if (sorted)
+        return hashmap_foreach_sorted(mp_hash, cb, userdata);
+    else
+        return hashmap_foreach(mp_hash, cb, userdata);
 }
 
 bool mp_reinterpret_oam_packet(struct OAM_MaintenancePoint *mp, struct Packet *p)
@@ -409,6 +444,10 @@ void mp_inject_packet(struct OAM_MaintenancePoint *mp, struct Packet *p)
 {
     //TODO when do we set the addressing?
 
+    if (mp->pipe == NULL) {
+        log_error("mp %s can't send without a pipe", mp->name);
+        return;
+    }
     __atomic_fetch_add(&mp->oam_send, 1, __ATOMIC_RELAXED);
     struct PipelineIterator *pi = new_pipe_iterator(mp->pipe, p);
     //TODO pipe_iterator_inject_at(pi, mp->pipe_pos_idx);

@@ -1747,6 +1747,7 @@ struct ConfAction *delete_confaction_list(struct ConfAction *ca_list)
     return NULL;
 }
 
+
 static struct EditAssign *assemble_fieldassigns(struct ConfAssignment *list, unsigned *assigncount)
 {
     unsigned count = 0;
@@ -1813,9 +1814,13 @@ struct Pipeline *assemble_actions(const char *stream_name, const struct ConfActi
     } while (0)
 
     unsigned count = 0;
-    for (const struct ConfAction *ca = ca_list; ca; ca=ca->next)
-        if (ca->type != CA_MEPSTART) // do not include MEPStart into the action list
-            count++;
+    for (const struct ConfAction *ca = ca_list; ca; ca=ca->next) {
+        if (ca->type == CA_MIP) {
+            count += 2; // ACT_OAM_RECEIVE, ACT_OAM_INJECT
+        } else {
+            count += 1;
+        }
+    }
 
     log_info("assemble actions %s count %u", stream_name, count);
 
@@ -1866,18 +1871,27 @@ struct Pipeline *assemble_actions(const char *stream_name, const struct ConfActi
                 break;
             case CA_JUMP:
                 THROW("jump should have been inlined");
-            case CA_MEPSTART: {
-                if (!oam_create_mep_start(ca->oam.stream, ca->oam.name, ca->oam.level, ca->oam.obj, ret, i)) {
+            case CA_MEPSTART:
+                if (!create_action_oam_inject(actions+i, ca->oam.name, ca->oam.stream, ca->oam.level, false,
+                            ret, i, ca->oam.obj, ca->text)) {
                     THROW("couldn't create MEP Start");
                 }
-                break; }
+                break;
             case CA_MEPSTOP:
-                create_action_mepstop(actions+i, ca->oam.stream, ca->oam.level, ca->oam.name, ca->text);
+                if (!create_action_oam_receive(actions+i, ca->oam.name, ca->oam.stream, ca->oam.level, false,
+                            ca->oam.obj, ca->text)) {
+                    THROW("couldn't create MEP Stop");
+                }
                 break;
             case CA_MIP:
-                create_action_mip(actions+i, ca->oam.stream, ca->oam.level, ca->oam.name, ca->text);
-                if (!oam_create_mep_start(ca->oam.stream, ca->oam.name, ca->oam.level, ca->oam.obj, ret, i+1)) {
-                    THROW("couldn't create start point for MIP");
+                if (!create_action_oam_receive(actions+i, ca->oam.name, ca->oam.stream, ca->oam.level, true,
+                            ca->oam.obj, ca->text)) {
+                    THROW("couldn't create MIP Stop");
+                }
+                i++;
+                if (!create_action_oam_inject(actions+i, ca->oam.name, ca->oam.stream, ca->oam.level, true,
+                            ret, i, ca->oam.obj, ca->text)) {
+                    THROW("couldn't create MIP Start");
                 }
                 break;
             case CA_POF:
@@ -1894,10 +1908,9 @@ struct Pipeline *assemble_actions(const char *stream_name, const struct ConfActi
                 for (struct ReplicateList *r=ca->repl.pipelines; r; r=r->next) {
                     struct Pipeline *r_pipe = assemble_actions(r->name, r->actions);
                     if (r_pipe == NULL) {
-                        log_error("failed to assemble actions for branch %s of replicate in stream %s",
+                        //TODO need more cleanup on error?
+                        THROW("failed to assemble actions for branch %s of replicate in stream %s",
                                 r->name, stream_name);
-                        //TODO cleanup on error
-                        return NULL;
                     }
 
                     struct PipelineList *p = calloc_struct(PipelineList);
@@ -1929,8 +1942,7 @@ struct Pipeline *assemble_actions(const char *stream_name, const struct ConfActi
                 create_action_writetstamp(actions+i, ca->meta.field, ca->text);
                 break;
         }
-        if (ca->type != CA_MEPSTART) // this doesn't appear as an action
-            i++;
+        i++;
     }
 
     return ret;

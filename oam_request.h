@@ -12,8 +12,7 @@
 #include <stdbool.h>
 
 struct OamRequest;
-struct MepStart;
-
+struct OAM_MaintenancePoint;
 
 // always returns a request, sets ret->error to an error message
 struct OamRequest *parse_ping_command(const char *oam_command, bool allow_returniface, bool allow_num,
@@ -54,7 +53,7 @@ const char *request_get_start_name(const struct OamRequest *req);
 
 const char *request_get_stop_name(const struct OamRequest *req);
 
-void request_set_mepstart(struct OamRequest *req, struct MepStart *start);
+void request_set_start(struct OamRequest *req, struct OAM_MaintenancePoint *start);
 
 int request_get_level(const struct OamRequest *req);
 

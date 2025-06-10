@@ -17,9 +17,8 @@ enum ActionType {
     ACT_EDIT,
     ACT_ELIM,
     ACT_FILTEROAM,
-    ACT_MEPSTART,
-    ACT_MEPSTOP,
-    ACT_MIP,
+    ACT_OAMINJECT,
+    ACT_OAMRECEIVE,
     ACT_POF,
     ACT_READSEQ,
     ACT_READTSTAMP,
@@ -97,13 +96,15 @@ void create_action_elim(struct Action *a, struct PipelineObject *rcvy, const cha
 
 void create_action_filteroam(struct Action *a, const struct HeaderField *seqfield, const char *text);
 
-//void create_action_mepstart(struct Action *a, int level, const char *name, const char *text);
+// @returns false on error
+bool create_action_oam_inject(struct Action *a, const char *name, const char *stream, int level,
+                              bool intermediate, struct Pipeline *pipe, unsigned idx,
+                              struct PipelineObject *obj, const char *text);
 
-void create_action_mepstop(struct Action *a, const char *stream, int level,
-                            const char *name, const char *text);
-
-void create_action_mip(struct Action *a, const char *stream, int level,
-                        const char *name, const char *text);
+// @returns false on error
+// TODO also receive the filter criteria for reception
+bool create_action_oam_receive(struct Action *a, const char *name, const char *stream, int level,
+                               bool intermediate, struct PipelineObject *obj, const char *text);
 
 void create_action_pof(struct Action *a, struct PipelineObject *pof, const char *text);
 

@@ -75,13 +75,13 @@ struct OamEndPoint *oam_delete_endpoint(struct OamEndPoint *end);
 // when multiple actions refer to the same MP the @type and @level must be the same
 // MP can be bound to a pipeline object @obj to monitor its state
 // if MP is an injector point (OAM_Start, OAM_Intermediate), @pipe and @idx define the injection point
-struct OAM_MaintenancePoint *new_maintenance_point(const char *stream_name, const char *mp_name,
+struct OAM_MaintenancePoint *oam_new_maintenance_point(const char *stream_name, const char *mp_name,
         enum OAM_MP_Type type, unsigned level,
         struct PipelineObject *obj, struct Pipeline *pipe, unsigned idx);
 
 // removes a reference from @mp
 // @mp is deleted when its reference count reaches zero
-void unref_maintenance_point(struct OAM_MaintenancePoint *mp);
+void oam_unref_maintenance_point(struct OAM_MaintenancePoint *mp);
 
 
 // specify the command interface that receives telnet connections

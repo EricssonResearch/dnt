@@ -326,9 +326,10 @@ o_M8_L5_post-R2 level 5 in pipe M8 at pos 1
                 return True
             else:
                 print("✘ ")
+                print(f"Actual reply:\n{reply}\nExpected reply:\n{expected_reply}\n")
                 return False
     except Exception:
-        print("✘ ")
+        print("✘ Exception")
         return False
 
 def run_tests(net, test):

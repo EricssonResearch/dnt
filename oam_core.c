@@ -262,7 +262,8 @@ static struct OamRequest *new_mask_request(const char *command, struct MepStart 
 {
     struct OamRequest *mask_req = parse_mask_command(command, NULL);
     request_set_level(mask_req, level);
-    request_set_mepstart(mask_req, start);
+    //TODO fix this request_set_mepstart(mask_req, start);
+    (void)start;
     return mask_req;
 }
 

@@ -7,6 +7,7 @@
 #include "oam.h"
 #include "oam_command.h"
 #include "oam_core.h"
+#include "oam_maintenance.h"
 #include "oam_message.h"
 #include "oam_request.h"
 #include "oam_session.h"
@@ -119,12 +120,11 @@ static const char help_str[] =
     "stop [stream session_id] - stop a running OAM session identified by 'stream:session_id', without parameter it stops the last session\n"
     ;
 
-static int list_mep_cb(const char *key, void *value, void *userdata)
+static int list_startpoints_cb(const char *key, void *value, void *userdata)
 {
-    (void)key;
-    struct MepStart *start = (struct MepStart *)value;
+    struct OAM_MaintenancePoint *mp = (struct OAM_MaintenancePoint*)value;
     FILE *cmd_w = (FILE *)userdata;
-    print_mep_start(start, cmd_w);
+    fprintf(cmd_w, "%s in %s level %u\n", key, mp_get_stream_name(mp), mp_get_level(mp));
     return 1;
 }
 
@@ -302,7 +302,7 @@ static void command_loop(struct CommandConnection *conn)
             }
             else if (strcmp(oam_command, "list") == 0) {
                 fprintf(cmd_w, "Available MEP Start points:\n");
-                foreach_mep_start(list_mep_cb, conn->cmd_w);
+                foreach_mp(true, list_startpoints_cb, conn->cmd_w);
             }
             else if (strncmp(oam_command, "log", 3) == 0) {
                 char modulename[64];
@@ -437,7 +437,8 @@ static void command_loop(struct CommandConnection *conn)
                 struct OamRequest *ping_req = parse_ping_command(oam_command+4, true, true, conn->name);
                 CHECK_REQUEST(ping_req);
                 if (!initiate_request(ping_req)) {
-                    ERROR("sending ping command failed");
+                    ERROR("sending ping command failed: %s", request_get_error(ping_req));
+                    delete_oam_request(ping_req);
                 }
                 if (last_stream)
                     free(last_stream);
@@ -448,14 +449,16 @@ static void command_loop(struct CommandConnection *conn)
                 struct OamRequest *rping_req = parse_rping_command(oam_command+5, conn->name);
                 CHECK_REQUEST(rping_req);
                 if (!initiate_request(rping_req)) {
-                    ERROR("sending rping command failed");
+                    ERROR("sending rping command failed: %s", request_get_error(rping_req));
+                    delete_oam_request(rping_req);
                 }
             }
             else if (strncmp(oam_command, "notif_trigger", 13) == 0) {
                 struct OamRequest *trig_req = parse_trigger_command(oam_command+13, true, conn->name);
                 CHECK_REQUEST(trig_req);
                 if (!initiate_request(trig_req)) {
-                    ERROR("sending notif_trigger command failed");
+                    ERROR("sending notif_trigger command failed: %s", request_get_error(trig_req));
+                    delete_oam_request(trig_req);
                 }
             }
             else if (strncmp(oam_command, "notif_pull", 10) == 0) {
@@ -479,7 +482,8 @@ static void command_loop(struct CommandConnection *conn)
                 struct OamRequest *rlist_req = parse_rlist_command(oam_command+5, conn->name);
                 CHECK_REQUEST(rlist_req);
                 if (!initiate_request(rlist_req)) {
-                    ERROR("sending rlist command failed");
+                    ERROR("sending rlist command failed: %s", request_get_error(rlist_req));
+                    delete_oam_request(rlist_req);
                 }
             }
             else if (!strncmp(oam_command, "mask", 4) || !strncmp(oam_command, "unmask", 6)) {

@@ -35,12 +35,10 @@ const char *action_name_from_type(enum ActionType type)
             return "Eliminate";
         case ACT_FILTEROAM:
             return "FilterOAM";
-        case ACT_MEPSTART:
-            return "MEPStart";
-        case ACT_MEPSTOP:
-            return "MEPStop";
-        case ACT_MIP:
-            return "MIP";
+        case ACT_OAMINJECT:
+            return "OAMInject";
+        case ACT_OAMRECEIVE:
+            return "OAMReceive";
         case ACT_POF:
             return "POF";
         case ACT_READSEQ:
@@ -277,6 +275,93 @@ void create_action_filteroam(struct Action *a, const struct HeaderField *seqfiel
     struct FilterOamData *fd = calloc_struct(FilterOamData);
     fd->field = *seqfield;
     a->action_private = fd;
+}
+
+/////////////////////////////////////////////////////////////////////
+
+struct OamInjectData {
+    struct OAM_MaintenancePoint *mp;
+};
+
+static void action_OAMINJECT_del(void *action_private)
+{
+    struct OamInjectData *oid = (struct OamInjectData *)action_private;
+    oam_unref_maintenance_point(oid->mp);
+}
+
+static enum ActionResult action_OAMINJECT_execute(struct Action *a, struct PipelineIterator *pi)
+{
+    (void)a;
+    (void)pi;
+    return ACR_CONTINUE;
+}
+
+bool create_action_oam_inject(struct Action *a, const char *name, const char *stream, int level,
+                              bool intermediate, struct Pipeline *pipe, unsigned idx,
+                              struct PipelineObject *obj, const char *text)
+{
+    INIT_ACTION(OAMINJECT);
+    a->del = action_OAMINJECT_del;
+
+    enum OAM_MP_Type type = intermediate ? OAM_Intermediate : OAM_Start;
+    struct OAM_MaintenancePoint *mp = oam_new_maintenance_point(stream, name, type, level, obj, pipe, idx);
+    if (mp == NULL) {
+        log_error("failed to create maintenance point for inject action %s", name);
+        return false;
+    }
+    struct OamInjectData *oid = calloc_struct(OamInjectData);
+    oid->mp = mp;
+    a->action_private = oid;
+    return true;
+}
+
+/////////////////////////////////////////////////////////////////////
+
+struct OamReceiveData {
+    struct OAM_MaintenancePoint *mp;
+    //TODO store reception criteria here
+};
+
+static void action_OAMRECEIVE_del(void *action_private)
+{
+    struct OamReceiveData *ord = (struct OamReceiveData *)action_private;
+    oam_unref_maintenance_point(ord->mp);
+}
+
+static enum ActionResult action_OAMRECEIVE_execute(struct Action *a, struct PipelineIterator *pi)
+{
+    struct OamReceiveData *ord = (struct OamReceiveData *)a->action_private;
+    struct Packet *p = pi->packet;
+
+    //TODO for now this is hardcoded for PW
+    // note: we made sure in conf_actions.c that at this point of the pipeline the packet starts with mpls+dcw
+    unsigned char *oam_hdr = p->buf + p->headers[1].start;
+
+    if ((oam_hdr[0] & 0xf0) == 0x10) {
+        oam_receive_inband(ord->mp, pi);
+        return ACR_HOLD;
+    } else {
+        return ACR_CONTINUE;
+    }
+}
+
+bool create_action_oam_receive(struct Action *a, const char *name, const char *stream, int level,
+                               bool intermediate, struct PipelineObject *obj, const char *text)
+{
+    INIT_ACTION(OAMRECEIVE);
+    a->del = action_OAMRECEIVE_del;
+
+    enum OAM_MP_Type type = intermediate ? OAM_Intermediate : OAM_Stop;
+    struct OAM_MaintenancePoint *mp = oam_new_maintenance_point(stream, name, type, level, obj, NULL, 0);
+    if (mp == NULL) {
+        log_error("failed to create maintenance point for receive action %s", name);
+        return false;
+    }
+    struct OamReceiveData *ord = calloc_struct(OamReceiveData);
+    ord->mp = mp;
+    a->action_private = ord;
+    return true;
+
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -602,59 +687,6 @@ void create_action_writetstamp(struct Action *a, const struct HeaderField *tsfie
 
     struct MetaData *md = calloc_struct(MetaData);
     md->field = *tsfield;
-    a->action_private = md;
-}
-
-/////////////////////////////////////////////////////////////////////
-
-struct MepData {
-    struct OamEndPoint *oam;
-};
-
-static enum ActionResult action_MEP_execute(struct Action *a, struct PipelineIterator *pi)
-{
-    struct Packet *p = pi->packet;
-    struct MepData *md = (struct MepData *)a->action_private;
-    // note: we made sure in conf_actions.c that at this point of the pipeline the packet starts with mpls+dcw
-    unsigned char *oam_hdr = p->buf + p->headers[1].start;
-
-    if((oam_hdr[0] & 0xf0) == 0x10) {
-        oam_recv_request(md->oam, pi);
-        return ACR_HOLD;
-    } else {
-        oam_count_packet(md->oam, p);
-        return ACR_CONTINUE;
-    }
-}
-
-static void action_MEP_del(void *action_private)
-{
-    struct MepData *md = (struct MepData *)action_private;
-    oam_delete_endpoint(md->oam);
-}
-
-#define action_MEPSTOP_execute action_MEP_execute
-#define action_MIP_execute     action_MEP_execute
-
-void create_action_mepstop(struct Action *a, const char *stream, int level,
-        const char *name, const char *text)
-{
-    INIT_ACTION(MEPSTOP);
-    a->del = action_MEP_del;
-
-    struct MepData *md = calloc_struct(MepData);
-    md->oam = oam_create_endpoint(name, stream, level, true);
-    a->action_private = md;
-}
-
-void create_action_mip(struct Action *a, const char *stream, int level,
-        const char *name, const char *text)
-{
-    INIT_ACTION(MIP);
-    a->del = action_MEP_del;
-
-    struct MepData *md = calloc_struct(MepData);
-    md->oam = oam_create_endpoint(name, stream, level, false);
     a->action_private = md;
 }
 
