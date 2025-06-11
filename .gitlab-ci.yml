@@ -97,6 +97,8 @@ build-unit_test:
     - tsn
   dependencies:
     - build-r2dtwo-debug
+  script:
+    - DOMAIN="gitlab.rosetta.ericssondevops.com" printf "%s %s\n" $(host -t A ${DOMAIN} | grep -o -m1 -P "\d+.*$") ${DOMAIN} >> /etc/hosts
   retry: 2
 
 pytest_oam:
