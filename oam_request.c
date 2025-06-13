@@ -38,21 +38,28 @@ struct OamRequest {
     const char *type;
     char *conn_name; // NULL if not issued from a command connection
     struct JsonValue *return_addr;
-    unsigned session_id;
-    unsigned seq;
-    unsigned node_id;
+
+    unsigned char ttl;
+    unsigned char session_id;
+    unsigned char seq;
+    unsigned char level;
+    unsigned node_id; // 20 bit
+
     struct OAM_MaintenancePoint *mp_start;
     char mep_stop[32]; //TODO target (or destination?)
-    int level;
+
+    // ping options
     bool record_route;
     bool object_state;
-    bool delay;
+    bool measure_delay;
     unsigned count;
     unsigned interval_ms;
-    unsigned char ttl;
-    char *remote_command; // for rping
+
+    // rping options
+    char *remote_command; // rping carries this ping command string
     char *originator_stream; // for ping initiated by rping
     unsigned originator_session_id; // for ping initiated by rping
+
     char *error;
 };
 
@@ -136,7 +143,7 @@ static bool parse_ping_options(struct OamRequest *ping_req, const char *options_
         } else if (c=='o') {
             ping_req->object_state = true;
         } else if (c=='d') {
-            ping_req->delay = true;
+            ping_req->measure_delay = true;
         } else if (c=='i') {
             k = sscanf(po, " %f%n", &fval, &l);
             if (k == 1) {
@@ -203,14 +210,14 @@ struct OamRequest *parse_ping_command(const char *oam_command, bool allow_return
             ping_req->error = strdup("ping return interface is not allowed");
             return ping_req;
         }
-        int k = sscanf(oam_command, "@%s %s %s %d%n",
+        int k = sscanf(oam_command, "@%s %s %s %hhd%n",
                        iface_name, start_name, ping_req->mep_stop, &ping_req->level, &l);
         if (k < 4) {
             ping_req->error = strdup("ping arguments invalid");
             return ping_req;
         }
     } else {
-        int k = sscanf(oam_command, " %s %s %d%n",
+        int k = sscanf(oam_command, " %s %s %hhd%n",
                        start_name, ping_req->mep_stop, &ping_req->level, &l);
         if (k < 3) {
             ping_req->error = strdup("ping arguments invalid");
@@ -251,14 +258,14 @@ struct OamRequest *parse_rping_command(const char *oam_command,
     struct OamRequest *rping_req = new_oam_request("rping", conn_name);
 
     if (oam_command[0]=='@') {
-        int k = sscanf(oam_command, "@%s %s %s %d%n",
+        int k = sscanf(oam_command, "@%s %s %s %hhd%n",
                        iface_name, start_name, rping_req->mep_stop, &rping_req->level, &l);
         if (k < 4) {
             rping_req->error = strdup("rping arguments invalid");
             return rping_req;
         }
     } else {
-        int k = sscanf(oam_command, " %s %s %d%n",
+        int k = sscanf(oam_command, " %s %s %hhd%n",
                        start_name, rping_req->mep_stop, &rping_req->level, &l);
         if (k < 3) {
             rping_req->error = strdup("rping arguments invalid");
@@ -363,7 +370,7 @@ struct OamRequest *parse_trigger_command(const char *oam_command, bool allow_num
 
     struct OamRequest *trig_req = new_oam_request("trigger", conn_name);
 
-    int k = sscanf(oam_command, " %s %s %d%n",
+    int k = sscanf(oam_command, " %s %s %hhd%n",
                    start_name, trig_req->mep_stop, &trig_req->level, &l);
     if (k < 3) {
         trig_req->error = strdup("notif_trigger arguments invalid");
@@ -400,14 +407,14 @@ struct OamRequest *parse_rlist_command(const char *oam_command,
     struct OamRequest *rlist_req = new_oam_request("rlist", conn_name);
 
     if (oam_command[0]=='@') {
-        int k = sscanf(oam_command, "@%s %s %s %d%n",
+        int k = sscanf(oam_command, "@%s %s %s %hhd%n",
                        iface_name, start_name, rlist_req->mep_stop, &rlist_req->level, &l);
         if (k < 4) {
             rlist_req->error = strdup("rlist arguments invalid");
             return rlist_req;
         }
     } else {
-        int k = sscanf(oam_command, " %s %s %d%n",
+        int k = sscanf(oam_command, " %s %s %hhd%n",
                        start_name, rlist_req->mep_stop, &rlist_req->level, &l);
         if (k < 3) {
             rlist_req->error = strdup("rlist arguments invalid");
@@ -503,31 +510,6 @@ struct OamRequest *delete_oam_request(struct OamRequest *req)
     return NULL;
 }
 
-const char *request_get_type(const struct OamRequest *req)
-{
-    return req->type;
-}
-
-void request_set_error(struct OamRequest *req, char *error)
-{
-    req->error = error;
-}
-
-const char *request_get_error(const struct OamRequest *req)
-{
-    return req->error;
-}
-
-const char *request_get_stream_name(const struct OamRequest *req)
-{
-    return mp_get_stream_name(req->mp_start);
-}
-
-unsigned request_get_session_id(const struct OamRequest *req)
-{
-    return req->session_id;
-}
-
 const char *request_get_start_name(const struct OamRequest *req)
 {
     return mp_get_name(req->mp_start);
@@ -538,33 +520,32 @@ const char *request_get_stop_name(const struct OamRequest *req)
     return req->mep_stop;
 }
 
+const char *request_get_stream_name(const struct OamRequest *req)
+{
+    return mp_get_stream_name(req->mp_start);
+}
+
+const char *request_get_type(const struct OamRequest *req)
+{
+    return req->type;
+}
+
+const char *request_get_error(const struct OamRequest *req)
+{
+    return req->error;
+}
+
+unsigned request_get_session_id(const struct OamRequest *req)
+{
+    return req->session_id;
+}
+
 int request_get_level(const struct OamRequest *req)
 {
     return req->level;
 }
 
-void request_set_level(struct OamRequest *req, int level)
-{
-    req->level = level;
-}
-
-void request_set_count(struct OamRequest *req, unsigned count)
-{
-    req->count = count;
-}
-
-void request_set_start(struct OamRequest *req, struct OAM_MaintenancePoint *start)
-{
-    req->mp_start = start;
-}
-
-void request_set_return_addr(struct OamRequest *req, struct JsonValue *addr)
-{
-    json_delete(req->return_addr);
-    req->return_addr = addr;
-}
-
-char *request_get_return_addr_string(struct OamRequest *req)
+char *request_get_return_addr_string(const struct OamRequest *req)
 {
     struct JsonValue *ip = json_object_get_string(req->return_addr, "ip");
     struct JsonValue *port = json_object_get_number(req->return_addr, "port");
@@ -582,27 +563,36 @@ char *request_get_return_addr_string(struct OamRequest *req)
     }
 }
 
-void request_set_return(struct OamRequest *req, char *return_address, int return_port)
+void request_get_identification_data(const struct OamRequest *req, unsigned *nodeid,
+        unsigned char *level, unsigned char *session,
+        unsigned char *seq, unsigned char *ttl)
 {
-    (void)req;
-    (void)return_address;
-    (void)return_port;
-    //req->return_ip = return_address;
-    //req->return_port = return_port;
+    *nodeid = req->node_id;
+    *level = req->level;
+    *session = req->originator_stream ? req->originator_session_id : req->session_id;
+    *seq = req->seq;
+    *ttl = req->ttl;
 }
 
-const char *request_get_return_ip(const struct OamRequest *req)
+void request_set_error(struct OamRequest *req, char *error)
 {
-    (void)req;
-    return NULL;
-    //return req->return_ip;
+    req->error = error;
 }
 
-int request_get_return_port(const struct OamRequest *req)
+void request_set_level(struct OamRequest *req, int level)
 {
-    (void)req;
-    return 0;
-    //return req->return_port;
+    req->level = level;
+}
+
+void request_set_infinite_count(struct OamRequest *req)
+{
+    req->count = 0;
+}
+
+void request_set_return_addr(struct OamRequest *req, struct JsonValue *addr)
+{
+    json_delete(req->return_addr);
+    req->return_addr = addr;
 }
 
 void request_set_originator(struct OamRequest *req, const char *stream, unsigned char session_id)
@@ -610,32 +600,6 @@ void request_set_originator(struct OamRequest *req, const char *stream, unsigned
     free(req->originator_stream);
     req->originator_stream = stream ? strdup(stream) : NULL;
     req->originator_session_id = session_id;
-}
-
-static int add_fixed_headers(struct Packet *packet, unsigned char ttl,
-                             unsigned char seq, unsigned short channel, unsigned short nodeid,
-                             unsigned char level, unsigned char session)
-{
-    packet_add_header(packet, 0, PROTO_ID_MPLS, protocol_from_id(PROTO_ID_MPLS)->bytelength);
-    packet_add_header(packet, 1, PROTO_ID_OAM, protocol_from_id(PROTO_ID_OAM)->bytelength);
-
-    unsigned char *mpls = packet->buf + packet->headers[0].start;
-    mpls[0] = 0;
-    mpls[1] = 0;
-    mpls[2] = 1; // BOS
-    mpls[3] = ttl;
-    unsigned char *oam  = packet->buf + packet->headers[1].start;
-    //TODO function that sets all this
-    oam[0] = 0x10; // indicator and version
-    oam[1] = seq;
-    oam[2] = (channel>>8) & 0xff;
-    oam[3] = channel & 0xff;
-    oam[4] = (nodeid>>12) & 0xff;
-    oam[5] = (nodeid>>4) & 0xff;
-    oam[6] = ((nodeid&0xf) << 4) + ((level & 0x07) << 1);
-    oam[7] = session & 0x0f;
-
-    return 0;
 }
 
 static void trigger_mep_push_notification(const struct OamRequest *req)
@@ -658,18 +622,11 @@ static void trigger_mep_push_notification(const struct OamRequest *req)
 }
 
 // returns true on success
-static bool send_request(const struct OamRequest *req){
+static bool send_request(const struct OamRequest *req)
+{
     struct Packet *packet = new_packet(NULL);
-    packet_enlarge_scratch(packet);
+    struct JsonValue *js = mp_pack_message(req->mp_start, packet, req);
 
-    unsigned session_id = req->originator_stream ? req->originator_session_id : req->session_id;
-    add_fixed_headers(packet, req->ttl, req->seq, OAM_CHANNEL,
-                      req->node_id, req->level, session_id);
-    packet->ttl = req->ttl;
-
-    struct JsonValue *js = json_object();
-    json_object_insert(js, "type", json_string(req->type));
-    json_object_insert(js, "code", json_string("request"));
     if (req->originator_stream) {
         json_object_insert(js, "stream", json_string(req->originator_stream));
     } else {
@@ -677,42 +634,34 @@ static bool send_request(const struct OamRequest *req){
     }
     json_object_insert(js, "target", json_string(req->mep_stop));
 
-    if(strcmp(req->type, "trigger")!=0){   // these are not needed for trig type
-        json_object_insert(js, "return", json_duplicate(req->return_addr));
-    } else {
+    if (strcmp(req->type, "trigger")==0) {
         json_object_insert(js, "seq", json_number(req->seq));
-        json_object_insert(js, "source", json_string(mp_get_name(req->mp_start)));
+        json_object_insert(js, "source", mp_get_state_json(req->mp_start, 0));
 
         // we also triger local notification
         trigger_mep_push_notification(req);
+    } else {
+        //TODO mask signal doesn't need "return" either
+        json_object_insert(js, "return", json_duplicate(req->return_addr));
     }
 
-    if(strcmp(req->type, "ping")==0){
-        if(req->record_route){
+    if (strcmp(req->type, "ping")==0) {
+        if (req->record_route) {
             struct JsonValue *jrr = json_array();
             json_array_unshift(jrr, json_string(mp_get_name(req->mp_start)));
             json_object_insert(js, "rr", jrr);
         }
-        if(req->object_state){
+        if (req->object_state) {
             json_object_insert(js, "object", json_true());
-            json_object_insert(js, "source_info", mp_get_state_json(req->mp_start, 1)); //TODO why do we have this?
         }
-        if(req->delay){
+        if (req->measure_delay) {
             json_object_insert(js, "delay", json_true());
         }
     }
-    else if(strcmp(req->type, "rping")==0){
+    if (strcmp(req->type, "rping")==0) {
         //TODO this hardcodes the commandline format into the protocol :(
         json_object_insert(js, "command", json_string(req->remote_command));
     }
-
-    struct timespec sendtime;
-    clock_gettime(CLOCK_REALTIME, &sendtime);
-    packet->recv_time = sendtime;
-    timespec_to_tsntstamp(packet->timestamp, &packet->recv_time);
-
-    json_object_insert(js, "send_s", json_number(sendtime.tv_sec));
-    json_object_insert(js, "send_ns", json_number(sendtime.tv_nsec));
 
     unsigned js_length;
     char *js_string;
@@ -722,6 +671,7 @@ static bool send_request(const struct OamRequest *req){
         delete_packet(packet);
         return false;
     }
+    //TODO don't hardcode 2
     packet_add_header(packet, 2, PROTO_ID_PAYLOAD, js_length);
     unsigned char *msg = packet->buf + packet->headers[2].start;
     memcpy(msg, js_string, js_length);
@@ -739,10 +689,10 @@ static bool send_request(const struct OamRequest *req){
 static void *send_periodic_request_thread(void *arg)
 {
     struct OamRequest *req = (struct OamRequest *)arg;
-    unsigned seq=0;
+    unsigned seq = 0;
     struct StreamSessions *stream = get_stream_sessions(mp_get_stream_name(req->mp_start));
 
-    while(1){
+    while (1) {
         req->seq = seq & 0xFF;
         send_request(req);
         session_touch(stream, req->session_id);
@@ -750,6 +700,7 @@ static void *send_periodic_request_thread(void *arg)
         if((req->count != 0) && (seq >= req->count)) break;
         usleep(req->interval_ms * 1000);
     }
+
     struct Thread *th = session_get_thread(stream, req->session_id);
     // we keep the session live so we can still receive replies
     session_set_thread(stream, req->session_id, NULL);
@@ -759,17 +710,13 @@ static void *send_periodic_request_thread(void *arg)
 
 bool initiate_request(struct OamRequest *req)
 {
-    struct CommandConnection *conn = find_command_connection(req->conn_name);
-    FILE *cmd_w = command_connection_get_w(conn);
     if (!req->mp_start) { //TODO this can only happen for mask
         req->error = strdup_printf("can't initiate %s request without start maintenance point", req->type);
-        release_command_connection(conn);
         return false;
     }
 
     if (!mp_can_send(req->mp_start)) {
         req->error = strdup_printf("mep start '%s' cannot send", mp_get_name(req->mp_start));
-        release_command_connection(conn);
         return false;
     }
 
@@ -777,8 +724,6 @@ bool initiate_request(struct OamRequest *req)
     int session_id = alloc_session_id(stream, req, req->conn_name, req->interval_ms);
     if (session_id < 0) {
         req->error = strdup_printf("stream %s has no free session id", mp_get_stream_name(req->mp_start));
-        if (cmd_w) fprintf(cmd_w, "%s", req->error);
-        release_command_connection(conn);
         return false;
     }
 
@@ -792,13 +737,17 @@ bool initiate_request(struct OamRequest *req)
              req->seq, req->level, req->type, mp_get_name(req->mp_start), req->mep_stop, req->count, req->interval_ms,
              req->record_route?"yes":"no", req->object_state?"yes":"no", return_str);
 
+    struct CommandConnection *conn = find_command_connection(req->conn_name);
+    FILE *cmd_w = command_connection_get_w(conn);
     if (cmd_w) fprintf(cmd_w, "OAM request %s session %u seq %u, %s -> %s level %d count %d interval %d,"
             " rr: %s os: %s\t%s\n",
-            req->type, req->session_id, req->seq, mp_get_name(req->mp_start), req->mep_stop, req->level, req->count, req->interval_ms,
+            req->type, req->session_id, req->seq, mp_get_name(req->mp_start),
+            req->mep_stop, req->level, req->count, req->interval_ms,
             req->record_route?"yes":"no", req->object_state?"yes":"no", return_str);
     free(return_str);
+    release_command_connection(conn);
 
-    if(req->count == 1){
+    if (req->count == 1) {
         session_set_thread(stream, session_id, NULL);
         send_request(req);
     } else {
@@ -807,12 +756,9 @@ bool initiate_request(struct OamRequest *req)
         if (th == NULL) {
             req->error = strdup("could not create new request thread");
             log_error("%s", req->error);
-            if (cmd_w) fprintf(cmd_w, "%s\n", req->error);
-            release_command_connection(conn);
             return false;
         }
     }
 
-    release_command_connection(conn);
     return true;
 }

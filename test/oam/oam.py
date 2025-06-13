@@ -137,6 +137,13 @@ OAM request ping session 2 seq 0, s1n1-e4-01 -> s1n4-i4-34 level 4 count 1 inter
 """
 OAM request ping session 2 seq 0, s1n1-e4-01 -> s1n4-e4-40 level 4 count 1 interval 1000, rr: no os: yes	[reply to ip 10.0.0.1 port 6634]
   oam_r s1:2 seq 0 lvl 4 R - ping on stream s1 target s1n4-e4-40; reply from s1n4-e4-40
+	Object pef4 type seqrec
+		recovery_algorithm vector, reset_timer 2000ms
+		use_init_flag false, use_reset_flag false, history_length 2
+		history_content ...
+		latent_error_paths 2, latent_error_resets 0, latent_errors 0
+		latest_valid_sequence_number 0, passed 0, discarded 0
+		number_of_resets 0
 """
      ),
 
@@ -351,6 +358,7 @@ def run_tests(net, test):
 
         with Telnet(raddrs[node], 8000) as cli:
             _ = cli.recv()
+            _ = cli.recv() # OAM ready
             cli.send(msg)
             print(f"Node: {node}, command: {msg}", end=" ")
             if "any" in msg:

@@ -14,7 +14,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <arpa/inet.h>
+
 DEFAULT_LOGGING_MODULE(OAM, INFO);
+
+#define OAM_CHANNEL 0x7fff /* Experimental channel type, we are not compatible with anything */
 
 struct MP_MPLS_Address {
     unsigned label;
@@ -182,6 +186,55 @@ static bool update_pw_payload(struct Packet *p, const struct JsonValue *msg)
     }
     p->headers[2].len = js_length;
     return true;
+}
+
+static struct JsonValue *pack_pw_message(struct Packet *p, const struct OamRequest *req)
+{
+    unsigned channel = OAM_CHANNEL;
+    unsigned nodeid;
+    unsigned char level;
+    unsigned char session;
+    unsigned char seq;
+    unsigned char ttl;
+
+    request_get_identification_data(req, &nodeid, &level, &session, &seq, &ttl);
+
+    packet_clear_headers(p);
+    packet_enlarge_scratch(p);
+
+    packet_add_header(p, 0, PROTO_ID_MPLS, protocol_from_id(PROTO_ID_MPLS)->bytelength);
+    packet_add_header(p, 1, PROTO_ID_OAM, protocol_from_id(PROTO_ID_OAM)->bytelength);
+
+    unsigned char *mpls = p->buf + p->headers[0].start;
+    mpls[0] = 0;
+    mpls[1] = 0;
+    mpls[2] = 1; // BOS
+    mpls[3] = ttl;
+    unsigned char *oam  = p->buf + p->headers[1].start;
+    oam[0] = 0x10; // indicator and version
+    oam[1] = seq;
+    oam[2] = (channel>>8) & 0xff;
+    oam[3] = channel & 0xff;
+    oam[4] = (nodeid>>12) & 0xff;
+    oam[5] = (nodeid>>4) & 0xff;
+    oam[6] = ((nodeid&0xf) << 4) + ((level & 0x07) << 1);
+    oam[7] = session & 0x0f;
+
+    p->ttl = ttl;
+
+    struct JsonValue *js = json_object();
+    json_object_insert(js, "type", json_string(request_get_type(req)));
+    json_object_insert(js, "code", json_string("request"));
+
+    struct timespec sendtime;
+    clock_gettime(CLOCK_REALTIME, &sendtime);
+    p->recv_time = sendtime;
+    timespec_to_tsntstamp(p->timestamp, &sendtime);
+
+    json_object_insert(js, "send_s", json_number(sendtime.tv_sec));
+    json_object_insert(js, "send_ns", json_number(sendtime.tv_nsec));
+
+    return js;
 }
 
 
@@ -462,6 +515,16 @@ bool mp_update_message_payload(const struct OAM_MaintenancePoint *mp, struct Pac
     //TODO other flavors
 
     return false;
+}
+
+struct JsonValue *mp_pack_message(const struct OAM_MaintenancePoint *mp, struct Packet *p, const struct OamRequest *req)
+{
+    if (mp->flavor == OAM_PW) {
+        return pack_pw_message(p, req);
+    }
+    //TODO pack other flavors
+
+    return NULL;
 }
 
 int mp_compare_level(const struct OAM_MaintenancePoint *mp, unsigned level)

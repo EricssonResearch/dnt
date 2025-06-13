@@ -69,7 +69,12 @@ struct JsonValue *mp_unpack_message(const struct OAM_MaintenancePoint *mp, const
 // @returns true on success
 bool mp_update_message_payload(const struct OAM_MaintenancePoint *mp, struct Packet *p, const struct JsonValue *msg);
 
-bool mp_pack_message(const struct OAM_MaintenancePoint *mp, struct Packet *p, const struct OamRequest *req);
+// initializes @p for sending @req in-band according to the flavor of @mp
+// @returns a JSON object that contains the essential information it needs to contain
+// sets the timestamp of @p, adds it to the returned JSON too
+// adds type and code to the JSON, but none of the type-dependent information
+// the caller should serialize the json, and append it as PAYLOAD header
+struct JsonValue *mp_pack_message(const struct OAM_MaintenancePoint *mp, struct Packet *p, const struct OamRequest *req);
 
 // @returns level <=> mp->level
 //  <0 means the @level is lower, the message must be deleted without processing

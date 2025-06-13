@@ -65,9 +65,9 @@ struct CommandConnection *find_command_connection(const char *name)
     if (name == NULL) return NULL;
     pthread_mutex_lock(&command_connections_lock);
     struct CommandConnection *ret = (struct CommandConnection *)hashmap_find(command_connections, name);
-    pthread_mutex_unlock(&command_connections_lock);
     if (ret)
         __atomic_fetch_add(&ret->refcount, 1, __ATOMIC_RELAXED);
+    pthread_mutex_unlock(&command_connections_lock);
     return ret;
 }
 
@@ -243,6 +243,7 @@ static void command_loop(struct CommandConnection *conn)
     fprintf(cmd_w, "\033[32mOAM '%s' ready\033[0m%s\n", conn->name,
             have_default_iface()?"":", but has no configured return interface");
 
+    log_info("Telnet connection '%s' from %s %u", conn->name, conn->remote_ip, conn->remote_port);
     struct JsonValue *msg = json_object();
     json_object_insert(msg, "login", json_string(conn->name));
     json_object_insert(msg, "ip", json_string(conn->remote_ip));
@@ -518,7 +519,7 @@ static void *command_thread(void *arg)
     struct Thread *thread = conn->thread;
     // the hash delete callback will call thread_stop, but it does nothing to its own thread
     pthread_mutex_lock(&command_connections_lock);
-    hashmap_remove(command_connections, conn->name);
+    hashmap_remove(command_connections, conn->name); // this calls thread_stop() which has no effect
     pthread_mutex_unlock(&command_connections_lock);
     thread_exit(thread);
     return NULL;

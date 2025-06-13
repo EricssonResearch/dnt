@@ -81,18 +81,18 @@ static int process_reply(const char *msg)
         return -1;                          \
     } while (0)
 
-#define JS_OBJECT_GET(_json, _key, _type)                           \
-    struct JsonValue *_key = json_object_get_##_type(_json, #_key); \
-    if (_key == NULL) {                                             \
-        THROW("No " #_key " in reply.");                            \
+#define JS_OBJECT_GET(_json, _key, _type)                                   \
+    struct JsonValue *_json##_key = json_object_get_##_type(_json, #_key);  \
+    if (_json##_key == NULL) {                                              \
+        THROW("No " #_key " in reply message.");                            \
     }
 
     char reply_str[1400], rr_str[512];
-    char *jerror;
-    struct JsonValue *j = json_parse(msg, strlen(msg), &jerror);
+    char *jerr;
+    struct JsonValue *j = json_parse(msg, strlen(msg), &jerr);
     if (j == NULL || j->type != JSON_OBJECT) {
-        log_error("JSON in reply is invalid: %s", jerror);
-        free(jerror);
+        log_error("JSON in reply is invalid: %s", jerr);
+        free(jerr);
         return -1;
     }
 
@@ -101,24 +101,24 @@ static int process_reply(const char *msg)
 
     JS_OBJECT_GET(j, type, string);
 
-    if (strcmp(type->v.string, "newaddress") == 0) {
+    if (strcmp(jtype->v.string, "newaddress") == 0) {
         JS_OBJECT_GET(j, code, string);
-        if (strcmp(code->v.string, "notify") != 0) {
-            THROW("newaddress message is '%s' instead of 'notify'", code->v.string);
+        if (strcmp(jcode->v.string, "notify") != 0) {
+            THROW("newaddress message is '%s' instead of 'notify'", jcode->v.string);
         }
 
         JS_OBJECT_GET(j, sendiface, string);
-        struct Interface *sendif = state_get_interface(sendiface->v.string);
+        struct Interface *sendif = state_get_interface(jsendiface->v.string);
         if (sendif == NULL) {
-            THROW("got newaddress notification for non-existing interface '%s'", sendiface->v.string);
+            THROW("got newaddress notification for non-existing interface '%s'", jsendiface->v.string);
         }
 
         JS_OBJECT_GET(j, address, object);
-        JS_OBJECT_GET(address, ip, string);
-        JS_OBJECT_GET(address, port, number);
+        JS_OBJECT_GET(jaddress, ip, string);
+        JS_OBJECT_GET(jaddress, port, number);
         log_debug("newaddress notification for %s is %s %.0f",
-                sendiface->v.string, ip->v.string, port->v.number);
-        if (udp_out_set_dst(sendif, ip->v.string, port->v.number)) {
+                jsendiface->v.string, jaddressip->v.string, jaddressport->v.number);
+        if (udp_out_set_dst(sendif, jaddressip->v.string, jaddressport->v.number)) {
             json_delete(j);
             return 0;
         } else {
@@ -131,31 +131,32 @@ static int process_reply(const char *msg)
     JS_OBJECT_GET(j, target, string);
     JS_OBJECT_GET(j, seq, number);
     JS_OBJECT_GET(j, level, number);
-    JS_OBJECT_GET(j, receiver, string);
+    JS_OBJECT_GET(j, receiver, object);
     JS_OBJECT_GET(j, stream, string);
     JS_OBJECT_GET(j, session, number);
+    JS_OBJECT_GET(jreceiver, name, string);
 
     log_packet("recv reply %s:%.0f seq %.0f lvl %.0f - %s",
-            stream->v.string, session->v.number, seq->v.number, level->v.number, msg);
+            jstream->v.string, jsession->v.number, jseq->v.number, jlevel->v.number, msg);
 
-    if (session->v.number < 0 || session->v.number > 15) {
-        THROW("session id %.0f in reply is invalid", session->v.number);
+    if (jsession->v.number < 0 || jsession->v.number > 15) {
+        THROW("session id %.0f in reply is invalid", jsession->v.number);
     }
 
-    conn = command_connection_for_session(stream->v.string, session->v.number);
+    conn = command_connection_for_session(jstream->v.string, jsession->v.number);
     if (conn)
         cmd_w = command_connection_get_w(conn);
 
-    if (strcmp(type->v.string, "rlist") == 0) {
+    if (strcmp(jtype->v.string, "rlist") == 0) {
         JS_OBJECT_GET(j, code, string);
-        if (strcmp(code->v.string, "reply") != 0) {
+        if (strcmp(jcode->v.string, "reply") != 0) {
             THROW("rlist result is not a reply.");
         }
 
         JS_OBJECT_GET(j, list, array);
-        sprintf(reply_str, "Rlist result from %s:\n", receiver->v.string);
-        for (unsigned i=0; i<json_array_size(list); i++) {
-            struct JsonValue *str = json_array_at(list, i);
+        sprintf(reply_str, "Rlist result from %s:\n", jreceivername->v.string);
+        for (unsigned i=0; i<json_array_size(jlist); i++) {
+            struct JsonValue *str = json_array_at(jlist, i);
             if (str->type != JSON_STRING) {
                 THROW("rlist result is not string.");
             }
@@ -165,20 +166,20 @@ static int process_reply(const char *msg)
         json_delete(j);
         if (cmd_w) fprintf(cmd_w, "%s\n", reply_str);
     }
-    else if (strcmp(type->v.string, "rping") == 0) {
+    else if (strcmp(jtype->v.string, "rping") == 0) {
         JS_OBJECT_GET(j, code, string);
-        if (strcmp(code->v.string, "error") != 0) {
+        if (strcmp(jcode->v.string, "error") != 0) {
             THROW("rping response is not error.");
         }
 
         JS_OBJECT_GET(j, error, string);
-        snprintf(reply_str, sizeof(reply_str), "Rping error from %s : %s\n", receiver->v.string, error->v.string);
+        snprintf(reply_str, sizeof(reply_str), "Rping error from %s : %s\n", jreceivername->v.string, jerror->v.string);
         json_delete(j);
         if (cmd_w) fprintf(cmd_w, "%s\n", reply_str);
     }
-    else if (strcmp(type->v.string, "ping") == 0) {
+    else if (strcmp(jtype->v.string, "ping") == 0) {
         JS_OBJECT_GET(j, code, string);
-        if (strcmp(code->v.string, "reply") != 0) {
+        if (strcmp(jcode->v.string, "reply") != 0) {
             THROW("ping result is not a reply.");
         }
 
@@ -190,20 +191,21 @@ static int process_reply(const char *msg)
             JS_OBJECT_GET(j, recv_s, number);
             JS_OBJECT_GET(j, recv_ns, number);
             struct timespec sendtime, receivetime, delay_diff;
-            sendtime.tv_sec = send_s->v.number;
-            sendtime.tv_nsec = send_ns->v.number;
-            receivetime.tv_sec = recv_s->v.number;
-            receivetime.tv_nsec = recv_ns->v.number;
+            sendtime.tv_sec = jsend_s->v.number;
+            sendtime.tv_nsec = jsend_ns->v.number;
+            receivetime.tv_sec = jrecv_s->v.number;
+            receivetime.tv_nsec = jrecv_ns->v.number;
             timespecsub(&receivetime, &sendtime, &delay_diff);
 
             sprintf(reply_str,"  oam_r %s:%.0f seq %.0f lvl %.0f R - %s on stream %s target %s; reply from %s delay %ld.%09ld",
-                    stream->v.string, session->v.number, seq->v.number, level->v.number,
-                    type->v.string, stream->v.string, target->v.string, receiver->v.string, delay_diff.tv_sec, delay_diff.tv_nsec);
+                    jstream->v.string, jsession->v.number, jseq->v.number, jlevel->v.number,
+                    jtype->v.string, jstream->v.string, jtarget->v.string, jreceivername->v.string,
+                    delay_diff.tv_sec, delay_diff.tv_nsec);
         }
         else
             sprintf(reply_str,"  oam_r %s:%.0f seq %.0f lvl %.0f R - %s on stream %s target %s; reply from %s",
-                    stream->v.string, session->v.number, seq->v.number, level->v.number,
-                    type->v.string, stream->v.string, target->v.string, receiver->v.string);
+                    jstream->v.string, jsession->v.number, jseq->v.number, jlevel->v.number,
+                    jtype->v.string, jstream->v.string, jtarget->v.string, jreceivername->v.string);
 
         // Recorded route is single line, no difference between log/dump
         struct JsonValue *jrr = json_object_get_array(j, "rr");
@@ -224,10 +226,10 @@ static int process_reply(const char *msg)
         // different format between log/dump
         char *obj_str = NULL;
         char *obj_str_log = NULL;
-        struct JsonValue *jos = json_object_get_object(j, "object");
-        if (jos && jos->type == JSON_OBJECT){
-            obj_str = sprintf_state_json(jos, ", ", "\n\t\t");
-            obj_str_log = sprintf_state_json(jos, ", ", "; ");
+        struct JsonValue *o_info = json_object_get_object(jreceiver, "object");
+        if (o_info) {
+            obj_str = sprintf_state_json(o_info, ", ", "\n\t\t");
+            obj_str_log = sprintf_state_json(o_info, ", ", "; ");
         }
         if (obj_str_log == NULL) obj_str_log = strdup("");
 
@@ -256,7 +258,7 @@ static int process_reply(const char *msg)
         }
     }
     else {
-        THROW("invalid reply type '%s'", type->v.string);
+        THROW("invalid reply type '%s'", jtype->v.string);
     }
     release_command_connection(conn);
     return 0;
@@ -466,10 +468,10 @@ static bool send_rping_error(struct OamEndPoint *oam, struct Packet *p, struct J
     unsigned msg_len=0;
     char *j_msg = json_serialize(j, &msg_len);
     if (j_msg) {
-        log_packet("send rping error %s %s:%d seq %d lvl %d (to %s %d) - %s",
+        log_packet("send rping error %s %s:%d seq %d lvl %d (to %s %s) - %s",
                 oam->name, stream, dach.session, dach.seq, dach.level,
-                request_get_return_ip(ping_req), request_get_return_port(ping_req), j_msg);
-        oam_send_reply(request_get_return_ip(ping_req), request_get_return_port(ping_req), j_msg, msg_len);
+                "request_get_return_ip(ping_req)", "request_get_return_port(ping_req)", j_msg);
+        //oam_send_reply(request_get_return_ip(ping_req), request_get_return_port(ping_req), j_msg, msg_len);
         free(j_msg);
     }
     json_delete(j);
@@ -499,7 +501,7 @@ static bool process_rping_request(struct OamEndPoint *oam, struct Packet *p, str
     }
 
     struct OamRequest *ping_req = parse_ping_command(cmd->v.string, false, true, NULL);
-    request_set_return(ping_req, reply_address, port);
+    //request_set_return(ping_req, reply_address, port);
     if (request_get_error(ping_req) == NULL) {
         //TODO fix this to behave like rlist
         // if (strcmp(oam->stream, ping_req->mep_start->stream_name) != 0) {
@@ -955,13 +957,15 @@ static bool new_process_ping_request(struct OAM_MaintenancePoint *mp, struct Jso
     //JS_OBJECT_GET(js, object, any); XXX we can't do this because any is not a type
     struct JsonValue *jos = json_object_get_any(js, "object");
     if (jos != NULL) {
-        json_object_insert(js, "target_info", mp_get_state_json(mp, 1));
+        json_object_remove(js, "object");
+        json_object_insert(js, "receiver", mp_get_state_json(mp, 1));
+    } else {
+        json_object_insert(js, "receiver", mp_get_state_json(mp, 0));
     }
 
     json_object_insert(js, "code", json_string("reply"));
     json_object_insert(js, "recv_s", json_number(recv_time.tv_sec));
     json_object_insert(js, "recv_ns", json_number(recv_time.tv_nsec));
-    json_object_insert(js, "receiver", json_string(mp_get_name(mp)));
 
     //TODO the old code also added the mpls label from the packet header, but we can't do that here
 
@@ -1067,7 +1071,7 @@ static bool new_process_rlist_request(struct OAM_MaintenancePoint *mp, struct Js
     json_object_insert(js, "code", json_string("reply"));
     json_object_insert(js, "recv_s", json_number(recv_time.tv_sec));
     json_object_insert(js, "recv_ns", json_number(recv_time.tv_nsec));
-    json_object_insert(js, "receiver", json_string(mp_get_name(mp)));
+    json_object_insert(js, "receiver", mp_get_state_json(mp, 0));
 
     struct JsonValue *jlist = json_array();
     struct AddMPState st = { jlist, mp_get_stream_name(mp) };
