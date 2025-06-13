@@ -351,7 +351,10 @@ void oam_unref_maintenance_point(struct OAM_MaintenancePoint *mp)
 struct OAM_MaintenancePoint *find_maintenance_point(const char *name)
 {
     if (mp_hash) {
-        return (struct OAM_MaintenancePoint *)hashmap_find(mp_hash, name);
+        struct OAM_MaintenancePoint *mp = (struct OAM_MaintenancePoint *)hashmap_find(mp_hash, name);
+        int refcount = __atomic_add_fetch(&mp->reference_count, 1, __ATOMIC_RELAXED);
+        log_debug("%s ref refcount %d", name, refcount);
+        return mp;
     } else {
         return NULL;
     }

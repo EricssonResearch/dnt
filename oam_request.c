@@ -502,6 +502,8 @@ struct OamRequest *parse_mask_command(const char *oam_command, const char *conn_
 struct OamRequest *delete_oam_request(struct OamRequest *req)
 {
     if (req == NULL) return NULL;
+    if (req->mp_start)
+        oam_unref_maintenance_point(req->mp_start);
     json_delete(req->return_addr);
     free(req->error);
     free(req->remote_command);
