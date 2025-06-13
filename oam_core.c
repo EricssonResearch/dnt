@@ -381,7 +381,7 @@ bool init_oam(void)
     if (oam_initialized) return true;
 
     init_session_module();
-    init_message_module(oam_default_iface != NULL);
+    init_message_module();
 
     if (oam_default_iface || oam_cmd_iface) {
         log_info("Init OAM fuctionality:%s%s",

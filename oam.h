@@ -15,10 +15,6 @@
 
 // public interface of the OAM module
 
-// state object for a point that receives OAM packets
-struct OamEndPoint;
-
-
 enum OAM_MP_Type { OAM_Start, OAM_Stop, OAM_Intermediate };
 
 enum OAM_MP_Flavor { OAM_PW, OAM_TSN, OAM_SRv6 };
@@ -32,14 +28,6 @@ bool init_oam(void);
 
 // stops the OAM module and cleans up its resources
 void finish_oam(void);
-
-// receive on the return interface
-// makes a copy of @msg
-void oam_recv_reply(const char *msg);
-
-// receive on the action pipeline
-// always consumes @pi
-void oam_recv_request(struct OamEndPoint *oam, struct PipelineIterator *pi);
 
 // receive on the action pipeline
 // heeps hold of @pi, the action should return ACR_HOLD

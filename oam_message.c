@@ -31,45 +31,11 @@
 
 DEFAULT_LOGGING_MODULE(OAM, INFO);
 
-static struct Thread *request_thread = NULL;
-static struct MessageQueue *request_q = NULL;
-static struct Thread *reply_thread = NULL;
-static struct MessageQueue *reply_q = NULL;
-
 static struct Thread *inband_receiver_thread = NULL;
 static struct MessageQueue *inband_q = NULL;
 static struct Thread *outofband_receiver_thread = NULL;
 static struct MessageQueue *outofband_q = NULL;
 
-
-//TODO new module for the MP state
-struct OamEndPoint {
-    char *name;
-    char *stream;
-    int level;
-    bool stop; // false: MIP, true: MEP-Stop
-    struct MepStart *mep;
-};
-
-struct OamEndPoint *oam_create_endpoint(const char *name, const char *stream, int level, bool stop)
-{
-    //TODO make sure that endpoints have unique names
-    //      put them into the same hash as the startpoints?
-    struct OamEndPoint *ret = calloc_struct(OamEndPoint);
-    ret->name = strdup(name);
-    ret->stream = strdup(stream);
-    ret->level = level;
-    ret->stop = stop;
-    return ret;
-}
-
-struct OamEndPoint *oam_delete_endpoint(struct OamEndPoint *end)
-{
-    free(end->name);
-    free(end->stream);
-    free(end);
-    return NULL;
-}
 
 static int process_reply(const char *msg)
 {
@@ -266,35 +232,14 @@ static int process_reply(const char *msg)
 #undef THROW
 }
 
-static void *reply_thread_fn(void *arg)
-{
-    (void)arg;
-
-    while (1) {
-        char *msg = (char *)messagequeue_pop(reply_q, -1);
-        if (msg == NULL)
-            return NULL;
-
-        process_reply(msg);
-        free(msg);
-    }
-
-    return NULL;
-}
-
-void oam_recv_reply(const char *msg)
-{
-    // @msg is an on-stack buffer in if_oam recv
-    messagequeue_push(reply_q, strdup(msg));
-}
 
 /*
- * Send UDP OAM reply mesage
- * Address: destination address string (can be either IPV4, IPv6, or FQDN)
+ * Send OAM mesage out-of-band over UDP
+ * Address: destination address string (can be either IPV4, IPv6)
  * Msg: pointer to the message
  * Return 0 on success
 */
-static int oam_send_reply(const char *address, unsigned port, const char *msg, unsigned msg_len)
+static int oam_send_udp_reply(const char *address, unsigned port, const char *msg, unsigned msg_len)
 {
     struct in_addr dst4;
     struct in6_addr dst6;
@@ -345,294 +290,11 @@ static int oam_send_reply(const char *address, unsigned port, const char *msg, u
     return 0;
 }
 
-// @returns false on error
-static bool get_return_ip_port(struct JsonValue *j, char **reply_address, int *port)
-{
-    struct JsonValue *jret = json_object_get_object(j, "return");
-    if (jret==NULL) {
-        log_error("OAM packet has no return address");
-        return false;
-    }
-
-    struct JsonValue *val = json_object_get_number(jret, "port");
-    if(val!=NULL)
-        *port=val->v.number;
-    else {
-        return false;
-    }
-    val = json_object_get_string(jret, "ip");
-    if(val!=NULL)
-        *reply_address = strdup(val->v.string);
-    else {
-        return false;
-    }
-
-    return true;
-}
-
-// turns the request Json into a reply
-// @returns false on error
-static bool process_ping_request(struct OamEndPoint *oam, struct Packet *p, struct JsonValue *j)
-{
-    int port=6634;
-    char *reply_address=NULL;
-
-    INTERPRET_DACH(p->buf + p->headers[1].start);
-
-    if (!get_return_ip_port(j, &reply_address, &port)) {
-        json_delete(j);
-        return false;
-    }
-
-    // if object state is requested
-    struct JsonValue *jos = json_object_get_any(j, "object");
-    if(jos!=NULL){
-        struct MepStart *mep = find_mep_start(oam->name);
-        if (mep && mep->target) {
-            struct JsonValue *objinfo = mep->target->get_state(mep->target);
-            json_object_insert(j, "object", objinfo);
-        }
-        if (mep) {
-            struct JsonValue *jmepstate = json_object();
-            json_object_insert(jmepstate, "packets_passed", json_number(mep->packets_passed));
-            json_object_insert(jmepstate, "octets_passed", json_number(mep->octets_passed));
-            json_object_insert(jmepstate, "oam_packets_passed", json_number(mep->oam_packets_passed));
-            json_object_insert(jmepstate, "oam_octets_passed", json_number(mep->oam_octets_passed));
-            json_object_insert(jmepstate, "name", json_string(mep->name));
-            json_object_insert(j, "target_info", jmepstate);
-        }
-    }
-
-    json_object_remove(j, "return");
-    json_object_insert(j, "code", json_string("reply"));
-    json_object_insert(j, "sequence", json_number(dach.seq));
-    json_object_insert(j, "level", json_number(dach.level));
-    json_object_insert(j, "nodeid", json_number(dach.nodeid));
-    json_object_insert(j, "session", json_number(dach.session));
-    json_object_insert(j, "receiver", json_string(oam->name));
-
-    const char *stream = "<unknown>";
-    struct JsonValue *jstream = json_object_get_string(j, "stream");
-    if (stream != NULL) {
-        stream = jstream->v.string;
-    }
-    // we know that header 0 contains the label in the first 20 bit
-    uint32_t *label = (uint32_t *) (p->buf + p->headers[0].start);
-    json_object_insert(j, "label", json_number((ntohl(*label) >> 12) & 0xFFFFF));
-
-    json_object_insert(j, "recv_s", json_number(p->recv_time.tv_sec));
-    json_object_insert(j, "recv_ns", json_number(p->recv_time.tv_nsec));
-
-    unsigned msg_len=0;
-    char *j_msg = json_serialize(j, &msg_len);
-    if (j_msg) {
-        log_packet("send ping reply %s %s:%d seq %d lvl %d (to %s %d) - %s",
-                oam->name, stream, dach.session, dach.seq, dach.level,
-                reply_address, port, j_msg);
-
-        oam_send_reply(reply_address, port, j_msg, msg_len);
-        free(j_msg);
-    }
-    free(reply_address);
-    json_delete(j);
-    return j_msg != NULL;
-}
-
-static bool send_rping_error(struct OamEndPoint *oam, struct Packet *p, struct JsonValue *j,
-        struct OamRequest *ping_req)
-{
-    INTERPRET_DACH(p->buf + p->headers[1].start);
-
-    json_object_remove(j, "return");
-    json_object_insert(j, "code", json_string("error"));
-    json_object_insert(j, "sequence", json_number(dach.seq));
-    json_object_insert(j, "level", json_number(dach.level));
-    json_object_insert(j, "nodeid", json_number(dach.nodeid));
-    json_object_insert(j, "session", json_number(dach.session));
-    json_object_insert(j, "receiver", json_string(oam->name));
-
-    const char *stream = "<unknown>";
-    struct JsonValue *jstream = json_object_get_string(j, "stream");
-    if (stream != NULL) {
-        stream = jstream->v.string;
-    }
-    // we know that header 0 contains the label in the first 20 bit
-    uint32_t *label = (uint32_t *) (p->buf + p->headers[0].start);
-    json_object_insert(j, "label", json_number((ntohl(*label) >> 12) & 0xFFFFF));
-
-    json_object_insert(j, "recv_s", json_number(p->recv_time.tv_sec));
-    json_object_insert(j, "recv_ns", json_number(p->recv_time.tv_nsec));
-
-    json_object_insert(j, "error", json_string(request_get_error(ping_req)));
-
-    unsigned msg_len=0;
-    char *j_msg = json_serialize(j, &msg_len);
-    if (j_msg) {
-        log_packet("send rping error %s %s:%d seq %d lvl %d (to %s %s) - %s",
-                oam->name, stream, dach.session, dach.seq, dach.level,
-                "request_get_return_ip(ping_req)", "request_get_return_port(ping_req)", j_msg);
-        //oam_send_reply(request_get_return_ip(ping_req), request_get_return_port(ping_req), j_msg, msg_len);
-        free(j_msg);
-    }
-    json_delete(j);
-    delete_oam_request(ping_req);
-    return false;
-}
-
-// @returns false on error
-static bool process_rping_request(struct OamEndPoint *oam, struct Packet *p, struct JsonValue *j)
-{
-    int port=6634;
-    char *reply_address=NULL;
-
-    INTERPRET_DACH(p->buf + p->headers[1].start);
-
-    if (!get_return_ip_port(j, &reply_address, &port)) {
-        json_delete(j);
-        return false;
-    }
-
-    struct JsonValue *cmd = json_object_get_string(j, "command");
-    if (cmd == NULL) {
-        //TODO reply error?
-        json_delete(j);
-        free(reply_address);
-        return false;
-    }
-
-    struct OamRequest *ping_req = parse_ping_command(cmd->v.string, false, true, NULL);
-    //request_set_return(ping_req, reply_address, port);
-    if (request_get_error(ping_req) == NULL) {
-        //TODO fix this to behave like rlist
-        // if (strcmp(oam->stream, ping_req->mep_start->stream_name) != 0) {
-            // ping_req->error = strdup("rping target point and ping start point are in different streams");
-            // return send_rping_error(oam, p, j, ping_req);
-        // }
-
-        struct JsonValue *jstream = json_object_get_string(j, "stream");
-        if (jstream == NULL) {
-            request_set_error(ping_req, strdup("rping request contains no stream name"));
-            return send_rping_error(oam, p, j, ping_req);
-        }
-        request_set_originator(ping_req, jstream->v.string, dach.session);
-
-        if (!initiate_request(ping_req)) {
-            request_set_error(ping_req, strdup_printf("ping request could not be sent: %s", request_get_error(ping_req)));
-            return send_rping_error(oam, p, j, ping_req);
-        }
-    } else {
-        return send_rping_error(oam, p, j, ping_req);
-    }
-    json_delete(j);
-    return false;
-}
-
-// @returns false on error
-static bool process_trigger_request(struct OamEndPoint *oam, struct Packet *p, struct JsonValue *j)
-{
-    INTERPRET_DACH(p->buf + p->headers[1].start);
-
-    struct JsonValue *jseq = json_object_get_number(j, "seq");
-    struct JsonValue *jtarget = json_object_get_string(j, "target");
-    struct JsonValue *jstream = json_object_get_string(j, "stream");
-    struct JsonValue *jsrc = json_object_get_string(j, "source");
-    if ((jseq == NULL) || (jtarget == NULL) || (jstream == NULL) || (jsrc == NULL)) {
-        log_error("OAM trigger packet does not have required fields");
-        json_delete(j);
-        return false;
-    }
-
-    struct JsonValue *js = json_object();
-    json_object_insert(js, "seq", json_number(jseq->v.number));
-    json_object_insert(js, "target", json_string(jtarget->v.string));
-    json_object_insert(js, "stream", json_string(jstream->v.string));
-    json_object_insert(js, "source", json_string(jsrc->v.string));
-
-    json_object_insert(js, "level", json_number(dach.level));
-    json_object_insert(js, "session", json_number(dach.session));
-    json_object_insert(js, "node_id", json_number(dach.nodeid));
-
-    struct MepStart *mep = find_mep_start(oam->name);
-    struct JsonValue *jlist = mep_start_get_state_by_target(mep);
-    json_object_insert(js, "mep", jlist);
-
-    notification_push_event("triggered_receiver", NOTIF_INFO, js);
-
-    json_delete(j);
-    return false;
-}
-
-struct AddstartState {
-    struct JsonValue *jlist;
-    struct OamEndPoint *oam;
-};
-static int addstart_cb(const char *key, void *value, void *userdata)
-{
-    struct AddstartState *st = (struct AddstartState *)userdata;
-    struct MepStart *mep = (struct MepStart *)value;
-
-    if (same_compound_stream(mep->stream_name, st->oam->stream)) {
-        //TODO supply more info: level, type
-        json_array_push(st->jlist, json_string(key));
-    }
-
-    return 1;
-}
-
-// @returns false on error
-static bool process_rlist_request(struct OamEndPoint *oam, struct Packet *p, struct JsonValue *j)
-{
-    int port=6634;
-    char *reply_address=NULL;
-
-    INTERPRET_DACH(p->buf + p->headers[1].start);
-
-    if (!get_return_ip_port(j, &reply_address, &port)) {
-        json_delete(j);
-        return false;
-    }
-
-    json_object_remove(j, "return");
-    json_object_insert(j, "code", json_string("reply"));
-    json_object_insert(j, "sequence", json_number(dach.seq));
-    json_object_insert(j, "level", json_number(dach.level));
-    json_object_insert(j, "nodeid", json_number(dach.nodeid));
-    json_object_insert(j, "session", json_number(dach.session));
-    json_object_insert(j, "receiver", json_string(oam->name));
-
-    const char *stream = "<unknown>";
-    struct JsonValue *jstream = json_object_get_string(j, "stream");
-    if (stream != NULL) {
-        stream = jstream->v.string;
-    }
-    // we know that header 0 contains the label in the first 20 bit
-    uint32_t *label = (uint32_t *) (p->buf + p->headers[0].start);
-    json_object_insert(j, "label", json_number((ntohl(*label) >> 12) & 0xFFFFF));
-
-    struct JsonValue *jlist = json_array();
-    struct AddstartState st = {jlist, oam};
-    foreach_mep_start(addstart_cb, &st);
-    json_object_insert(j, "list", jlist);
-
-    unsigned msg_len=0;
-    char *j_msg = json_serialize(j, &msg_len);
-    if (j_msg) {
-        log_packet("send rlist reply %s:%d seq %d lvl %d (to %s %d) - %s",
-                stream, dach.session, dach.seq, dach.level,
-                reply_address, port, j_msg);
-
-        oam_send_reply(reply_address, port, j_msg, msg_len);
-        free(j_msg);
-    }
-    free(reply_address);
-    json_delete(j);
-    return j_msg != NULL;
-}
-
+//TODO kept this as a reference for the time when we fix/rework the mask signalling
 // Only pre-Elimination AutoMIPs react to mask/unmask
 // pre-elim MIPs update the last heartbeat timestamp
 // @returns false on error
-static bool process_mask_request(struct OamEndPoint *oam, struct Packet *p, struct JsonValue *j)
+/*static bool process_mask_request(struct OamEndPoint *oam, struct Packet *p, struct JsonValue *j)
 {
     (void) p;
     // not auto-generated MIPs ignore the mask signals
@@ -659,205 +321,7 @@ static bool process_mask_request(struct OamEndPoint *oam, struct Packet *p, stru
         }
     }
     return false;
-}
-
-static bool process_request(struct OamEndPoint *oam, struct Packet *p)
-{
-    // note: we made sure in conf_actions.c that at this point of the pipeline the packet starts with mpls+dcw
-
-    // let's reinterpret the header structure if it wasn't already done by an earlier MIP
-    if (p->headers[1].type != PROTO_ID_OAM) {
-        for (unsigned i=1; i<p->header_count-1; i++) {
-            if (p->headers[i+1].start != p->headers[i].start + p->headers[i].len) {
-                log_error("OAM packet is not continuous in memory at header %u type %s",
-                        i, protocol_type_from_id(p->headers[i].type));
-                return false;
-            }
-        }
-
-        unsigned plen = packet_length(p);
-        p->headers[1].type = PROTO_ID_OAM;
-        p->headers[1].len = 8; // length of oam
-        p->headers[2].type = PROTO_ID_PAYLOAD;
-        p->headers[2].start = p->headers[1].start + 8;
-        p->headers[2].len = plen - 4 - 8; // length of mpls and oam
-        p->header_count = 3;
-    }
-
-    INTERPRET_DACH(p->buf + p->headers[1].start);
-    char *msg = (char *)(p->buf + p->headers[2].start);
-
-    //log_packet("packet (%s) at [%s level %d], ttl %d nib_ver %x sequence %x channel %x node %x level %x session %x\njson: %s",
-    //        protocol_type_from_id(p->headers[1].type), oam->name, oam->level, p->ttl, oam_hdr[0], seq, channel, nodeid, level, session, msg);
-
-    char *jerror;
-    struct JsonValue *j = json_parse(msg, strlen(msg), &jerror);
-    if (j==NULL || j->type != JSON_OBJECT) {
-        log_error("Invalid JSON string in incoming OAM packet: %s", jerror);
-        free(jerror);
-        return false;
-    }
-
-    struct JsonValue *jreqt = json_object_get_string(j, "type");
-    if (jreqt==NULL) {
-        log_error("OAM packet has no request type");
-        json_delete(j);
-        return false;
-    }
-
-    struct JsonValue *jreqc = json_object_get_string(j, "code");
-    if (jreqc==NULL) {
-        log_error("OAM packet has no request code");
-        json_delete(j);
-        return false;
-    }
-    if (strcmp(jreqc->v.string, "request") != 0) {
-        log_error("OAM packet is not a request but '%s'", jreqc->v.string);
-        json_delete(j);
-        return false;
-    }
-
-    if(dach.level < oam->level){
-        /*fprintf(stderr, "MIP %s level %d Warning: dropping lower level (level %d) OAM packet.\n",
-          oam->name, oam->level, level);*/
-        json_delete(j);
-        return false;
-    }
-    if(dach.level > oam->level) {
-        json_delete(j);
-        return true;
-    }
-
-    struct JsonValue *target = json_object_get_string(j, "target");
-    if (target == NULL) {
-        log_error("OAM packet has no target");
-        json_delete(j);
-        return false;
-    }
-
-    log_packet("%s received request type %s target %s level %u",
-            oam->name, jreqt->v.string, target->v.string, dach.level);
-
-    if (strcmp(jreqt->v.string, "ping") == 0) {
-        struct JsonValue *jrr = json_object_get_array(j, "rr");
-        if (jrr != NULL) {
-            //TODO supply more info: type, level, attached object
-            json_array_push(jrr, json_string(oam->name));
-
-            unsigned js_length;
-            char *js_string = json_serialize(j, &js_length);
-            if (js_string == NULL) {
-                log_error("could not add entry to route record");
-                json_delete(j);
-                return false;            //  DROP packet
-            }
-            memcpy(msg, js_string, js_length);
-            free(js_string);
-            p->len += js_length - p->headers[2].len;
-            p->headers[2].len = js_length;
-        }
-
-        if (p->ttl == 0) {
-            process_ping_request(oam, p, j);
-            return false;
-        }
-        if (strcmp(target->v.string, oam->name) == 0) {
-            process_ping_request(oam, p, j);
-            return false;
-        }
-        if (strcmp(target->v.string, "any") == 0) {
-            if (!process_ping_request(oam, p, j))
-                return false;
-            return oam->stop ? false : true;
-        }
-        return oam->stop ? false : true;
-    } else if (strcmp(jreqt->v.string, "rping") == 0) {
-        if (p->ttl == 0) {
-            return false;
-        }
-        if (strcmp(target->v.string, "any") == 0) {
-            return false;
-        }
-        if (strcmp(target->v.string, oam->name) == 0) {
-            process_rping_request(oam, p, j);
-            return false;
-        }
-        return oam->stop ? false : true;
-    } else if (strcmp(jreqt->v.string, "trigger") == 0) {
-        if (p->ttl == 0) {
-            return false;
-        }
-        if ((strcmp(target->v.string, "any") == 0) || strcmp(target->v.string, oam->name) == 0) {
-            process_trigger_request(oam, p, j);
-            return false;
-        }
-        return oam->stop ? false : true;
-    } else if (strcmp(jreqt->v.string, "rlist") == 0) {
-        if (p->ttl == 0) {
-            return false;
-        }
-        if (strcmp(target->v.string, "any") == 0) {
-            if (!process_rlist_request(oam, p, j))
-                return false;
-            return oam->stop ? false : true;
-        }
-        if (strcmp(target->v.string, oam->name) == 0) {
-            process_rlist_request(oam, p, j);
-            return false;
-        }
-        return oam->stop ? false : true;
-    } else if (strcmp(jreqt->v.string, "mask") == 0 || strcmp(jreqt->v.string, "unamask") == 0) {
-        if (process_mask_request(oam, p, j)) {
-            return false; // mask signal successfully processed, DROP the packet
-        }
-        return oam->stop ? false : true;
-    } else {
-        //TODO unknown message type
-        return false;
-    }
-}
-
-struct request_msg {
-    struct OamEndPoint *oam;
-    struct PipelineIterator *pi;
-};
-static void *request_thread_fn(void *arg)
-{
-    (void)arg;
-
-    while (1) {
-        struct request_msg *msg = (struct request_msg *)messagequeue_pop(request_q, -1);
-        if (msg == NULL)
-            return NULL;
-
-        struct MepStart *mep = msg->oam->mep;
-        if (mep) {
-            //TODO __atomic_fetch_add
-            mep->oam_packets_passed += 1;
-            mep->oam_octets_passed += packet_length(msg->pi->packet);
-        }
-        if (process_request(msg->oam, msg->pi->packet)) {
-            log_packet("%s forwarding request", msg->oam->name);
-            msg->pi->pos += 1;
-            pipe_iterator_run(msg->pi);
-        } else {
-            log_packet("%s dropping request", msg->oam->name);
-            pipe_iteraror_cancel(msg->pi);
-        }
-        free(msg);
-    }
-
-    return NULL;
-}
-
-void oam_recv_request(struct OamEndPoint *oam, struct PipelineIterator *pi)
-{
-    struct request_msg *msg = calloc_struct(request_msg);
-    msg->oam = oam;
-    msg->pi = pi;
-    messagequeue_push(request_q, msg);
-}
-
+}*/
 
 
 
@@ -877,8 +341,7 @@ static bool send_message_outofband(struct JsonValue *msg, struct JsonValue *addr
     }
 
     if (ip && port) {
-        //TODO this function needs a new name
-        int err = oam_send_reply(ip->v.string, port->v.number, msg_str, msg_len);
+        int err = oam_send_udp_reply(ip->v.string, port->v.number, msg_str, msg_len);
         free(msg_str);
         log_packet("sent out-of-band message len %u to %s %g err %d", msg_len,
                 ip->v.string, port->v.number, err);
@@ -1309,23 +772,8 @@ void oam_receive_outofband(struct Interface *iface, const char *message)
     messagequeue_push(outofband_q, msg);
 }
 
-void oam_count_packet(struct OamEndPoint *oam, struct Packet *p)
+void init_message_module(void)
 {
-    struct MepStart *mep = find_mep_start(oam->name);
-    if (mep)
-        mep_start_count_passed(mep, p);
-}
-
-void init_message_module(bool have_reply_iface)
-{
-    request_q = new_messagequeue();
-    request_thread = thread_launch(request_thread_fn, NULL, "oam request");
-
-    if (have_reply_iface) {
-        reply_q = new_messagequeue();
-        reply_thread = thread_launch(reply_thread_fn, NULL, "oam reply");
-    }
-
     inband_q = new_messagequeue();
     outofband_q = new_messagequeue();
     inband_receiver_thread = thread_launch(inband_receiver_th, NULL, "oam inband rcv");
@@ -1334,14 +782,6 @@ void init_message_module(bool have_reply_iface)
 
 void finish_message_module(void)
 {
-    messagequeue_push(request_q, NULL);
-    if (reply_q)
-        messagequeue_push(reply_q, NULL);
-    thread_join(request_thread);
-    thread_join(reply_thread);
-    delete_messagequeue(request_q);
-    delete_messagequeue(reply_q);
-
     messagequeue_push(inband_q, NULL);
     messagequeue_push(outofband_q, NULL);
     thread_join(inband_receiver_thread);
