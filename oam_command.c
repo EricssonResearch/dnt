@@ -282,6 +282,7 @@ static void command_loop(struct CommandConnection *conn)
 
             // ASCII 4 means End of Transmission (CTRL+D)
             if( (strcmp(oam_command, "exit") == 0) || (strcmp(oam_command, "quit") == 0 || oam_command[0] == 4) ){
+                log_debug("telnet exit command");
                 fprintf(cmd_w, "Exiting.\n");
                 break;
             }
@@ -503,6 +504,7 @@ static void command_loop(struct CommandConnection *conn)
             if (n < 0) {
                 log_perror("oam commandline read");
             }
+            log_debug("remote closed the telnet socket without 'quit'");
             break;
         }
     }
@@ -517,9 +519,9 @@ static void *command_thread(void *arg)
     struct CommandConnection *conn = (struct CommandConnection *)arg;
     command_loop(conn);
     struct Thread *thread = conn->thread;
-    // the hash delete callback will call thread_stop, but it does nothing to its own thread
     pthread_mutex_lock(&command_connections_lock);
-    hashmap_remove(command_connections, conn->name); // this calls thread_stop() which has no effect
+    // the hash delete callback will call thread_stop, but it does nothing to its own thread
+    hashmap_remove(command_connections, conn->name);
     pthread_mutex_unlock(&command_connections_lock);
     thread_exit(thread);
     return NULL;
@@ -577,9 +579,10 @@ static int command_connection_delete_cb(const char *key, void *value, void *user
     while (conn->refcount > 0) {
         usleep(1000);
     }
+    if (conn->cmd_w) fclose(conn->cmd_w); // we only need to close the FILE*
+    conn->cmd_w = NULL;
     stop_all_sessions_of_connection(conn);
     thread_stop(conn->thread);
-    fclose(conn->cmd_w); // we only need to close the FILE*
     free(conn->name);
     free(conn->remote_ip);
     free(conn);
@@ -594,5 +597,7 @@ void init_cmd_module(void)
 
 void finish_cmd_module(void)
 {
+    pthread_mutex_lock(&command_connections_lock);
     delete_hashmap(command_connections);
+    pthread_mutex_unlock(&command_connections_lock);
 }
