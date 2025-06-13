@@ -579,11 +579,6 @@ void request_set_error(struct OamRequest *req, char *error)
     req->error = error;
 }
 
-void request_set_level(struct OamRequest *req, int level)
-{
-    req->level = level;
-}
-
 void request_set_infinite_count(struct OamRequest *req)
 {
     req->count = 0;

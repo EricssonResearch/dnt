@@ -84,9 +84,6 @@ void add_oam_if(struct Interface *iface);
 // it runs in the background, i.e. it is not associated with a telnet session
 bool oam_start_background_ping(const char *name, const char *command);
 
-// update the packet counter of @oam with @p
-void oam_count_packet(struct OamEndPoint *oam, struct Packet *p);
-
 // decode the DetNet Associated Channel Header (PROTO_ID_OAM)
 #define INTERPRET_DACH(header)                                                      \
     struct {                                                                        \

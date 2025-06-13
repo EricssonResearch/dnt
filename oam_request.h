@@ -71,8 +71,6 @@ void request_get_identification_data(const struct OamRequest *req, unsigned *nod
 // @error will be owned by the request
 void request_set_error(struct OamRequest *req, char *error);
 
-void request_set_level(struct OamRequest *req, int level); //TODO delete
-
 void request_set_infinite_count(struct OamRequest *req);
 
 void request_set_return_addr(struct OamRequest *req, struct JsonValue *addr);
