@@ -419,12 +419,8 @@ static bool new_process_ping_request(struct OAM_MaintenancePoint *mp, struct Jso
 
     //JS_OBJECT_GET(js, object, any); XXX we can't do this because any is not a type
     struct JsonValue *jos = json_object_get_any(js, "object");
-    if (jos != NULL) {
-        json_object_remove(js, "object");
-        json_object_insert(js, "receiver", mp_get_state_json(mp, 1));
-    } else {
-        json_object_insert(js, "receiver", mp_get_state_json(mp, 0));
-    }
+    json_object_remove(js, "object");
+    json_object_insert(js, "receiver", mp_get_state_json(mp, jos != NULL));
 
     json_object_insert(js, "code", json_string("reply"));
     json_object_insert(js, "recv_s", json_number(recv_time.tv_sec));
@@ -534,7 +530,7 @@ static bool new_process_rlist_request(struct OAM_MaintenancePoint *mp, struct Js
     json_object_insert(js, "code", json_string("reply"));
     json_object_insert(js, "recv_s", json_number(recv_time.tv_sec));
     json_object_insert(js, "recv_ns", json_number(recv_time.tv_nsec));
-    json_object_insert(js, "receiver", mp_get_state_json(mp, 0));
+    json_object_insert(js, "receiver", mp_get_state_json(mp, false));
 
     struct JsonValue *jlist = json_array();
     struct AddMPState st = { jlist, mp_get_stream_name(mp) };

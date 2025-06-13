@@ -9,8 +9,6 @@
 #error "this header is internal to the OAM module"
 #endif
 
-#include <stdbool.h>
-
 void init_message_module(void);
 
 void finish_message_module(void);

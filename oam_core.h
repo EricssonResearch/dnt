@@ -12,8 +12,6 @@
 #include "hashmap.h"
 
 #include <stdbool.h>
-#include <stdio.h>
-#include <time.h>
 
 struct Interface *get_oam_interface(const char *ifname);
 

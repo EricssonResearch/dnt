@@ -8,6 +8,7 @@
 
 #include "hashmap.h"
 #include "log.h"
+#include "notification.h"
 #include "oam.h"
 #include "utils.h"
 
@@ -53,11 +54,10 @@ static struct HashMap *mp_hash = NULL; // name -> struct OAM_MaintenancePoint
 
 static int mp_delete_cb(const char *key, void *value, void *userdata)
 {
-    (void)key;
     (void)userdata;
     struct OAM_MaintenancePoint *mp = (struct OAM_MaintenancePoint *)value;
 
-    //TODO unregister notification
+    notification_register_source(key, NULL, NULL, 0);
     if (mp->object)
         pipeline_object_unref(mp->object);
     free(mp->name);
@@ -65,6 +65,14 @@ static int mp_delete_cb(const char *key, void *value, void *userdata)
     free(mp);
 
     return 1;
+}
+
+static NotificationLevel mp_notification_pull_fn(void *self, struct JsonValue **msg)
+{
+    struct OAM_MaintenancePoint *mp = (struct OAM_MaintenancePoint *)self;
+    struct JsonValue *state = mp_get_state_json(mp, true);
+    *msg = state;
+    return NOTIF_PULL;
 }
 
 static bool reinterpret_pw_packet(struct Packet *p)
@@ -319,7 +327,7 @@ struct OAM_MaintenancePoint *oam_new_maintenance_point(const char *stream_name, 
     }
 
     hashmap_insert(mp_hash, mp->name, mp);
-    //TODO notification_register_source
+    notification_register_source(mp_name, mp_notification_pull_fn, mp, 2000);
 
     log_debug("%s create refcount 1", mp_name);
 
@@ -404,7 +412,7 @@ bool mp_can_send(const struct OAM_MaintenancePoint *mp)
     return true;
 }
 
-struct JsonValue *mp_get_state_json(const struct OAM_MaintenancePoint *mp, int object_info)
+struct JsonValue *mp_get_state_json(const struct OAM_MaintenancePoint *mp, bool object_info)
 {
     struct JsonValue *ret = json_object();
     json_object_insert(ret, "name", json_string(mp->name));
@@ -439,7 +447,7 @@ static int add_mp_cb(const char *key, void *value, void *userdata)
     struct OAM_MaintenancePoint *mp = (struct OAM_MaintenancePoint *)value;
 
     if (mp->object == st->object) {
-        json_array_push(st->jlist, mp_get_state_json(mp, 0));
+        json_array_push(st->jlist, mp_get_state_json(mp, false));
     }
     return 1;
 }
@@ -449,7 +457,7 @@ struct JsonValue *mp_get_state_json_by_object(const struct OAM_MaintenancePoint 
     struct JsonValue *jlist = json_array();
 
     if (mp->object) {
-        json_array_push(jlist, mp_get_state_json(mp, 0));
+        json_array_push(jlist, mp_get_state_json(mp, false));
     } else {
         struct AddMPState st = { jlist, mp->object };
         foreach_mp(false, add_mp_cb, &st);

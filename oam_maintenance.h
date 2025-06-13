@@ -36,7 +36,8 @@ enum OAM_MP_Type mp_get_type(const struct OAM_MaintenancePoint *mp);
 bool mp_can_send(const struct OAM_MaintenancePoint *mp);
 
 // @returns a JSON object that describes the state of @mp
-struct JsonValue *mp_get_state_json(const struct OAM_MaintenancePoint *mp, int object_info);
+// adds detailed information about the linked pipeline object if @object_info is true
+struct JsonValue *mp_get_state_json(const struct OAM_MaintenancePoint *mp, bool object_info);
 
 // @returns an array of JSON objects for all maintenance points that are linked to the same object as @mp
 struct JsonValue *mp_get_state_json_by_object(const struct OAM_MaintenancePoint *mp);

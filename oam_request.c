@@ -631,7 +631,7 @@ static bool send_request(const struct OamRequest *req)
 
     if (strcmp(req->type, "trigger")==0) {
         json_object_insert(js, "seq", json_number(req->seq));
-        json_object_insert(js, "source", mp_get_state_json(req->mp_start, 0));
+        json_object_insert(js, "source", mp_get_state_json(req->mp_start, false));
 
         // we also triger local notification
         trigger_mep_push_notification(req);
