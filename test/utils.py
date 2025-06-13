@@ -79,7 +79,7 @@ def get_mininet_bash_pids():
         if "mininet" not in out:
             return None
         for line in out.splitlines():
-            if "mininet" in line:
+            if "bash --norc --noediting -is mininet" in line:
                 tmp = line.split()
                 pid, hostname = tmp[0], tmp[-1].split(":")[1]
                 bashs[hostname] = pid
