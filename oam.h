@@ -45,22 +45,10 @@ void oam_cli_alert(const char *fmt, ...)
     __attribute__((format(printf, 1, 2)))
     __attribute__((nonnull(1)));
 
-// create a start point in the pipeline
-// it is not a separate action, just a marker where OAM packets can be injected
-bool oam_create_mep_start(const char *stream_name, const char *mep_name, int level,
-        struct PipelineObject *obj, struct Pipeline *pipe, unsigned idx);
-
-// create a structure that represents an OAM request receiver point
-// used by MIP and MEP-STOP actions
-struct OamEndPoint *oam_create_endpoint(const char *name, const char *stream, int level, bool stop);
-
-// always returns NULL
-struct OamEndPoint *oam_delete_endpoint(struct OamEndPoint *end);
-
 // creates a maintenance point or adds reference to an existing one
 // @returns pointer to the MP
-// existing MPs are identified by @stream_name and @mp_name
-// when multiple actions refer to the same MP the @type and @level must be the same
+// MPs are uniquely identified by @mp_name
+// when multiple actions refer to the same MP the @stream_name, @type and @level must be the same
 // MP can be bound to a pipeline object @obj to monitor its state
 // if MP is an injector point (OAM_Start, OAM_Intermediate), @pipe and @idx define the injection point
 struct OAM_MaintenancePoint *oam_new_maintenance_point(const char *stream_name, const char *mp_name,

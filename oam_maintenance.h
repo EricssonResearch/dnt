@@ -17,8 +17,7 @@
 
 #include <stdio.h>
 
-struct OAM_MaintenancePoint;
-
+// @returns a pointer and adds a reference to the MP
 struct OAM_MaintenancePoint *find_maintenance_point(const char *name);
 
 const char *mp_type_to_str(enum OAM_MP_Type type);
@@ -33,6 +32,7 @@ unsigned mp_get_level(const struct OAM_MaintenancePoint *mp);
 
 enum OAM_MP_Type mp_get_type(const struct OAM_MaintenancePoint *mp);
 
+// @returns true if @mp can inject OAM packets into a pipeline
 bool mp_can_send(const struct OAM_MaintenancePoint *mp);
 
 // @returns a JSON object that describes the state of @mp
@@ -83,7 +83,7 @@ struct JsonValue *mp_pack_message(const struct OAM_MaintenancePoint *mp, struct 
 //  >0 means the @level is higher, the message must be forwarded without processing
 int mp_compare_level(const struct OAM_MaintenancePoint *mp, unsigned level);
 
-//TODO how do we prepare the packet?
+// if @mp is an injection point, it launches @p on the pipeline
 void mp_inject_packet(struct OAM_MaintenancePoint *mp, struct Packet *p);
 
 

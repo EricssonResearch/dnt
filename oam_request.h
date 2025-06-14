@@ -14,7 +14,6 @@
 #include <stdbool.h>
 
 struct OamRequest;
-struct OAM_MaintenancePoint;
 
 // always returns a request, sets ret->error to an error message
 struct OamRequest *parse_ping_command(const char *oam_command, bool allow_returniface, bool allow_num,
@@ -51,8 +50,6 @@ const char *request_get_type(const struct OamRequest *req);
 const char *request_get_error(const struct OamRequest *req);
 
 unsigned request_get_session_id(const struct OamRequest *req);
-
-//void request_set_start(struct OamRequest *req, struct OAM_MaintenancePoint *start);
 
 int request_get_level(const struct OamRequest *req);
 

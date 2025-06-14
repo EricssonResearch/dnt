@@ -15,7 +15,6 @@
 #include "log.h"
 #include "notification.h"
 #include "oam.h"
-#include "object.h"
 #include "packet.h"
 #include "pipeline.h"
 #include "state.h"
@@ -349,13 +348,14 @@ static bool send_message_outofband(struct JsonValue *msg, struct JsonValue *addr
         return err == 0;
     } else if (dmac && vlan) {
         //TODO packet socket, construct eth, cvlan etc.
+        return false;
     } else if (dmac) {
         //TODO packet socket, construct eth etc.
+        return false;
     } else {
         log_error("can't send message out-of-band without proper address");
         return false;
     }
-    return false; //TODO we shouldn't need this
 }
 
 #define THROW(msg, ...)                     \
@@ -648,13 +648,14 @@ static bool process_inband_message(struct OAM_MaintenancePoint *mp, struct JsonV
         return mp_get_type(mp) != OAM_Stop;
     } else if (strcmp(jstype->v.string, "mask") == 0) {
         //TODO figure out how process_mask_request() works (most likely it doesn't)
+        return false;
     } else if (strcmp(jstype->v.string, "unamask") == 0) { // compatibility with the old code :)
+        return false;
     } else {
         log_error("%s received unknown OAM type '%s'",
                 mp_get_name(mp), jstype->v.string);
         return false;
     }
-    return false; //TODO we shouldn't need this
 }
 
 #undef JS_OBJECT_GET
