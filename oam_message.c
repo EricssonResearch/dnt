@@ -365,10 +365,10 @@ static bool send_message_outofband(struct JsonValue *msg, struct JsonValue *addr
         return false;                       \
     } while (0)
 
-#define JS_OBJECT_GET(_json, _key, _type)                           \
-    struct JsonValue *_key = json_object_get_##_type(_json, #_key); \
-    if (_key == NULL) {                                             \
-        THROW("No " #_key " in OAM message.");                      \
+#define JS_OBJECT_GET(_json, _key, _type)                                   \
+    struct JsonValue *_json##_key = json_object_get_##_type(_json, #_key);  \
+    if (_json##_key == NULL) {                                              \
+        THROW("No " #_key " in OAM message.");                              \
     }
 
 static bool logpacket_reply(struct OAM_MaintenancePoint *mp, struct JsonValue *js, struct JsonValue *return_dup,
@@ -395,29 +395,24 @@ static bool logpacket_reply(struct OAM_MaintenancePoint *mp, struct JsonValue *j
 
     log_packet("%s send %s %s:%g seq %g lvl %g to %s %u",
             mp_get_name(mp), type, stream,
-            session->v.number, seq->v.number, level->v.number,
+            jssession->v.number, jsseq->v.number, jslevel->v.number,
             addr, num);
     return true;
 }
 
-//TODO there is a huge deduplication opportunity in the new_process_*_request() functions
+//TODO there is a huge deduplication opportunity in the process_*_request() functions
 
-static bool new_process_ping_request(struct OAM_MaintenancePoint *mp, struct JsonValue *js, struct timespec recv_time)
+static bool process_ping_request(struct OAM_MaintenancePoint *mp, struct JsonValue *js, struct timespec recv_time)
 {
     JS_OBJECT_GET(js, code, string);
-    if (strcmp(code->v.string, "request") != 0) {
-        THROW("OAM ping is '%s' not request", code->v.string);
+    if (strcmp(jscode->v.string, "request") != 0) {
+        THROW("OAM ping is '%s' not request", jscode->v.string);
     }
 
-    //JS_OBJECT_GET(js, return, object); XXX we can't do this because return is a keyword
-    struct JsonValue *return_addr = json_object_get_object(js, "return");
-    if (return_addr == NULL) {
-        THROW("No return address in OAM ping request message.");
-    }
-    struct JsonValue *return_dup = json_duplicate(return_addr);
+    JS_OBJECT_GET(js, return, object);
+    struct JsonValue *return_dup = json_duplicate(jsreturn);
     json_object_remove(js, "return");
 
-    //JS_OBJECT_GET(js, object, any); XXX we can't do this because any is not a type
     struct JsonValue *jos = json_object_get_any(js, "object");
     json_object_remove(js, "object");
     json_object_insert(js, "receiver", mp_get_state_json(mp, jos != NULL));
@@ -433,11 +428,11 @@ static bool new_process_ping_request(struct OAM_MaintenancePoint *mp, struct Jso
     return send_message_outofband(js, return_dup);
 }
 
-static bool new_send_rping_error(struct OAM_MaintenancePoint *mp, struct JsonValue *js, struct timespec recv_time,
+static bool send_rping_error(struct OAM_MaintenancePoint *mp, struct JsonValue *js, struct timespec recv_time,
         const char *error)
 {
-    struct JsonValue *return_addr = json_object_get_object(js, "return");
-    struct JsonValue *return_dup = json_duplicate(return_addr);
+    JS_OBJECT_GET(js, return, object);
+    struct JsonValue *return_dup = json_duplicate(jsreturn);
     json_object_remove(js, "return");
 
     json_object_insert(js, "code", json_string("error"));
@@ -451,45 +446,40 @@ static bool new_send_rping_error(struct OAM_MaintenancePoint *mp, struct JsonVal
     return send_message_outofband(js, return_dup);
 }
 
-static bool new_process_rping_request(struct OAM_MaintenancePoint *mp, struct JsonValue *js, struct timespec recv_time)
+static bool process_rping_request(struct OAM_MaintenancePoint *mp, struct JsonValue *js, struct timespec recv_time)
 {
     JS_OBJECT_GET(js, code, string);
-    if (strcmp(code->v.string, "request") != 0) {
-        THROW("OAM rping is '%s' not request", code->v.string);
+    if (strcmp(jscode->v.string, "request") != 0) {
+        THROW("OAM rping is '%s' not request", jscode->v.string);
     }
 
-    //JS_OBJECT_GET(js, return, object); XXX we can't do this because return is a keyword
-    struct JsonValue *return_addr = json_object_get_object(js, "return");
-    if (return_addr == NULL) {
-        THROW("No return address in OAM rping request message.");
-    }
-
+    JS_OBJECT_GET(js, return, object);
     JS_OBJECT_GET(js, stream, string);
     JS_OBJECT_GET(js, session, number);
     JS_OBJECT_GET(js, command, string);
 
-    struct OamRequest *ping_req = parse_ping_command(command->v.string, false, true, NULL);
+    struct OamRequest *ping_req = parse_ping_command(jscommand->v.string, false, true, NULL);
     if (request_get_error(ping_req) == NULL) {
         if (!same_compound_stream(request_get_stream_name(ping_req), mp_get_stream_name(mp))) {
             const char *error = strdup_printf("could not create ping request: streams '%s' and '%s' are not related",
                     request_get_stream_name(ping_req), mp_get_stream_name(mp));
             delete_oam_request(ping_req);
-            return new_send_rping_error(mp, js, recv_time, error);
+            return send_rping_error(mp, js, recv_time, error);
         }
 
-        request_set_return_addr(ping_req, json_duplicate(return_addr));
+        request_set_return_addr(ping_req, json_duplicate(jsreturn));
 
-        request_set_originator(ping_req, stream->v.string, session->v.number);
+        request_set_originator(ping_req, jsstream->v.string, jssession->v.number);
 
         if (!initiate_request(ping_req)) {
             const char *error = strdup_printf("could not send ping request: %s", request_get_error(ping_req));
             delete_oam_request(ping_req);
-            return new_send_rping_error(mp, js, recv_time, error);
+            return send_rping_error(mp, js, recv_time, error);
         }
     } else {
         const char *error = strdup_printf("could not create ping request: %s", request_get_error(ping_req));
         delete_oam_request(ping_req);
-        return new_send_rping_error(mp, js, recv_time, error);
+        return send_rping_error(mp, js, recv_time, error);
     }
     json_delete(js);
     return false;
@@ -511,20 +501,15 @@ static int add_mp_cb(const char *key, void *value, void *userdata)
     return 1;
 }
 
-static bool new_process_rlist_request(struct OAM_MaintenancePoint *mp, struct JsonValue *js, struct timespec recv_time)
+static bool process_rlist_request(struct OAM_MaintenancePoint *mp, struct JsonValue *js, struct timespec recv_time)
 {
     JS_OBJECT_GET(js, code, string);
-    if (strcmp(code->v.string, "request") != 0) {
-        THROW("OAM rlist is '%s' not request", code->v.string);
+    if (strcmp(jscode->v.string, "request") != 0) {
+        THROW("OAM rlist is '%s' not request", jscode->v.string);
     }
 
-    //JS_OBJECT_GET(js, return, object); XXX we can't do this because return is a keyword
-    struct JsonValue *return_addr = json_object_get_object(js, "return");
-    if (return_addr == NULL) {
-        THROW("No return address in OAM rping request message.");
-    }
-
-    struct JsonValue *return_dup = json_duplicate(return_addr);
+    JS_OBJECT_GET(js, return, object);
+    struct JsonValue *return_dup = json_duplicate(jsreturn);
     json_object_remove(js, "return");
 
     json_object_insert(js, "code", json_string("reply"));
@@ -544,11 +529,11 @@ static bool new_process_rlist_request(struct OAM_MaintenancePoint *mp, struct Js
     return send_message_outofband(js, return_dup);
 }
 
-static bool new_process_trigger_request(struct OAM_MaintenancePoint *mp, struct JsonValue *js, struct timespec recv_time)
+static bool process_trigger_request(struct OAM_MaintenancePoint *mp, struct JsonValue *js, struct timespec recv_time)
 {
     JS_OBJECT_GET(js, code, string);
-    if (strcmp(code->v.string, "request") != 0) {
-        THROW("OAM rlist is '%s' not request", code->v.string);
+    if (strcmp(jscode->v.string, "request") != 0) {
+        THROW("OAM rlist is '%s' not request", jscode->v.string);
     }
 
     //TODO de-duplicate this with trigger_mep_push_notification() in oam_request.c
@@ -561,15 +546,15 @@ static bool new_process_trigger_request(struct OAM_MaintenancePoint *mp, struct 
     JS_OBJECT_GET(js, target, string);
 
     struct JsonValue *notif = json_object();
-    json_object_insert(notif, "seq", json_number(seq->v.number));
-    json_object_insert(notif, "level", json_number(level->v.number));
-    json_object_insert(notif, "node_id", json_number(nodeid->v.number));
-    json_object_insert(notif, "session", json_number(session->v.number));
+    json_object_insert(notif, "seq", json_number(jsseq->v.number));
+    json_object_insert(notif, "level", json_number(jslevel->v.number));
+    json_object_insert(notif, "node_id", json_number(jsnodeid->v.number));
+    json_object_insert(notif, "session", json_number(jssession->v.number));
     json_object_insert(notif, "recv_s", json_number(recv_time.tv_sec));
     json_object_insert(notif, "recv_ns", json_number(recv_time.tv_nsec));
-    json_object_insert(notif, "source", json_string(source->v.string));
-    json_object_insert(notif, "stream", json_string(stream->v.string));
-    json_object_insert(notif, "target", json_string(target->v.string));
+    json_object_insert(notif, "source", json_string(jssource->v.string));
+    json_object_insert(notif, "stream", json_string(jsstream->v.string));
+    json_object_insert(notif, "target", json_string(jstarget->v.string));
 
     struct JsonValue *jlist = mp_get_state_json_by_object(mp);
     json_object_insert(notif, "mp", jlist);
@@ -582,7 +567,7 @@ static bool process_inband_message(struct OAM_MaintenancePoint *mp, struct JsonV
         unsigned ttl, struct timespec recv_time, bool *message_modified)
 {
     JS_OBJECT_GET(js, level, number);
-    int levelcmp = mp_compare_level(mp, level->v.number);
+    int levelcmp = mp_compare_level(mp, jslevel->v.number);
     if (levelcmp < 0) {
         json_delete(js);
         return false;
@@ -597,10 +582,10 @@ static bool process_inband_message(struct OAM_MaintenancePoint *mp, struct JsonV
     JS_OBJECT_GET(js, target, string);
 
     log_packet("%s received OAM type '%s' code '%s' target '%s' level %f",
-            mp_get_name(mp), type->v.string, code->v.string,
-            target->v.string, level->v.number);
+            mp_get_name(mp), jstype->v.string, jscode->v.string,
+            jstarget->v.string, jslevel->v.number);
 
-    if (strcmp(type->v.string, "ping") == 0) {
+    if (strcmp(jstype->v.string, "ping") == 0) {
         struct JsonValue *jrr = json_object_get_array(js, "rr");
         if (jrr) {
             json_array_push(jrr, json_string(mp_get_name(mp)));
@@ -608,65 +593,65 @@ static bool process_inband_message(struct OAM_MaintenancePoint *mp, struct JsonV
         }
 
         if (ttl == 0) {
-            new_process_ping_request(mp, js, recv_time);
+            process_ping_request(mp, js, recv_time);
             return false;
         }
-        if (strcmp(target->v.string, "any") == 0) {
-            if (!new_process_ping_request(mp, js, recv_time))
+        if (strcmp(jstarget->v.string, "any") == 0) {
+            if (!process_ping_request(mp, js, recv_time))
                 return false;
             return mp_get_type(mp) != OAM_Stop;
         }
-        if (strcmp(target->v.string, mp_get_name(mp)) == 0) {
-            new_process_ping_request(mp, js, recv_time);
+        if (strcmp(jstarget->v.string, mp_get_name(mp)) == 0) {
+            process_ping_request(mp, js, recv_time);
             return false;
         }
         return mp_get_type(mp) != OAM_Stop;
-    } else if (strcmp(type->v.string, "rping") == 0) {
+    } else if (strcmp(jstype->v.string, "rping") == 0) {
         if (ttl == 0) {
             return false;
         }
-        if (strcmp(target->v.string, "any") == 0) {
+        if (strcmp(jstarget->v.string, "any") == 0) {
             return false;
         }
-        if (strcmp(target->v.string, mp_get_name(mp)) == 0) {
-            new_process_rping_request(mp, js, recv_time);
+        if (strcmp(jstarget->v.string, mp_get_name(mp)) == 0) {
+            process_rping_request(mp, js, recv_time);
             return false;
         }
         return mp_get_type(mp) != OAM_Stop;
-    } else if (strcmp(type->v.string, "rlist") == 0) {
+    } else if (strcmp(jstype->v.string, "rlist") == 0) {
         if (ttl == 0) {
             return false;
         }
-        if (strcmp(target->v.string, "any") == 0) {
-            if (!new_process_rlist_request(mp, js, recv_time))
+        if (strcmp(jstarget->v.string, "any") == 0) {
+            if (!process_rlist_request(mp, js, recv_time))
                 return false;
             return mp_get_type(mp) != OAM_Stop;
         }
-        if (strcmp(target->v.string, mp_get_name(mp)) == 0) {
-            new_process_rlist_request(mp, js, recv_time);
+        if (strcmp(jstarget->v.string, mp_get_name(mp)) == 0) {
+            process_rlist_request(mp, js, recv_time);
             return false;
         }
         return mp_get_type(mp) != OAM_Stop;
-    } else if (strcmp(type->v.string, "trigger") == 0) {
+    } else if (strcmp(jstype->v.string, "trigger") == 0) {
         if (ttl == 0) {
             return false;
         }
-        if (strcmp(target->v.string, "any") == 0) {
-            if (!new_process_trigger_request(mp, js, recv_time))
+        if (strcmp(jstarget->v.string, "any") == 0) {
+            if (!process_trigger_request(mp, js, recv_time))
                 return false;
             return mp_get_type(mp) != OAM_Stop;
         }
-        if (strcmp(target->v.string, mp_get_name(mp)) == 0) {
-            new_process_trigger_request(mp, js, recv_time);
+        if (strcmp(jstarget->v.string, mp_get_name(mp)) == 0) {
+            process_trigger_request(mp, js, recv_time);
             return false;
         }
         return mp_get_type(mp) != OAM_Stop;
-    } else if (strcmp(type->v.string, "mask") == 0) {
+    } else if (strcmp(jstype->v.string, "mask") == 0) {
         //TODO figure out how process_mask_request() works (most likely it doesn't)
-    } else if (strcmp(type->v.string, "unamask") == 0) { // compatibility with the old code :)
+    } else if (strcmp(jstype->v.string, "unamask") == 0) { // compatibility with the old code :)
     } else {
         log_error("%s received unknown OAM type '%s'",
-                mp_get_name(mp), type->v.string);
+                mp_get_name(mp), jstype->v.string);
         return false;
     }
     return false; //TODO we shouldn't need this
