@@ -17,7 +17,7 @@
 
 enum OAM_MP_Type { OAM_Start, OAM_Stop, OAM_Intermediate };
 
-enum OAM_MP_Flavor { OAM_PW, OAM_TSN, OAM_SRv6 };
+enum OAM_MP_Encap { OAM_PW, OAM_TSN, OAM_SRv6 };
 
 // state object for a pipeline action that sends/receives OAM packets
 struct OAM_MaintenancePoint;
@@ -30,7 +30,7 @@ bool init_oam(void);
 void finish_oam(void);
 
 // receive on the action pipeline
-// heeps hold of @pi, the action should return ACR_HOLD
+// keeps hold of @pi, the action should return ACR_HOLD
 void oam_receive_inband(struct OAM_MaintenancePoint *mp, struct PipelineIterator *pi);
 
 // receive on a return interface

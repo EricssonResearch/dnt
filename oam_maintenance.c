@@ -34,7 +34,7 @@ struct OAM_MaintenancePoint {
     char *name;
     char *stream_name;
     enum OAM_MP_Type type;
-    enum OAM_MP_Flavor flavor;
+    enum OAM_MP_Encap encap;
     unsigned level;
 
     int reference_count;
@@ -84,6 +84,7 @@ static bool reinterpret_pw_packet(struct Packet *p)
         return false;
     }
 
+    //TODO packet_is_linear()
     if (p->headers[1].type != PROTO_ID_OAM) {
         for (unsigned i=1; i<p->header_count-1; i++) {
             if (p->headers[i+1].start != p->headers[i].start + p->headers[i].len) {
@@ -312,7 +313,7 @@ struct OAM_MaintenancePoint *oam_new_maintenance_point(const char *stream_name, 
     mp->name = strdup(mp_name);
     mp->stream_name = strdup(stream_name);
     mp->type = type;
-    mp->flavor = OAM_PW; //TODO support other flavors
+    mp->encap = OAM_PW; //TODO support other encaps
     mp->level = level;
 
     mp->reference_count = 1;
@@ -373,9 +374,9 @@ const char *mp_type_to_str(enum OAM_MP_Type type)
     return NULL;
 }
 
-const char *mp_flavor_to_str(enum OAM_MP_Flavor flavor)
+const char *mp_encap_to_str(enum OAM_MP_Encap encap)
 {
-    switch (flavor) {
+    switch (encap) {
         case OAM_PW:
             return "PseudoWire";
         case OAM_TSN:
@@ -472,7 +473,7 @@ struct JsonValue *mp_get_state_json_by_object(const struct OAM_MaintenancePoint 
 void mp_print_info(const struct OAM_MaintenancePoint *mp, FILE *out, bool details)
 {
     fprintf(out, "%s in %s level %u %s",
-            mp->name, mp->stream_name, mp->level, mp_flavor_to_str(mp->flavor));
+            mp->name, mp->stream_name, mp->level, mp_encap_to_str(mp->encap));
     if (mp->pipe)
         fprintf(out, " (pipe %s idx %u)", mp->pipe->name, mp->pipe_pos_idx);
 
@@ -495,10 +496,10 @@ int foreach_mp(bool sorted, hashmap_cb *cb, void *userdata)
 
 bool mp_reinterpret_oam_packet(struct OAM_MaintenancePoint *mp, struct Packet *p)
 {
-    if (mp->flavor == OAM_PW) {
+    if (mp->encap == OAM_PW) {
         return reinterpret_pw_packet(p);
     }
-    //TODO other flavors
+    //TODO other encaps
     return false;
 }
 
@@ -510,30 +511,30 @@ void mp_count_received_message(struct OAM_MaintenancePoint *mp, const struct Pac
 
 struct JsonValue *mp_unpack_message(const struct OAM_MaintenancePoint *mp, const struct Packet *p)
 {
-    if (mp->flavor == OAM_PW) {
+    if (mp->encap == OAM_PW) {
         return unpack_pw_message(p);
     }
-    //TODO unpack other flavors
+    //TODO unpack other encaps
 
     return NULL;
 }
 
 bool mp_update_message_payload(const struct OAM_MaintenancePoint *mp, struct Packet *p, const struct JsonValue *msg)
 {
-    if (mp->flavor == OAM_PW) {
+    if (mp->encap == OAM_PW) {
         return update_pw_payload(p, msg);
     }
-    //TODO other flavors
+    //TODO other encaps
 
     return false;
 }
 
 struct JsonValue *mp_pack_message(const struct OAM_MaintenancePoint *mp, struct Packet *p, const struct OamRequest *req)
 {
-    if (mp->flavor == OAM_PW) {
+    if (mp->encap == OAM_PW) {
         return pack_pw_message(p, req);
     }
-    //TODO pack other flavors
+    //TODO pack other encaps
 
     return NULL;
 }

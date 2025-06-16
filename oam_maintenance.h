@@ -22,7 +22,7 @@ struct OAM_MaintenancePoint *find_maintenance_point(const char *name);
 
 const char *mp_type_to_str(enum OAM_MP_Type type);
 
-const char *mp_flavor_to_str(enum OAM_MP_Flavor flavor);
+const char *mp_encap_to_str(enum OAM_MP_Encap encap);
 
 const char *mp_get_name(const struct OAM_MaintenancePoint *mp);
 
@@ -58,19 +58,20 @@ bool mp_reinterpret_oam_packet(struct OAM_MaintenancePoint *mp, struct Packet *p
 // maintain the packet counters for the received OAM messages
 void mp_count_received_message(struct OAM_MaintenancePoint *mp, const struct Packet *p);
 
-// decodes the contents of the OAM message in @packet according to the flavor of @mp
+// decodes the contents of the OAM message in @packet according to the encap of @mp
 // @returns a JSON that contains all the information, or NULL on error
+// doesn't expect mp_reinterpret_oam_packet to have been called on @p
 //  PW: adds the d-ACH contents to the JSON
 //  TSN: adds level from CFM header to the JSON TODO what about RTAG?
 struct JsonValue *mp_unpack_message(const struct OAM_MaintenancePoint *mp, const struct Packet *p);
 
-// writes the payload part of @p from JSON in @msg according to the flavor of @mp
+// writes the payload part of @p from JSON in @msg according to the encap of @mp
 // the items that go into the fixed header are not serialized into the payload
 // mp_reinterpret_oam_packet() must have been called on @p before this!
 // @returns true on success
 bool mp_update_message_payload(const struct OAM_MaintenancePoint *mp, struct Packet *p, const struct JsonValue *msg);
 
-// initializes @p for sending @req in-band according to the flavor of @mp
+// initializes @p for sending @req in-band according to the encap of @mp
 // @returns a JSON object that contains the essential information it needs to contain
 // sets the timestamp of @p, adds it to the returned JSON too
 // adds type and code to the JSON, but none of the type-dependent information
