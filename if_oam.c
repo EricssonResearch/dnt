@@ -54,7 +54,7 @@ static bool oam_recv(struct Interface *iface)
     n = recv(iface->recvfd, buffer, sizeof(buffer)-1, 0);
     if (n>0) {
         buffer[n]=0;
-        oam_recv_reply(buffer);
+        oam_receive_outofband(iface, buffer);
     }
 
     return true;

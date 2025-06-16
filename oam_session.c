@@ -4,15 +4,10 @@
 
 #define OAM_INTERNAL
 
-#include "oam.h"
-#include "oam_command.h"
-//#include "oam_core.h"
-//#include "oam_message.h"
-#include "oam_request.h"
 #include "oam_session.h"
 
 #include "log.h"
-#include "thread_utils.h"
+#include "oam.h"
 #include "utils.h"
 
 #include <stdlib.h>
@@ -23,8 +18,6 @@
 
 
 DEFAULT_LOGGING_MODULE(OAM, INFO);
-
-//TODO move the session handling into a separate unit
 
 struct SessionTracker {
     char *conn_name; // NULL if not issued from a command connection
@@ -37,7 +30,7 @@ struct SessionTracker {
 
 struct StreamSessions {
     struct SessionTracker sessions[16];
-    unsigned last_session; // last request session on this stream TODO should be local to command thread
+    unsigned last_session; // last request session on this stream
 };
 
 static struct HashMap *session_ids = NULL; // stream_name -> struct StreamSessions
@@ -162,8 +155,6 @@ int stop_session(const char *stream_name, int session)
     if (session < 0 || session > 15)
         return 0;
     pthread_mutex_lock(&session_lock);
-    if (session==-1)
-        session = stream->last_session; //TODO the caller should do this
     int res = stop_session_locked(&stream->sessions[session]);
     pthread_mutex_unlock(&session_lock);
     return res;

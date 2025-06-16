@@ -4,7 +4,6 @@
 
 #include "conf_interface.h"
 #include "conf_utils.h"
-#include "inifile.h"
 #include "interface.h"
 #include "log.h"
 #include "utils.h"
@@ -12,10 +11,10 @@
 #include "if_eth.h"
 #include "if_internal.h"
 #include "if_ip.h"
-#include "if_udp_in.h"
-#include "if_udp_out.h"
 #include "if_oam.h"
 #include "if_oam_cmd.h"
+#include "if_udp_in.h"
+#include "if_udp_out.h"
 
 #include <stdlib.h>
 #include <string.h>

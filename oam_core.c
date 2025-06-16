@@ -4,19 +4,16 @@
 
 #define OAM_INTERNAL
 
-#include "oam.h"
-#include "oam_command.h"
 #include "oam_core.h"
 #include "oam_message.h"
-#include "oam_request.h"
 #include "oam_session.h"
 
 #include "if_oam.h"
 #include "hashmap.h"
 #include "log.h"
 #include "notification.h"
-#include "object.h"
-#include "seq_recov.h"
+#include "oam.h"
+#include "state.h"
 #include "thread_utils.h"
 #include "utils.h"
 
@@ -29,15 +26,6 @@ DEFAULT_LOGGING_MODULE(OAM, INFO);
 static struct HashMap *oam_ifaces;
 static struct Interface *oam_default_iface = NULL;
 static struct Interface *oam_cmd_iface = NULL;
-
-static struct HashMap *mep_starts = NULL; // name -> struct MEPStart
-
-struct StreamNameAssociation {
-    struct HashMap *names;
-    struct StreamNameAssociation *next;
-};
-
-static struct StreamNameAssociation *stream_names = NULL;
 
 static bool oam_initialized = false;
 
@@ -102,162 +90,10 @@ unsigned short get_default_node_id(void)
     return oamif_get_uid(oam_default_iface);
 }
 
-static bool is_masked(const struct MepStart *mep, const struct timespec *now);
-
-struct JsonValue *mep_start_get_state(const struct MepStart *mep_start)
-{
-    struct JsonValue *ret = json_object();
-    json_object_insert(ret, "packets_passed", json_number(mep_start->packets_passed));
-    json_object_insert(ret, "octets_passed", json_number(mep_start->octets_passed));
-    json_object_insert(ret, "oam_packets_passed", json_number(mep_start->oam_packets_passed));
-    json_object_insert(ret, "oam_octets_passed", json_number(mep_start->oam_octets_passed));
-    json_object_insert(ret, "name", json_string(mep_start->name));
-    struct timespec now;
-    clock_gettime(CLOCK_REALTIME, &now);
-    bool masked = is_masked(mep_start, &now);
-    json_object_insert(ret, "mask_signal_state", json_string(masked ? "masked" : "unmasked"));
-    json_object_insert(ret, "type", json_string("mep_state"));
-    return ret;
-}
-
-static NotificationLevel mep_start_notification_pull_fn(void *self, struct JsonValue **msg)
-{
-    struct MepStart *mep = (struct MepStart *) self;
-    struct JsonValue *state = mep_start_get_state(mep);
-    *msg = state;
-    return NOTIF_PULL;
-}
-
-static int mep_start_delete_cb(const char *key, void *value, void *userdata)
-{
-    (void)key;
-    (void)userdata;
-    struct MepStart *mepstart = (struct MepStart *)value;
-    notification_register_source(mepstart->name, NULL, NULL, 2000);
-    if (mepstart->target)
-        pipeline_object_unref(mepstart->target);
-    free(mepstart->name);
-    free(mepstart->stream_name);
-    free(mepstart);
-    return 1;
-}
-
-struct AddMepState {
-    struct JsonValue *jlist;
-    struct MepStart *mep;
-};
-static int addtrig_cb(const char *key, void *value, void *userdata)
-{
-    (void) key;
-    struct AddMepState *st = (struct AddMepState *)userdata;
-    struct MepStart *mep = (struct MepStart *)value;
-
-    if (mep_start_in_stream(mep, st->mep->stream_name)) {
-        // limit to meps with the same target
-        if(mep->target == st->mep->target) {
-            struct JsonValue *state = mep_start_get_state(mep);
-            json_array_push(st->jlist, state);
-        }
-    }
-    return 1;
-}
-
-struct JsonValue *mep_start_get_state_by_target(struct MepStart *mep_start)
-{
-    struct JsonValue *jlist = json_array();
-
-    if(mep_start) {
-        if(mep_start->target == NULL) {
-            struct JsonValue *state = mep_start_get_state(mep_start);
-            json_array_push(jlist, state);
-        } else {
-            struct AddMepState st = {jlist, mep_start};
-            foreach_mep_start(addtrig_cb, &st);
-
-            // add target object statistics
-            struct JsonValue *objinfo = mep_start->target->get_state(mep_start->target);
-            json_array_push(jlist, objinfo);
-        }
-    }
-
-    return jlist;
-}
-
-bool oam_create_mep_start(const char *stream_name, const char *mep_name, int level,
-        struct PipelineObject *obj, struct Pipeline *pipe, unsigned idx)
-{
-    if (mep_starts == NULL) {
-        mep_starts = new_hashmap(13, mep_start_delete_cb, NULL);
-    }
-    struct MepStart *mepstart = (struct MepStart *)hashmap_find(mep_starts, mep_name);
-    if (mepstart) {
-        if (mepstart->target != obj) {
-            if (!obj) {
-                log_error("Redefined MEP Start '%s' without target (original target is '%s')",
-                          mep_name, pipelineobject_get_name(mepstart->target));
-            } else if (!mepstart->target) {
-                log_error("MEP Start '%s' with target '%s' conflict with previous definition without target",
-                          mepstart->name, pipelineobject_get_name(obj));
-            } else {
-                log_error("Redefined MEP Start '%s' with mismatching target '%s' (original target is '%s')",
-                        mepstart->name, pipelineobject_get_name(obj), pipelineobject_get_name(mepstart->target));
-            }
-            return false;
-        }
-        if (strcmp(stream_name, mepstart->stream_name) == 0) {
-            // multiple instances of the same compound stream
-            return true;
-        }
-        log_error("MEP Start '%s' defined twice, in streams '%s' and '%s'",
-                mep_name, mepstart->stream_name, stream_name);
-        return false;
-    }
-    mepstart = calloc_struct(MepStart);
-    mepstart->name = strdup(mep_name);
-    mepstart->stream_name = strdup(stream_name);
-    mepstart->level = level;
-    mepstart->pipe = pipe;
-    if (obj) {
-        mepstart->target = obj;
-        pipeline_object_ref(obj);
-        pipelineobject_store_mep_start_name(obj, mep_name);
-    }
-    mepstart->pipe_pos_idx = idx;
-    // for mepstart->pipe see oam_set_pipeline_for_mep_start()
-    hashmap_insert(mep_starts, mepstart->name, mepstart);
-    notification_register_source(mep_name, mep_start_notification_pull_fn, mepstart, 2000);
-    return true;
-}
-
-struct MepStart *find_mep_start(const char *name)
-{
-    return (struct MepStart *)hashmap_find(mep_starts, name);
-}
-
-int foreach_mep_start(hashmap_cb *cb, void *userdata)
-{
-    return hashmap_foreach_sorted(mep_starts, cb, userdata);
-}
-
-int print_mep_start(const struct MepStart *start, FILE *cmd_w)
-{
-    return fprintf(cmd_w, "%s level %d in pipe %s at pos %d\n",
-            start->name, start->level, start->pipe->name, start->pipe_pos_idx);
-}
-
-bool mep_start_in_stream(const struct MepStart *start, const char *stream)
-{
-    for (struct StreamNameAssociation *s=stream_names; s; s=s->next) {
-        if (hashmap_contains(s->names, start->stream_name) && hashmap_contains(s->names, stream))
-            return 1;
-    }
-    return 0;
-}
-
 // check when the last mask heartbeat received
 // time < now+1sec: masked
 // time > now+1sec: unmasked
-static bool is_masked(const struct MepStart *mep, const struct timespec *now)
+/*static bool is_masked(const struct MepStart *mep, const struct timespec *now)
 {
     // mask heartbeat timeout is 1 sec fixed
     struct timespec timeout = { .tv_sec = 1, .tv_nsec = 0 };
@@ -268,17 +104,9 @@ static bool is_masked(const struct MepStart *mep, const struct timespec *now)
     } else {
         return true;
     }
-}
+}*/
 
-static struct OamRequest *new_mask_request(const char *command, struct MepStart *start, int level)
-{
-    struct OamRequest *mask_req = parse_mask_command(command, NULL);
-    request_set_level(mask_req, level);
-    request_set_mepstart(mask_req, start);
-    return mask_req;
-}
-
-static void *mask_checker_thread_fn(void *arg)
+/*static void *mask_checker_thread_fn(void *arg)
 {
     struct MepStart *postmep = (struct MepStart *) arg;
     struct PipelineObject *target = postmep->target;
@@ -334,11 +162,11 @@ static void *mask_checker_thread_fn(void *arg)
     }
     postmep->mask_check_worker = NULL;
     return NULL;
-}
+}*/
 
 // the only purpose of the worker right now is to
 // check masked pre-MIPs and re-generate mask/unmask signal
-void mep_start_wakeup_mask_checker(struct MepStart *start)
+/*void mep_start_wakeup_mask_checker(struct MepStart *start)
 {
     if (start) {
         if (start->mask_check_worker == NULL) {
@@ -348,34 +176,7 @@ void mep_start_wakeup_mask_checker(struct MepStart *start)
             thread_wakeup(start->mask_check_worker);
         }
     }
-}
-
-static int copy_streamname(const char *key, void *value, void *userdata)
-{
-    struct HashMap *snames = (struct HashMap *)userdata;
-    hashmap_insert(snames, strdup(key), value); // value is NULL
-    return 1;
-}
-
-void oam_stream_names_in_pipeline(struct HashMap *names)
-{
-    for (struct StreamNameAssociation *s=stream_names; s; s=s->next) {
-        HASHMAP_ITERATE(names, it) {
-            const char *key = hash_iterator_key(&it);
-            if (hashmap_contains(s->names, key)) {
-                hashmap_foreach(names, copy_streamname, s->names);
-                return;
-            }
-        }
-    }
-
-    // no existing stream set has a common subset with @names
-    struct StreamNameAssociation *sa = calloc_struct(StreamNameAssociation);
-    sa->names = new_hashmap(11, NULL, NULL);
-    hashmap_foreach(names, copy_streamname, sa->names);
-    sa->next = stream_names;
-    stream_names = sa;
-}
+}*/
 
 bool oam_start_background_ping(const char *name, const char *command)
 {
@@ -397,7 +198,7 @@ bool oam_start_background_ping(const char *name, const char *command)
         return false;
     }
 
-    request_set_count(ping_req, 0);    // force infinite count
+    request_set_infinite_count(ping_req);
 
     struct StreamSessions *stream = get_stream_sessions(request_get_stream_name(ping_req));
     if (stream_live_session_count(stream) >= 14) {
@@ -408,18 +209,12 @@ bool oam_start_background_ping(const char *name, const char *command)
     return initiate_request(ping_req);
 }
 
-void mep_start_count_passed(struct MepStart *start, const struct Packet *pkt)
-{
-    __atomic_fetch_add(&start->packets_passed, 1, __ATOMIC_RELAXED);
-    __atomic_fetch_add(&start->octets_passed, packet_length(pkt), __ATOMIC_RELAXED);
-}
-
 bool init_oam(void)
 {
     if (oam_initialized) return true;
 
     init_session_module();
-    init_message_module(oam_default_iface != NULL);
+    init_message_module();
 
     if (oam_default_iface || oam_cmd_iface) {
         log_info("Init OAM fuctionality:%s%s",
@@ -442,15 +237,7 @@ void finish_oam(void)
     finish_cmd_module();
     finish_message_module();
     finish_session_module();
-    delete_hashmap(mep_starts);
     delete_hashmap(oam_ifaces);
-
-    for (struct StreamNameAssociation *s=stream_names; s;) {
-        struct StreamNameAssociation *d = s;
-        s = s->next;
-        delete_hashmap(d->names);
-        free(d);
-    }
 
     log_info("Stopped OAM functionality");
 }

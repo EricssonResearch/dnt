@@ -143,8 +143,55 @@ static void test_ether_pton(void)
     OK(ether_pton("1_2_3_4_5_6", buf) == 0, "should be invalid");
 }
 
+static void test_mac_vlan(void)
+{
+    char *mac;
+    unsigned vlan;
+    OK(parse_mac_vlan("", &mac, &vlan) == false, "should be invalid");
+    OK(parse_mac_vlan("1", &mac, &vlan) == false, "should be invalid");
+    OK(parse_mac_vlan("1:", &mac, &vlan) == false, "should be invalid");
+    OK(parse_mac_vlan("1:2", &mac, &vlan) == false, "should be invalid");
+    OK(parse_mac_vlan("1:2:", &mac, &vlan) == false, "should be invalid");
+    OK(parse_mac_vlan("1:2:3", &mac, &vlan) == false, "should be invalid");
+    OK(parse_mac_vlan("1:2:3:", &mac, &vlan) == false, "should be invalid");
+    OK(parse_mac_vlan("1:2:3:4", &mac, &vlan) == false, "should be invalid");
+    OK(parse_mac_vlan("1:2:3:4:", &mac, &vlan) == false, "should be invalid");
+    OK(parse_mac_vlan("1:2:3:4:5", &mac, &vlan) == false, "should be invalid");
+    OK(parse_mac_vlan("1:2:3:4:5:", &mac, &vlan) == false, "should be invalid");
+    OK(parse_mac_vlan(":::::", &mac, &vlan) == false, "should be invalid");
+    OK(parse_mac_vlan("1:2:3:4:5:6", &mac, &vlan) == true, "should be valid");
+    OK(strcmp(mac, "1:2:3:4:5:6") == 0, "mac wrong '%s'", mac);
+    OK(vlan == 0, "vlan wrong %u", vlan);
+    free(mac);
+    OK(parse_mac_vlan("1:2:3:4:5:6+", &mac, &vlan) == false, "should be invalid");
+    OK(parse_mac_vlan("1:2:3:4:5:6+vlan", &mac, &vlan) == false, "should be invalid");
+    OK(parse_mac_vlan("+", &mac, &vlan) == false, "should be invalid");
+    OK(parse_mac_vlan("+vlan", &mac, &vlan) == false, "should be invalid");
+    OK(parse_mac_vlan("1:2:3:4:5:6+0", &mac, &vlan) == true, "should be valid");
+    OK(strcmp(mac, "1:2:3:4:5:6") == 0, "mac wrong '%s'", mac);
+    OK(vlan == 0, "vlan wrong %u", vlan);
+    free(mac);
+    OK(parse_mac_vlan("1:2:3:4:5:6+100", &mac, &vlan) == true, "should be valid");
+    OK(strcmp(mac, "1:2:3:4:5:6") == 0, "mac wrong '%s'", mac);
+    OK(vlan == 100, "vlan wrong %u", vlan);
+    free(mac);
+    OK(parse_mac_vlan("1:2:3:4:5:6+0x1234", &mac, &vlan) == true, "should be valid");
+    OK(strcmp(mac, "1:2:3:4:5:6") == 0, "mac wrong '%s'", mac);
+    OK(vlan == 0x1234, "vlan wrong %u", vlan);
+    free(mac);
+    OK(parse_mac_vlan("1:2:3:4:5:6+0xffff", &mac, &vlan) == true, "should be valid");
+    OK(strcmp(mac, "1:2:3:4:5:6") == 0, "mac wrong '%s'", mac);
+    OK(vlan == 0xffff, "vlan wrong %u", vlan);
+    free(mac);
+    OK(parse_mac_vlan("1:2:3:4:5:6+0100", &mac, &vlan) == true, "should be valid");
+    OK(strcmp(mac, "1:2:3:4:5:6") == 0, "mac wrong '%s'", mac);
+    OK(vlan == 64, "vlan wrong %u", vlan);
+    free(mac);
+}
+
 TEST_CASES = {
     {"parse_ip_port", test_ip_port},
     {"ether_pton", test_ether_pton},
+    {"parse_mac_vlan", test_mac_vlan},
     {NULL, NULL}
 };

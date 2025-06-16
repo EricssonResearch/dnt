@@ -87,6 +87,7 @@ TESTABLE char *oam_session_id(const struct Packet *p)
 {
     if (p->header_count > 1 && p->headers[1].type == PROTO_ID_OAM) {
         INTERPRET_DACH(p->buf + p->headers[1].start);
+        // note: we don't need stream id here, because RCVY is implicitly in the stream
         return strdup_printf("%d:%d", dach.nodeid, dach.session);
     } else {
         return NULL;

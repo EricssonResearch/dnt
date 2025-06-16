@@ -9,18 +9,22 @@
 #error "this header is internal to the OAM module"
 #endif
 
+#include "oam_command.h"
+#include "oam_request.h"
+#include "thread_utils.h"
+
 #include <stdio.h>
 
 struct StreamSessions;
-
-struct CommandConnection;
-struct OamRequest;
-struct Thread;
 
 struct CommandConnection *command_connection_for_session(const char *stream_name, unsigned session_id);
 
 struct StreamSessions *get_stream_sessions(const char *stream_name);
 
+// allocate a new session id for @req that will be sent in @stream
+// @conn_name is the name of the command connection of @req
+// TODO request_get_conn_name
+// @interval_ms is the send interval for periodic requests (used for calculating timeout)
 int alloc_session_id(struct StreamSessions *stream, struct OamRequest *req,
         const char *conn_name, unsigned interval_ms);
 
@@ -36,10 +40,13 @@ int list_sessions_of_stream(struct StreamSessions *stream, FILE *cmd_w);
 
 int list_sessions_of_all_streams(FILE *cmd_w);
 
+// set the thread that manages the periodic sending of requests
 void session_set_thread(struct StreamSessions *stream, int session, struct Thread *th);
 
 struct Thread *session_get_thread(struct StreamSessions *stream, int session);
 
+// update the last used time of the session to now
+// sessions that haven't been touched in a while are assumed to be timed out
 void session_touch(struct StreamSessions *stream, int session);
 
 void init_session_module(void);

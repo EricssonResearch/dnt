@@ -15,8 +15,12 @@
 
 // public interface of the OAM module
 
-// state object for a point that receives OAM packets
-struct OamEndPoint;
+enum OAM_MP_Type { OAM_Start, OAM_Stop, OAM_Intermediate };
+
+enum OAM_MP_Encap { OAM_PW, OAM_TSN, OAM_SRv6 };
+
+// state object for a pipeline action that sends/receives OAM packets
+struct OAM_MaintenancePoint;
 
 // initialize the OAM module
 // @returns true on success
@@ -25,13 +29,13 @@ bool init_oam(void);
 // stops the OAM module and cleans up its resources
 void finish_oam(void);
 
-// receive on the return interface
-// makes a copy of @msg
-void oam_recv_reply(const char *msg);
-
 // receive on the action pipeline
-// always consumes @pi
-void oam_recv_request(struct OamEndPoint *oam, struct PipelineIterator *pi);
+// keeps hold of @pi, the action should return ACR_HOLD
+void oam_receive_inband(struct OAM_MaintenancePoint *mp, struct PipelineIterator *pi);
+
+// receive on a return interface
+// makes a copy of @message
+void oam_receive_outofband(struct Interface *iface, const char *message);
 
 // receive connection on the command (telnet) interface
 void oam_start_command_connection(int fd, const char *remote_ip, unsigned short remote_port);
@@ -41,24 +45,20 @@ void oam_cli_alert(const char *fmt, ...)
     __attribute__((format(printf, 1, 2)))
     __attribute__((nonnull(1)));
 
-// create a start point in the pipeline
-// it is not a separate action, just a marker where OAM packets can be injected
-bool oam_create_mep_start(const char *stream_name, const char *mep_name, int level,
+// creates a maintenance point or adds reference to an existing one
+// @returns pointer to the MP
+// MPs are uniquely identified by @mp_name
+// when multiple actions refer to the same MP the @stream_name, @type and @level must be the same
+// MP can be bound to a pipeline object @obj to monitor its state
+// if MP is an injector point (OAM_Start, OAM_Intermediate), @pipe and @idx define the injection point
+struct OAM_MaintenancePoint *oam_new_maintenance_point(const char *stream_name, const char *mp_name,
+        enum OAM_MP_Type type, unsigned level,
         struct PipelineObject *obj, struct Pipeline *pipe, unsigned idx);
 
-// create a structure that represents an OAM request receiver point
-// used by MIP and MEP-STOP actions
-struct OamEndPoint *oam_create_endpoint(const char *name, const char *stream, int level, bool stop);
+// removes a reference from @mp
+// @mp is deleted when its reference count reaches zero
+void oam_unref_maintenance_point(struct OAM_MaintenancePoint *mp);
 
-// always returns NULL
-struct OamEndPoint *oam_delete_endpoint(struct OamEndPoint *end);
-
-// the name of the stream can change within an action pipeline (by jump, replicate, eliminate)
-//  with this we know what names are associated with the same stream
-//  we need this to correctly associate monitoring start points with streams
-// @parse_actions_line uses this to report the stream names seen in an action pipeline
-// only the keys of the hash are processed
-void oam_stream_names_in_pipeline(struct HashMap *names);
 
 // specify the command interface that receives telnet connections
 // see @oam_start_command_connection
@@ -71,9 +71,6 @@ void add_oam_if(struct Interface *iface);
 // start an infinitely running OAM ping session
 // it runs in the background, i.e. it is not associated with a telnet session
 bool oam_start_background_ping(const char *name, const char *command);
-
-// update the packet counter of @oam with @p
-void oam_count_packet(struct OamEndPoint *oam, struct Packet *p);
 
 // decode the DetNet Associated Channel Header (PROTO_ID_OAM)
 #define INTERPRET_DACH(header)                                                      \

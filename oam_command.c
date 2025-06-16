@@ -4,16 +4,16 @@
 
 #define OAM_INTERNAL
 
-#include "oam.h"
 #include "oam_command.h"
 #include "oam_core.h"
-#include "oam_message.h"
+#include "oam_maintenance.h"
 #include "oam_request.h"
 #include "oam_session.h"
 
 #include "if_oam.h"
 #include "log.h"
 #include "notification.h"
+#include "oam.h"
 #include "state.h"
 #include "thread_utils.h"
 #include "utils.h"
@@ -65,9 +65,9 @@ struct CommandConnection *find_command_connection(const char *name)
     if (name == NULL) return NULL;
     pthread_mutex_lock(&command_connections_lock);
     struct CommandConnection *ret = (struct CommandConnection *)hashmap_find(command_connections, name);
-    pthread_mutex_unlock(&command_connections_lock);
     if (ret)
         __atomic_fetch_add(&ret->refcount, 1, __ATOMIC_RELAXED);
+    pthread_mutex_unlock(&command_connections_lock);
     return ret;
 }
 
@@ -119,12 +119,13 @@ static const char help_str[] =
     "stop [stream session_id] - stop a running OAM session identified by 'stream:session_id', without parameter it stops the last session\n"
     ;
 
-static int list_mep_cb(const char *key, void *value, void *userdata)
+static int list_startpoints_cb(const char *key, void *value, void *userdata)
 {
     (void)key;
-    struct MepStart *start = (struct MepStart *)value;
+    struct OAM_MaintenancePoint *mp = (struct OAM_MaintenancePoint*)value;
     FILE *cmd_w = (FILE *)userdata;
-    print_mep_start(start, cmd_w);
+    mp_print_info(mp, cmd_w, false);
+    fprintf(cmd_w, "\n");
     return 1;
 }
 
@@ -242,6 +243,7 @@ static void command_loop(struct CommandConnection *conn)
     fprintf(cmd_w, "\033[32mOAM '%s' ready\033[0m%s\n", conn->name,
             have_default_iface()?"":", but has no configured return interface");
 
+    log_info("Telnet connection '%s' from %s %u", conn->name, conn->remote_ip, conn->remote_port);
     struct JsonValue *msg = json_object();
     json_object_insert(msg, "login", json_string(conn->name));
     json_object_insert(msg, "ip", json_string(conn->remote_ip));
@@ -280,6 +282,7 @@ static void command_loop(struct CommandConnection *conn)
 
             // ASCII 4 means End of Transmission (CTRL+D)
             if( (strcmp(oam_command, "exit") == 0) || (strcmp(oam_command, "quit") == 0 || oam_command[0] == 4) ){
+                log_debug("telnet exit command");
                 fprintf(cmd_w, "Exiting.\n");
                 break;
             }
@@ -302,7 +305,7 @@ static void command_loop(struct CommandConnection *conn)
             }
             else if (strcmp(oam_command, "list") == 0) {
                 fprintf(cmd_w, "Available MEP Start points:\n");
-                foreach_mep_start(list_mep_cb, conn->cmd_w);
+                foreach_mp(true, list_startpoints_cb, conn->cmd_w);
             }
             else if (strncmp(oam_command, "log", 3) == 0) {
                 char modulename[64];
@@ -434,10 +437,11 @@ static void command_loop(struct CommandConnection *conn)
                 foreach_oam_ifaces(list_oam_ifaces_cb, conn->cmd_w);
             }
             else if (strncmp(oam_command, "ping", 4) == 0) {
-                struct OamRequest *ping_req = parse_ping_command(oam_command+4, true, true, strdup(conn->name));
+                struct OamRequest *ping_req = parse_ping_command(oam_command+4, true, true, conn->name);
                 CHECK_REQUEST(ping_req);
                 if (!initiate_request(ping_req)) {
-                    ERROR("sending ping command failed");
+                    ERROR("sending ping command failed: %s", request_get_error(ping_req));
+                    delete_oam_request(ping_req);
                 }
                 if (last_stream)
                     free(last_stream);
@@ -445,17 +449,19 @@ static void command_loop(struct CommandConnection *conn)
                 last_session = request_get_session_id(ping_req);
             }
             else if (strncmp(oam_command, "rping", 5) == 0) {
-                struct OamRequest *rping_req = parse_rping_command(oam_command+5, strdup(conn->name));
+                struct OamRequest *rping_req = parse_rping_command(oam_command+5, conn->name);
                 CHECK_REQUEST(rping_req);
                 if (!initiate_request(rping_req)) {
-                    ERROR("sending rping command failed");
+                    ERROR("sending rping command failed: %s", request_get_error(rping_req));
+                    delete_oam_request(rping_req);
                 }
             }
             else if (strncmp(oam_command, "notif_trigger", 13) == 0) {
-                struct OamRequest *trig_req = parse_trigger_command(oam_command+13, true, strdup(conn->name));
+                struct OamRequest *trig_req = parse_trigger_command(oam_command+13, true, conn->name);
                 CHECK_REQUEST(trig_req);
                 if (!initiate_request(trig_req)) {
-                    ERROR("sending notif_trigger command failed");
+                    ERROR("sending notif_trigger command failed: %s", request_get_error(trig_req));
+                    delete_oam_request(trig_req);
                 }
             }
             else if (strncmp(oam_command, "notif_pull", 10) == 0) {
@@ -476,14 +482,15 @@ static void command_loop(struct CommandConnection *conn)
                 }
             }
             else if (strncmp(oam_command, "rlist", 5) == 0) {
-                struct OamRequest *rlist_req = parse_rlist_command(oam_command+5, strdup(conn->name));
+                struct OamRequest *rlist_req = parse_rlist_command(oam_command+5, conn->name);
                 CHECK_REQUEST(rlist_req);
                 if (!initiate_request(rlist_req)) {
-                    ERROR("sending rlist command failed");
+                    ERROR("sending rlist command failed: %s", request_get_error(rlist_req));
+                    delete_oam_request(rlist_req);
                 }
             }
             else if (!strncmp(oam_command, "mask", 4) || !strncmp(oam_command, "unmask", 6)) {
-                struct OamRequest *mask_req = parse_mask_command(oam_command, strdup(conn->name));
+                struct OamRequest *mask_req = parse_mask_command(oam_command, conn->name);
                 CHECK_REQUEST(mask_req);
                 if (!initiate_request(mask_req)) {
                     log_info("sending '%s' signal failed (AutoMIP enabled?)", request_get_type(mask_req));
@@ -497,6 +504,7 @@ static void command_loop(struct CommandConnection *conn)
             if (n < 0) {
                 log_perror("oam commandline read");
             }
+            log_debug("remote closed the telnet socket without 'quit'");
             break;
         }
     }
@@ -511,8 +519,8 @@ static void *command_thread(void *arg)
     struct CommandConnection *conn = (struct CommandConnection *)arg;
     command_loop(conn);
     struct Thread *thread = conn->thread;
-    // the hash delete callback will call thread_stop, but it does nothing to its own thread
     pthread_mutex_lock(&command_connections_lock);
+    // the hash delete callback will call thread_stop, but it does nothing to its own thread
     hashmap_remove(command_connections, conn->name);
     pthread_mutex_unlock(&command_connections_lock);
     thread_exit(thread);
@@ -571,9 +579,10 @@ static int command_connection_delete_cb(const char *key, void *value, void *user
     while (conn->refcount > 0) {
         usleep(1000);
     }
+    if (conn->cmd_w) fclose(conn->cmd_w); // we only need to close the FILE*
+    conn->cmd_w = NULL;
     stop_all_sessions_of_connection(conn);
     thread_stop(conn->thread);
-    fclose(conn->cmd_w); // we only need to close the FILE*
     free(conn->name);
     free(conn->remote_ip);
     free(conn);
@@ -588,5 +597,7 @@ void init_cmd_module(void)
 
 void finish_cmd_module(void)
 {
+    pthread_mutex_lock(&command_connections_lock);
     delete_hashmap(command_connections);
+    pthread_mutex_unlock(&command_connections_lock);
 }

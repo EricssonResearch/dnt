@@ -5,10 +5,9 @@
 #ifndef R2_CONF_OBJECT_H
 #define R2_CONF_OBJECT_H
 
-#include <stdbool.h>
+#include "inifile.h"
 
-struct HashMap;
-struct IniSection;
+#include <stdbool.h>
 
 // parses the object definitions into @objects
 // @returns false on error

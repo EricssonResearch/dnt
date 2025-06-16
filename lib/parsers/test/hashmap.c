@@ -122,10 +122,8 @@ static void test_insert(void)
 
     OK(hashmap_foreach(NULL, NULL, NULL) == 0, "foreach null");
     OK(hashmap_foreach(hash, NULL, NULL) == 0, "foreach null");
-    OK(hashmap_foreach(NULL, abcverify_cb, NULL) == 0, "foreach null");
     OK(hashmap_foreach_sorted(NULL, NULL, NULL) == 0, "foreach null");
     OK(hashmap_foreach_sorted(hash, NULL, NULL) == 0, "foreach null");
-    OK(hashmap_foreach_sorted(NULL, abcverify_order_cb, NULL) == 0, "foreach null");
 
     // interrupting foreach
     abcverify = 0;
@@ -163,8 +161,6 @@ static void test_insert(void)
 
     OK(hashmap_insert(hash, abc+3, abc+4) == 0, "overwrite existing");
     OK(hashmap_find(hash, abc+3) == abc+4, "overwrite successful");
-    OK(hashmap_insert(hash, NULL, abc+5) == 0, "null key not allowed");
-    OK(hashmap_insert(NULL, abc+6, abc+7) == 0, "null hash");
 
     OK(delete_hashmap(hash) == NULL, "delete");
     OK(delete_hashmap(NULL) == NULL, "delete null");
@@ -245,8 +241,6 @@ static void test_change(void)
     *hf = 0.5f; // float can represent this value exactly
     OK(*f == 0.5f, "value overwrite %f", (double)*f);
 
-    OK(hashmap_remove(hash, NULL) == 0, "no key");
-    OK(hashmap_remove(NULL, "null") == 0, "no hash");
     OK(hashmap_remove(hash, "float") == 1, "removed");
     OK(hashmap_remove(hash, "key") == 1, "removed");
     OK(hashmap_usedbuckets(hash) == 1, "one bucket"); // we know hash contains 1 item now

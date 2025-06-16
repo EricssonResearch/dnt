@@ -40,6 +40,12 @@ The in-memory representation is a linked list of the sections, the items in each
 
 Reads data in [JSON format](https://www.json.org/json-en.html) from non-null-terminated strings. It was originally created to read data from messages in Type-Length-Value encoding, where the value contained no null termination. When writing JSON the output string is null-terminated. Dense and formatted output are both supported.
 
-The parser is recursive with limited recursion depth. It supports all JSON features according to the ECMA 404 standard.
+The parser is recursive with limited recursion depth. It supports all JSON features according to the ECMA-404 standard.
 
-Note that printing and scanning numbers depend on the current locale settings in the application (see the `LC_NUMERIC` category). By default the locale is "C", which is good, so this is only relevant if your application explicitly sets a non-default locale, or you are using a framework that automatically adopts the system locale from the environment (e.g. GTK+). If unsure, use the `json_check_locale` function to see if the current locale is suitable.
+Notes:
+
+* The parser reads until the end of the input buffer, and doesn't stop at a \0 character. The \0 character is only allowed as the last byte of the buffer.
+
+* ECMA-404 says object keys are not required to be unique. This parser returns objects that have unique keys -- if the input has multiple items with the same key, only the first one is kept.
+
+* Printing and scanning numbers depend on the current locale settings in the application (see the `LC_NUMERIC` category). By default the locale is "C", which is good, so this is only relevant if your application explicitly sets a non-default locale, or you are using a framework that automatically adopts the system locale from the environment (e.g. GTK+). If unsure, use the `json_check_locale` function to see if the current locale is suitable.

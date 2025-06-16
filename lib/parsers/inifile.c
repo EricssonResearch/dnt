@@ -68,27 +68,22 @@ struct IniSection *delete_inisection(struct IniSection *sec)
 
 int inisection_add(struct IniSection *sec, const char *key, const char *value)
 {
-    if (!sec) return 0;
-    if (!key) return 0;
     if (!value) return 0;
     return hashmap_insert(sec->contents, u_strdup(key), u_strdup(value));
 }
 
 int inisection_remove(struct IniSection *sec, const char *key)
 {
-    if (!sec) return 0;
     return hashmap_remove(sec->contents, key);
 }
 
 char *inisection_get(const struct IniSection *sec, const char *key)
 {
-    if (!sec) return NULL;
     return (char *)hashmap_find(sec->contents, key);
 }
 
 unsigned inisection_count(const struct IniSection *sec)
 {
-    if (!sec) return 0;
     return hashmap_count(sec->contents);
 }
 
@@ -104,7 +99,6 @@ unsigned inisection_sectioncount(const struct IniSection *sec)
 
 struct IniSection *inisection_find_section(struct IniSection *sec, const char *name)
 {
-    if (name == NULL) return NULL;
     struct IniSection *s = sec;
     while (s) {
         if (s->name && strcmp(s->name, name) == 0)

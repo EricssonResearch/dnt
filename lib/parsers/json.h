@@ -29,7 +29,7 @@
  * The reader doesn't assume the input string to be null-terminated.
  * The writer null-terminates the output string.
  *
- * Compatible with the ECMA 404 standard.
+ * Compatible with the ECMA-404 standard.
  */
 
 #include "hashmap.h"
@@ -56,7 +56,7 @@ struct JsonValue {
     enum JsonType type;
     union {
         double number; // cannot be Inf or NaN
-        char *string; // null-terminated
+        char *string; // null-terminated, NULL means empty string
         struct HashMap *object; // opaque, use the json_object_* methods
         struct JsonArray *array; // opaque, use the json_array_* methods
     } v; //TODO anonymous union is c11 or gnu99
@@ -73,7 +73,7 @@ struct JsonValue *json_parse(const char *text, unsigned length, char **error);
 // @returns NULL
 struct JsonValue *json_delete(struct JsonValue *json);
 
-// @returns a JSON string representation of @js
+// @returns a JSON string representation of @json
 // @returns the length of the returned string as @length
 // @returns NULL on memory allocation failure
 // @returns NULL on invalid number value (infinity or NaN)
@@ -83,7 +83,7 @@ struct JsonValue *json_delete(struct JsonValue *json);
 // null-terminates the returned string, @length does not include the null-termination
 char *json_serialize(const struct JsonValue *json, unsigned *length);
 
-// @returns a JSON string representation of @js
+// @returns a JSON string representation of @json
 // @returns the length of the returned string as @length
 // @returns NULL on memory allocation failure
 // @returns NULL on invalid number value (infinity or NaN)
@@ -94,6 +94,18 @@ char *json_serialize(const struct JsonValue *json, unsigned *length);
 // null-terminates the returned string, @length does not include the null-termination
 char *json_serialize_pretty(const struct JsonValue *json, unsigned *length, unsigned indent);
 
+#ifdef JSON_WANT_PRETTY_PRINT
+// only include this if we really need it
+#include <stdio.h>
+
+// prints the JSON string representation of @json to @out
+// @indent controls the depth of the indentation
+// the keys in objects are sorted alphabetically for reproducible results
+// the resulting string is not valid JSON!
+// color scheme: string green, number blue, hash key cyan, bool yellow, null purple
+void json_pretty_colorful_print(const struct JsonValue *json, FILE *out, unsigned indent);
+#endif
+
 // @returns true if the current locale is suitable
 // unfortunately the printing/scanning of numbers depend on the locale
 int json_check_locale(void);
@@ -102,15 +114,19 @@ int json_check_locale(void);
 struct JsonValue *json_null(void);
 struct JsonValue *json_true(void);
 struct JsonValue *json_false(void);
+struct JsonValue *json_bool(int n);
 struct JsonValue *json_number(double n);
 struct JsonValue *json_string(const char *s); // duplicates the given string
 struct JsonValue *json_array(void);
 struct JsonValue *json_object(void);
 
+// @returns a deep copy of @json
+struct JsonValue *json_duplicate(const struct JsonValue *json);
+
 // array indexing for retrieval
 // valid index @i are 0..size-1
 // @returns NULL for invalid index
-struct JsonValue *json_array_at(struct JsonValue *array, unsigned i);
+struct JsonValue *json_array_at(const struct JsonValue *array, unsigned i);
 
 // array indexing for replacing an existing value
 // valid index @i are 0..size-1
@@ -138,6 +154,8 @@ int json_array_empty(const struct JsonValue *array);
 unsigned json_array_size(const struct JsonValue *array);
 
 // @key is copied, @value is not
+// @key cannot be NULL
+// replaces any existing value with the same key
 void json_object_insert(struct JsonValue *object, const char *key, struct JsonValue *value);
 
 // the (key, value) pair in @object is deleted, @key is untouched

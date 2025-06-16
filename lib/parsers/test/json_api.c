@@ -50,6 +50,17 @@ static void test_simple(void)
     js = json_delete(js);
     OK_FATAL(js == NULL, "delete returns null");
 
+    js = json_bool(0);
+    OK_FATAL(js, "have value");
+    OK(js->type == JSON_FALSE, "false");
+    js = json_delete(js);
+    OK_FATAL(js == NULL, "delete returns null");
+    js = json_bool(42);
+    OK_FATAL(js, "have value");
+    OK_FATAL(js->type == JSON_TRUE, "true");
+    js = json_delete(js);
+    OK_FATAL(js == NULL, "delete returns null");
+
     js = json_number(4.2);
     OK_FATAL(js, "have value");
     OK_FATAL(js->type == JSON_NUMBER, "number");
@@ -63,6 +74,13 @@ static void test_simple(void)
     OK_FATAL(js, "have value");
     OK_FATAL(js->type == JSON_STRING, "string");
     OK(strcmp(js->v.string, "jawa script") == 0, "value '%s'", js->v.string);
+    js = json_delete(js);
+    OK_FATAL(js == NULL, "delete returns null");
+
+    js = json_string(NULL); // this is a valid empty string
+    OK_FATAL(js, "have value");
+    OK_FATAL(js->type == JSON_STRING, "string");
+    OK(js->v.string == NULL, "null string %p", js->v.string);
     js = json_delete(js);
     OK_FATAL(js == NULL, "delete returns null");
 
@@ -217,9 +235,41 @@ static void test_object(void)
     OK_FATAL(js == NULL, "delete returns null");
 }
 
+static void test_duplicate(void)
+{
+    struct JsonValue *obj = json_object();
+    json_object_insert(obj, "null", json_null());
+    json_object_insert(obj, "false", json_false());
+    json_object_insert(obj, "true", json_true());
+    json_object_insert(obj, "string", json_string("I'm a string hehe"));
+    json_object_insert(obj, "number", json_number(42));
+    struct JsonValue *arr = json_array();
+    json_array_push(arr, json_string("string in array"));
+    json_array_push(arr, json_number(99));
+    struct JsonValue *a_obj = json_object();
+    json_object_insert(a_obj, "string", json_string("I'm another string hihi"));
+    json_array_push(arr, a_obj);
+    json_object_insert(obj, "array", arr);
+
+    struct JsonValue *dup = json_duplicate(obj);
+
+    unsigned olen;
+    char *ostr = json_serialize(obj, &olen);
+    unsigned dlen;
+    char *dstr = json_serialize(dup, &dlen);
+    OK(olen != 0, "olen %u", olen);
+    OK(olen == dlen, "olen %u dlen %u", olen, dlen);
+    OK(strcmp(ostr, dstr) == 0, "strings should be the same");
+    json_delete(obj);
+    json_delete(dup);
+    free(ostr);
+    free(dstr);
+}
+
 TEST_CASES = {
     {"simple", test_simple},
     {"array", test_array},
     {"object", test_object},
+    {"duplicate", test_duplicate},
     {NULL, NULL}
 };

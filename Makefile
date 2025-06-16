@@ -25,7 +25,7 @@ OBJECTS += log.o inet_utils.o thread_utils.o utils.o
 OBJECTS += if_eth.o if_internal.o if_ip.o if_oam.o if_oam_cmd.o if_udp_in.o if_udp_out.o if_utils.o
 OBJECTS += pof.o replicate.o seq_gen.o seq_recov.o
 OBJECTS += notification.o sysmon.o
-OBJECTS += oam_command.o oam_core.o oam_message.o oam_request.o oam_session.o
+OBJECTS += oam_command.o oam_core.o oam_maintenance.o oam_message.o oam_request.o oam_session.o
 OBJECTS += configfile.o conf_actions.o conf_interface.o conf_object.o conf_packet.o conf_streams.o conf_oam.o conf_utils.o
 OBJECTS += lib/parsers/hashmap.o lib/parsers/inifile.o lib/parsers/json.o
 
@@ -34,7 +34,7 @@ HEADERS += log.h inet_utils.h thread_utils.h time_utils.h utils.h version.h
 HEADERS += if_eth.h if_internal.h if_ip.h if_udp_in.h if_udp_out.h if_utils.h if_oam.h if_oam_cmd.h
 HEADERS += pof.h replicate.h seq_gen.h seq_recov.h
 HEADERS += notification.h sysmon.h
-HEADERS += oam.h oam_command.h oam_core.h oam_message.h oam_request.h oam_session.h
+HEADERS += oam.h oam_command.h oam_core.h oam_maintenance.h oam_message.h oam_request.h oam_session.h
 HEADERS += configfile.h conf_actions.h conf_interface.h conf_object.h conf_packet.h conf_streams.h conf_oam.h conf_utils.h
 HEADERS += lib/parsers/hashmap.h lib/parsers/inifile.h lib/parsers/json.h lib/parsers/parserutils.h
 

@@ -5,10 +5,7 @@
 #include "conf_streams.h"
 #include "conf_actions.h"
 #include "conf_packet.h"
-#include "inifile.h"
-#include "interface.h"
 #include "log.h"
-#include "parsetree.h"
 #include "utils.h"
 
 #include <stdio.h>

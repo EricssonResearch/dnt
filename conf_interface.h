@@ -5,12 +5,10 @@
 #ifndef R2_CONF_INTERFACE_H
 #define R2_CONF_INTERFACE_H
 
-#include <stdbool.h>
+#include "conf_streams.h"
+#include "inifile.h"
 
-struct HashMap;
-struct IniSection;
-struct Interface;
-struct ConfStream;
+#include <stdbool.h>
 
 struct ConfStreamList {
     struct ConfStream *stream;

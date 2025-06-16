@@ -92,6 +92,12 @@ static void test_write(void)
     } while (0);
 
     do {
+        const char *expected = "\"\"";
+        struct JsonValue *val = json_string(NULL);
+        CHECK;
+    } while (0);
+
+    do {
         // sample text from Wikipedia
         const char *expected = "\"JSON (JavaScript Object Notation) is a lightweight data-interchange format. It is easy for humans to read and write. It is easy for machines to parse and generate. It is based on a subset of the JavaScript Programming Language Standard ECMA-262 3rd Edition - December 1999. JSON is a text format that is completely language independent but uses conventions that are familiar to programmers of the C-family of languages, including C, C++, C#, Java, JavaScript, Perl, Python, and many others. These properties make JSON an ideal data-interchange language.\"";
         struct JsonValue *val = json_string("JSON (JavaScript Object Notation) is a lightweight data-interchange format. It is easy for humans to read and write. It is easy for machines to parse and generate. It is based on a subset of the JavaScript Programming Language Standard ECMA-262 3rd Edition - December 1999. JSON is a text format that is completely language independent but uses conventions that are familiar to programmers of the C-family of languages, including C, C++, C#, Java, JavaScript, Perl, Python, and many others. These properties make JSON an ideal data-interchange language.");
@@ -184,6 +190,13 @@ static void test_write(void)
         json_object_insert(val, " ke\\y\n 2", json_false());
         json_object_insert(val, "何か", json_number(-99));
         json_object_insert(val, "key\x3", json_string("érték"));
+        CHECK;
+    } while (0);
+
+    do {
+        const char *expected = "{\"\":\"\"}";
+        struct JsonValue *val = json_object();
+        json_object_insert(val, "", json_string(NULL)); // NULL key is not allowed
         CHECK;
     } while (0);
 
@@ -331,6 +344,12 @@ static void test_write_pretty(void)
     } while (0);
 
     do {
+        const char *expected = "\"\"";
+        struct JsonValue *val = json_string(NULL);
+        CHECK;
+    } while (0);
+
+    do {
         const char *expected = "\"JSON (JavaScript Object Notation) is a lightweight data-interchange format. It is easy for humans to read and write. It is easy for machines to parse and generate. It is based on a subset of the JavaScript Programming Language Standard ECMA-262 3rd Edition - December 1999. JSON is a text format that is completely language independent but uses conventions that are familiar to programmers of the C-family of languages, including C, C++, C#, Java, JavaScript, Perl, Python, and many others. These properties make JSON an ideal data-interchange language.\"";
         struct JsonValue *val = json_string("JSON (JavaScript Object Notation) is a lightweight data-interchange format. It is easy for humans to read and write. It is easy for machines to parse and generate. It is based on a subset of the JavaScript Programming Language Standard ECMA-262 3rd Edition - December 1999. JSON is a text format that is completely language independent but uses conventions that are familiar to programmers of the C-family of languages, including C, C++, C#, Java, JavaScript, Perl, Python, and many others. These properties make JSON an ideal data-interchange language.");
         CHECK;
@@ -424,6 +443,13 @@ static void test_write_pretty(void)
         json_object_insert(val, " ke\\y\n 2", json_false());
         json_object_insert(val, "何か", json_number(-99));
         json_object_insert(val, "key\x3", json_string("érték"));
+        CHECK;
+    } while (0);
+
+    do {
+        const char *expected = "{\n   \"\" : \"\"\n}";
+        struct JsonValue *val = json_object();
+        json_object_insert(val, "", json_string(NULL)); // NULL key is not allowed
         CHECK;
     } while (0);
 

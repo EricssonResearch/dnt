@@ -9,7 +9,7 @@
 #error "this header is internal to the OAM module"
 #endif
 
-void init_message_module(bool have_reply_iface);
+void init_message_module(void);
 
 void finish_message_module(void);
 
