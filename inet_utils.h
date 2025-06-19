@@ -7,6 +7,8 @@
 
 #include <stdbool.h>
 
+#define ETHER_ADDSTRLEN 18
+
 // parses @str, accepts 'ipv4' 'ipv4:port', 'ipv6', '[ipv6]', '[ipv6]:port'
 // see RFC 2732
 // only accepts valid address strings and ports
@@ -20,6 +22,13 @@ bool parse_ip_port(const char *str, char **ip, unsigned *port);
 // writes the result into @dst buffer, which should have enough space (6 bytes)
 // @returns 1 on success, 0 on failure
 int ether_pton(const char *src, void *dst);
+
+// converts a MAC address in @src to the colon-separated hex form
+// writes the result into @dst buffer of size @dstsize
+// unlike ether_ntoa() this is thread-safe
+// @dst should be able to hold at least ETHER_ADDSTRLEN bytes
+// @returns @dst on success, NULL on error
+const char *ether_ntop(const void *src, char *dst, unsigned dstsize);
 
 // parses @str, accepts 'mac' 'mac+decvlan' 'mac+0xhexvlan' 'mac+0octvlan'
 // only accepts valid address strings and vlan numbers

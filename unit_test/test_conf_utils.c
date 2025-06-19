@@ -579,7 +579,7 @@ static void test_read_constant(void)
     OK(read_constant(&val, PROTO_ID_MPLS, FT_MACADDRESS, "1:2:3:4:5:6test") == false, "should be rejected");
     OK(read_constant(&val, PROTO_ID_MPLS, FT_MACADDRESS, "1:2:3:4:5:6and something") == false, "should be rejected");
     OK(read_constant(&val, PROTO_ID_MPLS, FT_MACADDRESS, "1:2:3:4:5:6 test") == false, "should be rejected");
-    // ether_aton() only accepts the colon notation
+    // ether_pton() only accepts the colon notation
     OK(read_constant(&val, PROTO_ID_MPLS, FT_MACADDRESS, "1-2-3-4-5-6") == false, "should be rejected");
     OK(read_constant(&val, PROTO_ID_MPLS, FT_MACADDRESS, "1_2_3_4_5_6") == false, "should be rejected");
     OK(read_constant(&val, PROTO_ID_MPLS, FT_MACADDRESS, "a:b:c:d:e:f/13") == true, "should be accepted");

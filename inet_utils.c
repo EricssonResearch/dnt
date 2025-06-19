@@ -105,6 +105,17 @@ int ether_pton(const char *src, void *dst)
     return 1;
 }
 
+const char *ether_ntop(const void *src, char *dst, unsigned dstsize)
+{
+    const unsigned char *src_char = (const unsigned char *)src;
+    if (dstsize < ETHER_ADDSTRLEN)
+        return NULL;
+    snprintf(dst, dstsize, "%.2x:%.2x:%.2x:%.2x:%.2x:%.2x",
+            src_char[0], src_char[1], src_char[2],
+            src_char[3], src_char[4], src_char[5]);
+    return dst;
+}
+
 bool parse_mac_vlan(const char *str, char **mac, unsigned *vlan)
 {
     const char *plus = strchr(str, '+');

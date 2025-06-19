@@ -143,6 +143,19 @@ static void test_ether_pton(void)
     OK(ether_pton("1_2_3_4_5_6", buf) == 0, "should be invalid");
 }
 
+static void test_ether_ntop(void)
+{
+    unsigned char eth1[] = {1, 2, 3, 4, 5, 6};
+    unsigned char eth2[] = {0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff};
+    char eth_str[ETHER_ADDSTRLEN];
+    OK(ether_ntop(eth1, eth_str, sizeof(eth_str)) == eth_str, "should be valid");
+    OK(strcmp(eth_str, "01:02:03:04:05:06") == 0, "address '%s'", eth_str);
+    OK(ether_ntop(eth2, eth_str, sizeof(eth_str)) == eth_str, "should be valid");
+    OK(strcmp(eth_str, "aa:bb:cc:dd:ee:ff") == 0, "address '%s'", eth_str);
+
+    OK(ether_ntop(eth1, eth_str, sizeof(eth_str)-1) == NULL, "dst buffer should be too small");
+}
+
 static void test_mac_vlan(void)
 {
     char *mac;
@@ -192,6 +205,7 @@ static void test_mac_vlan(void)
 TEST_CASES = {
     {"parse_ip_port", test_ip_port},
     {"ether_pton", test_ether_pton},
+    {"ether_ntop", test_ether_ntop},
     {"parse_mac_vlan", test_mac_vlan},
     {NULL, NULL}
 };
