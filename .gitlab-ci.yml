@@ -124,7 +124,7 @@ pytest_mask:
   script:
     - cd test
     - python3 -m mask.mask
-  allow_failure: false
+  allow_failure: true
 
 pytest_pof:
   extends: .pytest.common

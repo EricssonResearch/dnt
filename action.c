@@ -260,45 +260,47 @@ static enum ActionResult action_ELIM_execute(struct Action *a, struct PipelineIt
 
     //TODO packet_is_linear()
 
-    if (ed->protostack[0] == PROTO_ID_ETH) {
-        // we have TSN
-        if (ed->rtag_index) {
-            unsigned char *rtag_hdr = p->buf + p->headers[ed->rtag_index].start;
-            bool packet_is_oam = (rtag_hdr[0] & 0xf0) == 0x10;
+    if (ed->protostack) {
+        if (ed->protostack[0] == PROTO_ID_ETH) {
+            // we have TSN
+            if (ed->rtag_index) {
+                unsigned char *rtag_hdr = p->buf + p->headers[ed->rtag_index].start;
+                bool packet_is_oam = (rtag_hdr[0] & 0xf0) == 0x10;
 
-            if (packet_is_oam) {
-                unsigned char *p_smac = p->buf + p->headers[0].start + 6;
-                unsigned char *p_seq = p->buf + p->headers[ed->rtag_index].start + 1;
-                unsigned char *p_sessionid = p->buf + p->headers[ed->rtag_index].start + 3;
-                unsigned char *p_level = p->buf + p->headers[ed->rtag_index+1].start;
-                char smac_str[ETHER_ADDSTRLEN];
-                ether_ntop(p_smac, smac_str, ETHER_ADDSTRLEN);
-                unsigned char sessionid = (*p_sessionid) & 0x0f;
-                unsigned char level = (*p_level) >> 5;
-                char *session = strdup_printf("%s:%hhu:%hhu", smac_str, sessionid, level);
-                log_debug("TSN session %s", session);
+                if (packet_is_oam) {
+                    unsigned char *p_smac = p->buf + p->headers[0].start + 6;
+                    unsigned char *p_seq = p->buf + p->headers[ed->rtag_index].start + 1;
+                    unsigned char *p_sessionid = p->buf + p->headers[ed->rtag_index].start + 3;
+                    unsigned char *p_level = p->buf + p->headers[ed->rtag_index+1].start;
+                    char smac_str[ETHER_ADDSTRLEN];
+                    ether_ntop(p_smac, smac_str, ETHER_ADDSTRLEN);
+                    unsigned char sessionid = (*p_sessionid) & 0x0f;
+                    unsigned char level = (*p_level) >> 5;
+                    char *session = strdup_printf("%s:%hhu:%hhu", smac_str, sessionid, level);
+                    log_debug("TSN session %s", session);
 
-                return oam_recovery(ed->rcvy, pi->packet, session, *p_seq);
+                    return oam_recovery(ed->rcvy, pi->packet, session, *p_seq);
+                }
+            } else {
+                // TODO if we don't have RTAG then how do we eliminate the data packets??
+                //  -> maybe there was one when we did READSEQ, but it has been deleted
+                //  TODO what can we do here?
+            }
+        } else if (ed->protostack[0] == PROTO_ID_MPLS) {
+            // we have DetNet PseudoWire
+            if (SEQ_IS_OAM(p->sequence)) { //TODO what if READSEQ used a different header?
+                                           // TODO support >1 mpls label
+                INTERPRET_DACH(p->buf + p->headers[1].start);
+                char nodeid_str[10];
+                snprintf(nodeid_str, sizeof(nodeid_str), "%u", dach.nodeid);
+                char *session = strdup_printf("%s:%hhu:%hhu", nodeid_str, dach.session, dach.level);
+                log_debug("PW session %s", session);
+
+                return oam_recovery(ed->rcvy, pi->packet, session, dach.seq);
             }
         } else {
-            // TODO if we don't have RTAG then how do we eliminate the data packets??
-            //  -> maybe there was one when we did READSEQ, but it has been deleted
-            //  TODO what can we do here?
+            //TODO die?
         }
-    } else if (ed->protostack[0] == PROTO_ID_MPLS) {
-        // we have DetNet PseudoWire
-        if (SEQ_IS_OAM(p->sequence)) { //TODO what if READSEQ used a different header?
-            // TODO support >1 mpls label
-            INTERPRET_DACH(p->buf + p->headers[1].start);
-            char nodeid_str[10];
-            snprintf(nodeid_str, sizeof(nodeid_str), "%u", dach.nodeid);
-            char *session = strdup_printf("%s:%hhu:%hhu", nodeid_str, dach.session, dach.level);
-            log_debug("PW session %s", session);
-
-            return oam_recovery(ed->rcvy, pi->packet, session, dach.seq);
-        }
-    } else {
-        //TODO die?
     }
 
     // the sequence number for recovery is pi->packet->sequence
@@ -319,7 +321,9 @@ void create_action_elim(struct Action *a, struct PipelineObject *rcvy, const enu
     struct ElimData *ed = calloc_struct(ElimData);
     ed->rcvy = rcvy;
     ed->protostack = protostack;
-    ANALYZE_PROTOSTACK(ed);
+    if (protostack) {
+        ANALYZE_PROTOSTACK(ed);
+    }
     pipeline_object_ref(rcvy);
     a->action_private = ed;
 }
