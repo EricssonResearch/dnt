@@ -68,6 +68,8 @@ static bool ethertype_from_id(uint16_t *nexthdr, enum ProtocolID id)
         case PROTO_ID_UDP:
         case PROTO_ID_TCP:
         case PROTO_ID_OAM:
+        case PROTO_ID_OAMRTAG:
+        case PROTO_ID_CFM:
             return false;
     }
     return false;
@@ -120,6 +122,8 @@ static bool ipproto_from_id(uint16_t *proto, enum ProtocolID id)
         case PROTO_ID_TCW:
         case PROTO_ID_OAM:
         case PROTO_ID_ARP:
+        case PROTO_ID_OAMRTAG:
+        case PROTO_ID_CFM:
             return false;
     }
     return false;
@@ -291,6 +295,24 @@ static const struct ProtocolField oam_fields[] = {
     {"session",    60,  4, FT_NUMBER},
 };
 
+static const struct ProtocolField oamrtag_fields[] = {
+    {"oam_nibble",  0,  4, FT_NUMBER}, // must be 1
+    {"reserved",    4,  4, FT_NUMBER}, // must be 0 (this is where the non-standard flags are in rtag)
+    {"sequence",    8,  8, FT_NUMBER},
+    {"flags",      16,  8, FT_NUMBER}, // all reserved
+    {"version",    24,  4, FT_NUMBER}, // should be 0
+    {"session",    28,  4, FT_NUMBER},
+};
+
+// common header for 802.1ag Connectivity Fault Management (also ITU-T Y.1731)
+static const struct ProtocolField cfm_fields[] = {
+    {"mel",        0,  3, FT_NUMBER}, // maintenance endpoint level
+    {"version",    3,  5, FT_NUMBER}, // should be 0
+    {"opcode",     8,  8, FT_NUMBER},
+    {"flags",     16,  8, FT_NUMBER}, // no flags are standardized
+    {"tlvoffset", 24,  8, FT_NUMBER}, // length of a fixed header after CFM
+};
+
 // the internal id of the protocols is their index in this array
 //TODO autogenerate this list
 const struct Protocol protocol_list[] = {
@@ -311,6 +333,8 @@ const struct Protocol protocol_list[] = {
     {"udp", udp_fields, ARRAY_SIZE(udp_fields), 8, NULL, NULL, NULL, 0},
     {"tcp", tcp_fields, ARRAY_SIZE(tcp_fields), 20, NULL, NULL, NULL, 0},
     {"oam", oam_fields, ARRAY_SIZE(oam_fields), 8, NULL, NULL, NULL, 0},
+    {"oamrtag", oamrtag_fields, ARRAY_SIZE(oamrtag_fields), 4, NULL, NULL, NULL, 0},
+    {"cfm", cfm_fields, ARRAY_SIZE(cfm_fields), 4, NULL, NULL, NULL, 0},
 };
 
 static const unsigned protocol_count = ARRAY_SIZE(protocol_list);

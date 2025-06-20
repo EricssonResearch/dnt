@@ -40,6 +40,8 @@ enum ProtocolID {
     PROTO_ID_UDP,
     PROTO_ID_TCP,
     PROTO_ID_OAM,
+    PROTO_ID_OAMRTAG,
+    PROTO_ID_CFM,
 };
 
 // describes one field of a protocol header
