@@ -4,6 +4,7 @@
 
 #include "action.h"
 #include "delay.h"
+#include "inet_utils.h"
 #include "oam.h"
 #include "replicate.h"
 #include "seq_gen.h"
@@ -14,7 +15,9 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 #include <arpa/inet.h> /* htonl() */
+#include <linux/if_ether.h> /* ETH_P_* */
 
 DEFAULT_LOGGING_MODULE(PIPELINE, WARNING);
 
@@ -68,6 +71,28 @@ const char *action_name_from_type(enum ActionType type)
     a->type = ACT_ ## type_;                    \
     a->execute = action_ ## type_ ## _execute;  \
     a->text = strdup(text)
+
+#define ANALYZE_PROTOSTACK(_data)                                               \
+    if (protostack[0] == PROTO_ID_ETH) {                                        \
+        for (unsigned i=1; protostack[i]; i++) {                                \
+            if (protostack[i] == PROTO_ID_RTAG) {                               \
+                _data->rtag_index = i;                                          \
+                break;                                                          \
+            }                                                                   \
+        }                                                                       \
+        if (_data->rtag_index == 0) {                                           \
+            for (unsigned i=1; protostack[i]; i++) {                            \
+                if (protostack[i] == PROTO_ID_PAYLOAD) {                        \
+                    _data->last_index = i-1;                                    \
+                    const struct ProtocolField *ethertype =                     \
+                    protocol_get_field_by_type(protostack[i-1], FT_NEXTHEADER); \
+                    _data->ethertype_offset = ethertype->bitoffset / 8;         \
+                    break;                                                      \
+                }                                                               \
+            }                                                                   \
+        }                                                                       \
+    }
+
 
 /////////////////////////////////////////////////////////////////////
 
@@ -220,11 +245,63 @@ void create_action_edit(struct Action *a, struct EditAssign *assigns, unsigned a
 
 struct ElimData {
     struct PipelineObject *rcvy;
+    const enum ProtocolID *protostack;
+
+    // these are for TSN OAM detection
+    unsigned rtag_index;
+    unsigned last_index;
+    unsigned ethertype_offset;
 };
 
 static enum ActionResult action_ELIM_execute(struct Action *a, struct PipelineIterator *pi)
 {
     struct ElimData *ed = (struct ElimData *)a->action_private;
+    struct Packet *p = pi->packet;
+
+    //TODO packet_is_linear()
+
+    if (ed->protostack[0] == PROTO_ID_ETH) {
+        // we have TSN
+        if (ed->rtag_index) {
+            unsigned char *rtag_hdr = p->buf + p->headers[ed->rtag_index].start;
+            bool packet_is_oam = (rtag_hdr[0] & 0xf0) == 0x10;
+
+            if (packet_is_oam) {
+                unsigned char *p_smac = p->buf + p->headers[0].start + 6;
+                unsigned char *p_seq = p->buf + p->headers[ed->rtag_index].start + 1;
+                unsigned char *p_sessionid = p->buf + p->headers[ed->rtag_index].start + 3;
+                unsigned char *p_level = p->buf + p->headers[ed->rtag_index+1].start;
+                char smac_str[ETHER_ADDSTRLEN];
+                ether_ntop(p_smac, smac_str, ETHER_ADDSTRLEN);
+                unsigned char sessionid = (*p_sessionid) & 0x0f;
+                unsigned char level = (*p_level) >> 5;
+                char *session = strdup_printf("%s:%hhu:%hhu", smac_str, sessionid, level);
+                log_debug("TSN session %s", session);
+
+                return oam_recovery(ed->rcvy, pi->packet, session, *p_seq);
+            }
+        } else {
+            // TODO if we don't have RTAG then how do we eliminate the data packets??
+            //  -> maybe there was one when we did READSEQ, but it has been deleted
+            //  TODO what can we do here?
+        }
+    } else if (ed->protostack[0] == PROTO_ID_MPLS) {
+        // we have DetNet PseudoWire
+        if (SEQ_IS_OAM(p->sequence)) { //TODO what if READSEQ used a different header?
+            // TODO support >1 mpls label
+            INTERPRET_DACH(p->buf + p->headers[1].start);
+            char nodeid_str[10];
+            snprintf(nodeid_str, sizeof(nodeid_str), "%u", dach.nodeid);
+            char *session = strdup_printf("%s:%hhu:%hhu", nodeid_str, dach.session, dach.level);
+            log_debug("PW session %s", session);
+
+            return oam_recovery(ed->rcvy, pi->packet, session, dach.seq);
+        }
+    } else {
+        //TODO die?
+    }
+
+    // the sequence number for recovery is pi->packet->sequence
     return ed->rcvy->process_packet(ed->rcvy, pi);
 }
 
@@ -234,13 +311,15 @@ static void action_ELIM_del(void *action_private)
     pipeline_object_unref(ed->rcvy);
 }
 
-void create_action_elim(struct Action *a, struct PipelineObject *rcvy, const char *text)
+void create_action_elim(struct Action *a, struct PipelineObject *rcvy, const enum ProtocolID *protostack, const char *text)
 {
     INIT_ACTION(ELIM);
     a->del = action_ELIM_del;
 
     struct ElimData *ed = calloc_struct(ElimData);
     ed->rcvy = rcvy;
+    ed->protostack = protostack;
+    ANALYZE_PROTOSTACK(ed);
     pipeline_object_ref(rcvy);
     a->action_private = ed;
 }
@@ -255,6 +334,8 @@ static enum ActionResult action_FILTEROAM_execute(struct Action *a, struct Pipel
 {
     struct FilterOamData *fd = (struct FilterOamData *)a->action_private;
 
+    //TODO we have to handle both TSN and DetNet packets
+    //  do we have to change something here?
     struct Packet *p = pi->packet;
     uint8_t *src = p->buf + p->headers[fd->field.header_idx].start + fd->field.bitoffset/8;
     unsigned len = fd->field.bitcount/8; //TODO this is always 4
@@ -298,13 +379,14 @@ static enum ActionResult action_OAMINJECT_execute(struct Action *a, struct Pipel
 
 bool create_action_oam_inject(struct Action *a, const char *name, const char *stream, int level,
                               bool intermediate, struct Pipeline *pipe, unsigned idx,
+                              const enum ProtocolID *protostack,
                               struct PipelineObject *obj, const char *text)
 {
     INIT_ACTION(OAMINJECT);
     a->del = action_OAMINJECT_del;
 
     enum OAM_MP_Type type = intermediate ? OAM_Intermediate : OAM_Start;
-    struct OAM_MaintenancePoint *mp = oam_new_maintenance_point(stream, name, type, level, obj, pipe, idx);
+    struct OAM_MaintenancePoint *mp = oam_new_maintenance_point(stream, name, type, level, protostack, obj, pipe, idx);
     if (mp == NULL) {
         log_error("failed to create maintenance point for inject action %s", name);
         return false;
@@ -319,7 +401,12 @@ bool create_action_oam_inject(struct Action *a, const char *name, const char *st
 
 struct OamReceiveData {
     struct OAM_MaintenancePoint *mp;
-    //TODO store reception criteria here
+    const enum ProtocolID *protostack;
+
+    // these are for TSN OAM detection
+    unsigned rtag_index;
+    unsigned last_index;
+    unsigned ethertype_offset;
 };
 
 static void action_OAMRECEIVE_del(void *action_private)
@@ -333,11 +420,27 @@ static enum ActionResult action_OAMRECEIVE_execute(struct Action *a, struct Pipe
     struct OamReceiveData *ord = (struct OamReceiveData *)a->action_private;
     struct Packet *p = pi->packet;
 
-    //TODO for now this is hardcoded for PW
-    // note: we made sure in conf_actions.c that at this point of the pipeline the packet starts with mpls+dcw
-    unsigned char *oam_hdr = p->buf + p->headers[1].start;
+    bool packet_is_oam = false;
+    if (ord->protostack[0] == PROTO_ID_ETH) {
+        // we have TSN
+        if (ord->rtag_index) {
+            unsigned char *rtag_hdr = p->buf + p->headers[ord->rtag_index].start;
+            packet_is_oam = (rtag_hdr[0] & 0xf0) == 0x10;
+        } else {
+            unsigned char *ethertype = p->buf + p->headers[ord->last_index].start + ord->ethertype_offset;
+            packet_is_oam = (ethertype[0] == ((ETH_P_CFM >> 8) & 0xff))
+                            && (ethertype[1] == (ETH_P_CFM & 0xff));
+        }
+    } else if (ord->protostack[0] == PROTO_ID_MPLS) {
+        // we have DetNet PseudoWire
+        unsigned char *oam_hdr = p->buf + p->headers[1].start;
+        packet_is_oam = (oam_hdr[0] & 0xf0) == 0x10;
+    } else {
+        //TODO die?
+        return ACR_CONTINUE;
+    }
 
-    if ((oam_hdr[0] & 0xf0) == 0x10) {
+    if (packet_is_oam) {
         oam_receive_inband(ord->mp, pi);
         return ACR_HOLD;
     } else {
@@ -346,19 +449,22 @@ static enum ActionResult action_OAMRECEIVE_execute(struct Action *a, struct Pipe
 }
 
 bool create_action_oam_receive(struct Action *a, const char *name, const char *stream, int level,
-                               bool intermediate, struct PipelineObject *obj, const char *text)
+                               bool intermediate, const enum ProtocolID *protostack,
+                               struct PipelineObject *obj, const char *text)
 {
     INIT_ACTION(OAMRECEIVE);
     a->del = action_OAMRECEIVE_del;
 
     enum OAM_MP_Type type = intermediate ? OAM_Intermediate : OAM_Stop;
-    struct OAM_MaintenancePoint *mp = oam_new_maintenance_point(stream, name, type, level, obj, NULL, 0);
+    struct OAM_MaintenancePoint *mp = oam_new_maintenance_point(stream, name, type, level, protostack, obj, NULL, 0);
     if (mp == NULL) {
         log_error("failed to create maintenance point for receive action %s", name);
         return false;
     }
     struct OamReceiveData *ord = calloc_struct(OamReceiveData);
     ord->mp = mp;
+    ord->protostack = protostack;
+    ANALYZE_PROTOSTACK(ord);
     a->action_private = ord;
     return true;
 

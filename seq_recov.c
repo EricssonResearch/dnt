@@ -83,8 +83,10 @@ static void __attribute__((destructor)) cleanup_oam_seq_recoveries(void)
     delete_hashmap(oam_seq_recoveries);
 }
 
+//TODO remove this, and update the unit test
 TESTABLE char *oam_session_id(const struct Packet *p)
 {
+    //TODO don't expect PROTO_ID_OAM (we might not have MIP before ELIM!)
     if (p->header_count > 1 && p->headers[1].type == PROTO_ID_OAM) {
         INTERPRET_DACH(p->buf + p->headers[1].start);
         // note: we don't need stream id here, because RCVY is implicitly in the stream
@@ -106,6 +108,7 @@ static int oam_rcvy_del_cb(const char *key, void *value, void *userdata)
 
 TESTABLE struct SequenceRecovery *get_oam_rcvy(const char *session_id)
 {
+    //TODO oam_seq_recoveries should be in SequenceRecovery !!!
     if (oam_seq_recoveries == NULL)
         oam_seq_recoveries = new_hashmap(5, oam_rcvy_del_cb, NULL);
 
@@ -626,6 +629,25 @@ void seq_rec_set_latent_error_paths(struct PipelineObject *obj, int paths)
     rec->diag.latent_error_paths = paths;
     rec->diag.invalid = true;
     latent_error_reset(rec);
+}
+
+enum ActionResult oam_recovery(struct PipelineObject *obj, struct Packet *p, const char *session_id, unsigned char seq)
+{
+    (void)obj;
+    //TODO why doesn't this get obj as a param??
+    struct SequenceRecovery *oam_rec = get_oam_rcvy(session_id);
+    bool accept = true;
+
+    if (oam_rec) {
+        accept = match_seq_recovery(oam_rec, seq);
+    }
+    if (accept) {
+        packet_logcat(p, "(OAM %d pass) ", seq);
+    } else {
+        packet_logcat(p, "(OAM %d drop) ", seq);
+    }
+
+    return accept ? ACR_CONTINUE : ACR_DONE;
 }
 
 struct PipelineObject *new_seq_rec(const char *name, enum SequenceRecoveryAlgorithm algo,

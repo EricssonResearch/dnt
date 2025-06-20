@@ -41,6 +41,8 @@ struct OAM_MaintenancePoint {
 
     struct Pipeline *pipe;
     int pipe_pos_idx;
+
+    const enum ProtocolID *protostack;
     //TODO address for injection
 
     struct PipelineObject *object;
@@ -249,6 +251,7 @@ static struct JsonValue *pack_pw_message(struct Packet *p, const struct OamReque
 
 struct OAM_MaintenancePoint *oam_new_maintenance_point(const char *stream_name, const char *mp_name,
         enum OAM_MP_Type type, unsigned level,
+        const enum ProtocolID *protostack,
         struct PipelineObject *obj, struct Pipeline *pipe, unsigned idx)
 {
     struct OAM_MaintenancePoint *mp = NULL;
@@ -313,8 +316,9 @@ struct OAM_MaintenancePoint *oam_new_maintenance_point(const char *stream_name, 
     mp->name = strdup(mp_name);
     mp->stream_name = strdup(stream_name);
     mp->type = type;
-    mp->encap = OAM_PW; //TODO support other encaps
+    mp->encap = protostack[0] == PROTO_ID_ETH ? OAM_TSN : OAM_PW;
     mp->level = level;
+    mp->protostack = protostack;
 
     mp->reference_count = 1;
 

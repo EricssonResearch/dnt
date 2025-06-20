@@ -92,19 +92,21 @@ void create_action_drop(struct Action *a, const char *text);
 // can edit multiple different headers at once
 void create_action_edit(struct Action *a, struct EditAssign *assigns, unsigned assign_count, const char *text);
 
-void create_action_elim(struct Action *a, struct PipelineObject *rcvy, const char *text);
+void create_action_elim(struct Action *a, struct PipelineObject *rcvy, const enum ProtocolID *protostack, const char *text);
 
 void create_action_filteroam(struct Action *a, const struct HeaderField *seqfield, const char *text);
 
 // @returns false on error
+// TODO also pass addressing of the injected messages
 bool create_action_oam_inject(struct Action *a, const char *name, const char *stream, int level,
                               bool intermediate, struct Pipeline *pipe, unsigned idx,
+                              const enum ProtocolID *protostack,
                               struct PipelineObject *obj, const char *text);
 
 // @returns false on error
-// TODO also receive the filter criteria for reception
 bool create_action_oam_receive(struct Action *a, const char *name, const char *stream, int level,
-                               bool intermediate, struct PipelineObject *obj, const char *text);
+                               bool intermediate, const enum ProtocolID *protostack,
+                               struct PipelineObject *obj, const char *text);
 
 void create_action_pof(struct Action *a, struct PipelineObject *pof, const char *text);
 

@@ -130,6 +130,7 @@ struct ConfAction {
         struct {
             struct PipelineObject *rec;
             char *pipename;
+            const enum ProtocolID *protostack;
         } elim;
         struct {
             struct HeaderField *field;
@@ -145,6 +146,7 @@ struct ConfAction {
             char *stream;
             int level;
             struct PipelineObject *obj; // NULL if no associated object
+            const enum ProtocolID *protostack;
             bool auto_generated;
         } oam;
         struct {
@@ -1073,25 +1075,42 @@ static struct ConfAction *new_confaction(struct StageState *stst, enum ConfActio
     return ret;
 }
 
-static bool check_header_stack(const struct HeaderDescriptor *headers,
-        enum ProtocolID *expected, unsigned count)
-{
-    for (unsigned i=0; i<count; i++) {
-        if (headers == NULL) {
-            log_warning("header %u should be %s", i,
-                    protocol_type_from_id(expected[i]));
-            return false;
-        }
-        if (headers->id != expected[i]) {
-            log_warning("header %u is %s, expected %s", i,
-                    protocol_type_from_id(headers->id), protocol_type_from_id(expected[i]));
-            return false;
-        }
-        headers = headers->next;
-    }
-    return true;
-}
+// possible protocol stacks in the pipeline, where OAM maintenance points are allowed
+// they are zero-terminated, assuming PROTO_ID_PAYLOAD=0
+static const enum ProtocolID oam_protostack_mplspw[] = {PROTO_ID_MPLS, PROTO_ID_DCW, PROTO_ID_PAYLOAD};
+static const enum ProtocolID oam_protostack_ethcvlan[] = {PROTO_ID_ETH, PROTO_ID_CVLAN, PROTO_ID_PAYLOAD};
+static const enum ProtocolID oam_protostack_ethsvlan[] = {PROTO_ID_ETH, PROTO_ID_SVLAN, PROTO_ID_PAYLOAD};
+static const enum ProtocolID oam_protostack_ethcvlanrtag[] = {PROTO_ID_ETH, PROTO_ID_CVLAN, PROTO_ID_RTAG, PROTO_ID_PAYLOAD};
+static const enum ProtocolID oam_protostack_ethsvlanrtag[] = {PROTO_ID_ETH, PROTO_ID_SVLAN, PROTO_ID_RTAG, PROTO_ID_PAYLOAD};
 
+static const enum ProtocolID *oam_possible_protostacks[] = {
+    oam_protostack_mplspw, oam_protostack_ethcvlan, oam_protostack_ethsvlan,
+    oam_protostack_ethcvlanrtag, oam_protostack_ethsvlanrtag,
+};
+
+static const enum ProtocolID *check_header_stack_for_oam(const struct HeaderDescriptor *headers)
+{
+    for (unsigned i=0; i<ARRAY_SIZE(oam_possible_protostacks); i++) {
+        const struct HeaderDescriptor *h = headers;
+        bool match = true;
+        for (unsigned j=0; oam_possible_protostacks[i][j]; j++) {
+            if (h) {
+                if (h->id != oam_possible_protostacks[i][j]) {
+                    match = false;
+                    break;
+                }
+            } else {
+                // ran out of headers before the protostack
+                match = false;
+                break;
+            }
+            h = h->next;
+        }
+        if (match)
+            return oam_possible_protostacks[i];
+    }
+    return NULL;
+}
 
 // here we do processing that needs all the parameters of the action
 static bool process_action(struct StageState *stst)
@@ -1376,8 +1395,17 @@ static bool process_action(struct StageState *stst)
             if (!stst->seq_set) {
                 THROW("can't eliminate without a sequence number");
             }
-            if (newaction->elim.rec->auto_mip_level > 0 && !oam_mip_autoconfig(stst, NULL))
-                log_warning("cannot generate MIP for '%s'", newaction->elim.rec->name);
+
+            newaction->elim.protostack = check_header_stack_for_oam(stst->headers);
+
+            //TODO what if the protocol stack doesn't have rtag?
+            //      normal recovery works from packet metadata -> okay if stst->seq_set
+            //      oam recovery needs dcw or rtag!!!
+            //      TODO how do we know the user wants oam? -> does the pipeline contain MP after ELIM?
+
+            if (newaction->elim.rec->auto_mip_level >= 0 && !oam_mip_autoconfig(stst, NULL))
+                log_warning("cannot automatically generate MIP for '%s'", newaction->elim.rec->name);
+
             struct ConfAction *elimjump = new_confaction(stst, CA_JUMP,
                     strdup_printf("auto-generated jump for %s", newaction->text));
             elimjump->jump.pipename = strdup(newaction->elim.pipename);
@@ -1443,21 +1471,37 @@ static bool process_action(struct StageState *stst)
             if (newaction->oam.level == -1) {
                 THROW("no level specified for '%s' OAM action", newaction->oam.name);
             }
-            //TODO derive MP flavor from the header stack
-            enum ProtocolID expected[] = {PROTO_ID_MPLS, PROTO_ID_DCW};
+
+            newaction->oam.protostack = check_header_stack_for_oam(stst->headers);
+            if (newaction->oam.protostack == NULL) {
+                THROW("header stack is not suitable for OAM point %s", newaction->oam.name);
+            }
+
+            //TODO analyze the pipeline for setting up the addressing of the injected oam messages
+            //      pipeline can write the address fields AFTER the MP
+            //      pipeline can write the address fields BEFORE the MP
+            //      pipeline can write some of the address fields BEFORE the MP some AFTER the MP
+            //      pipeline doesn't write the address fields, but we have MATCH for them
+            //      any other case is invalid, we can't inject OAM
+            //  TODO depending on protostack we need
+            //      mpls.label
+            //      eth.dmac and vlan.vid (or vlan.vlan?)
+            //  TODO this is irrelevant for CA_MEPSTOP
+
+            /*enum ProtocolID expected[] = {PROTO_ID_MPLS, PROTO_ID_DCW};
             if (check_header_stack(stst->headers, expected, 2) == false) {
                 THROW("header stack is not suitable for OAM point");
-            }
+            }*/
             //TODO replace @must_write with a pipeline analyzer
             //TODO remove CA_MIP for now, it should be there but causes trouble
-            if (newaction->type == CA_MEPSTART /*|| newaction->type == CA_MIP*/) {
+            /*if (newaction->type == CA_MEPSTART / *|| newaction->type == CA_MIP* /) {
                 // this is a packet injection point, user must write label before sending
                 struct MustWriteField *mw = calloc_struct(MustWriteField);
                 mw->header = stst->headers;
                 mw->field = protocol_get_field_by_name(PROTO_ID_MPLS, "label");
                 mw->next = stst->must_write;
                 stst->must_write = mw;
-            }
+            }*/
             break; }
         case CA_POF:
             if (newaction->pof.pof == NULL) {
@@ -1864,7 +1908,7 @@ struct Pipeline *assemble_actions(const char *stream_name, const struct ConfActi
                 create_action_edit(actions+i, assigns, acount, ca->text);
                 break; }
             case CA_ELIM:
-                create_action_elim(actions+i, ca->elim.rec, ca->text);
+                create_action_elim(actions+i, ca->elim.rec, ca->elim.protostack, ca->text);
                 break;
             case CA_FILTEROAM:
                 create_action_filteroam(actions+i, ca->filteroam.field, ca->text);
@@ -1873,24 +1917,24 @@ struct Pipeline *assemble_actions(const char *stream_name, const struct ConfActi
                 THROW("jump should have been inlined");
             case CA_MEPSTART:
                 if (!create_action_oam_inject(actions+i, ca->oam.name, ca->oam.stream, ca->oam.level, false,
-                            ret, i, ca->oam.obj, ca->text)) {
+                            ret, i, ca->oam.protostack, ca->oam.obj, ca->text)) {
                     THROW("couldn't create MEP Start");
                 }
                 break;
             case CA_MEPSTOP:
                 if (!create_action_oam_receive(actions+i, ca->oam.name, ca->oam.stream, ca->oam.level, false,
-                            ca->oam.obj, ca->text)) {
+                            ca->oam.protostack, ca->oam.obj, ca->text)) {
                     THROW("couldn't create MEP Stop");
                 }
                 break;
             case CA_MIP:
                 if (!create_action_oam_receive(actions+i, ca->oam.name, ca->oam.stream, ca->oam.level, true,
-                            ca->oam.obj, ca->text)) {
+                            ca->oam.protostack, ca->oam.obj, ca->text)) {
                     THROW("couldn't create MIP Stop");
                 }
                 i++;
                 if (!create_action_oam_inject(actions+i, ca->oam.name, ca->oam.stream, ca->oam.level, true,
-                            ret, i, ca->oam.obj, ca->text)) {
+                            ret, i, ca->oam.protostack, ca->oam.obj, ca->text)) {
                     THROW("couldn't create MIP Start");
                 }
                 break;

@@ -52,6 +52,9 @@ char *seq_rec_sprintf_state_json(struct JsonValue *json, const char *record_sep,
 
 void seq_rec_set_latent_error_paths(struct PipelineObject *obj, int paths);
 
+// sequence recovery for OAM messages
+enum ActionResult oam_recovery(struct PipelineObject *obj, struct Packet *p, const char *session_id, unsigned char seq);
+
 /*
  * Create a new Sequence Recovery instance
  * @algo: the algorithm for seq recovery: match, seamless, vector

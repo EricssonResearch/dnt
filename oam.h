@@ -51,8 +51,10 @@ void oam_cli_alert(const char *fmt, ...)
 // when multiple actions refer to the same MP the @stream_name, @type and @level must be the same
 // MP can be bound to a pipeline object @obj to monitor its state
 // if MP is an injector point (OAM_Start, OAM_Intermediate), @pipe and @idx define the injection point
+// @protostack determines the encapsulation of the MP
 struct OAM_MaintenancePoint *oam_new_maintenance_point(const char *stream_name, const char *mp_name,
         enum OAM_MP_Type type, unsigned level,
+        const enum ProtocolID *protostack,
         struct PipelineObject *obj, struct Pipeline *pipe, unsigned idx);
 
 // removes a reference from @mp

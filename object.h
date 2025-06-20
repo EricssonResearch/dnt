@@ -41,6 +41,7 @@ void pipeline_object_unref(struct PipelineObject *obj);
 // @returns string representation of the @type enum
 const char *pipelineobject_name_from_type(enum PipelineObjectType type);
 
+//TODO currently all members of PipelineObject are public...
 const char *pipelineobject_get_name(const struct PipelineObject *obj);
 
 // associate MEPStart (name) with the @obj PipelineObject
