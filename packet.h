@@ -126,6 +126,10 @@ void packet_clear_headers(struct Packet *p);
 //  the payload we build is on the scratch space
 void packet_enlarge_scratch(struct Packet *p);
 
+// @returns true if the headers in @p are continuous in memory
+// the headers can be in the receive area or in the scratch space
+bool packet_is_linear(const struct Packet *p);
+
 // prints a warning if there are too many packets in the system
 void packets_check_performance(void);
 

@@ -676,12 +676,6 @@ static void *inband_receiver_th(void *arg)
 
         mp_count_received_message(msg->mp, msg->pi->packet);
 
-        if (mp_reinterpret_oam_packet(msg->mp, msg->pi->packet) == false) {
-            log_error("packet structure is not valid for OAM");
-            pipe_iteraror_cancel(msg->pi);
-            continue;
-        }
-
         struct JsonValue *js = mp_unpack_message(msg->mp, msg->pi->packet);
         if (js == NULL) {
             log_error("invalid JSON payload in received message");
@@ -694,7 +688,7 @@ static void *inband_receiver_th(void *arg)
         //TODO TSN has no ttl, so p->ttl=0 and we are in trouble
         if (process_inband_message(msg->mp, js, msg->pi->packet->ttl, msg->pi->packet->recv_time, &message_modified)) {
             if (message_modified) {
-                if (!mp_update_message_payload(msg->mp, msg->pi->packet, js)) {
+                if (!mp_pack_message_payload(msg->mp, msg->pi->packet, js)) {
                     log_error("could not update JSON payload in received message");
                     pipe_iteraror_cancel(msg->pi);
                     continue;

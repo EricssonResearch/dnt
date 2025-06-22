@@ -203,6 +203,16 @@ void packet_enlarge_scratch(struct Packet *p)
     }
 }
 
+bool packet_is_linear(const struct Packet *p)
+{
+    for (unsigned i=1; i<p->header_count-1; i++) {
+        if (p->headers[i+1].start != p->headers[i].start + p->headers[i].len) {
+            return false;
+        }
+    }
+    return true;
+}
+
 void packets_check_performance(void)
 {
     if (packet_count > PACKET_COUNT_LIMIT * 0.9) {

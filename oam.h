@@ -10,6 +10,9 @@
 #include "pipeline.h"
 #include "hashmap.h"
 
+#define OAM_CFM_REQUEST_OPCODE 128
+#define OAM_CFM_RESPONSE_OPCODE 129
+
 #define SEQ_IS_OAM(seq)     \
     (ntohl(seq) & 0x10000000u)
 

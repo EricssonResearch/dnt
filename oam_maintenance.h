@@ -18,6 +18,7 @@
 #include <stdio.h>
 
 // @returns a pointer and adds a reference to the MP
+// use @oam_unref_maintenance_point to release the reference
 struct OAM_MaintenancePoint *find_maintenance_point(const char *name);
 
 const char *mp_type_to_str(enum OAM_MP_Type type);
@@ -50,11 +51,6 @@ void mp_print_info(const struct OAM_MaintenancePoint *mp, FILE *out, bool detail
 // @userdata is supplied to @cb
 int foreach_mp(bool sorted, hashmap_cb *cb, void *userdata);
 
-// rewrites the header list in @p to reflect that this is an OAM message
-// (OAM packets mimic the user data packets, but they have different format)
-// @returns false if the original header list looks like it can't be an OAM packet
-bool mp_reinterpret_oam_packet(struct OAM_MaintenancePoint *mp, struct Packet *p);
-
 // maintain the packet counters for the received OAM messages
 void mp_count_received_message(struct OAM_MaintenancePoint *mp, const struct Packet *p);
 
@@ -62,21 +58,20 @@ void mp_count_received_message(struct OAM_MaintenancePoint *mp, const struct Pac
 // @returns a JSON that contains all the information, or NULL on error
 // doesn't expect mp_reinterpret_oam_packet to have been called on @p
 //  PW: adds the d-ACH contents to the JSON
-//  TSN: adds level from CFM header to the JSON TODO what about RTAG?
+//  TSN: adds data from CFM, RTAG, ETH headers to the JSON
 struct JsonValue *mp_unpack_message(const struct OAM_MaintenancePoint *mp, const struct Packet *p);
-
-// writes the payload part of @p from JSON in @msg according to the encap of @mp
-// the items that go into the fixed header are not serialized into the payload
-// mp_reinterpret_oam_packet() must have been called on @p before this!
-// @returns true on success
-bool mp_update_message_payload(const struct OAM_MaintenancePoint *mp, struct Packet *p, const struct JsonValue *msg);
 
 // initializes @p for sending @req in-band according to the encap of @mp
 // @returns a JSON object that contains the essential information it needs to contain
 // sets the timestamp of @p, adds it to the returned JSON too
-// adds type and code to the JSON, but none of the type-dependent information
-// the caller should serialize the json, and append it as PAYLOAD header
-struct JsonValue *mp_pack_message(const struct OAM_MaintenancePoint *mp, struct Packet *p, const struct OamRequest *req);
+// adds type and code="request" to the JSON, but none of the type-dependent information
+// after this the caller should use @mp_pack_message_payload to set the payload of the message
+struct JsonValue *mp_pack_message_header(const struct OAM_MaintenancePoint *mp, struct Packet *p, const struct OamRequest *req);
+
+// writes the payload part of @p from JSON in @msg according to the encap of @mp
+// the items that go into the fixed headers are not serialized into the payload
+// @returns true on success
+bool mp_pack_message_payload(const struct OAM_MaintenancePoint *mp, struct Packet *p, const struct JsonValue *msg);
 
 // @returns level <=> mp->level
 //  <0 means the @level is lower, the message must be deleted without processing

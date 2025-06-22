@@ -622,7 +622,7 @@ static void trigger_mep_push_notification(const struct OamRequest *req)
 static bool send_request(const struct OamRequest *req)
 {
     struct Packet *packet = new_packet(NULL);
-    struct JsonValue *js = mp_pack_message(req->mp_start, packet, req);
+    struct JsonValue *js = mp_pack_message_header(req->mp_start, packet, req);
 
     if (req->originator_stream) {
         json_object_insert(js, "stream", json_string(req->originator_stream));
@@ -660,24 +660,13 @@ static bool send_request(const struct OamRequest *req)
         json_object_insert(js, "command", json_string(req->remote_command));
     }
 
-    unsigned js_length;
-    char *js_string;
-    js_string = json_serialize(js, &js_length);
-    json_delete(js);
-    if (js_string == NULL) {
-        delete_packet(packet);
+    if (!mp_pack_message_payload(req->mp_start, packet, js)) {
+        log_error("couldn't pack request payload");
         return false;
     }
-    //TODO don't hardcode 2
-    packet_add_header(packet, 2, PROTO_ID_PAYLOAD, js_length);
-    unsigned char *msg = packet->buf + packet->headers[2].start;
-    memcpy(msg, js_string, js_length);
 
-    log_packet("send request %s %s:%d seq %d lvl %d - %s",
-               mp_get_name(req->mp_start), mp_get_stream_name(req->mp_start), req->session_id, req->seq, req->level,
-               js_string);
-
-    free(js_string);
+    log_packet("send request %s %s:%d seq %d lvl %d",
+               mp_get_name(req->mp_start), mp_get_stream_name(req->mp_start), req->session_id, req->seq, req->level);
 
     mp_inject_packet(req->mp_start, packet);
     return true;

@@ -51,6 +51,7 @@ struct OAM_MaintenancePoint {
     unsigned oam_recv;
 };
 
+// note: this hash doesn't hold reference to the MPs in it
 static struct HashMap *mp_hash = NULL; // name -> struct OAM_MaintenancePoint
 
 
@@ -77,56 +78,35 @@ static NotificationLevel mp_notification_pull_fn(void *self, struct JsonValue **
     return NOTIF_PULL;
 }
 
-static bool reinterpret_pw_packet(struct Packet *p)
-{
-    // we must have at least mpls, dcw
-    // TODO can we have more than one mpls label?
-    if (p->header_count < 2) {
-        log_error("OAM packet doesn't have 2 identified headers (mpls, dcw), how was this matched??");
-        return false;
-    }
-
-    //TODO packet_is_linear()
-    if (p->headers[1].type != PROTO_ID_OAM) {
-        for (unsigned i=1; i<p->header_count-1; i++) {
-            if (p->headers[i+1].start != p->headers[i].start + p->headers[i].len) {
-                log_error("OAM packet is not continuous in memory at header %u type %s",
-                        i, protocol_type_from_id(p->headers[i].type));
-                return false;
-            }
-        }
-
-        unsigned plen = packet_length(p);
-        p->headers[1].type = PROTO_ID_OAM;
-        p->headers[1].len = 8; // length of oam
-        p->headers[2].type = PROTO_ID_PAYLOAD;
-        p->headers[2].start = p->headers[1].start + 8;
-        p->headers[2].len = plen - 4 - 8; // length of mpls and oam
-        p->header_count = 3;
-    }
-    return true;
-}
-
 static struct JsonValue *unpack_pw_message(const struct Packet *p)
 {
-    // we know the packet has at least two headers (mpls, dcw)
-    for (unsigned i=1; i<p->header_count-1; i++) {
-        if (p->headers[i+1].start != p->headers[i].start + p->headers[i].len) {
-            log_error("Received PW OAM packet is not continuous in memory at header %u type %s",
-                    i, protocol_type_from_id(p->headers[i].type));
-            return NULL;
-        }
+    if (p->header_count < 2) {
+        log_error("OAM packet doesn't have 2 identified headers (mpls, dcw), how was this matched??");
+        return NULL;
     }
 
+    if (!packet_is_linear(p)) {
+        log_error("OAM packet is not continuous in memory");
+        return NULL;
+    }
+
+    //TODO support >1 mpls headers?
+    //  use protostack
+
     unsigned plen = packet_length(p);
-    if (plen < 4 + 8) { // mpls + d-ACH
+    unsigned header_len = protocol_from_id(PROTO_ID_MPLS)->bytelength +
+        protocol_from_id(PROTO_ID_OAM)->bytelength;
+
+    if (plen < header_len) {
         log_error("PW OAM packet is too short");
         return NULL;
     }
 
-    unsigned char *dach_start = p->buf + p->headers[1].start;
-    char *json_str = (char*)(p->buf + p->headers[1].start + 8);
-    unsigned json_len = plen - 4 - 8;
+    unsigned char *dach_start = p->buf + p->headers[0].start + protocol_from_id(PROTO_ID_MPLS)->bytelength;
+    char *json_str = (char*)(dach_start + protocol_from_id(PROTO_ID_OAM)->bytelength);
+    unsigned json_len = plen - header_len;
+
+    //TODO decode mpls label into the json?
 
     INTERPRET_DACH(dach_start);
 
@@ -160,46 +140,7 @@ static struct JsonValue *unpack_pw_message(const struct Packet *p)
     return js;
 }
 
-static bool update_pw_payload(struct Packet *p, const struct JsonValue *msg)
-{
-    // note: currently we only use this when doing ping's route request
-
-    struct JsonValue *out = json_duplicate(msg);
-    const char *ach_keys[] = {"version", "seq", "channel", "nodeid", "level", "flags", "session" };
-    for (unsigned i=0; i<ARRAY_SIZE(ach_keys); i++) {
-        json_object_remove(out, ach_keys[i]);
-    }
-
-    unsigned js_length;
-    char *js_string = json_serialize(out, &js_length);
-    if (js_string == NULL) {
-        log_error("could not serialize the updated message");
-        json_delete(out);
-        return false;
-    }
-
-    // write the new json string into p
-    // we expect that mp_reinterpret_oam_packet() has been called on the packet
-    // TODO this packet manipulation is extremely ugly
-    // TODO what if we have more than 1 mpls label?
-    char *payload = (char *)(p->buf + p->headers[2].start);
-    memcpy(payload, js_string, js_length);
-    free(js_string);
-    if (p->headers[2].start < p->start) {
-        // it is on the scratch
-        // note: in mp_reinterpret_oam_packet() we've verified that the headers are
-        //       continuous in memory, so it's safe to assume that the end of
-        //       p->headers[2] is the end of the scratch space
-        p->scratch_len = p->headers[2].start + js_length;
-    } else {
-        // it is in the receive area
-        p->len = 4 + 8 + js_length;
-    }
-    p->headers[2].len = js_length;
-    return true;
-}
-
-static struct JsonValue *pack_pw_message(struct Packet *p, const struct OamRequest *req)
+static struct JsonValue *pack_pw_message_header(struct Packet *p, const struct OamRequest *req)
 {
     unsigned channel = OAM_CHANNEL;
     unsigned nodeid;
@@ -215,9 +156,10 @@ static struct JsonValue *pack_pw_message(struct Packet *p, const struct OamReque
 
     packet_add_header(p, 0, PROTO_ID_MPLS, protocol_from_id(PROTO_ID_MPLS)->bytelength);
     packet_add_header(p, 1, PROTO_ID_OAM, protocol_from_id(PROTO_ID_OAM)->bytelength);
+    packet_add_header(p, 2, PROTO_ID_PAYLOAD, 0);
 
     unsigned char *mpls = p->buf + p->headers[0].start;
-    mpls[0] = 0;
+    mpls[0] = 0; //TODO write label if we have it
     mpls[1] = 0;
     mpls[2] = 1; // BOS
     mpls[3] = ttl;
@@ -246,6 +188,51 @@ static struct JsonValue *pack_pw_message(struct Packet *p, const struct OamReque
     json_object_insert(js, "send_ns", json_number(sendtime.tv_nsec));
 
     return js;
+}
+
+static bool pack_pw_payload(struct Packet *p, const struct JsonValue *msg)
+{
+    if (!packet_is_linear(p)) {
+        log_error("can't update message in packet that is not continuous in memory");
+        return false;
+    }
+
+    struct JsonValue *out = json_duplicate(msg);
+    const char *ach_keys[] = {"version", "seq", "channel", "nodeid", "level", "flags", "session" };
+    for (unsigned i=0; i<ARRAY_SIZE(ach_keys); i++) {
+        json_object_remove(out, ach_keys[i]);
+    }
+
+    unsigned js_length;
+    char *js_string = json_serialize(out, &js_length);
+    if (js_string == NULL) {
+        log_error("could not serialize the updated message");
+        json_delete(out);
+        return false;
+    }
+
+    // TODO support >1 mpls label?
+
+    // write the new json string into p
+    // TODO this packet manipulation is extremely ugly
+    unsigned header_len = protocol_from_id(PROTO_ID_MPLS)->bytelength +
+        protocol_from_id(PROTO_ID_OAM)->bytelength;
+    char *payload = (char *)(p->buf + p->headers[0].start + header_len);
+    memcpy(payload, js_string, js_length);
+    free(js_string);
+    unsigned new_len = header_len + js_length;
+    // note: we don't know how many and what type of headers there are in @p
+    //       we only know that the packet is linear in memory
+    if (p->headers[0].start < p->start) {
+        // data is on the scratch
+        p->headers[p->header_count-1].len += new_len - p->scratch_len;
+        p->scratch_len = new_len;
+    } else {
+        // data is in the receive area
+        p->headers[p->header_count-1].len += new_len - p->len;
+        p->len = new_len;
+    }
+    return true;
 }
 
 
@@ -498,15 +485,6 @@ int foreach_mp(bool sorted, hashmap_cb *cb, void *userdata)
         return hashmap_foreach(mp_hash, cb, userdata);
 }
 
-bool mp_reinterpret_oam_packet(struct OAM_MaintenancePoint *mp, struct Packet *p)
-{
-    if (mp->encap == OAM_PW) {
-        return reinterpret_pw_packet(p);
-    }
-    //TODO other encaps
-    return false;
-}
-
 void mp_count_received_message(struct OAM_MaintenancePoint *mp, const struct Packet *p)
 {
     (void)p;
@@ -523,24 +501,24 @@ struct JsonValue *mp_unpack_message(const struct OAM_MaintenancePoint *mp, const
     return NULL;
 }
 
-bool mp_update_message_payload(const struct OAM_MaintenancePoint *mp, struct Packet *p, const struct JsonValue *msg)
+struct JsonValue *mp_pack_message_header(const struct OAM_MaintenancePoint *mp, struct Packet *p, const struct OamRequest *req)
 {
     if (mp->encap == OAM_PW) {
-        return update_pw_payload(p, msg);
-    }
-    //TODO other encaps
-
-    return false;
-}
-
-struct JsonValue *mp_pack_message(const struct OAM_MaintenancePoint *mp, struct Packet *p, const struct OamRequest *req)
-{
-    if (mp->encap == OAM_PW) {
-        return pack_pw_message(p, req);
+        return pack_pw_message_header(p, req);
     }
     //TODO pack other encaps
 
     return NULL;
+}
+
+bool mp_pack_message_payload(const struct OAM_MaintenancePoint *mp, struct Packet *p, const struct JsonValue *msg)
+{
+    if (mp->encap == OAM_PW) {
+        return pack_pw_payload(p, msg);
+    }
+    //TODO other encaps
+
+    return false;
 }
 
 int mp_compare_level(const struct OAM_MaintenancePoint *mp, unsigned level)

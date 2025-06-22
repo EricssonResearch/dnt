@@ -19,7 +19,8 @@
 
 DEFAULT_LOGGING_MODULE(STATE, INFO);
 
-
+// note: these hashes hold a refrence to the contained objects
+//  (we need to keep a reference when transferring from a transaction to these hashes)
 static struct HashMap *state_interfaces = NULL;
 static struct HashMap *state_objects = NULL;
 
