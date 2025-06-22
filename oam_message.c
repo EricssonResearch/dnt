@@ -566,20 +566,10 @@ static bool process_trigger_request(struct OAM_MaintenancePoint *mp, struct Json
 static bool process_inband_message(struct OAM_MaintenancePoint *mp, struct JsonValue *js,
         unsigned ttl, struct timespec recv_time, bool *message_modified)
 {
-    JS_OBJECT_GET(js, level, number);
-    int levelcmp = mp_compare_level(mp, jslevel->v.number);
-    if (levelcmp < 0) {
-        json_delete(js);
-        return false;
-    }
-    if (levelcmp > 0) {
-        json_delete(js);
-        return true;
-    }
-
     JS_OBJECT_GET(js, type, string);
     JS_OBJECT_GET(js, code, string);
     JS_OBJECT_GET(js, target, string);
+    JS_OBJECT_GET(js, level, number);
 
     log_packet("%s received OAM type '%s' code '%s' target '%s' level %f",
             mp_get_name(mp), jstype->v.string, jscode->v.string,
@@ -676,6 +666,22 @@ static void *inband_receiver_th(void *arg)
 
         mp_count_received_message(msg->mp, msg->pi->packet);
 
+        int levelcmp = mp_compare_level(msg->mp, msg->pi->packet);
+        if (levelcmp < 0) {
+            log_packet("%s dropping in-band message due to level", mp_get_name(msg->mp));
+            pipe_iteraror_cancel(msg->pi);
+            free(msg);
+            continue;
+        }
+        if (levelcmp > 0) {
+            log_packet("%s forwarding in-band message due to level", mp_get_name(msg->mp));
+            //TODO pipe_iterator_resume(msg->pi);
+            msg->pi->pos += 1;
+            pipe_iterator_run(msg->pi);
+            free(msg);
+            continue;
+        }
+
         struct JsonValue *js = mp_unpack_message(msg->mp, msg->pi->packet);
         if (js == NULL) {
             log_error("invalid JSON payload in received message");
@@ -685,9 +691,9 @@ static void *inband_receiver_th(void *arg)
         }
 
         bool message_modified = false;
+        unsigned char ttl = mp_get_ttl(msg->mp, msg->pi->packet);
 
-        //TODO TSN has no ttl, so p->ttl=0 and we are in trouble
-        if (process_inband_message(msg->mp, js, msg->pi->packet->ttl, msg->pi->packet->recv_time, &message_modified)) {
+        if (process_inband_message(msg->mp, js, ttl, msg->pi->packet->recv_time, &message_modified)) {
             if (message_modified) {
                 if (!mp_pack_message_payload(msg->mp, msg->pi->packet, js)) {
                     log_error("could not update JSON payload in received message");
@@ -696,13 +702,12 @@ static void *inband_receiver_th(void *arg)
                 }
             }
 
-            log_packet("%s forwarding message", mp_get_name(msg->mp));
-
+            log_packet("%s forwarding in-band message", mp_get_name(msg->mp));
             //TODO pipe_iterator_resume(msg->pi);
             msg->pi->pos += 1;
             pipe_iterator_run(msg->pi);
         } else {
-            log_packet("%s dropping message", mp_get_name(msg->mp));
+            log_packet("%s dropping in-band message", mp_get_name(msg->mp));
             pipe_iteraror_cancel(msg->pi);
         }
 

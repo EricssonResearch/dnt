@@ -236,6 +236,48 @@ static bool pack_pw_payload(struct Packet *p, const struct JsonValue *msg)
     return true;
 }
 
+static int compare_pw_level(const struct OAM_MaintenancePoint *mp, const struct Packet *p)
+{
+    if (p->header_count < 2) {
+        log_error("OAM packet doesn't have 2 identified headers (mpls, dcw), how was this matched??");
+        return -1;
+    }
+
+    if (!packet_is_linear(p)) {
+        log_error("OAM packet is not continuous in memory");
+        return -1;
+    }
+
+    //TODO support >1 mpls headers?
+    //  use protostack
+
+    unsigned plen = packet_length(p);
+    unsigned header_len = protocol_from_id(PROTO_ID_MPLS)->bytelength +
+        protocol_from_id(PROTO_ID_OAM)->bytelength;
+
+    if (plen < header_len) {
+        log_error("PW OAM packet is too short");
+        return -1;
+    }
+
+    unsigned char *dach_start = p->buf + p->headers[0].start + protocol_from_id(PROTO_ID_MPLS)->bytelength;
+
+    INTERPRET_DACH(dach_start);
+
+    return (int)dach.level - (int)mp->level;
+}
+
+static unsigned char get_pw_ttl(const struct Packet *p)
+{
+    if (p->header_count < 2) {
+        log_error("OAM packet doesn't have 2 identified headers (mpls, dcw), how was this matched??");
+        return -1;
+    }
+
+    unsigned char *mpls_start = p->buf + p->headers[0].start;
+    return mpls_start[3];
+}
+
 
 struct OAM_MaintenancePoint *oam_new_maintenance_point(const char *stream_name, const char *mp_name,
         enum OAM_MP_Type type, unsigned level,
@@ -522,9 +564,26 @@ bool mp_pack_message_payload(const struct OAM_MaintenancePoint *mp, struct Packe
     return false;
 }
 
-int mp_compare_level(const struct OAM_MaintenancePoint *mp, unsigned level)
+int mp_compare_level(const struct OAM_MaintenancePoint *mp, const struct Packet *p)
 {
-    return (int)level - (int)mp->level;
+    if (mp->encap == OAM_PW) {
+        return compare_pw_level(mp, p);
+    }
+    //TODO other encaps
+
+    return -1;
+}
+
+unsigned char mp_get_ttl(const struct OAM_MaintenancePoint *mp, const struct Packet *p)
+{
+    if (mp->encap == OAM_PW) {
+        return get_pw_ttl(p);
+    }
+    if (mp->encap == OAM_TSN) {
+        return 255;
+    }
+
+    return 0;
 }
 
 void mp_inject_packet(struct OAM_MaintenancePoint *mp, struct Packet *p)

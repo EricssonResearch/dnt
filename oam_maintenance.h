@@ -73,11 +73,14 @@ struct JsonValue *mp_pack_message_header(const struct OAM_MaintenancePoint *mp, 
 // @returns true on success
 bool mp_pack_message_payload(const struct OAM_MaintenancePoint *mp, struct Packet *p, const struct JsonValue *msg);
 
-// @returns level <=> mp->level
-//  <0 means the @level is lower, the message must be deleted without processing
+// @returns p->level <=> mp->level
+//  <0 means the p->level is lower, the message must be deleted without processing
 //  =0 means the levels match, the message must be processed
-//  >0 means the @level is higher, the message must be forwarded without processing
-int mp_compare_level(const struct OAM_MaintenancePoint *mp, unsigned level);
+//  >0 means the p->level is higher, the message must be forwarded without processing
+int mp_compare_level(const struct OAM_MaintenancePoint *mp, const struct Packet *p);
+
+// @returns the ttl of @p (it is not simply p->ttl)
+unsigned char mp_get_ttl(const struct OAM_MaintenancePoint *mp, const struct Packet *p);
 
 // if @mp is an injection point, it launches @p on the pipeline
 void mp_inject_packet(struct OAM_MaintenancePoint *mp, struct Packet *p);
