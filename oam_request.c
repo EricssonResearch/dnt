@@ -662,8 +662,10 @@ static bool send_request(const struct OamRequest *req)
 
     if (!mp_pack_message_payload(req->mp_start, packet, js)) {
         log_error("couldn't pack request payload");
+        json_delete(js);
         return false;
     }
+    json_delete(js);
 
     log_packet("send request %s %s:%d seq %d lvl %d",
                mp_get_name(req->mp_start), mp_get_stream_name(req->mp_start), req->session_id, req->seq, req->level);

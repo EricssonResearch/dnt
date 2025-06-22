@@ -509,6 +509,7 @@ static void command_loop(struct CommandConnection *conn)
         }
     }
     log_info("Telnet closed");
+    free(last_stream);
 
 #undef ERROR
 #undef CHECK_REQUEST
@@ -582,7 +583,7 @@ static int command_connection_delete_cb(const char *key, void *value, void *user
     if (conn->cmd_w) fclose(conn->cmd_w); // we only need to close the FILE*
     conn->cmd_w = NULL;
     stop_all_sessions_of_connection(conn);
-    thread_stop(conn->thread);
+    thread_stop(conn->thread); //TODO this leaks last_stream
     free(conn->name);
     free(conn->remote_ip);
     free(conn);

@@ -680,6 +680,7 @@ static void *inband_receiver_th(void *arg)
         if (js == NULL) {
             log_error("invalid JSON payload in received message");
             pipe_iteraror_cancel(msg->pi);
+            free(msg);
             continue;
         }
 
@@ -722,7 +723,7 @@ void oam_receive_inband(struct OAM_MaintenancePoint *mp, struct PipelineIterator
 
 struct outofband_msg {
     struct Interface *iface;
-    const char *message;
+    char *message;
 };
 static void *outofband_receiver_th(void *arg)
 {
@@ -734,6 +735,7 @@ static void *outofband_receiver_th(void *arg)
             return NULL;
 
         process_reply(msg->message); //TODO do we need to adjust this?
+        free(msg->message);
         free(msg);
     }
 

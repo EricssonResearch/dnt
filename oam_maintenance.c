@@ -210,6 +210,7 @@ static bool pack_pw_payload(struct Packet *p, const struct JsonValue *msg)
         json_delete(out);
         return false;
     }
+    json_delete(out);
 
     // TODO support >1 mpls label?
 
