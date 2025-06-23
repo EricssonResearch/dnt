@@ -371,7 +371,7 @@ static void command_loop(struct CommandConnection *conn)
                             ret = register_tc_notification(add, target, period_ms);
                         } else if (strcmp(type, "delay") == 0) {
                             ret =register_delay_notification(add, target, period_ms);
-                        } else if (strcmp(target, "modem") == 0) {
+                        } else if (strcmp(type, "modem") == 0) {
                             ret = register_modem_notification(add, target, period_ms);
                         } else {
                             fprintf(cmd_w, "Invalid monitor type '%s'.\n", type);
@@ -379,7 +379,7 @@ static void command_loop(struct CommandConnection *conn)
                         if(ret)
                             fprintf(cmd_w, "Success\n");
                         else
-                            fprintf(cmd_w, "Error.\n");
+                            fprintf(cmd_w, "Error sysmon %s %s %s.\n", cmd, type, target);
                     } else {
                         fprintf(cmd_w, "Invalid command '%s'. Command should be 'add' or 'rem'\n", cmd);
                     }

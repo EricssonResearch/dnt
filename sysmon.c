@@ -28,6 +28,8 @@
 #include <sys/timerfd.h>
 #include <sys/eventfd.h>
 
+#define QUECTEL             // define it if Quectel modem is used
+
 DEFAULT_LOGGING_MODULE(SYSMON, INFO);
 
 #define MAX_LINE            1024
@@ -238,23 +240,57 @@ static NotificationLevel modem_stat_notification_pull_fn(void *self, struct Json
     char *iface_name = (char *)self;
     char command[MAX_LINE],  buffer[MAX_LINE];
 
-    snprintf(command, sizeof(command), "echo AT |  socat - %s,crnl", iface_name);
-    FILE *fp = popen(command, "r");
-    if (fp == NULL) {
-        msg = NULL;
-        return NOTIF_PULL;
-    }
-
     struct JsonValue *ret = json_object();
 
-    do {
-        printf("x: %s", buffer);
-        // ToDo: implement modem commands needed...
-
-    } while (fgets(buffer, sizeof(buffer), fp) != NULL);
-
-    // Populate JSON
-    json_object_insert(ret, "modem", json_string(buffer));
+    snprintf(command, sizeof(command), "echo AT+CSQ |  socat - /dev/%s,crnl", iface_name);
+    FILE *fp = popen(command, "r");
+    if (fp != NULL) {
+        if (fread(buffer, 1, sizeof(buffer)-1, fp) > 3) {
+            int rssi, ber;
+            if (sscanf(buffer, "\n+CSQ: %d,%d", &rssi, &ber) == 2) {
+                struct JsonValue *csq = json_object();
+                json_object_insert(csq, "rssi", json_number(rssi));
+                json_object_insert(csq, "ber", json_number(ber));
+                json_object_insert(ret, "CSQ", csq);
+            }
+        }
+    }
+    snprintf(command, sizeof(command), "echo AT+CEREG? |  socat - /dev/%s,crnl", iface_name);
+    fp = popen(command, "r");
+    if (fp != NULL) {
+        if (fread(buffer, 1, sizeof(buffer)-1, fp) > 3) {
+            int n, stat;
+            if (sscanf(buffer, "\n+CEREG: %d,%d", &n, &stat) == 2) {
+                struct JsonValue *cereg = json_object();
+                json_object_insert(cereg, "n", json_number(n));
+                json_object_insert(cereg, "stat", json_number(stat));
+                json_object_insert(ret, "CEREG", cereg);
+            }
+        }
+    }
+#ifdef QUECTEL
+    snprintf(command, sizeof(command), "echo 'AT+QENG=\"servingcell\"' |  socat - /dev/%s,crnl", iface_name);
+    fp = popen(command, "r");
+    if (fp != NULL) {
+        if (fread(buffer, 1, sizeof(buffer)-1, fp) > 3) {
+            char servingcell[MAX_LINE];
+            if (sscanf(buffer, "\n+QENG: %s", servingcell) == 1) {
+                json_object_insert(ret, "servingcell", json_string(servingcell));
+            }
+            else log_error("qeng: %s\n %s",command, buffer);
+        }
+    }
+    snprintf(command, sizeof(command), "echo AT+QCSQ |  socat - /dev/%s,crnl", iface_name);
+    fp = popen(command, "r");
+    if (fp != NULL) {
+        if (fread(buffer, 1, sizeof(buffer)-1, fp) > 3) {
+            char qcsq[MAX_LINE];
+            if (sscanf(buffer, "\n+QCSQ: %s", qcsq) == 1) {
+                json_object_insert(ret, "qcsq", json_string(qcsq));
+            }
+        }
+    }
+#endif
 
     pclose(fp);
 
@@ -316,6 +352,26 @@ bool register_modem_notification(bool add, char *target, unsigned period_ms)
     char notif_name[32];
     snprintf(notif_name, 32, "modem_%s", target);
     char *pname = strdup(target);
+
+    char command[MAX_LINE],  buffer[MAX_LINE], result[16];
+
+    // check if device is actually a modem AT interface
+    snprintf(command, sizeof(command), "echo AT |  socat - /dev/%s,crnl", target);
+    bool success = false;
+    FILE *fp = popen(command, "r");
+    if (fp != NULL) {
+        if (fread(buffer, 1, sizeof(buffer)-1, fp) > 3) {
+            if (sscanf(buffer, "%15s\n", result) == 1) {
+                if(strcmp(result, "OK") == 0) {
+                    success = true;
+                }
+            }
+        }
+    }
+    if (!success) {
+        log_error("Could not open modem or not AT command port: /dev/%s.\n", target);
+        return false;
+    }
 
     if(add) {
         hashmap_insert(subs, strdup(notif_name), pname);

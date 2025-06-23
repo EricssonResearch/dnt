@@ -131,10 +131,19 @@ def send_cli_commands():
         ret = False
 
     cli.send("sysmon add tc r2rx") # send add notification command
+    time.sleep(1)
     msg = cli.recv()
     if "Success" not in msg:
         print("Error: ", msg)
         ret = False
+
+    # only enable if modem is connected
+#    cli.send("sysmon add modem ttyUSB2") # send add notification command
+#    time.sleep(1)
+#    msg = cli.recv()
+#    if "Success" not in msg:
+#        print("Error: ", msg)
+#        ret = False
 
     cli.send("notif_trigger o_s2_L5_pre-prf o_common_actions_L5_post-srcvy1 5 -n 3 -i 0.05 ") # send notif_trigger command
     msg = cli.recv()
