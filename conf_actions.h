@@ -27,6 +27,8 @@ struct ConfAction *delete_confaction_list(struct ConfAction *ca_list);
 // @returns NULL if @ca_list is empty
 struct Pipeline *assemble_actions(const char *stream_name, const struct ConfAction *ca_list);
 
-void confactions_print(const struct ConfAction *ca_list, unsigned indent);
+// prints the action list to the log
+//  basic information is INFO, details are DEBUG
+void confactions_log(const struct ConfAction *ca_list, unsigned indent);
 
 #endif // R2_CONF_ACTIONS_H

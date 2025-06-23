@@ -86,7 +86,7 @@ static int packetline_cb(const char *key, void *value, void *userdata)
             }
 
             log_info("Stream %s actions:", streamname);
-            confactions_print(actions, 2);
+            confactions_log(actions, 2);
 
 
             struct ConfStream *stream = calloc_struct(ConfStream);

@@ -74,6 +74,8 @@ struct ConfVariable {
     union {
         struct {
             struct HeaderField *field; // state for read/write
+            char *header_name;
+            char *field_name;
         } header;
         struct {
             struct Interface *iface; // state for read
@@ -114,7 +116,7 @@ struct ConfAction {
             unsigned pos_idx;
             unsigned len;
             struct ConfAssignment *assignments;
-            bool was_add;
+            bool was_add; // we have seen the ADD keyword
         } add;
         struct {
             struct HeaderDescriptor *hdr;
@@ -414,6 +416,8 @@ static bool process_assignment_lhs(struct StageState *stst, struct ConfAssignmen
         }
         init_confvariable(lhs, CVT_FIELD, f);
         lhs->v.header.field = new_headerfield(header_index(stst->headers, h), f);
+        lhs->v.header.header_name = strdup(hdr);
+        lhs->v.header.field_name = strdup(field);
         assign->lhs_protoid = h->id;
 
         // remove the must_write entry if we are writing that header field
@@ -690,6 +694,8 @@ static bool process_token(char *token, void *userdata)
                     init_confvariable(&a->lhs, CVT_FIELD, f);
                     // we don't yet have a header index here, we fix it in process_action()
                     a->lhs.v.header.field = new_headerfield(0, f);
+                    a->lhs.v.header.header_name = strdup(newaction->add.newname);
+                    a->lhs.v.header.field_name = strdup(f->name);
 
                     if (!process_assignment_rhs(stst, a, rhs)) {
                         THROW("right-hand-side '%s' invalid", rhs);
@@ -701,12 +707,12 @@ static bool process_token(char *token, void *userdata)
             break;
         case CA_DEL:
             if (newaction->del.hdr == NULL) {
-                struct HeaderDescriptor *del = header_list_find_by_name(stst->headers, token);
-                if (del) {
-                    if (header_list_find_by_name(del->next, token)) {
+                struct HeaderDescriptor *delh = header_list_find_by_name(stst->headers, token);
+                if (delh) {
+                    if (header_list_find_by_name(delh->next, token)) {
                         THROW("header name '%s' is ambiguous", token);
                     }
-                    newaction->del.hdr = del;
+                    newaction->del.hdr = delh;
                 } else {
                     THROW("invalid header '%s' to delete", token);
                 }
@@ -1007,6 +1013,8 @@ static struct ConfAssignment *assign_nexthdrid_from_header_type(const char *acti
 
     struct HeaderField *dsthf = new_headerfield(dstpos, dstf);
     a->lhs.v.header.field = dsthf;
+    a->lhs.v.header.header_name = strdup(dstheader->name);
+    a->lhs.v.header.field_name = strdup(dstf->name);
     a->write = header_get_field_writer(dsthf, &a->rhs.value);
     if (a->write == NULL) {
         free(dsthf);
@@ -1039,6 +1047,8 @@ static struct ConfAssignment *assign_nexthdrid_copy_from_srcheader(const char *a
 
     struct HeaderField *srchf = new_headerfield(srcpos, srcf);
     a->rhs.v.header.field = srchf;
+    a->rhs.v.header.header_name = strdup(srcheader->name);
+    a->rhs.v.header.field_name = strdup(srcf->name);
     a->read = header_get_field_reader(&a->lhs.value, srchf);
     if (a->read == NULL) {
         free(srchf);
@@ -1048,6 +1058,8 @@ static struct ConfAssignment *assign_nexthdrid_copy_from_srcheader(const char *a
 
     struct HeaderField *dsthf = new_headerfield(dstpos, dstf);
     a->lhs.v.header.field = dsthf;
+    a->lhs.v.header.header_name = strdup(dstheader->name);
+    a->lhs.v.header.field_name = strdup(dstf->name);
     a->write = header_get_field_writer(dsthf, &a->rhs.value);
     if (a->write == NULL) {
         free(srchf);
@@ -1223,6 +1235,8 @@ static bool process_action(struct StageState *stst)
                 dsthf->bitoffset = 0;
                 dsthf->bitcount = newproto->default_value_len*8;
                 a->lhs.v.header.field = dsthf;
+                a->lhs.v.header.header_name = strdup(newaction->add.newname);
+                a->lhs.v.header.field_name = strdup("default values");
                 a->write = header_get_field_writer(dsthf, &a->rhs.value);
 
                 a->next = edit->edit.assignments;
@@ -1287,13 +1301,13 @@ static bool process_action(struct StageState *stst)
             if (newaction->del.hdr == NULL) {
                 THROW("no header to delete");
             }
-            struct HeaderDescriptor *del = newaction->del.hdr;
+            struct HeaderDescriptor *delh = newaction->del.hdr;
             struct HeaderDescriptor *prev = NULL;
             unsigned idx = 0;
-            if (del != stst->headers) {
+            if (delh != stst->headers) {
                 idx++;
                 prev = stst->headers;
-                while (prev->next != del) {
+                while (prev->next != delh) {
                     idx++;
                     prev = prev->next;
                 }
@@ -1301,10 +1315,10 @@ static bool process_action(struct StageState *stst)
             newaction->del.idx = idx;
 
             // if removing a sequence number tag (= end of tunnel), automatically filter OAM packets
-            const struct ProtocolField *dseq_field = protocol_get_field_by_type(del->id, FT_TSNSEQ);
+            const struct ProtocolField *dseq_field = protocol_get_field_by_type(delh->id, FT_TSNSEQ);
             if (dseq_field) {
                 struct ConfAction *filter = new_confaction(stst, CA_FILTEROAM,
-                        strdup_printf("filter before %s", del->name));
+                        strdup_printf("filter before %s", delh->name));
                 filter->filteroam.field = new_headerfield(idx, dseq_field);
                 if (!process_action(stst)) // now filter is the newest action
                     return false;
@@ -1314,13 +1328,13 @@ static bool process_action(struct StageState *stst)
             }
 
             // cancel TTL check if we've removed the header to be checked
-            if (del == stst->needs_ttlcheck) {
+            if (delh == stst->needs_ttlcheck) {
                 stst->needs_ttlcheck = NULL;
                 // also cancel the TTLReduce action? no, OAM might need it
             }
 
             for (struct MustWriteField *mw=stst->must_write; mw; mw=mw->next) {
-                if (mw->header == del) {
+                if (mw->header == delh) {
                     THROW("deleting header that is on the must_write list (field %s)",
                             mw->field->name);
                 }
@@ -1330,27 +1344,26 @@ static bool process_action(struct StageState *stst)
             struct ConfAssignment *a = NULL;
             if (prev) {
                 if (protocol_from_id(prev->id)->get_nexthdr) {
-                    if (del->next) {
-                        a = assign_nexthdrid_from_header_type("del", prev, idx-1, del->next);
+                    if (delh->next) {
+                        a = assign_nexthdrid_from_header_type("del", prev, idx-1, delh->next);
                         if (a == NULL) {
                             THROW("header type %s cannot have type %s as next header",
                                     protocol_type_from_id(prev->id),
-                                    protocol_type_from_id(del->next->id));
+                                    protocol_type_from_id(delh->next->id));
                         }
                     } else {
-                        a = assign_nexthdrid_copy_from_srcheader("del", prev, idx-1, del, idx);
+                        a = assign_nexthdrid_copy_from_srcheader("del", prev, idx-1, delh, idx);
                         if (a == NULL) {
                             THROW("can't copy nexthdr type from deleted to previous header");
                         }
                     }
                 }
 
-                prev->next = del->next;
+                prev->next = delh->next;
             } else {
-                stst->headers = del->next;
+                stst->headers = delh->next;
             }
-            del->next = NULL;
-            delete_header_list(del);
+            delh->next = NULL;
 
             if (a) {
                 struct ConfAction *dedit = new_confaction(stst, CA_EDIT,
@@ -1706,10 +1719,16 @@ static void delete_confassignments(struct ConfAssignment *assignments)
         assignments = assignments->next;
         free(del->text);
         free(del->rhs.value.value);
-        if (del->lhs.type == CVT_FIELD)
+        if (del->lhs.type == CVT_FIELD) {
             free(del->lhs.v.header.field);
-        if (del->rhs.type == CVT_FIELD)
+            free(del->lhs.v.header.header_name);
+            free(del->lhs.v.header.field_name);
+        }
+        if (del->rhs.type == CVT_FIELD) {
             free(del->rhs.v.header.field);
+            free(del->rhs.v.header.header_name);
+            free(del->rhs.v.header.field_name);
+        }
         if (del->rhs.type == CVT_IFACE)
             free(del->rhs.v.iface.property);
         free(del);
@@ -1741,6 +1760,7 @@ struct ConfAction *delete_confaction_list(struct ConfAction *ca_list)
                 delete_confassignments(del->add.assignments);
                 break;
             case CA_DEL:
+                delete_header_list(del->del.hdr);
                 break;
             case CA_DELAY:
                 break;
@@ -1993,10 +2013,10 @@ struct Pipeline *assemble_actions(const char *stream_name, const struct ConfActi
 #undef THROW
 }
 
-void confactions_print(const struct ConfAction *ca_list, unsigned indent)
+void confactions_log(const struct ConfAction *ca_list, unsigned indent)
 {
     for (const struct ConfAction *ca = ca_list; ca; ca=ca->next) {
-        log_info("%*sConfAction %s '%s'", indent, "",
+        log_info("%*s%s '%s'", indent, "",
                 confaction_name_from_type(ca->type), ca->text);
         switch (ca->type) {
             case CA_UNDEF:
@@ -2008,7 +2028,7 @@ void confactions_print(const struct ConfAction *ca_list, unsigned indent)
                         ca->add.len, ca->add.pos_idx);
                 break;
             case CA_DEL:
-                log_debug("%*sindex %u", indent+2, "", ca->del.idx);
+                log_debug("%*sname %s index %u", indent+2, "", ca->del.hdr->name, ca->del.idx);
                 break;
             case CA_DELAY:
                 log_debug("%*sdelaying %f ms", indent+2, "", ca->delay.delay_value);
@@ -2024,14 +2044,20 @@ void confactions_print(const struct ConfAction *ca_list, unsigned indent)
                             fieldtype_name_from_type(a->lhs.value_type),
                             a->lhs.value.bitoffset, a->lhs.value.bitcount);
                     if (a->lhs.type == CVT_FIELD) {
-                        log_debug("%*sindex %u", indent+4, "", a->lhs.v.header.field->header_idx);
+                        log_debug("%*s%s.%s index %u bitoffset %u bitcount %u", indent+4, "",
+                                a->lhs.v.header.header_name, a->lhs.v.header.field_name,
+                                a->lhs.v.header.field->header_idx,
+                                a->lhs.v.header.field->bitoffset, a->lhs.v.header.field->bitcount);
                     }
                     log_debug("%*srhs type %s valuetype %s bitoffset %u bitcount %u", indent+3, "",
                             variabletype_name_from_type(a->rhs.type),
                             fieldtype_name_from_type(a->rhs.value_type),
                             a->rhs.value.bitoffset, a->rhs.value.bitcount);
                     if (a->rhs.type == CVT_FIELD) {
-                        log_debug("%*sindex %u", indent+4, "", a->rhs.v.header.field->header_idx);
+                        log_debug("%*s%s.%s index %u bitoffset %u bitcount %u", indent+4, "",
+                                a->rhs.v.header.header_name, a->rhs.v.header.field_name,
+                                a->rhs.v.header.field->header_idx,
+                                a->rhs.v.header.field->bitoffset, a->rhs.v.header.field->bitcount);
                     } else if (a->rhs.type == CVT_CONST) {
                         unsigned bytes = DIVCEIL(a->rhs.value.bitoffset + a->rhs.value.bitcount, 8);
                         unsigned char *cst = (unsigned char *)a->rhs.value.value;
@@ -2077,7 +2103,7 @@ void confactions_print(const struct ConfAction *ca_list, unsigned indent)
             case CA_REPL:
                 for (struct ReplicateList *p=ca->repl.pipelines; p; p=p->next) {
                     log_info("%*sbranch %s", indent+2, "", p->name);
-                    confactions_print(p->actions, indent+4);
+                    confactions_log(p->actions, indent+4);
                 }
                 break;
             case CA_SEND:
