@@ -12,7 +12,7 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -Og -std=gnu99 -Wall -Wextra -Wstrict-pro
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -Og -std=gnu++03 -Wall -Wextra -Wmissing-declarations -Wwrite-strings -Wshadow -Wvla -Werror")
 
 function(add_test_seqrcvy name)
-    add_executable(${name} ../seq_recov.c ../lib/parsers/json.c ../log.c ../packet.c ../pipeline.c ../thread_utils.c ../utils.c ../lib/parsers/hashmap.c ${name}.c)
+    add_executable(${name} ../seq_recov.c ../lib/parsers/json.c ../log.c ../object.c ../packet.c ../pipeline.c ../thread_utils.c ../utils.c ../lib/parsers/hashmap.c ${name}.c)
     target_include_directories(${name} PUBLIC ../lib/parsers)
     target_link_libraries(${name} pthread)
     target_compile_definitions(${name} PUBLIC TESTING)

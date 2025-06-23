@@ -5,6 +5,8 @@
 #define _GNU_SOURCE /* for ppoll, pthread_setname_np */
 #endif
 
+#define OBJECT_INTERNAL
+
 #include "pof.h"
 #include "action.h"
 #include "log.h"

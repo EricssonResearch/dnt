@@ -12,11 +12,12 @@
 // Create new POF object
 struct PipelineObject *new_pof(const char *name, unsigned pof_max_delay, unsigned pof_take_any_time, unsigned queue_max_len);
 
+#ifdef OBJECT_INTERNAL
 // Delete a POF object
 // always returns NULL
 struct PipelineObject *delete_pof(struct PipelineObject *pof);
 
-// use sprintf_state_json() instead of this
 char *pof_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep);
+#endif
 
 #endif // R2_POF_H

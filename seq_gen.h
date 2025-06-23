@@ -18,12 +18,14 @@
 // always @returns 1
 int reset_seq_generator(struct PipelineObject *obj, void *userdata);
 
-// use sprintf_state_json() instead of this
-char *seq_gen_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep);
 
 struct PipelineObject *new_seq_gen(const char *name, bool use_reset_flag, bool use_init_flag, unsigned init_seq);
 
+#ifdef OBJECT_INTERNAL
 // always returns NULL
 struct PipelineObject *delete_seq_gen(struct PipelineObject *gen);
+
+char *seq_gen_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep);
+#endif
 
 #endif // R2_SEQ_GEN_H

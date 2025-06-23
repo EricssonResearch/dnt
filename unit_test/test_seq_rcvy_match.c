@@ -34,6 +34,21 @@ bool notification_push_event(const char *source, NotificationLevel level, struct
     { (void)source; (void)level; json_delete(message); return false; }
 bool notification_register_source(const char *name, notification_pull_fn *callback, void *self, unsigned period_ms)
     { (void)name; (void)callback; (void)self; (void)period_ms; return true; }
+struct PipelineObject *delete_pof(struct PipelineObject *pof);
+struct PipelineObject *delete_pof(struct PipelineObject *pof) { (void)pof; return NULL; }
+char *pof_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep);
+char *pof_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep)
+    { (void)json; (void)record_sep; (void)line_sep; return NULL; }
+struct PipelineObject *delete_replicate(struct PipelineObject *rep);
+struct PipelineObject *delete_replicate(struct PipelineObject *rep) { (void)rep; return NULL; }
+char *repl_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep);
+char *repl_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep)
+    { (void)json; (void)record_sep; (void)line_sep; return NULL; }
+struct PipelineObject *delete_seq_gen(struct PipelineObject *gen);
+struct PipelineObject *delete_seq_gen(struct PipelineObject *gen) { (void)gen; return NULL; }
+char *seq_gen_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep);
+char *seq_gen_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep)
+    { (void)json; (void)record_sep; (void)line_sep; return NULL; }
 // XXX end stubs
 
 static const unsigned history_length = 64; // must be 2^n
@@ -93,7 +108,7 @@ static void test_duplicates(void)
     OK(rec->process_packet(rec, pi) == ACR_CONTINUE, "not duplicate");
     OK(rec->process_packet(rec, pi) == ACR_DONE, "duplicate");
 
-    OK(delete_seq_rec(rec) == NULL, "delete object");
+    pipeline_object_unref(rec);
     free(pi);
     pipeline_unref(pl);
     OK(delete_packet(p) == NULL, "delete packet");
@@ -125,7 +140,7 @@ static void test_single(void)
         last = seq;
     }
 
-    OK(delete_seq_rec(rec) == NULL, "delete object");
+    pipeline_object_unref(rec);
     free(pi);
     pipeline_unref(pl);
     OK(delete_packet(p) == NULL, "delete packet");

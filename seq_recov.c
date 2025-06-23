@@ -1,6 +1,7 @@
 // Copyright (c) 2023-2025, Ericsson AB and Ericsson Telecommunication Hungary
 // All rights reserved.
 
+#define OBJECT_INTERNAL
 
 #include "seq_recov.h"
 #include "action.h"
@@ -71,30 +72,10 @@ struct SequenceRecovery {
     int skip_loss_after_reset_guard;
 
     struct Thread *reset_thread;
+
+    struct HashMap *oam_seq_recoveries; // session_id -> struct SequenceRecovery
     char *session_id; // for OAM only
 };
-
-// TODO: make struct OamSession if more per-session info needed for MEP/MIP.
-// currently the only state of the session is the seq recovery
-static struct HashMap *oam_seq_recoveries = NULL; // session_id -> struct SequenceRecovery
-
-static void __attribute__((destructor)) cleanup_oam_seq_recoveries(void)
-{
-    delete_hashmap(oam_seq_recoveries);
-}
-
-//TODO remove this, and update the unit test
-TESTABLE char *oam_session_id(const struct Packet *p)
-{
-    //TODO don't expect PROTO_ID_OAM (we might not have MIP before ELIM!)
-    if (p->header_count > 1 && p->headers[1].type == PROTO_ID_OAM) {
-        INTERPRET_DACH(p->buf + p->headers[1].start);
-        // note: we don't need stream id here, because RCVY is implicitly in the stream
-        return strdup_printf("%d:%d", dach.nodeid, dach.session);
-    } else {
-        return NULL;
-    }
-}
 
 static int oam_rcvy_del_cb(const char *key, void *value, void *userdata)
 {
@@ -102,28 +83,33 @@ static int oam_rcvy_del_cb(const char *key, void *value, void *userdata)
     (void)userdata;
     struct PipelineObject *rec = (struct PipelineObject *)value;
     //free((char*)key); this is rec->session_id
-    delete_seq_rec(rec);
+    pipeline_object_unref(rec);
     return 1;
 }
 
-TESTABLE struct SequenceRecovery *get_oam_rcvy(const char *session_id)
+TESTABLE struct SequenceRecovery *get_oam_rcvy(struct PipelineObject *obj, const char *session_id)
 {
-    //TODO oam_seq_recoveries should be in SequenceRecovery !!!
-    if (oam_seq_recoveries == NULL)
-        oam_seq_recoveries = new_hashmap(5, oam_rcvy_del_cb, NULL);
+    struct SequenceRecovery *rec = (struct SequenceRecovery *)obj;
+    struct SequenceRecovery *oamrec = NULL;
 
-    struct SequenceRecovery *rec = (struct SequenceRecovery *)hashmap_find(oam_seq_recoveries, session_id);
-    if (rec == NULL) {
+    if (rec->oam_seq_recoveries == NULL) {
+        rec->oam_seq_recoveries = new_hashmap(5, oam_rcvy_del_cb, NULL);
+    } else {
+        oamrec = (struct SequenceRecovery *)hashmap_find(rec->oam_seq_recoveries, session_id);
+    }
+
+    if (oamrec == NULL) {
         struct PipelineObject *r = new_seq_rec(session_id, RCVY_Match, false, false, 0, OAM_RCVY_RESET_MS, NULL);
         if (r == NULL) {
             // most likely we couldn't launch the reset thread
             return NULL;
         }
-        rec = (struct SequenceRecovery *)r;
-        rec->session_id = strdup(session_id);
-        hashmap_insert(oam_seq_recoveries, rec->session_id, rec);
+        oamrec = (struct SequenceRecovery *)r;
+        oamrec->session_id = strdup(session_id);
+        oamrec->oam_seq_recoveries = rec->oam_seq_recoveries; // need to point to the parent's hash
+        hashmap_insert(rec->oam_seq_recoveries, oamrec->session_id, oamrec);
     }
-    return rec;
+    return oamrec;
 }
 
 static void reset_ticks(struct SequenceRecovery *rec)
@@ -176,59 +162,6 @@ static struct JsonValue *get_state_json(const struct PipelineObject *obj)
     return js;
 }
 
-char *seq_rec_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep)
-{
-    struct JsonValue *algorithm = json_object_get_string(json, "recovery_algorithm");
-    struct JsonValue *reset_msec = json_object_get_number(json, "reset_msec");
-    struct JsonValue *recovery_seq_num = json_object_get_number(json, "recovery_seq_num");
-    struct JsonValue *passed_packets = json_object_get_number(json, "passed_packets");
-    struct JsonValue *discarded_packets = json_object_get_number(json, "discarded_packets");
-    struct JsonValue *seq_recovery_resets = json_object_get_number(json, "seq_recovery_resets");
-
-    if (algorithm && reset_msec && recovery_seq_num && passed_packets && discarded_packets && seq_recovery_resets) {
-        if (strcmp(algorithm->v.string, "match") != 0) {
-            struct JsonValue *use_init_flag = json_object_get_bool(json, "use_init_flag");
-            struct JsonValue *use_reset_flag = json_object_get_bool(json, "use_reset_flag");
-            struct JsonValue *history_length = json_object_get_number(json, "history_length");
-            struct JsonValue *latent_error_paths = json_object_get_number(json, "latent_error_paths");
-            struct JsonValue *latent_error_resets = json_object_get_number(json, "latent_error_resets");
-            struct JsonValue *latent_errors = json_object_get_number(json, "latent_errors");
-            struct JsonValue *history = json_object_get_string(json, "history");
-
-            if (use_init_flag && use_reset_flag && history_length &&
-                    latent_error_paths && latent_error_resets && latent_errors) {
-                return strdup_printf("recovery_algorithm %s%sreset_timer %.0fms%s"
-                        "use_init_flag %s%suse_reset_flag %s%shistory_length %.0f%s"
-                        "history_content %s%s"
-                        "latent_error_paths %.0f%slatent_error_resets %.0f%slatent_errors %.0f%s"
-                        "latest_valid_sequence_number %.0f%spassed %.0f%sdiscarded %.0f%s"
-                        "number_of_resets %.0f",
-                        algorithm->v.string, record_sep, reset_msec->v.number, line_sep,
-                        (use_init_flag->type == JSON_TRUE) ? "true" : "false", record_sep,
-                        (use_reset_flag->type == JSON_TRUE) ? "true" : "false", record_sep,
-                        history_length->v.number, line_sep,
-                        history ? history->v.string : "...", line_sep,
-                        latent_error_paths->v.number, record_sep, latent_error_resets->v.number, record_sep,
-                        latent_errors->v.number, line_sep,
-                        recovery_seq_num->v.number, record_sep,
-                        passed_packets->v.number, record_sep, discarded_packets->v.number, line_sep,
-                        seq_recovery_resets->v.number);
-            } else {
-                return strdup_printf("<invalid seq_rec %s state>", algorithm->v.string);
-            }
-        } else {
-            return strdup_printf("recovery_algorithm %s%sreset_timer %.0fms%s"
-                    "latest_valid_sequence_number %.0f%spassed %.0f%sdiscarded %.0f%s"
-                    "number_of_resets %.0f",
-                    "match", record_sep, reset_msec->v.number, line_sep,
-                    recovery_seq_num->v.number, record_sep,
-                    passed_packets->v.number, record_sep, discarded_packets->v.number, line_sep,
-                    seq_recovery_resets->v.number);
-        }
-    } else {
-        return strdup("<invalid seq_rec state>");
-    }
-}
 
 static NotificationLevel seq_rec_notification_pull_fn(void *self, struct JsonValue **msg)
 {
@@ -416,31 +349,19 @@ static enum ActionResult seq_recovery(struct PipelineObject *r, struct PipelineI
     struct Packet *p = pi->packet;
     bool accept = true;
     uint32_t seq = ntohl(p->sequence);
-    if (!SEQ_IS_OAM(p->sequence)) {
-        //TODO grab mutex
-        switch (rec->algorithm) {
-            case RCVY_Vector:
-                accept = vector_seq_recovery(rec, seq);
-                break;
-            case RCVY_SeamlessVector:
-                accept = seamless_seq_recovery(rec, seq);
-                break;
-            case RCVY_Match:
-                accept = match_seq_recovery(rec, seq);
-                break;
-        }
-        //TODO release mutex
-    } else {
-        char *session_id = oam_session_id(p);
-        struct SequenceRecovery *oam_rec = get_oam_rcvy(session_id);
-        if (oam_rec) {
-            uint8_t oam_seq = (seq >> 16) & 0xff;
-            log_packet("oam recovery session '%s' seq %d", session_id, oam_seq);
-            accept =  match_seq_recovery(oam_rec, oam_seq);
-            seq = oam_seq;
-        }
-        free(session_id);
+    //TODO grab mutex
+    switch (rec->algorithm) {
+        case RCVY_Vector:
+            accept = vector_seq_recovery(rec, seq);
+            break;
+        case RCVY_SeamlessVector:
+            accept = seamless_seq_recovery(rec, seq);
+            break;
+        case RCVY_Match:
+            accept = match_seq_recovery(rec, seq);
+            break;
     }
+    //TODO release mutex
     if (accept){
         packet_logcat(p, "(%d pass) ", seq);
     } else {
@@ -574,6 +495,7 @@ static bool decrement_ticks(struct SequenceRecovery *rec)
     rec->remaining_ticks -= 1;
     if (rec->remaining_ticks == 0) {
         seq_recovery_reset(rec);
+        // oam sequence recovery dies upon reset
         if (rec->session_id)
             return false; // stop reset thread
     }
@@ -609,7 +531,9 @@ static void *reset_thread(void *arg)
         timespecadd(&now, &delta, &sleep_until);
     }
     struct Thread *reset_thread = rec->reset_thread;
-    hashmap_remove(oam_seq_recoveries, rec->session_id);
+    rec->reset_thread = NULL;
+    // here we use our pointer to the parent's hash
+    hashmap_remove(rec->oam_seq_recoveries, rec->session_id);
     thread_exit(reset_thread);
     return rec;
 }
@@ -633,9 +557,7 @@ void seq_rec_set_latent_error_paths(struct PipelineObject *obj, int paths)
 
 enum ActionResult oam_recovery(struct PipelineObject *obj, struct Packet *p, const char *session_id, unsigned char seq)
 {
-    (void)obj;
-    //TODO why doesn't this get obj as a param??
-    struct SequenceRecovery *oam_rec = get_oam_rcvy(session_id);
+    struct SequenceRecovery *oam_rec = get_oam_rcvy(obj, session_id);
     bool accept = true;
 
     if (oam_rec) {
@@ -692,6 +614,8 @@ struct PipelineObject *delete_seq_rec(struct PipelineObject *r)
     struct SequenceRecovery *rec = (struct SequenceRecovery *)r;
     notification_register_source(r->name, NULL, NULL, 2000);
     rec->reset_thread = thread_stop(rec->reset_thread);
+    if (rec->session_id == NULL) // oam rcvy points to its parent's hash
+        delete_hashmap(rec->oam_seq_recoveries);
     free(rec->history);
     free(rec->init_history);
     free(rec->session_id);
@@ -699,3 +623,58 @@ struct PipelineObject *delete_seq_rec(struct PipelineObject *r)
     free(rec);
     return NULL;
 }
+
+char *seq_rec_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep)
+{
+    struct JsonValue *algorithm = json_object_get_string(json, "recovery_algorithm");
+    struct JsonValue *reset_msec = json_object_get_number(json, "reset_msec");
+    struct JsonValue *recovery_seq_num = json_object_get_number(json, "recovery_seq_num");
+    struct JsonValue *passed_packets = json_object_get_number(json, "passed_packets");
+    struct JsonValue *discarded_packets = json_object_get_number(json, "discarded_packets");
+    struct JsonValue *seq_recovery_resets = json_object_get_number(json, "seq_recovery_resets");
+
+    if (algorithm && reset_msec && recovery_seq_num && passed_packets && discarded_packets && seq_recovery_resets) {
+        if (strcmp(algorithm->v.string, "match") != 0) {
+            struct JsonValue *use_init_flag = json_object_get_bool(json, "use_init_flag");
+            struct JsonValue *use_reset_flag = json_object_get_bool(json, "use_reset_flag");
+            struct JsonValue *history_length = json_object_get_number(json, "history_length");
+            struct JsonValue *latent_error_paths = json_object_get_number(json, "latent_error_paths");
+            struct JsonValue *latent_error_resets = json_object_get_number(json, "latent_error_resets");
+            struct JsonValue *latent_errors = json_object_get_number(json, "latent_errors");
+            struct JsonValue *history = json_object_get_string(json, "history");
+
+            if (use_init_flag && use_reset_flag && history_length &&
+                    latent_error_paths && latent_error_resets && latent_errors) {
+                return strdup_printf("recovery_algorithm %s%sreset_timer %.0fms%s"
+                        "use_init_flag %s%suse_reset_flag %s%shistory_length %.0f%s"
+                        "history_content %s%s"
+                        "latent_error_paths %.0f%slatent_error_resets %.0f%slatent_errors %.0f%s"
+                        "latest_valid_sequence_number %.0f%spassed %.0f%sdiscarded %.0f%s"
+                        "number_of_resets %.0f",
+                        algorithm->v.string, record_sep, reset_msec->v.number, line_sep,
+                        (use_init_flag->type == JSON_TRUE) ? "true" : "false", record_sep,
+                        (use_reset_flag->type == JSON_TRUE) ? "true" : "false", record_sep,
+                        history_length->v.number, line_sep,
+                        history ? history->v.string : "...", line_sep,
+                        latent_error_paths->v.number, record_sep, latent_error_resets->v.number, record_sep,
+                        latent_errors->v.number, line_sep,
+                        recovery_seq_num->v.number, record_sep,
+                        passed_packets->v.number, record_sep, discarded_packets->v.number, line_sep,
+                        seq_recovery_resets->v.number);
+            } else {
+                return strdup_printf("<invalid seq_rec %s state>", algorithm->v.string);
+            }
+        } else {
+            return strdup_printf("recovery_algorithm %s%sreset_timer %.0fms%s"
+                    "latest_valid_sequence_number %.0f%spassed %.0f%sdiscarded %.0f%s"
+                    "number_of_resets %.0f",
+                    "match", record_sep, reset_msec->v.number, line_sep,
+                    recovery_seq_num->v.number, record_sep,
+                    passed_packets->v.number, record_sep, discarded_packets->v.number, line_sep,
+                    seq_recovery_resets->v.number);
+        }
+    } else {
+        return strdup("<invalid seq_rec state>");
+    }
+}
+

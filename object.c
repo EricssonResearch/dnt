@@ -2,6 +2,8 @@
 // All rights reserved.
 
 
+#define OBJECT_INTERNAL
+
 #include "object.h"
 #include "log.h"
 #include "pof.h"
@@ -72,7 +74,7 @@ const char *pipelineobject_name_from_type(enum PipelineObjectType type)
     return NULL;
 }
 
-char *sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep)
+char *pipelineobject_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep)
 {
     (void)record_sep;
     struct JsonValue *oname = json_object_get_string(json, "name");

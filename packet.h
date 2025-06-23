@@ -56,8 +56,8 @@ struct Packet {
     unsigned original_id; // copy operations assign new id, this is the original one
 
     // packet properties that can be accessed via dedicated read/write actions
-    unsigned timestamp; // holds a ttag (initially the receive time)
-    unsigned sequence;  // holds a rtag
+    unsigned timestamp; // holds a ttag/tcw (initially the receive time, use readtstamp)
+    unsigned sequence;  // holds a rtag/dcw (initially zero, use readseq/seqgen)
 
     // filled by the ttlreduce action, verified by the ttlcheck action
     unsigned ttl;

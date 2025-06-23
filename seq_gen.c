@@ -1,6 +1,7 @@
 // Copyright (c) 2023-2025, Ericsson AB and Ericsson Telecommunication Hungary
 // All rights reserved.
 
+#define OBJECT_INTERNAL
 
 #include "seq_gen.h"
 #include "action.h"
@@ -44,21 +45,6 @@ static struct JsonValue *get_state_json(const struct PipelineObject *obj)
     json_object_insert(js, "use_reset_flag", gen->use_reset_flag ? json_true() : json_false());
     //TODO report more state
     return js;
-}
-
-char *seq_gen_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep)
-{
-    (void)line_sep;
-    struct JsonValue *use_init_flag = json_object_get_bool(json, "use_init_flag");
-    struct JsonValue *use_reset_flag = json_object_get_bool(json, "use_reset_flag");
-
-    if (use_init_flag && use_reset_flag) {
-        return strdup_printf("use_init_flag %s%suse_reset_flag %s",
-                (use_init_flag->type == JSON_TRUE) ? "true" : "false", record_sep,
-                (use_reset_flag->type == JSON_TRUE) ? "true" : "false");
-    } else {
-        return strdup("<invalid seq_gen state>");
-    }
 }
 
 static NotificationLevel seq_gen_notification_pull_fn(void *self, struct JsonValue **msg)
@@ -162,4 +148,19 @@ struct PipelineObject *delete_seq_gen(struct PipelineObject *gen)
     free(gen->name);
     free(gen);
     return NULL;
+}
+
+char *seq_gen_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep)
+{
+    (void)line_sep;
+    struct JsonValue *use_init_flag = json_object_get_bool(json, "use_init_flag");
+    struct JsonValue *use_reset_flag = json_object_get_bool(json, "use_reset_flag");
+
+    if (use_init_flag && use_reset_flag) {
+        return strdup_printf("use_init_flag %s%suse_reset_flag %s",
+                (use_init_flag->type == JSON_TRUE) ? "true" : "false", record_sep,
+                (use_reset_flag->type == JSON_TRUE) ? "true" : "false");
+    } else {
+        return strdup("<invalid seq_gen state>");
+    }
 }

@@ -36,66 +36,42 @@ bool notification_push_event(const char *source, NotificationLevel level, struct
     { (void)source; (void)level; json_delete(message); return false; }
 bool notification_register_source(const char *name, notification_pull_fn *callback, void *self, unsigned period_ms)
     { (void)name; (void)callback; (void)self; (void)period_ms; return true; }
+struct PipelineObject *delete_pof(struct PipelineObject *pof);
+struct PipelineObject *delete_pof(struct PipelineObject *pof) { (void)pof; return NULL; }
+char *pof_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep);
+char *pof_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep)
+    { (void)json; (void)record_sep; (void)line_sep; return NULL; }
+struct PipelineObject *delete_replicate(struct PipelineObject *rep);
+struct PipelineObject *delete_replicate(struct PipelineObject *rep) { (void)rep; return NULL; }
+char *repl_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep);
+char *repl_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep)
+    { (void)json; (void)record_sep; (void)line_sep; return NULL; }
+struct PipelineObject *delete_seq_gen(struct PipelineObject *gen);
+struct PipelineObject *delete_seq_gen(struct PipelineObject *gen) { (void)gen; return NULL; }
+char *seq_gen_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep);
+char *seq_gen_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep)
+    { (void)json; (void)record_sep; (void)line_sep; return NULL; }
 // XXX end stubs
 
 static const unsigned history_length = 64; // must be 2^n
 static const unsigned reset_ms = 300000; // way longer than OAM timeout so we know we test the OAM timeout
 
-// we don't want to use assemble_actions() in this test
-// and we don't care about the contents
-static struct Pipeline *new_pipeline(const char *name)
-{
-    struct Pipeline *ret = calloc_struct(Pipeline);
-    ret->name = strdup(name);
-    return ret;
-}
-
-static void prepare_oam_packet(struct Packet *p, unsigned nodeid, unsigned char session)
-{
-    p->len = 30;
-    OK(packet_identify_header(p, PROTO_ID_IPv6, 0, 10) == true, "first header doesn't matter");
-    OK(packet_identify_header(p, PROTO_ID_OAM, 10, 8) == true, "oam header");
-
-    unsigned char *oam  = p->buf + p->headers[1].start;
-    oam[4] = (nodeid>>12) & 0xff;
-    oam[5] = (nodeid>>4) & 0xff;
-    oam[6] = (nodeid&0xf) << 4;
-    oam[7] = session & 0xff; // upper 4 bits are flags (we don't care here)
-}
-
-static void test_get_sessionid(void)
-{
-    struct Packet *p = new_packet(NULL);
-    OK_FATAL(p, "have packet");
-    char *s = oam_session_id(p);
-    OK(s == NULL, "session is undefined before having headers");
-
-    // node id is 74565
-    // session id is 4 bit so 91 becomes 11
-    prepare_oam_packet(p, 0x12345, 91);
-
-    s = oam_session_id(p);
-    OK(s != NULL, "have session id");
-    OK(strcmp(s, "74565:11") == 0, "session id '%s'", s);
-    free(s);
-
-    delete_packet(p);
-}
-
 static void test_get_oam_rcvy(void)
 {
     log_set_level("RCVY", DEBUG); //TODO to catch the flaky test in line 234
+    struct PipelineObject *rec = new_seq_rec("oam", RCVY_Vector, false, false, history_length, reset_ms, NULL);
+    OK_FATAL(rec, "have object");
     // session id string can be anything
-    struct SequenceRecovery *rec1 = get_oam_rcvy("one of the recovery objects ever created");
-    struct SequenceRecovery *rec2 = get_oam_rcvy("another nice recovery object");
-    struct SequenceRecovery *rec3 = get_oam_rcvy("one of the recovery objects ever created");
+    struct SequenceRecovery *rec1 = get_oam_rcvy(rec, "one of the recovery objects ever created");
+    struct SequenceRecovery *rec2 = get_oam_rcvy(rec, "another nice recovery object");
+    struct SequenceRecovery *rec3 = get_oam_rcvy(rec, "one of the recovery objects ever created");
 
     // the oam timeout is 5000 ms
     usleep(6000*1000);
 
     // note: without valgind the memory locations may be reused for the new sessions
-    struct SequenceRecovery *rec4 = get_oam_rcvy("one of the recovery objects ever created");
-    struct SequenceRecovery *rec5 = get_oam_rcvy("another nice recovery object");
+    struct SequenceRecovery *rec4 = get_oam_rcvy(rec, "one of the recovery objects ever created");
+    struct SequenceRecovery *rec5 = get_oam_rcvy(rec, "another nice recovery object");
 
     OK(rec1 != NULL && rec2 != NULL && rec3 != NULL && rec4 != NULL && rec5 != NULL, "shoud have every recovery");
     OK(rec2 != rec1, "different session");
@@ -103,6 +79,8 @@ static void test_get_oam_rcvy(void)
     OK(rec4 != rec1, "new rcvy after reset");
     OK(rec5 != rec2, "new rcvy after reset");
     OK(rec4 != rec5, "different session after reset");
+
+    pipeline_object_unref(rec);
 }
 
 static void test_single(void)
@@ -113,42 +91,25 @@ static void test_single(void)
 
     struct Packet *p = new_packet(NULL);
     OK_FATAL(p, "have packet");
-    struct Pipeline *pl = new_pipeline("test");
-    OK_FATAL(pl, "have pipeline");
-    struct PipelineIterator *pi = new_pipe_iterator(pl, p);
-    OK_FATAL(pi, "have iterator");
-
-    prepare_oam_packet(p, 1234, 1);
-    unsigned char *meta = ((unsigned char *)(&p->sequence));
-    meta[0] = 0x11; // indicator and version
-    unsigned char *seq = meta+1;
 
     // it must behave like match recovery: no history, just check that current seq differs from previous
     // (if current seq < previous seq that's out of order but not duplicate)
 
-    *seq = 8;
-    OK(rec->process_packet(rec, pi) == ACR_CONTINUE, "in TakeAny");
-    OK(rec->process_packet(rec, pi) == ACR_DONE, "duplicate");
-    *seq = 9;
-    OK(rec->process_packet(rec, pi) == ACR_CONTINUE, "not duplicate");
-    OK(rec->process_packet(rec, pi) == ACR_DONE, "duplicate");
-    *seq = 11;
-    OK(rec->process_packet(rec, pi) == ACR_CONTINUE, "not duplicate");
-    OK(rec->process_packet(rec, pi) == ACR_DONE, "duplicate");
-    *seq = 8;
-    OK(rec->process_packet(rec, pi) == ACR_CONTINUE, "not duplicate");
-    OK(rec->process_packet(rec, pi) == ACR_DONE, "duplicate");
+    OK(oam_recovery(rec, p, "sessionid", 8) == ACR_CONTINUE, "in TakeAny");
+    OK(oam_recovery(rec, p, "sessionid", 8)== ACR_DONE, "duplicate");
+    OK(oam_recovery(rec, p, "sessionid", 9) == ACR_CONTINUE, "not duplicate");
+    OK(oam_recovery(rec, p, "sessionid", 9) == ACR_DONE, "duplicate");
+    OK(oam_recovery(rec, p, "sessionid", 11) == ACR_CONTINUE, "not duplicate");
+    OK(oam_recovery(rec, p, "sessionid", 11) == ACR_DONE, "duplicate");
+    OK(oam_recovery(rec, p, "sessionid", 8) == ACR_CONTINUE, "not duplicate");
+    OK(oam_recovery(rec, p, "sessionid", 8) == ACR_DONE, "duplicate");
 
-    *seq = 255;
-    OK(rec->process_packet(rec, pi) == ACR_CONTINUE, "not duplicate");
-    OK(rec->process_packet(rec, pi) == ACR_DONE, "duplicate");
-    *seq = 0;
-    OK(rec->process_packet(rec, pi) == ACR_CONTINUE, "not duplicate");
-    OK(rec->process_packet(rec, pi) == ACR_DONE, "duplicate");
+    OK(oam_recovery(rec, p, "sessionid", 255) == ACR_CONTINUE, "not duplicate");
+    OK(oam_recovery(rec, p, "sessionid", 255) == ACR_DONE, "duplicate");
+    OK(oam_recovery(rec, p, "sessionid", 0) == ACR_CONTINUE, "not duplicate");
+    OK(oam_recovery(rec, p, "sessionid", 0) == ACR_DONE, "duplicate");
 
-    OK(delete_seq_rec(rec) == NULL, "delete object");
-    free(pi);
-    pipeline_unref(pl);
+    pipeline_object_unref(rec);
     OK(delete_packet(p) == NULL, "delete packet");
 }
 
@@ -158,54 +119,24 @@ static void test_multi(void)
     struct PipelineObject *rec = new_seq_rec("oam", RCVY_Vector, false, false, history_length, reset_ms, NULL);
     OK_FATAL(rec, "have object");
 
-    struct Packet *p1 = new_packet(NULL);
-    OK_FATAL(p1, "have packet");
-    struct Pipeline *pl1 = new_pipeline("test");
-    OK_FATAL(pl1, "have pipeline");
-    struct PipelineIterator *pi1 = new_pipe_iterator(pl1, p1);
-    OK_FATAL(pi1, "have iterator");
-    struct Packet *p2 = new_packet(NULL);
-    OK_FATAL(p2, "have packet");
-    struct Pipeline *pl2 = new_pipeline("test");
-    OK_FATAL(pl2, "have pipeline");
-    struct PipelineIterator *pi2 = new_pipe_iterator(pl2, p2);
-    OK_FATAL(pi2, "have iterator");
+    struct Packet *p = new_packet(NULL);
+    OK_FATAL(p, "have packet");
 
-    prepare_oam_packet(p1, 234, 1);
-    unsigned char *meta1 = ((unsigned char *)(&p1->sequence));
-    meta1[0] = 0x11; // indicator and version
-    unsigned char *seq1 = meta1+1;
-    prepare_oam_packet(p2, 234, 2);
-    unsigned char *meta2 = ((unsigned char *)(&p2->sequence));
-    meta2[0] = 0x11; // indicator and version
-    unsigned char *seq2 = meta2+1;
+    OK(oam_recovery(rec, p, "session 1", 8) == ACR_CONTINUE, "in TakeAny");
+    OK(oam_recovery(rec, p, "session 1", 8) == ACR_DONE, "duplicate");
+    OK(oam_recovery(rec, p, "session 2", 8) == ACR_CONTINUE, "in TakeAny");
+    OK(oam_recovery(rec, p, "session 2", 8) == ACR_DONE, "duplicate");
+    OK(oam_recovery(rec, p, "session 1", 9) == ACR_CONTINUE, "not duplicate");
+    OK(oam_recovery(rec, p, "session 1", 9) == ACR_DONE, "duplicate");
+    OK(oam_recovery(rec, p, "session 2", 9) == ACR_CONTINUE, "not duplicate");
+    OK(oam_recovery(rec, p, "session 2", 9) == ACR_DONE, "duplicate");
+    OK(oam_recovery(rec, p, "session 1", 3) == ACR_CONTINUE, "not duplicate");
+    OK(oam_recovery(rec, p, "session 1", 3) == ACR_DONE, "duplicate");
+    OK(oam_recovery(rec, p, "session 2", 3) == ACR_CONTINUE, "not duplicate");
+    OK(oam_recovery(rec, p, "session 2", 3) == ACR_DONE, "duplicate");
 
-    *seq1 = 8;
-    *seq2 = 8;
-    OK(rec->process_packet(rec, pi1) == ACR_CONTINUE, "in TakeAny");
-    OK(rec->process_packet(rec, pi1) == ACR_DONE, "duplicate");
-    OK(rec->process_packet(rec, pi2) == ACR_CONTINUE, "in TakeAny");
-    OK(rec->process_packet(rec, pi2) == ACR_DONE, "duplicate");
-    *seq1 = 9;
-    *seq2 = 9;
-    OK(rec->process_packet(rec, pi1) == ACR_CONTINUE, "not duplicate");
-    OK(rec->process_packet(rec, pi1) == ACR_DONE, "duplicate");
-    OK(rec->process_packet(rec, pi2) == ACR_CONTINUE, "not duplicate");
-    OK(rec->process_packet(rec, pi2) == ACR_DONE, "duplicate");
-    *seq1 = 3;
-    *seq2 = 3;
-    OK(rec->process_packet(rec, pi1) == ACR_CONTINUE, "not duplicate");
-    OK(rec->process_packet(rec, pi1) == ACR_DONE, "duplicate");
-    OK(rec->process_packet(rec, pi2) == ACR_CONTINUE, "not duplicate");
-    OK(rec->process_packet(rec, pi2) == ACR_DONE, "duplicate");
-
-    OK(delete_seq_rec(rec) == NULL, "delete object");
-    free(pi1);
-    free(pi2);
-    pipeline_unref(pl1);
-    pipeline_unref(pl2);
-    OK(delete_packet(p1) == NULL, "delete packet");
-    OK(delete_packet(p2) == NULL, "delete packet");
+    pipeline_object_unref(rec);
+    OK(delete_packet(p) == NULL, "delete packet");
 }
 
 static void test_timeout(void)
@@ -215,37 +146,50 @@ static void test_timeout(void)
 
     struct Packet *p = new_packet(NULL);
     OK_FATAL(p, "have packet");
-    struct Pipeline *pl = new_pipeline("test");
-    OK_FATAL(pl, "have pipeline");
-    struct PipelineIterator *pi = new_pipe_iterator(pl, p);
-    OK_FATAL(pi, "have iterator");
 
-    prepare_oam_packet(p, 34, 1);
-    unsigned char *meta = ((unsigned char *)(&p->sequence));
-    meta[0] = 0x11; // indicator and version
-    unsigned char *seq = meta+1;
-
-    *seq = 8;
-    OK(rec->process_packet(rec, pi) == ACR_CONTINUE, "in TakeAny");
-    OK(rec->process_packet(rec, pi) == ACR_DONE, "duplicate");
+    OK(oam_recovery(rec, p, "sessionid", 8) == ACR_CONTINUE, "in TakeAny");
+    OK(oam_recovery(rec, p, "sessionid", 8) == ACR_DONE, "duplicate");
 
     // the oam timeout is 5000 ms
     usleep(6000*1000);
 
-    OK(rec->process_packet(rec, pi) == ACR_CONTINUE, "in TakeAny"); //TODO this line is flaky in CI
-    OK(rec->process_packet(rec, pi) == ACR_DONE, "duplicate");
+    OK(oam_recovery(rec, p, "sessionid", 8) == ACR_CONTINUE, "in TakeAny");
+    OK(oam_recovery(rec, p, "sessionid", 8) == ACR_DONE, "duplicate");
 
-    OK(delete_seq_rec(rec) == NULL, "delete object");
-    free(pi);
-    pipeline_unref(pl);
+    pipeline_object_unref(rec);
+    OK(delete_packet(p) == NULL, "delete packet");
+}
+
+static void test_objects(void)
+{
+    struct PipelineObject *rec1 = new_seq_rec("oam 1", RCVY_Vector, false, false, history_length, reset_ms, NULL);
+    struct PipelineObject *rec2 = new_seq_rec("oam 1", RCVY_Vector, false, false, history_length, reset_ms, NULL);
+    OK_FATAL(rec1, "have object");
+    OK_FATAL(rec2, "have object");
+
+    struct Packet *p = new_packet(NULL);
+    OK_FATAL(p, "have packet");
+
+    OK(oam_recovery(rec1, p, "sessionid", 8) == ACR_CONTINUE, "in TakeAny");
+    OK(oam_recovery(rec2, p, "sessionid", 8) == ACR_CONTINUE, "in TakeAny");
+    OK(oam_recovery(rec1, p, "sessionid", 8) == ACR_DONE, "duplicate");
+    OK(oam_recovery(rec2, p, "sessionid", 8) == ACR_DONE, "duplicate");
+
+    OK(oam_recovery(rec1, p, "sessionid", 9) == ACR_CONTINUE, "not duplicate");
+    OK(oam_recovery(rec1, p, "sessionid", 9) == ACR_DONE, "duplicate");
+    OK(oam_recovery(rec2, p, "sessionid", 9) == ACR_CONTINUE, "not duplicate");
+    OK(oam_recovery(rec2, p, "sessionid", 9) == ACR_DONE, "duplicate");
+
+    pipeline_object_unref(rec1);
+    pipeline_object_unref(rec2);
     OK(delete_packet(p) == NULL, "delete packet");
 }
 
 TEST_CASES = {
-    {"get session id", test_get_sessionid},
     {"get oam rcvy", test_get_oam_rcvy},
     {"single session", test_single},
     {"multiple sessions", test_multi},
     {"timeout", test_timeout},
+    {"multiple objects", test_objects},
     {NULL, NULL}
 };

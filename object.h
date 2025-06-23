@@ -52,7 +52,7 @@ void pipelineobject_store_mep_start_name(struct PipelineObject *obj, const char 
 // uses @record_sep and @line_sep for formatting
 // uses the appropriate printing function based on the type encoded in the @json
 // always returns a valid string
-char *sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep);
+char *pipelineobject_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep);
 
 #endif // R2_OBJECT_H
 

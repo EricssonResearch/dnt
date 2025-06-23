@@ -193,8 +193,8 @@ static int process_reply(const char *msg)
         char *obj_str_log = NULL;
         struct JsonValue *o_info = json_object_get_object(jreceiver, "object");
         if (o_info) {
-            obj_str = sprintf_state_json(o_info, ", ", "\n\t\t");
-            obj_str_log = sprintf_state_json(o_info, ", ", "; ");
+            obj_str = pipelineobject_sprintf_state_json(o_info, ", ", "\n\t\t");
+            obj_str_log = pipelineobject_sprintf_state_json(o_info, ", ", "; ");
         }
         if (obj_str_log == NULL) obj_str_log = strdup("");
 

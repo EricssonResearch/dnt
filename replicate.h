@@ -12,11 +12,12 @@
 
 struct PipelineObject *new_replicate(const char *name);
 
+#ifdef OBJECT_INTERNAL
 // always returns NULL
 struct PipelineObject *delete_replicate(struct PipelineObject *rep);
 
-// use sprintf_state_json() instead of this
 char *repl_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep);
+#endif
 
 // store the pipelines in the replication object
 void store_replication_pipelines(struct PipelineObject *obj, struct PipelineList *pipes);

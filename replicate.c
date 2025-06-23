@@ -1,6 +1,7 @@
 // Copyright (c) 2023-2025, Ericsson AB and Ericsson Telecommunication Hungary
 // All rights reserved.
 
+#define OBJECT_INTERNAL
 
 #include "replicate.h"
 #include "action.h"

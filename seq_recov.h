@@ -47,9 +47,9 @@ enum SequenceRecoveryAlgorithm {
     RCVY_SeamlessVector,
 };
 
-// use sprintf_state_json() instead of this
-char *seq_rec_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep);
 
+// set the number of currently active incoming paths for latent error detection
+// it can be lower than the configured amount if some of the senders are masked
 void seq_rec_set_latent_error_paths(struct PipelineObject *obj, int paths);
 
 // sequence recovery for OAM messages
@@ -68,14 +68,16 @@ struct PipelineObject *new_seq_rec(const char *name, enum SequenceRecoveryAlgori
         bool use_reset_flag, bool use_init_flag, unsigned history_length,
         unsigned reset_msec, const struct RecoveryDiagnosticConf *diag);
 
+#ifdef OBJECT_INTERNAL
 // always returns NULL
 struct PipelineObject *delete_seq_rec(struct PipelineObject *rec);
 
+char *seq_rec_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep);
+#endif
+
 #ifdef TESTING
 
-char *oam_session_id(const struct Packet *p);
-
-struct SequenceRecovery *get_oam_rcvy(const char *session_id);
+struct SequenceRecovery *get_oam_rcvy(struct PipelineObject *rec, const char *session_id);
 
 #endif
 
