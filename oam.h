@@ -22,8 +22,25 @@ enum OAM_MP_Type { OAM_Start, OAM_Stop, OAM_Intermediate };
 
 enum OAM_MP_Encap { OAM_PW, OAM_TSN, OAM_SRv6 };
 
+enum OAM_MP_Addr_Source { OAM_FROM_Unknown, OAM_FROM_Edit, OAM_FROM_Match, OAM_FROM_Later };
+
 // state object for a pipeline action that sends/receives OAM packets
 struct OAM_MaintenancePoint;
+
+// represents one address for message injection into the pipeline
+struct OAM_MP_Address {
+    char *header;
+    char *field;
+    struct Value val; // must be a constant value
+    enum OAM_MP_Addr_Source source;
+    struct OAM_MP_Address *next;
+};
+
+const char *oam_mp_type_to_str(enum OAM_MP_Type type);
+
+const char *oam_mp_encap_to_str(enum OAM_MP_Encap encap);
+
+const char *oam_mp_addr_source_to_str(enum OAM_MP_Addr_Source src);
 
 // initialize the OAM module
 // @returns true on success
@@ -53,17 +70,18 @@ void oam_cli_alert(const char *fmt, ...)
 // MPs are uniquely identified by @mp_name
 // when multiple actions refer to the same MP the @stream_name, @type and @level must be the same
 // MP can be bound to a pipeline object @obj to monitor its state
-// if MP is an injector point (OAM_Start, OAM_Intermediate), @pipe and @idx define the injection point
 // @protostack determines the encapsulation of the MP
+// if MP is an injector point (OAM_Start, OAM_Intermediate), @pipe and @idx define the injection point
+// @addr specifies the addressing for the injected messages
 struct OAM_MaintenancePoint *oam_new_maintenance_point(const char *stream_name, const char *mp_name,
         enum OAM_MP_Type type, unsigned level,
         const enum ProtocolID *protostack,
-        struct PipelineObject *obj, struct Pipeline *pipe, unsigned idx);
+        struct PipelineObject *obj, struct Pipeline *pipe, unsigned idx,
+        struct OAM_MP_Address *addr);
 
 // removes a reference from @mp
 // @mp is deleted when its reference count reaches zero
 void oam_unref_maintenance_point(struct OAM_MaintenancePoint *mp);
-
 
 // specify the command interface that receives telnet connections
 // see @oam_start_command_connection

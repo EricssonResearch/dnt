@@ -383,6 +383,7 @@ static enum ActionResult action_OAMINJECT_execute(struct Action *a, struct Pipel
 
 bool create_action_oam_inject(struct Action *a, const char *name, const char *stream, int level,
                               bool intermediate, struct Pipeline *pipe, unsigned idx,
+                              struct OAM_MP_Address *address,
                               const enum ProtocolID *protostack,
                               struct PipelineObject *obj, const char *text)
 {
@@ -390,7 +391,7 @@ bool create_action_oam_inject(struct Action *a, const char *name, const char *st
     a->del = action_OAMINJECT_del;
 
     enum OAM_MP_Type type = intermediate ? OAM_Intermediate : OAM_Start;
-    struct OAM_MaintenancePoint *mp = oam_new_maintenance_point(stream, name, type, level, protostack, obj, pipe, idx);
+    struct OAM_MaintenancePoint *mp = oam_new_maintenance_point(stream, name, type, level, protostack, obj, pipe, idx, address);
     if (mp == NULL) {
         log_error("failed to create maintenance point for inject action %s", name);
         return false;
@@ -460,7 +461,7 @@ bool create_action_oam_receive(struct Action *a, const char *name, const char *s
     a->del = action_OAMRECEIVE_del;
 
     enum OAM_MP_Type type = intermediate ? OAM_Intermediate : OAM_Stop;
-    struct OAM_MaintenancePoint *mp = oam_new_maintenance_point(stream, name, type, level, protostack, obj, NULL, 0);
+    struct OAM_MaintenancePoint *mp = oam_new_maintenance_point(stream, name, type, level, protostack, obj, NULL, 0, NULL);
     if (mp == NULL) {
         log_error("failed to create maintenance point for receive action %s", name);
         return false;

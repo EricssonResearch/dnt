@@ -282,8 +282,11 @@ static unsigned char get_pw_ttl(const struct Packet *p)
 struct OAM_MaintenancePoint *oam_new_maintenance_point(const char *stream_name, const char *mp_name,
         enum OAM_MP_Type type, unsigned level,
         const enum ProtocolID *protostack,
-        struct PipelineObject *obj, struct Pipeline *pipe, unsigned idx)
+        struct PipelineObject *obj, struct Pipeline *pipe, unsigned idx,
+        struct OAM_MP_Address *addr)
 {
+    (void)addr; //TODO process this (must copy the contents!)
+
     struct OAM_MaintenancePoint *mp = NULL;
     if (mp_hash == NULL) {
         mp_hash = new_hashmap(13, mp_delete_cb, NULL);
@@ -301,7 +304,7 @@ struct OAM_MaintenancePoint *oam_new_maintenance_point(const char *stream_name, 
 
             if (type != mp->type) {
                 log_error("Redefined MP '%s' with type %s previous type %s",
-                        mp_name, mp_type_to_str(type), mp_type_to_str(mp->type));
+                        mp_name, oam_mp_type_to_str(type), oam_mp_type_to_str(mp->type));
                 return NULL;
             }
 
@@ -337,7 +340,7 @@ struct OAM_MaintenancePoint *oam_new_maintenance_point(const char *stream_name, 
     /*if (type != OAM_Stop) {
         if (pipe == NULL) {
             log_error("%s '%s' needs a pipeline injection point",
-                    mp_type_to_str(type), mp_name);
+                    oam_mp_type_to_str(type), mp_name);
             return NULL;
         }
     }*/
@@ -395,7 +398,7 @@ struct OAM_MaintenancePoint *find_maintenance_point(const char *name)
     }
 }
 
-const char *mp_type_to_str(enum OAM_MP_Type type)
+const char *oam_mp_type_to_str(enum OAM_MP_Type type)
 {
     switch (type) {
         case  OAM_Start:
@@ -408,7 +411,7 @@ const char *mp_type_to_str(enum OAM_MP_Type type)
     return NULL;
 }
 
-const char *mp_encap_to_str(enum OAM_MP_Encap encap)
+const char *oam_mp_encap_to_str(enum OAM_MP_Encap encap)
 {
     switch (encap) {
         case OAM_PW:
@@ -417,6 +420,21 @@ const char *mp_encap_to_str(enum OAM_MP_Encap encap)
             return "TSN";
         case OAM_SRv6:
             return "SRv6";
+    }
+    return NULL;
+}
+
+const char *oam_mp_addr_source_to_str(enum OAM_MP_Addr_Source src)
+{
+    switch (src) {
+        case OAM_FROM_Unknown:
+            return "Unknown";
+        case OAM_FROM_Edit:
+            return "Edit before MP";
+        case OAM_FROM_Match:
+            return "Match";
+        case OAM_FROM_Later:
+            return "Edit after MP";
     }
     return NULL;
 }
@@ -447,6 +465,7 @@ bool mp_can_send(const struct OAM_MaintenancePoint *mp)
         return false;
     if (mp->pipe == NULL)
         return false;
+    //TODO also check if we have the necessary addressing info
     return true;
 }
 
@@ -455,7 +474,7 @@ struct JsonValue *mp_get_state_json(const struct OAM_MaintenancePoint *mp, bool 
     struct JsonValue *ret = json_object();
     json_object_insert(ret, "name", json_string(mp->name));
     json_object_insert(ret, "stream_name", json_string(mp->stream_name));
-    json_object_insert(ret, "type", json_string(mp_type_to_str(mp->type)));
+    json_object_insert(ret, "type", json_string(oam_mp_type_to_str(mp->type)));
     json_object_insert(ret, "level", json_number(mp->level));
     json_object_insert(ret, "send", json_number(mp->oam_send));
     json_object_insert(ret, "recv", json_number(mp->oam_recv));
@@ -507,7 +526,7 @@ struct JsonValue *mp_get_state_json_by_object(const struct OAM_MaintenancePoint 
 void mp_print_info(const struct OAM_MaintenancePoint *mp, FILE *out, bool details)
 {
     fprintf(out, "%s in %s level %u %s",
-            mp->name, mp->stream_name, mp->level, mp_encap_to_str(mp->encap));
+            mp->name, mp->stream_name, mp->level, oam_mp_encap_to_str(mp->encap));
     if (mp->pipe)
         fprintf(out, " (pipe %s idx %u)", mp->pipe->name, mp->pipe_pos_idx);
 

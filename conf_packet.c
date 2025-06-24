@@ -206,7 +206,8 @@ void confheaders_print(const struct HeaderDescriptor *headers)
         log_info("  name %s protocol %s", h->name, protocol_type_from_id(h->id));
 
         if (h->matches) {
-            log_info("  matches:");
+            log_info("    has matches");
+            if (log_enabled(DEBUG))
             for (const struct HeaderMatch *m=h->matches; m; m=m->next) {
                 unsigned bytes = DIVCEIL(m->value.bitoffset + m->value.bitcount, 8);
                 unsigned char *cst = (unsigned char *)m->value.value;
@@ -219,7 +220,7 @@ void confheaders_print(const struct HeaderDescriptor *headers)
                     }
                 }
 
-                log_info("    field idx %u bitoffset %u bitcount %u value bitoffset %u bitlength %u, bytes%s",
+                log_debug("      header idx %u bitoffset %u bitcount %u value bitoffset %u bitlength %u, bytes%s",
                         m->field.header_idx, m->field.bitoffset, m->field.bitcount,
                         m->value.bitoffset, m->value.bitcount, b_str);
             }

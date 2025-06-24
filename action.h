@@ -38,6 +38,7 @@ enum ActionResult {
 };
 
 struct Action;
+struct OAM_MP_Address; // we can't include oam.h
 struct PipelineObject; // we can't include object.h
 
 typedef enum ActionResult action_execute(struct Action *a, struct PipelineIterator *pi);
@@ -100,6 +101,7 @@ void create_action_filteroam(struct Action *a, const struct HeaderField *seqfiel
 // TODO also pass addressing of the injected messages
 bool create_action_oam_inject(struct Action *a, const char *name, const char *stream, int level,
                               bool intermediate, struct Pipeline *pipe, unsigned idx,
+                              struct OAM_MP_Address *address,
                               const enum ProtocolID *protostack,
                               struct PipelineObject *obj, const char *text);
 

@@ -21,10 +21,6 @@
 // use @oam_unref_maintenance_point to release the reference
 struct OAM_MaintenancePoint *find_maintenance_point(const char *name);
 
-const char *mp_type_to_str(enum OAM_MP_Type type);
-
-const char *mp_encap_to_str(enum OAM_MP_Encap encap);
-
 const char *mp_get_name(const struct OAM_MaintenancePoint *mp);
 
 const char *mp_get_stream_name(const struct OAM_MaintenancePoint *mp);

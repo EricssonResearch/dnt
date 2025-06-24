@@ -149,6 +149,7 @@ struct ConfAction {
             int level;
             struct PipelineObject *obj; // NULL if no associated object
             const enum ProtocolID *protostack;
+            struct OAM_MP_Address *address; // address list for injection
             bool auto_generated;
         } oam;
         struct {
@@ -173,6 +174,7 @@ struct ConfAction {
 struct MustWriteField {
     const struct HeaderDescriptor *header;
     const struct ProtocolField *field;
+    struct ConfAction *requester;
     struct MustWriteField *next;
 };
 
@@ -414,6 +416,7 @@ static bool process_assignment_lhs(struct StageState *stst, struct ConfAssignmen
         if (f == NULL) {
             THROW("header '%s' has no field named '%s'", hdr, field);
         }
+
         init_confvariable(lhs, CVT_FIELD, f);
         lhs->v.header.field = new_headerfield(header_index(stst->headers, h), f);
         lhs->v.header.header_name = strdup(hdr);
@@ -424,7 +427,19 @@ static bool process_assignment_lhs(struct StageState *stst, struct ConfAssignmen
         struct MustWriteField *mw_last = NULL;
         struct MustWriteField *mw = stst->must_write;
         while (mw) {
-            if (h == mw->header && f == mw->field) {
+            // we accept any f that fully covers mw->field
+            bool f_covers_mw = (f->bitoffset <= mw->field->bitoffset) &&
+                (f->bitoffset + f->bitcount >= mw->field->bitoffset + mw->field->bitcount);
+            if (h == mw->header && f_covers_mw) {
+                //TODO what if requester is not an oam action?
+                for (struct OAM_MP_Address *addr=mw->requester->oam.address; addr; addr=addr->next) {
+                    if (strcmp(mw->field->name, addr->field) == 0) {
+                        log_debug("found write for %s:%s that is on the must_write list", hdr, field);
+                        addr->source = OAM_FROM_Later;
+                        break;
+                    }
+                }
+
                 if (mw_last) {
                     mw_last->next = mw->next;
                     free(mw);
@@ -903,7 +918,7 @@ static bool process_token(char *token, void *userdata)
                 struct StageState pstst = *stst;
                 char *replname = strdup(token);
                 pstst.stream = replname;
-                pstst.headers = copy_header_list(stst->headers, false);
+                pstst.headers = copy_header_list(stst->headers, true);
                 pstst.actions = NULL;
                 pstst.must_write = copy_mustwrite_list(stst, pstst.headers);
                 pstst.depth += 1;
@@ -1100,6 +1115,8 @@ static const enum ProtocolID *oam_possible_protostacks[] = {
     oam_protostack_ethcvlanrtag, oam_protostack_ethsvlanrtag,
 };
 
+// check which OAM-compatible protocol stack we have in @headers
+// @return NULL if none
 static const enum ProtocolID *check_header_stack_for_oam(const struct HeaderDescriptor *headers)
 {
     for (unsigned i=0; i<ARRAY_SIZE(oam_possible_protostacks); i++) {
@@ -1122,6 +1139,173 @@ static const enum ProtocolID *check_header_stack_for_oam(const struct HeaderDesc
             return oam_possible_protostacks[i];
     }
     return NULL;
+}
+
+// @returns the name of the field in @proto that contains addressing for OAM message injection
+static const char *header_field_thats_address_for_oam(enum ProtocolID proto)
+{
+    switch (proto) {
+        case PROTO_ID_MPLS:
+            return "label";
+        case PROTO_ID_ETH:
+            return "dmac";
+        case PROTO_ID_CVLAN:
+        case PROTO_ID_SVLAN:
+            return "vid"; // note: "vlan" covers this field
+        default:
+            return NULL;
+    }
+}
+
+// @return the value for the addressing OAM message injection needs, or NULL if @ass doesn't assign such field
+static struct Value *address_for_oam_in_assignment(struct ConfAssignment *ass)
+{
+    //TODO can we support CVT_FIELD or CVT_IFACE somehow?
+    if (ass->rhs.type != CVT_CONST)
+        return NULL;
+
+    if (ass->lhs_protoid == PROTO_ID_MPLS) {
+        if (strcmp(ass->lhs.v.header.field_name, "label") == 0)
+            return &ass->rhs.value;
+    }
+
+    if (ass->lhs_protoid == PROTO_ID_ETH) {
+        if (strcmp(ass->lhs.v.header.field_name, "dmac") == 0)
+            return &ass->rhs.value;
+    }
+    if (ass->lhs_protoid == PROTO_ID_CVLAN || ass->lhs_protoid == PROTO_ID_SVLAN) {
+        if (strcmp(ass->lhs.v.header.field_name, "vid") == 0)
+            return &ass->rhs.value;
+        if (strcmp(ass->lhs.v.header.field_name, "vlan") == 0)
+            return &ass->rhs.value;
+    }
+    return NULL;
+}
+
+// @return the value for the addressing OAM message injection needs, or NULL if @h doesn't have match for such field
+static struct Value *address_for_oam_in_matches(struct HeaderDescriptor *h)
+{
+    for (struct HeaderMatch *m=h->matches; m; m=m->next) {
+        if (h->id == PROTO_ID_MPLS) {
+            const struct ProtocolField *label = protocol_get_field_by_name(PROTO_ID_MPLS, "label");
+            if (m->field.bitoffset == label->bitoffset && m->field.bitcount == label->bitcount) {
+                return &m->value;
+            }
+        }
+        if (h->id == PROTO_ID_ETH) {
+            const struct ProtocolField *dmac = protocol_get_field_by_name(PROTO_ID_ETH, "dmac");
+            if (m->field.bitoffset == dmac->bitoffset && m->field.bitcount == dmac->bitcount) {
+                return &m->value;
+            }
+        }
+        if (h->id == PROTO_ID_CVLAN || h->id == PROTO_ID_SVLAN) {
+            const struct ProtocolField *vid = protocol_get_field_by_name(PROTO_ID_CVLAN, "vid");
+            const struct ProtocolField *vlan = protocol_get_field_by_name(PROTO_ID_CVLAN, "vlan");
+            if (m->field.bitoffset == vid->bitoffset && m->field.bitcount == vid->bitcount) {
+                return &m->value;
+            }
+            if (m->field.bitoffset == vlan->bitoffset && m->field.bitcount == vlan->bitcount) {
+                return &m->value;
+            }
+        }
+    }
+    return NULL;
+}
+
+// construct a must_write structure for the OAM addressing field in @h
+static struct MustWriteField *must_write_for_oam_in_header(struct HeaderDescriptor *h)
+{
+    struct MustWriteField *mw = calloc_struct(MustWriteField);
+    mw->header = h;
+    if (h->id == PROTO_ID_MPLS)
+        mw->field = protocol_get_field_by_name(PROTO_ID_MPLS, "label");
+    else if (h->id == PROTO_ID_ETH)
+        mw->field = protocol_get_field_by_name(PROTO_ID_ETH, "dmac");
+    else if (h->id == PROTO_ID_CVLAN || h->id == PROTO_ID_SVLAN)
+        mw->field = protocol_get_field_by_name(PROTO_ID_CVLAN, "vid"); // "vlan" will also cover this
+    return mw;
+}
+
+// analyze the actions we've had so far to get the necessary addressing for injected OAM messages
+static void find_addressing_for_mp(struct StageState *stst)
+{
+    struct ConfAction *mpaction = stst->actions;
+
+    log_debug("find addressing for MP %s", mpaction->oam.name);
+    struct HeaderDescriptor *h = stst->headers;
+    for (unsigned p=0; mpaction->oam.protostack[p]; p++) {
+        if (header_field_thats_address_for_oam(h->id) == NULL) // same as mpaction->oam.protostack[p]
+            continue;
+
+        log_debug("  checking for proto %s", protocol_type_from_id(h->id));
+        bool header_was_added = false;
+        struct Value *val = NULL;
+        for (struct ConfAction *a=stst->actions; a; a=a->next) {
+            log_debug("  checking action %s '%s'", confaction_name_from_type(a->type), a->text);
+            if (a->type == CA_ADD && strcmp(a->add.newname, h->name) == 0) {
+                // the header was added by this action, and we haven't had a write since then
+                header_was_added = true;
+                log_debug("    header was added by this action");
+                break;
+            } else if (a->type == CA_EDIT) {
+                for (struct ConfAssignment *ass=a->edit.assignments; ass; ass=ass->next) {
+                    if (strcmp(ass->lhs.v.header.header_name, h->name) == 0) {
+                        log_debug("    assignment '%s' touches header %s that contains the address",
+                                ass->text, h->name);
+                        val = address_for_oam_in_assignment(ass);
+                    }
+                }
+                if (val) {
+                    log_debug("    found assignment for the address field");
+                    break;
+                }
+            }
+        }
+
+        struct OAM_MP_Address *addr = calloc_struct(OAM_MP_Address);
+        addr->header = strdup(h->name);
+        addr->field = strdup(header_field_thats_address_for_oam(h->id));
+        addr->next = mpaction->oam.address;
+        mpaction->oam.address = addr;
+
+        if (header_was_added) {
+            log_debug("header %s was added but the address in it hasn't been written before MP", h->name);
+            struct MustWriteField *mw = must_write_for_oam_in_header(h);
+            mw->requester = mpaction;
+            mw->next = stst->must_write;
+            stst->must_write = mw;
+        } else {
+            log_debug("header %s was on the packet upon reception", h->name);
+            if (val) {
+                log_debug("have assigned field value before MP");
+                addr->val = *val;
+                unsigned bits_total = val->bitoffset + val->bitcount;
+                unsigned bytes_total = DIVCEIL(bits_total, 8);
+                addr->val.value = memdup(val->value, bytes_total);
+                addr->source = OAM_FROM_Edit;
+            } else {
+                log_debug("no field value assigned before MP, let's check matches");
+                val = address_for_oam_in_matches(h);
+
+                if (val) {
+                    log_debug("have match on the address in %s", h->name);
+                    addr->val = *val;
+                    unsigned bits_total = val->bitoffset + val->bitcount;
+                    unsigned bytes_total = DIVCEIL(bits_total, 8);
+                    addr->val.value = memdup(val->value, bytes_total);
+                    addr->source = OAM_FROM_Match;
+                } else {
+                    log_debug("header %s was on the packet upon reception but no match, no assign before MP", h->name);
+                    struct MustWriteField *mw = must_write_for_oam_in_header(h);
+                    mw->requester = mpaction;
+                    mw->next = stst->must_write;
+                    stst->must_write = mw;
+                }
+            }
+        }
+
+        h = h->next;
+    }
 }
 
 // here we do processing that needs all the parameters of the action
@@ -1335,8 +1519,8 @@ static bool process_action(struct StageState *stst)
 
             for (struct MustWriteField *mw=stst->must_write; mw; mw=mw->next) {
                 if (mw->header == delh) {
-                    THROW("deleting header that is on the must_write list (field %s)",
-                            mw->field->name);
+                    log_warning("deleting header %s that is on the must_write list (field %s)",
+                            delh->name, mw->field->name);
                 }
             }
 
@@ -1490,31 +1674,9 @@ static bool process_action(struct StageState *stst)
                 THROW("header stack is not suitable for OAM point %s", newaction->oam.name);
             }
 
-            //TODO analyze the pipeline for setting up the addressing of the injected oam messages
-            //      pipeline can write the address fields AFTER the MP
-            //      pipeline can write the address fields BEFORE the MP
-            //      pipeline can write some of the address fields BEFORE the MP some AFTER the MP
-            //      pipeline doesn't write the address fields, but we have MATCH for them
-            //      any other case is invalid, we can't inject OAM
-            //  TODO depending on protostack we need
-            //      mpls.label
-            //      eth.dmac and vlan.vid (or vlan.vlan?)
-            //  TODO this is irrelevant for CA_MEPSTOP
+            if (newaction->type != CA_MEPSTOP)
+                find_addressing_for_mp(stst);
 
-            /*enum ProtocolID expected[] = {PROTO_ID_MPLS, PROTO_ID_DCW};
-            if (check_header_stack(stst->headers, expected, 2) == false) {
-                THROW("header stack is not suitable for OAM point");
-            }*/
-            //TODO replace @must_write with a pipeline analyzer
-            //TODO remove CA_MIP for now, it should be there but causes trouble
-            /*if (newaction->type == CA_MEPSTART / *|| newaction->type == CA_MIP* /) {
-                // this is a packet injection point, user must write label before sending
-                struct MustWriteField *mw = calloc_struct(MustWriteField);
-                mw->header = stst->headers;
-                mw->field = protocol_get_field_by_name(PROTO_ID_MPLS, "label");
-                mw->next = stst->must_write;
-                stst->must_write = mw;
-            }*/
             break; }
         case CA_POF:
             if (newaction->pof.pof == NULL) {
@@ -1578,10 +1740,10 @@ static bool process_action(struct StageState *stst)
             }
             if (stst->must_write) {
                 for (struct MustWriteField *mw=stst->must_write; mw; mw=mw->next) {
-                    log_error("stream %s must write field %s:%s before sending",
-                            stst->stream, mw->header->name, mw->field->name);
+                    //TODO what if requester is not an oam action?
+                    log_warning("stream %s must write field %s:%s after %s and before sending or message injection won't work",
+                            stst->stream, mw->header->name, mw->field->name, mw->requester->oam.name);
                 }
-                return false;
             }
             break; }
         case CA_SEQGEN:
@@ -1643,7 +1805,7 @@ struct ConfAction *parse_actions_line(const char *stream, const char *line,
     struct StageState stst = {
         .stream = stream,
         .actions = NULL,
-        .headers = copy_header_list(headers, false),
+        .headers = copy_header_list(headers, true),
         .ifaces = ifaces,
         .objects = objects,
         .streams_sec = streams_sec,
@@ -1694,10 +1856,9 @@ struct ConfAction *parse_actions_line(const char *stream, const char *line,
     //TODO in stst.actions set all pointers to stst.headers to NULL
 
     if (stst.must_write) {
-        // strange edge case...
-        log_warning("stream %s has a MEP-START, but no EDIT label and no SEND", stream);
+        log_warning("stream %s has injector MP, but its addressing is not satisfied", stream);
         for (struct MustWriteField *mw=stst.must_write; mw; mw=mw->next) {
-            log_warning("must write field %s:%s",
+            log_warning("  must write field %s:%s",
                     mw->header->name, mw->field->name);
         }
         delete_must_write_list(stst.must_write);
@@ -1783,6 +1944,14 @@ struct ConfAction *delete_confaction_list(struct ConfAction *ca_list)
             case CA_MIP:
                 free(del->oam.name);
                 free(del->oam.stream);
+                while (del->oam.address) {
+                    struct OAM_MP_Address *addr = del->oam.address;
+                    del->oam.address = del->oam.address->next;
+                    free(addr->header);
+                    free(addr->field);
+                    free(addr->val.value);
+                    free(addr);
+                }
                 break;
             case CA_POF:
                 break;
@@ -1937,7 +2106,7 @@ struct Pipeline *assemble_actions(const char *stream_name, const struct ConfActi
                 THROW("jump should have been inlined");
             case CA_MEPSTART:
                 if (!create_action_oam_inject(actions+i, ca->oam.name, ca->oam.stream, ca->oam.level, false,
-                            ret, i, ca->oam.protostack, ca->oam.obj, ca->text)) {
+                            ret, i, ca->oam.address, ca->oam.protostack, ca->oam.obj, ca->text)) {
                     THROW("couldn't create MEP Start");
                 }
                 break;
@@ -1954,7 +2123,7 @@ struct Pipeline *assemble_actions(const char *stream_name, const struct ConfActi
                 }
                 i++;
                 if (!create_action_oam_inject(actions+i, ca->oam.name, ca->oam.stream, ca->oam.level, true,
-                            ret, i, ca->oam.protostack, ca->oam.obj, ca->text)) {
+                            ret, i, ca->oam.address, ca->oam.protostack, ca->oam.obj, ca->text)) {
                     THROW("couldn't create MIP Start");
                 }
                 break;
@@ -2089,6 +2258,11 @@ void confactions_log(const struct ConfAction *ca_list, unsigned indent)
             case CA_MIP:
                 log_debug("%*sname %s stream %s level %d object %s", indent+2, "",
                         ca->oam.name, ca->oam.stream, ca->oam.level, ca->oam.obj?ca->oam.obj->name:"<none>");
+                for (struct OAM_MP_Address *addr=ca->oam.address; addr; addr=addr->next) {
+                    //TODO also the value if we have one
+                    log_debug("%*saddress %s:%s source %s", indent+4, "", addr->header, addr->field,
+                            oam_mp_addr_source_to_str(addr->source));
+                }
                 break;
             case CA_POF:
                 log_debug("%*sobject %s", indent+2, "", ca->pof.pof->name);
