@@ -227,6 +227,7 @@ static struct MustWriteField *copy_mustwrite_list(const struct StageState *stst,
     for (struct MustWriteField *mw=stst->must_write; mw; mw=mw->next) {
         struct MustWriteField *n = calloc_struct(MustWriteField);
         n->field = mw->field;
+        n->requester = mw->requester;
         n->next = ret;
         ret = n;
 
