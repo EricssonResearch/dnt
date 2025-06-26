@@ -508,6 +508,7 @@ struct OamRequest *delete_oam_request(struct OamRequest *req)
     free(req->error);
     free(req->remote_command);
     free(req->conn_name);
+    free(req->originator_stream);
     free(req);
     return NULL;
 }

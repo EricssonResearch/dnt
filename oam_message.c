@@ -324,7 +324,7 @@ static int oam_send_udp_reply(const char *address, unsigned port, const char *ms
 
 
 
-static bool send_message_outofband(struct JsonValue *msg, struct JsonValue *address)
+static bool send_message_outofband(const struct JsonValue *msg, struct JsonValue *address)
 {
     struct JsonValue *ip = json_object_get_string(address, "ip");
     struct JsonValue *port = json_object_get_number(address, "port");
@@ -333,7 +333,6 @@ static bool send_message_outofband(struct JsonValue *msg, struct JsonValue *addr
 
     unsigned msg_len;
     char *msg_str = json_serialize(msg, &msg_len);
-    json_delete(msg);
     if (msg_str == NULL) {
         log_error("failed to serialize out-of-band message");
         return false;
@@ -481,7 +480,6 @@ static bool process_rping_request(struct OAM_MaintenancePoint *mp, struct JsonVa
         delete_oam_request(ping_req);
         return send_rping_error(mp, js, recv_time, error);
     }
-    json_delete(js);
     return false;
 }
 
@@ -698,6 +696,7 @@ static void *inband_receiver_th(void *arg)
                 if (!mp_pack_message_payload(msg->mp, msg->pi->packet, js)) {
                     log_error("could not update JSON payload in received message");
                     pipe_iteraror_cancel(msg->pi);
+                    json_delete(js);
                     continue;
                 }
             }
@@ -711,6 +710,7 @@ static void *inband_receiver_th(void *arg)
             pipe_iteraror_cancel(msg->pi);
         }
 
+        json_delete(js);
         free(msg);
     }
 

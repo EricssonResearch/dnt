@@ -15,8 +15,10 @@
 
 #include <stdio.h>
 
+// keeps the OAM sessions going on a stream
 struct StreamSessions;
 
+// adds a reference to the connection, it must be released with release_command_connection()
 struct CommandConnection *command_connection_for_session(const char *stream_name, unsigned session_id);
 
 struct StreamSessions *get_stream_sessions(const char *stream_name);

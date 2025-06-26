@@ -1254,6 +1254,8 @@ static void find_addressing_for_mp(struct StageState *stst)
                         log_debug("    assignment '%s' touches header %s that contains the address",
                                 ass->text, h->name);
                         val = address_for_oam_in_assignment(ass);
+                        if (val)
+                            break;
                     }
                 }
                 if (val) {

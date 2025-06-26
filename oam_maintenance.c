@@ -22,12 +22,15 @@ DEFAULT_LOGGING_MODULE(OAM, INFO);
 #define OAM_CHANNEL 0x7fff /* Experimental channel type, we are not compatible with anything */
 
 struct MP_MPLS_Address {
-    unsigned label;
+    unsigned char label[4];
+    enum OAM_MP_Addr_Source label_source;
 };
 
-struct MP_ETH_Address {
-    unsigned short vlan;
-    //TODO mac, vlan
+struct MP_TSN_Address {
+    unsigned char dmac[6];
+    unsigned char vlan[2];
+    enum OAM_MP_Addr_Source dmac_source;
+    enum OAM_MP_Addr_Source vlan_source;
 };
 
 struct OAM_MaintenancePoint {
@@ -43,7 +46,11 @@ struct OAM_MaintenancePoint {
     int pipe_pos_idx;
 
     const enum ProtocolID *protostack;
-    //TODO address for injection
+    union {
+        struct MP_MPLS_Address pw_address;
+        struct MP_TSN_Address tsn_address;
+    };
+    bool address_ok;
 
     struct PipelineObject *object;
 
@@ -140,7 +147,8 @@ static struct JsonValue *unpack_pw_message(const struct Packet *p)
     return js;
 }
 
-static struct JsonValue *pack_pw_message_header(struct Packet *p, const struct OamRequest *req)
+static struct JsonValue *pack_pw_message_header(const struct OAM_MaintenancePoint *mp, struct Packet *p,
+        const struct OamRequest *req)
 {
     unsigned channel = OAM_CHANNEL;
     unsigned nodeid;
@@ -154,14 +162,15 @@ static struct JsonValue *pack_pw_message_header(struct Packet *p, const struct O
     packet_clear_headers(p);
     packet_enlarge_scratch(p);
 
+    // TODO support >1 mpls label?
+
     packet_add_header(p, 0, PROTO_ID_MPLS, protocol_from_id(PROTO_ID_MPLS)->bytelength);
     packet_add_header(p, 1, PROTO_ID_OAM, protocol_from_id(PROTO_ID_OAM)->bytelength);
     packet_add_header(p, 2, PROTO_ID_PAYLOAD, 0);
 
     unsigned char *mpls = p->buf + p->headers[0].start;
-    mpls[0] = 0; //TODO write label if we have it
-    mpls[1] = 0;
-    mpls[2] = 1; // BOS
+    memcpy(mpls, mp->pw_address.label, 4);
+    mpls[2] |= 1; // BOS
     mpls[3] = ttl;
     unsigned char *oam  = p->buf + p->headers[1].start;
     oam[0] = 0x10; // indicator and version
@@ -278,6 +287,36 @@ static unsigned char get_pw_ttl(const struct Packet *p)
     return mpls_start[3];
 }
 
+static void set_mp_address(struct OAM_MaintenancePoint *mp, struct OAM_MP_Address *addr)
+{
+    //TODO is it possible that we overwrite a valid address with OAM_FROM_Unknown?
+    for (struct OAM_MP_Address *ad=addr; ad; ad=ad->next) {
+        if (mp->encap == OAM_PW) {
+            if (strcmp(ad->field, "label") == 0) {
+                mp->pw_address.label_source = ad->source;
+                if (ad->source == OAM_FROM_Edit || ad->source == OAM_FROM_Match)
+                    memcpy(mp->pw_address.label, ad->val.value, 4);
+            }
+        } else if (mp->encap == OAM_TSN) {
+            if (strcmp(ad->field, "dmac") == 0) {
+                mp->tsn_address.dmac_source = ad->source;
+                if (ad->source == OAM_FROM_Edit || ad->source == OAM_FROM_Match)
+                    memcpy(mp->tsn_address.dmac, ad->val.value, 6);
+            } else if (strcmp(ad->field, "vlan") == 0 || strcmp(ad->field, "vid") == 0) {
+                mp->tsn_address.vlan_source = ad->source;
+                if (ad->source == OAM_FROM_Edit || ad->source == OAM_FROM_Match)
+                    memcpy(mp->tsn_address.vlan, ad->val.value, 2);
+            }
+        }
+    }
+    if (mp->encap == OAM_PW) {
+        mp->address_ok = mp->pw_address.label_source != OAM_FROM_Unknown;
+    } else if (mp->encap == OAM_TSN) {
+        mp->address_ok = mp->tsn_address.dmac_source != OAM_FROM_Unknown
+                      && mp->tsn_address.vlan_source != OAM_FROM_Unknown;
+    }
+}
+
 
 struct OAM_MaintenancePoint *oam_new_maintenance_point(const char *stream_name, const char *mp_name,
         enum OAM_MP_Type type, unsigned level,
@@ -285,8 +324,6 @@ struct OAM_MaintenancePoint *oam_new_maintenance_point(const char *stream_name, 
         struct PipelineObject *obj, struct Pipeline *pipe, unsigned idx,
         struct OAM_MP_Address *addr)
 {
-    (void)addr; //TODO process this (must copy the contents!)
-
     struct OAM_MaintenancePoint *mp = NULL;
     if (mp_hash == NULL) {
         mp_hash = new_hashmap(13, mp_delete_cb, NULL);
@@ -331,6 +368,9 @@ struct OAM_MaintenancePoint *oam_new_maintenance_point(const char *stream_name, 
             mp->pipe = pipe;
             mp->pipe_pos_idx = idx;
         }
+
+        set_mp_address(mp, addr);
+
         int refcount = __atomic_add_fetch(&mp->reference_count, 1, __ATOMIC_RELAXED);
         log_debug("%s ref refcount %d", mp_name, refcount);
         return mp;
@@ -363,6 +403,8 @@ struct OAM_MaintenancePoint *oam_new_maintenance_point(const char *stream_name, 
         pipeline_object_ref(obj);
         pipelineobject_store_mep_start_name(obj, mp_name);
     }
+
+    set_mp_address(mp, addr);
 
     hashmap_insert(mp_hash, mp->name, mp);
     notification_register_source(mp_name, mp_notification_pull_fn, mp, 2000);
@@ -463,12 +505,7 @@ enum OAM_MP_Type mp_get_type(const struct OAM_MaintenancePoint *mp)
 
 bool mp_can_send(const struct OAM_MaintenancePoint *mp)
 {
-    if (mp->type == OAM_Stop)
-        return false;
-    if (mp->pipe == NULL)
-        return false;
-    //TODO also check if we have the necessary addressing info
-    return true;
+    return mp->type != OAM_Stop && mp->pipe != NULL && mp->address_ok;
 }
 
 struct JsonValue *mp_get_state_json(const struct OAM_MaintenancePoint *mp, bool object_info)
@@ -527,10 +564,10 @@ struct JsonValue *mp_get_state_json_by_object(const struct OAM_MaintenancePoint 
 
 void mp_print_info(const struct OAM_MaintenancePoint *mp, FILE *out, bool details)
 {
-    fprintf(out, "%s in %s level %u %s",
-            mp->name, mp->stream_name, mp->level, oam_mp_encap_to_str(mp->encap));
+    fprintf(out, "%s in %s type %s level %u %s",
+            mp->name, mp->stream_name, oam_mp_type_to_str(mp->type), mp->level, oam_mp_encap_to_str(mp->encap));
     if (mp->pipe)
-        fprintf(out, " (pipe %s idx %u)", mp->pipe->name, mp->pipe_pos_idx);
+        fprintf(out, " (pipe %s idx %u)%s", mp->pipe->name, mp->pipe_pos_idx, mp_can_send(mp) ? "" : " CAN'T SEND");
 
     if (details) {
         if (mp->object)
@@ -568,7 +605,7 @@ struct JsonValue *mp_unpack_message(const struct OAM_MaintenancePoint *mp, const
 struct JsonValue *mp_pack_message_header(const struct OAM_MaintenancePoint *mp, struct Packet *p, const struct OamRequest *req)
 {
     if (mp->encap == OAM_PW) {
-        return pack_pw_message_header(p, req);
+        return pack_pw_message_header(mp, p, req);
     }
     //TODO pack other encaps
 

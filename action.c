@@ -279,7 +279,9 @@ static enum ActionResult action_ELIM_execute(struct Action *a, struct PipelineIt
                     char *session = strdup_printf("%s:%hhu:%hhu", smac_str, sessionid, level);
                     log_debug("TSN session %s", session);
 
-                    return oam_recovery(ed->rcvy, pi->packet, session, *p_seq);
+                    enum ActionResult ret = oam_recovery(ed->rcvy, pi->packet, session, *p_seq);
+                    free(session);
+                    return ret;
                 }
             } else {
                 // TODO if we don't have RTAG then how do we eliminate the data packets??
@@ -296,7 +298,9 @@ static enum ActionResult action_ELIM_execute(struct Action *a, struct PipelineIt
                 char *session = strdup_printf("%s:%hhu:%hhu", nodeid_str, dach.session, dach.level);
                 log_debug("PW session %s", session);
 
-                return oam_recovery(ed->rcvy, pi->packet, session, dach.seq);
+                enum ActionResult ret = oam_recovery(ed->rcvy, pi->packet, session, dach.seq);
+                free(session);
+                return ret;
             }
         } else {
             //TODO die?

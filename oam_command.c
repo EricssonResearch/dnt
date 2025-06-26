@@ -124,8 +124,10 @@ static int list_startpoints_cb(const char *key, void *value, void *userdata)
     (void)key;
     struct OAM_MaintenancePoint *mp = (struct OAM_MaintenancePoint*)value;
     FILE *cmd_w = (FILE *)userdata;
-    mp_print_info(mp, cmd_w, false);
-    fprintf(cmd_w, "\n");
+    if (mp_get_type(mp) != OAM_Stop) {
+        mp_print_info(mp, cmd_w, false);
+        fprintf(cmd_w, "\n");
+    }
     return 1;
 }
 
