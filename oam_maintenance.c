@@ -287,6 +287,146 @@ static unsigned char get_pw_ttl(const struct Packet *p)
     return mpls_start[3];
 }
 
+static struct JsonValue *pack_tsn_message_header(const struct OAM_MaintenancePoint *mp, struct Packet *p,
+        const struct OamRequest *req)
+{
+    unsigned nodeid;
+    unsigned char level;
+    unsigned char session;
+    unsigned char seq;
+    unsigned char ttl;
+
+    request_get_identification_data(req, &nodeid, &level, &session, &seq, &ttl);
+
+    packet_clear_headers(p);
+    packet_enlarge_scratch(p);
+
+    packet_add_header(p, 0, PROTO_ID_ETH, protocol_from_id(PROTO_ID_ETH)->bytelength);
+    packet_add_header(p, 1, mp->protostack[1], protocol_from_id(mp->protostack[1])->bytelength); // cvlan or svlan
+
+    unsigned char *eth = p->buf + p->headers[0].start;
+    memcpy(eth, mp->tsn_address.dmac, 6);
+    memset(eth+6, 0, 6); //TODO node id
+    if (mp->protostack[1] == PROTO_ID_CVLAN) {
+        eth[12] = 0x81;
+        eth[13] = 0x00;
+    } else {
+        eth[12] = 0x88;
+        eth[13] = 0xa8;
+    }
+
+    unsigned char *vlan = p->buf + p->headers[1].start;
+    vlan[0] = mp->tsn_address.vlan[0];
+    vlan[1] = mp->tsn_address.vlan[1];
+
+    unsigned char *cfm;
+    unsigned char *tlv;
+    if (mp->protostack[2] == PROTO_ID_RTAG) {
+        packet_add_header(p, 2, PROTO_ID_RTAG, protocol_from_id(PROTO_ID_RTAG)->bytelength);
+        packet_add_header(p, 3, PROTO_ID_PAYLOAD, 8); // set up cfm and an empty tlv initially
+
+        vlan[2] = 0xf1; // rtag
+        vlan[3] = 0xc1;
+
+        unsigned char *rtag = p->buf + p->headers[2].start;
+        rtag[0] = 0x10; // indicator nibble and reserved
+        rtag[1] = seq;
+        rtag[2] = 0; // flags
+        rtag[3] = session & 0x0f; // upper bits are version=0
+        rtag[4] = 0x89; // cfm
+        rtag[5] = 0x02;
+
+        cfm = p->buf + p->headers[3].start;
+        tlv = cfm + 4;
+    } else {
+        packet_add_header(p, 2, PROTO_ID_PAYLOAD, 4); // set up cfm and an empty tlv initially
+
+        vlan[2] = 0x89; // cfm
+        vlan[3] = 0x02;
+
+        cfm = p->buf + p->headers[2].start;
+        tlv = cfm + 4;
+    }
+
+    cfm[0] = level << 5;
+    cfm[1] = OAM_CFM_REQUEST_OPCODE;
+    cfm[2] = 0; // flags
+    cfm[3] = 0; // tlv offset
+
+    tlv[0] = 3; // generic data tlv
+    tlv[1] = 0; // length hi
+    tlv[2] = 0; // length lo
+    tlv[3] = 0; // end tlv indicator
+
+    p->ttl = ttl;
+
+    struct JsonValue *js = json_object();
+    json_object_insert(js, "type", json_string(request_get_type(req)));
+    json_object_insert(js, "code", json_string("request"));
+
+    struct timespec sendtime;
+    clock_gettime(CLOCK_REALTIME, &sendtime);
+    p->recv_time = sendtime;
+    timespec_to_tsntstamp(p->timestamp, &sendtime);
+
+    json_object_insert(js, "send_s", json_number(sendtime.tv_sec));
+    json_object_insert(js, "send_ns", json_number(sendtime.tv_nsec));
+
+    return js;
+}
+
+static bool pack_tsn_payload(struct Packet *p, const struct JsonValue *msg)
+{
+    if (!packet_is_linear(p)) {
+        log_error("can't update message in packet that is not continuous in memory");
+        return false;
+    }
+
+    //TODO adapt this to TSN
+    struct JsonValue *out = json_duplicate(msg);
+    const char *ach_keys[] = {"version", "seq", "channel", "nodeid", "level", "flags", "session" };
+    for (unsigned i=0; i<ARRAY_SIZE(ach_keys); i++) {
+        json_object_remove(out, ach_keys[i]);
+    }
+
+    unsigned js_length;
+    char *js_string = json_serialize(out, &js_length);
+    if (js_string == NULL) {
+        log_error("could not serialize the updated message");
+        json_delete(out);
+        return false;
+    }
+    json_delete(out);
+
+    // write the new json string into p
+    // TODO this packet manipulation is extremely ugly
+    unsigned header_len = 0;
+    for (unsigned i=0; p->headers[i].type != PROTO_ID_PAYLOAD; i++) {
+        header_len += p->headers[i].len;
+    }
+    unsigned char *payload = p->buf + header_len;
+    unsigned char *cfm = payload;
+    unsigned char *tlv = cfm + 4;
+    tlv[1] = (js_length >> 8) & 0xff;
+    tlv[2] = js_length & 0xff;
+    memcpy(tlv+3, js_string, js_length+1); // also set the closing 0
+    free(js_string);
+    unsigned new_len = header_len + 4 + 3 + js_length + 1;
+    // note: we don't know how many and what type of headers there are in @p
+    //       we only know that the packet is linear in memory
+    if (p->headers[0].start < p->start) {
+        // data is on the scratch
+        p->headers[p->header_count-1].len += new_len - p->scratch_len;
+        p->scratch_len = new_len;
+    } else {
+        // data is in the receive area
+        p->headers[p->header_count-1].len += new_len - p->len;
+        p->len = new_len;
+    }
+    return true;
+}
+
+
 static void set_mp_address(struct OAM_MaintenancePoint *mp, struct OAM_MP_Address *addr)
 {
     //TODO is it possible that we overwrite a valid address with OAM_FROM_Unknown?
@@ -607,7 +747,9 @@ struct JsonValue *mp_pack_message_header(const struct OAM_MaintenancePoint *mp, 
     if (mp->encap == OAM_PW) {
         return pack_pw_message_header(mp, p, req);
     }
-    //TODO pack other encaps
+    else if (mp->encap == OAM_TSN) {
+        return pack_tsn_message_header(mp, p, req);
+    }
 
     return NULL;
 }
@@ -617,7 +759,9 @@ bool mp_pack_message_payload(const struct OAM_MaintenancePoint *mp, struct Packe
     if (mp->encap == OAM_PW) {
         return pack_pw_payload(p, msg);
     }
-    //TODO other encaps
+    else if (mp->encap == OAM_TSN) {
+        return pack_tsn_payload(p, msg);
+    }
 
     return false;
 }
@@ -646,8 +790,6 @@ unsigned char mp_get_ttl(const struct OAM_MaintenancePoint *mp, const struct Pac
 
 void mp_inject_packet(struct OAM_MaintenancePoint *mp, struct Packet *p)
 {
-    //TODO when do we set the addressing?
-
     if (mp->pipe == NULL) {
         log_error("mp %s can't send without a pipe", mp->name);
         return;

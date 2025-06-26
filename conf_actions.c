@@ -1112,8 +1112,9 @@ static const enum ProtocolID oam_protostack_ethcvlanrtag[] = {PROTO_ID_ETH, PROT
 static const enum ProtocolID oam_protostack_ethsvlanrtag[] = {PROTO_ID_ETH, PROTO_ID_SVLAN, PROTO_ID_RTAG, PROTO_ID_PAYLOAD};
 
 static const enum ProtocolID *oam_possible_protostacks[] = {
-    oam_protostack_mplspw, oam_protostack_ethcvlan, oam_protostack_ethsvlan,
+    oam_protostack_mplspw,
     oam_protostack_ethcvlanrtag, oam_protostack_ethsvlanrtag,
+    oam_protostack_ethcvlan, oam_protostack_ethsvlan,
 };
 
 // check which OAM-compatible protocol stack we have in @headers
