@@ -355,6 +355,20 @@ OAM request ping session 1 seq 0, s3n3-e1-32 -> any level 1 count 1 interval 100
   oam_r tx332:1 seq 0 lvl 1 R - ping on stream tx332 target any; reply from s3n4-e1-24
 """
     ),
+
+    (
+        'n1', 'rping s1n1-e4-01 nonexistentmp 4 s1n3-i4-34 any 4',
+"""
+OAM request rping session 6 seq 0, s1n1-e4-01 -> nonexistentmp level 4 count 1 interval 1000, rr: no os: no	[reply to ip 10.0.0.1 port 6634] 
+"""
+    ),
+
+    (
+        'n1', 'rping s1n1-e4-01 s1n3-i4-13 4 s1n3-i4-34 nonexistentmp 4 ',
+"""
+OAM request rping session 7 seq 0, s1n1-e4-01 -> s1n3-i4-13 level 4 count 1 interval 1000, rr: no os: no	[reply to ip 10.0.0.1 port 6634] 
+"""
+    ),
 ]
 
 def auto_mip_test():
@@ -431,11 +445,6 @@ def run_tests(net, test):
             else:
                 print("✘ FAILED: OAM reply different")
                 print(f"Actual reply:\n{reply}\nExpected reply:\n{expected_reply}\n")
-                str1 = reply.strip()
-                str2 =  expected_reply.strip()
-                index = next((i for i in range(min(len(str1), len(str2))) if str1[i]!=str2[i]), None)
-                if index is not None:
-                    print("Diff position= ", index, " Different char in reply: ", str1[index:] , " in expected reply: ", str2[index:])
 
     switch_netns()
     if auto_mip_test():
