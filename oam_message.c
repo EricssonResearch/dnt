@@ -437,7 +437,7 @@ static bool send_rping_error(struct OAM_MaintenancePoint *mp, struct JsonValue *
     json_object_insert(js, "code", json_string("error"));
     json_object_insert(js, "recv_s", json_number(recv_time.tv_sec));
     json_object_insert(js, "recv_ns", json_number(recv_time.tv_nsec));
-    json_object_insert(js, "receiver", json_string(mp_get_name(mp)));
+    json_object_insert(js, "receiver", mp_get_state_json(mp, false));
     json_object_insert(js, "error", json_string(error));
 
     logpacket_reply(mp, js, return_dup, "rping error");
