@@ -287,6 +287,93 @@ static unsigned char get_pw_ttl(const struct Packet *p)
     return mpls_start[3];
 }
 
+static struct JsonValue *unpack_tsn_message(const struct Packet *p)
+{
+    if (p->header_count < 2) {
+        log_error("OAM packet doesn't have 2 identified headers (eth, vlan), how was this matched??");
+        return NULL;
+    }
+
+    if (!packet_is_linear(p)) {
+        log_error("OAM packet is not continuous in memory");
+        return NULL;
+    }
+
+    unsigned plen = packet_length(p);
+    unsigned header_len = protocol_from_id(PROTO_ID_ETH)->bytelength +
+        protocol_from_id(PROTO_ID_CVLAN)->bytelength;
+
+    if (plen < header_len) {
+        log_error("TSN OAM packet is too short");
+        return NULL;
+    }
+
+    unsigned char *eth = p->buf + p->headers[0].start;
+    unsigned char *vlan = eth + protocol_from_id(PROTO_ID_ETH)->bytelength;
+
+    unsigned char *cfm = vlan + protocol_from_id(PROTO_ID_CVLAN)->bytelength;
+    header_len += protocol_from_id(PROTO_ID_CFM)->bytelength + 3; // added the tlv header
+
+    unsigned char *rtag = 0;
+    if (vlan[2] == 0xf1 && vlan[3] == 0xc1) {
+        rtag = vlan + protocol_from_id(PROTO_ID_CVLAN)->bytelength;
+        cfm += protocol_from_id(PROTO_ID_RTAG)->bytelength;
+        header_len += protocol_from_id(PROTO_ID_RTAG)->bytelength;
+    }
+
+    if (plen < header_len + 1) { // added the end tlv
+        log_error("TSN OAM packet is too short");
+        return NULL;
+    }
+
+    char *json_str = (char*)(cfm + protocol_from_id(PROTO_ID_CFM)->bytelength + 3);
+    unsigned json_len = plen - header_len - 1; // don't include the end tlv
+
+    char *jerror;
+    struct JsonValue *js = json_parse(json_str, json_len, &jerror);
+    if (js == NULL || js->type != JSON_OBJECT) {
+        log_error("Received PW OAM packet contains invalid JSON string: %s", jerror);
+        free(jerror);
+        return NULL;
+    }
+
+    int cfm_level = cfm[0] >> 5;
+    struct JsonValue *jlevel = json_object_get_any(js, "level");
+    if (jlevel) {
+        log_warning("Received TSN OAM packet's JSON contains level");
+    }
+    json_object_insert(js, "level", json_number(cfm_level));
+
+    unsigned nodeid = 0;
+    nodeid += eth[6+2] << 24;
+    nodeid += eth[6+3] << 16;
+    nodeid += eth[6+4] <<  8;
+    nodeid += eth[6+5] <<  0;
+    struct JsonValue *jnodeid = json_object_get_any(js, "nodeid");
+    if (jnodeid) {
+        log_warning("Received TSN OAM packet's JSON contains nodeid");
+    }
+    json_object_insert(js, "nodeid", json_number(nodeid));
+
+    if (rtag) {
+        unsigned seq = rtag[1];
+        unsigned session = rtag[3] & 0x0f; // upper bits are version
+
+        struct JsonValue *jsse  = json_object_get_any(js, "seq");
+        if (jsse) {
+            log_warning("Received TSN OAM packet's JSON contains seq");
+        }
+        jsse  = json_object_get_any(js, "session");
+        if (jsse) {
+            log_warning("Received TSN OAM packet's JSON contains session");
+        }
+        json_object_insert(js, "seq", json_number(seq));
+        json_object_insert(js, "session", json_number(session));
+    }
+
+    return js;
+}
+
 static struct JsonValue *pack_tsn_message_header(const struct OAM_MaintenancePoint *mp, struct Packet *p,
         const struct OamRequest *req)
 {
@@ -428,6 +515,46 @@ static bool pack_tsn_payload(struct Packet *p, const struct JsonValue *msg)
         p->len = new_len;
     }
     return true;
+}
+
+static int compare_tsn_level(const struct OAM_MaintenancePoint *mp, const struct Packet *p)
+{
+    if (p->header_count < 2) {
+        log_error("OAM packet doesn't have 2 identified headers (eth, vlan), how was this matched??");
+        return -1;
+    }
+
+    if (!packet_is_linear(p)) {
+        log_error("OAM packet is not continuous in memory");
+        return -1;
+    }
+
+    unsigned plen = packet_length(p);
+    unsigned header_len = protocol_from_id(PROTO_ID_ETH)->bytelength +
+        protocol_from_id(PROTO_ID_CVLAN)->bytelength;
+
+    if (plen < header_len) {
+        log_error("TSN OAM packet is too short");
+        return -1;
+    }
+
+    unsigned char *vlan = p->buf + p->headers[0].start + protocol_from_id(PROTO_ID_ETH)->bytelength;
+
+    unsigned char *cfm = vlan + protocol_from_id(PROTO_ID_CVLAN)->bytelength;
+    header_len += protocol_from_id(PROTO_ID_CFM)->bytelength;
+
+    if (vlan[2] == 0xf1 && vlan[3] == 0xc1) {
+        cfm += protocol_from_id(PROTO_ID_RTAG)->bytelength;
+        header_len += protocol_from_id(PROTO_ID_RTAG)->bytelength;
+    }
+
+    if (plen < header_len) {
+        log_error("TSN OAM packet is too short");
+        return -1;
+    }
+
+    int cfm_level = cfm[0] >> 5;
+    return cfm_level - (int)mp->level;
 }
 
 
@@ -742,7 +869,9 @@ struct JsonValue *mp_unpack_message(const struct OAM_MaintenancePoint *mp, const
     if (mp->encap == OAM_PW) {
         return unpack_pw_message(p);
     }
-    //TODO unpack other encaps
+    else if (mp->encap == OAM_TSN) {
+        return unpack_tsn_message(p);
+    }
 
     return NULL;
 }
@@ -776,7 +905,9 @@ int mp_compare_level(const struct OAM_MaintenancePoint *mp, const struct Packet 
     if (mp->encap == OAM_PW) {
         return compare_pw_level(mp, p);
     }
-    //TODO other encaps
+    else if (mp->encap == OAM_TSN) {
+        return compare_tsn_level(mp, p);
+    }
 
     return -1;
 }
