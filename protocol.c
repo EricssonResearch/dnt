@@ -37,6 +37,8 @@ static bool id_from_ethertype(enum ProtocolID *id, uint16_t nexthdr)
             SET_ID(PROTO_ID_IPv6);
         case ETH_P_ARP:
             SET_ID(PROTO_ID_ARP);
+        case ETH_P_CFM:
+            SET_ID(PROTO_ID_CFM);
     }
     return false;
 #undef SET_ID
@@ -52,6 +54,7 @@ static bool ethertype_from_id(uint16_t *nexthdr, enum ProtocolID id)
             SET_TYPE(ETH_P_8021Q);
         case PROTO_ID_RTAG:
         case PROTO_ID_TTAG:
+        case PROTO_ID_OAMRTAG:
             SET_TYPE(ETH_P_FRER);
         case PROTO_ID_MPLS:
             SET_TYPE(ETH_P_MPLS_UC);
@@ -61,6 +64,8 @@ static bool ethertype_from_id(uint16_t *nexthdr, enum ProtocolID id)
             SET_TYPE(ETH_P_IPV6);
         case PROTO_ID_ARP:
             SET_TYPE(ETH_P_ARP);
+        case PROTO_ID_CFM:
+            SET_TYPE(ETH_P_CFM);
         case PROTO_ID_PAYLOAD:
         case PROTO_ID_ETH:
         case PROTO_ID_DCW:
@@ -68,8 +73,6 @@ static bool ethertype_from_id(uint16_t *nexthdr, enum ProtocolID id)
         case PROTO_ID_UDP:
         case PROTO_ID_TCP:
         case PROTO_ID_OAM:
-        case PROTO_ID_OAMRTAG:
-        case PROTO_ID_CFM:
             return false;
     }
     return false;
