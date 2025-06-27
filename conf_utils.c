@@ -180,6 +180,23 @@ bool read_constant(struct Value *val, enum ProtocolID proto, enum ProtocolFieldT
         val->bitcount = prefix;                                 \
     }
 
+#define ZERO_SUFFIX(_maxlen)                                \
+    do {                                                    \
+        unsigned prefix_ = val->bitcount;                   \
+        unsigned n_ = 0;                                    \
+        while (prefix_ >= 8) {                              \
+            n_++;                                           \
+            prefix_ -= 8;                                   \
+        }                                                   \
+        if (prefix_) {                                      \
+            unsigned char mask_ = 0xff << (8 - prefix_);    \
+            ((unsigned char*)val->value)[n_++] &= mask_;    \
+        }                                                   \
+        while (n_ < _maxlen/8) {                            \
+            ((unsigned char*)val->value)[n_++] = 0;         \
+        }                                                   \
+    } while (0)
+
     val->bitoffset %= 8;
 
     switch (type) {
@@ -225,6 +242,7 @@ bool read_constant(struct Value *val, enum ProtocolID proto, enum ProtocolFieldT
                 THROW("invalid Ethernet address");
             }
             free(stringdup);
+            ZERO_SUFFIX(48);
             return true; }
         case FT_IPV4ADDRESS: {
             if (val->bitoffset != 0 || val->bitcount != 4*8) {
@@ -239,6 +257,7 @@ bool read_constant(struct Value *val, enum ProtocolID proto, enum ProtocolFieldT
                 THROW("invalid IPv4 address");
             }
             free(stringdup);
+            ZERO_SUFFIX(32);
             return true; }
         case FT_IPV6ADDRESS: {
             if (val->bitoffset != 0 || val->bitcount != 16*8) {
@@ -253,6 +272,7 @@ bool read_constant(struct Value *val, enum ProtocolID proto, enum ProtocolFieldT
                 THROW("invalid IPv6 address");
             }
             free(stringdup);
+            ZERO_SUFFIX(128);
             return true; }
         case FT_TSNSEQ:
         case FT_SRV6SEQ:
