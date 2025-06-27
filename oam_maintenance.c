@@ -207,7 +207,7 @@ static bool pack_pw_payload(struct Packet *p, const struct JsonValue *msg)
     }
 
     struct JsonValue *out = json_duplicate(msg);
-    const char *ach_keys[] = {"version", "seq", "channel", "nodeid", "level", "flags", "session" };
+    const char *ach_keys[] = { "version", "seq", "channel", "nodeid", "level", "flags", "session" };
     for (unsigned i=0; i<ARRAY_SIZE(ach_keys); i++) {
         json_object_remove(out, ach_keys[i]);
     }
@@ -306,7 +306,11 @@ static struct JsonValue *pack_tsn_message_header(const struct OAM_MaintenancePoi
 
     unsigned char *eth = p->buf + p->headers[0].start;
     memcpy(eth, mp->tsn_address.dmac, 6);
-    memset(eth+6, 0, 6); //TODO node id
+    memset(eth+6, 0, 6);
+    eth[6+2] = (nodeid >> 24) & 0xff;
+    eth[6+3] = (nodeid >> 16) & 0xff;
+    eth[6+4] = (nodeid >>  8) & 0xff;
+    eth[6+5] = (nodeid >>  0) & 0xff;
     if (mp->protostack[1] == PROTO_ID_CVLAN) {
         eth[12] = 0x81;
         eth[13] = 0x00;
@@ -384,7 +388,7 @@ static bool pack_tsn_payload(struct Packet *p, const struct JsonValue *msg)
 
     //TODO adapt this to TSN
     struct JsonValue *out = json_duplicate(msg);
-    const char *ach_keys[] = {"version", "seq", "channel", "nodeid", "level", "flags", "session" };
+    const char *ach_keys[] = { "version", "seq", "channel", "nodeid", "level", "flags", "session" };
     for (unsigned i=0; i<ARRAY_SIZE(ach_keys); i++) {
         json_object_remove(out, ach_keys[i]);
     }
@@ -441,7 +445,8 @@ static void set_mp_address(struct OAM_MaintenancePoint *mp, struct OAM_MP_Addres
             if (strcmp(ad->field, "dmac") == 0) {
                 mp->tsn_address.dmac_source = ad->source;
                 if (ad->source == OAM_FROM_Edit || ad->source == OAM_FROM_Match)
-                    memcpy(mp->tsn_address.dmac, ad->val.value, 6);
+                    // note: we don't have all 6 bytes if it was a prefix match
+                    memcpy(mp->tsn_address.dmac, ad->val.value, DIVCEIL(ad->val.bitcount, 8));
             } else if (strcmp(ad->field, "vlan") == 0 || strcmp(ad->field, "vid") == 0) {
                 mp->tsn_address.vlan_source = ad->source;
                 if (ad->source == OAM_FROM_Edit || ad->source == OAM_FROM_Match)

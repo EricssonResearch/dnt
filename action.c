@@ -258,7 +258,10 @@ static enum ActionResult action_ELIM_execute(struct Action *a, struct PipelineIt
     struct ElimData *ed = (struct ElimData *)a->action_private;
     struct Packet *p = pi->packet;
 
-    //TODO packet_is_linear()
+    if (!packet_is_linear(p)) {
+        log_error("OAM packet is not continuous in memory");
+        return ACR_CONTINUE; //TODO ACR_DONE ?
+    }
 
     if (ed->protostack) {
         if (ed->protostack[0] == PROTO_ID_ETH) {

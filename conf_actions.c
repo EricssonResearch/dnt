@@ -1196,7 +1196,8 @@ static struct Value *address_for_oam_in_matches(struct HeaderDescriptor *h)
         }
         if (h->id == PROTO_ID_ETH) {
             const struct ProtocolField *dmac = protocol_get_field_by_name(PROTO_ID_ETH, "dmac");
-            if (m->field.bitoffset == dmac->bitoffset && m->field.bitcount == dmac->bitcount) {
+            // allow prefix match on this field
+            if (m->field.bitoffset == dmac->bitoffset && m->field.bitcount <= dmac->bitcount) {
                 return &m->value;
             }
         }
