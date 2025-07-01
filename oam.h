@@ -22,7 +22,7 @@ enum OAM_MP_Type { OAM_Start, OAM_Stop, OAM_Intermediate };
 
 enum OAM_MP_Encap { OAM_PW, OAM_TSN, OAM_SRv6 };
 
-enum OAM_MP_Addr_Source { OAM_FROM_Unknown, OAM_FROM_Edit, OAM_FROM_Match, OAM_FROM_Later };
+enum OAM_MP_Addr_Source { OAM_FROM_Unknown, OAM_FROM_Edit, OAM_FROM_Match, OAM_FROM_Later, OAM_FROM_Default };
 
 // state object for a pipeline action that sends/receives OAM packets
 struct OAM_MaintenancePoint;

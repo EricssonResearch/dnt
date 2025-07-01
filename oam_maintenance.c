@@ -575,9 +575,15 @@ static void set_mp_address(struct OAM_MaintenancePoint *mp, struct OAM_MP_Addres
         } else if (mp->encap == OAM_TSN) {
             if (strcmp(ad->field, "dmac") == 0) {
                 mp->tsn_address.dmac_source = ad->source;
-                if (ad->source == OAM_FROM_Edit || ad->source == OAM_FROM_Match)
+                if (ad->source == OAM_FROM_Edit || ad->source == OAM_FROM_Match) {
                     // note: we don't have all 6 bytes if it was a prefix match
                     memcpy(mp->tsn_address.dmac, ad->val.value, DIVCEIL(ad->val.bitcount, 8));
+                } else if (ad->source == OAM_FROM_Unknown) {
+                    ad->source = OAM_FROM_Default;
+                    // group destination address for Continuity Check messages
+                    memcpy(mp->tsn_address.dmac, "\x01\x80\xc2\x00\x00", 5);
+                    mp->tsn_address.dmac[5] = mp->level;
+                }
             } else if (strcmp(ad->field, "vlan") == 0 || strcmp(ad->field, "vid") == 0) {
                 mp->tsn_address.vlan_source = ad->source;
                 if (ad->source == OAM_FROM_Edit || ad->source == OAM_FROM_Match)
@@ -755,6 +761,8 @@ const char *oam_mp_addr_source_to_str(enum OAM_MP_Addr_Source src)
             return "Match";
         case OAM_FROM_Later:
             return "Edit after MP";
+        case OAM_FROM_Default:
+            return "Default";
     }
     return NULL;
 }
