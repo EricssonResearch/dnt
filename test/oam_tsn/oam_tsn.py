@@ -104,10 +104,10 @@ def start_r2dtwos(net, debug):
         node = net.get(n)
         if debug:
             # For debug! Spawns 4 r2dtwo windows in gdb
-            node.popen(f"xterm -T {n} -e env -i gdb -nx --args ../r2dtwo oam/singlestage/{n}.cfg")
+            node.popen(f"xterm -T {n} -e env -i gdb -nx --args ../r2dtwo oam_tsn/singlestage/{n}.cfg")
         else:
             # node.popen(f"xterm -T {n} -e env -i gdb -nx -ex=r --args ../r2dtwo oam/singlestage/{n}.cfg -vALL:NONE")
-            node.popen(f"../r2dtwo oam/singlestage/{n}.cfg -vALL:NONE")
+            node.popen(f"../r2dtwo oam_tsn/singlestage/{n}.cfg -vALL:NONE")
 
 # list of (sender, message, [expected JSON replies])
 # The sender 'node' sending 'message' from telnet and expect the list of replies
