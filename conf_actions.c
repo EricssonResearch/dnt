@@ -942,7 +942,6 @@ static bool process_token(char *token, void *userdata)
                         log_warning("  must write field %s:%s",
                                 mw->header->name, mw->field->name);
                     }
-                    CLEANUP_PSTST(pstst);
                 }
                 REVERSE_LIST(pstst.actions);
                 if (newaction->repl.replobj && newaction->repl.replobj->auto_mip_level > 0
