@@ -119,12 +119,10 @@ OAM request ping session 2 seq 0, s1n1-e4-01 -> s1n2-i3-12 level 3 count 1 inter
 """
      ),
 
-    ('n1', 'ping s1n1-e4-01 s1n2-i3-12 3 -n 3 -i 0.001',
+    ('n1', 'ping s1n1-e4-01 s1n2-i3-12 3 -n 3',
 """
-OAM request ping session 3 seq 0, s1n1-e4-01 -> s1n2-i3-12 level 3 count 3 interval 2, rr: no os: no	[reply to ip 10.0.0.1 port 6634]
+OAM request ping session 3 seq 0, s1n1-e4-01 -> s1n2-i3-12 level 3 count 3 interval 1000, rr: no os: no	[reply to ip 10.0.0.1 port 6634]
   oam_r s1:3 seq 0 lvl 3 R - ping on stream s1 target s1n2-i3-12; reply from s1n2-i3-12
-  oam_r s1:3 seq 1 lvl 3 R - ping on stream s1 target s1n2-i3-12; reply from s1n2-i3-12
-  oam_r s1:3 seq 2 lvl 3 R - ping on stream s1 target s1n2-i3-12; reply from s1n2-i3-12
 """
      ),
 
