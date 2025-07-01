@@ -314,7 +314,7 @@ static struct JsonValue *unpack_tsn_message(const struct Packet *p)
     unsigned char *cfm = vlan + protocol_from_id(PROTO_ID_CVLAN)->bytelength;
     header_len += protocol_from_id(PROTO_ID_CFM)->bytelength + 3; // added the tlv header
 
-    unsigned char *rtag = 0;
+    unsigned char *rtag = NULL;
     if (vlan[2] == 0xf1 && vlan[3] == 0xc1) {
         rtag = vlan + protocol_from_id(PROTO_ID_CVLAN)->bytelength;
         cfm += protocol_from_id(PROTO_ID_RTAG)->bytelength;
@@ -328,6 +328,10 @@ static struct JsonValue *unpack_tsn_message(const struct Packet *p)
 
     char *json_str = (char*)(cfm + protocol_from_id(PROTO_ID_CFM)->bytelength + 3);
     unsigned json_len = plen - header_len - 1; // don't include the end tlv
+    unsigned tlv_len = (cfm[5] << 8) + cfm[6];
+    if (json_len != tlv_len) {
+        log_error("TSN OAM packet has inconsistent TLV length %u %u", json_len, tlv_len);
+    }
 
     char *jerror;
     struct JsonValue *js = json_parse(json_str, json_len, &jerror);
@@ -495,7 +499,7 @@ static bool pack_tsn_payload(struct Packet *p, const struct JsonValue *msg)
     for (unsigned i=0; p->headers[i].type != PROTO_ID_PAYLOAD; i++) {
         header_len += p->headers[i].len;
     }
-    unsigned char *payload = p->buf + header_len;
+    unsigned char *payload = p->buf + p->headers[0].start + header_len;
     unsigned char *cfm = payload;
     unsigned char *tlv = cfm + 4;
     tlv[1] = (js_length >> 8) & 0xff;
