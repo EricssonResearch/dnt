@@ -104,11 +104,11 @@ bool have_default_ip_iface(void)
 unsigned short get_default_node_id(void)
 {
     if(oam_default_ip_iface != NULL)
-        return 0;
-    if(oam_default_ip_iface->type == IF_OAM_ETH)
-        return oam_eth_if_get_uid(oam_default_ip_iface);
-    else
         return oamif_get_uid(oam_default_ip_iface);
+    else if(oam_default_eth_iface != NULL)
+        return oam_eth_if_get_uid(oam_default_eth_iface);
+    else
+        return 0;
 }
 
 // check when the last mask heartbeat received
