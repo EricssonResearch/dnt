@@ -579,7 +579,7 @@ static void set_mp_address(struct OAM_MaintenancePoint *mp, struct OAM_MP_Addres
                     // note: we don't have all 6 bytes if it was a prefix match
                     memcpy(mp->tsn_address.dmac, ad->val.value, DIVCEIL(ad->val.bitcount, 8));
                 } else if (ad->source == OAM_FROM_Unknown) {
-                    ad->source = OAM_FROM_Default;
+                    mp->tsn_address.dmac_source = OAM_FROM_Default;
                     // group destination address for Continuity Check messages
                     memcpy(mp->tsn_address.dmac, "\x01\x80\xc2\x00\x00", 5);
                     mp->tsn_address.dmac[5] = mp->level;
@@ -948,4 +948,3 @@ void mp_inject_packet(struct OAM_MaintenancePoint *mp, struct Packet *p)
     pi->pos = mp->pipe_pos_idx;
     pipe_iterator_run(pi);
 }
-

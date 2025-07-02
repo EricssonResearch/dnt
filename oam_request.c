@@ -99,7 +99,7 @@ static bool parse_returnif(struct OamRequest *req, const char *ifname)
             char *mac = NULL;
             unsigned vlan = 0;
             if (parse_mac_vlan(ifname, &mac, &vlan)) {
-                json_object_insert(req->return_addr, "mac", json_string(mac));
+                json_object_insert(req->return_addr, "dmac", json_string(mac));
                 if (vlan)
                     json_object_insert(req->return_addr, "vlan", json_number(vlan));
                 log_debug("return mac '%s' vlan %u", mac, vlan);
