@@ -11,6 +11,7 @@
 #include "oam_session.h"
 
 #include "if_udp_out.h"
+#include "if_oam_eth.h"
 #include "json.h"
 #include "log.h"
 #include "notification.h"
@@ -316,8 +317,13 @@ static int oam_send_eth_reply(const char *address, unsigned vid, const char *msg
     memset(eth+6, 0, 6);
     header_len += p->headers[h].len;
 
-    if (strchr(eth_oam_if->ifname, '.') != NULL) {
+    int if_vid = oam_eth_if_get_vlan(eth_oam_if);
+    if(if_vid != -1) {
         // VLAN iface, no need to add VLAN
+
+        if((unsigned)if_vid != vid)
+            log_warning("Different VLAN ID specified for OAM_ETH VLAN return interface. VLAN ignored.");
+
         eth[12] = 0x89;             // OAM ethertype or VLAN ethertype
         eth[13] = 0x02;
     } else {
@@ -419,16 +425,13 @@ static bool send_message_outofband(struct OAM_MaintenancePoint *mp, const struct
                 ip->v.string, port->v.number, err);
         json_delete(address);
         return err == 0;
-    } else if (dmac && vlan) {
-        int err = oam_send_eth_reply(dmac->v.string, vlan->v.number, msg_str, msg_len, mp_get_level(mp));
+    } else if (dmac) {
+        int err = oam_send_eth_reply(dmac->v.string, vlan? vlan->v.number:0, msg_str, msg_len, mp_get_level(mp));
         free(msg_str);
         log_packet("sent ETH out-of-band message len %u to %s %g err %d", msg_len,
                 dmac->v.string, vlan->v.number, err);
         json_delete(address);
         return err == 0;
-    } else if (dmac) {
-        //TODO packet socket, construct eth etc.
-        return false;
     } else {
         log_error("can't send message out-of-band without proper address");
         return false;

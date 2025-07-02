@@ -24,14 +24,15 @@
 
 #include <linux/if_ether.h> /* ETH_P_ALL */
 #include <linux/if_packet.h> /* struct sockaddr_ll, PACKET_AUXDATA TODO netpacket/packet.h? */
-
+#include <linux/if_vlan.h> /* vlan ioctl()  */
+#include <linux/sockios.h>
 
 DEFAULT_LOGGING_MODULE(INTERFACE, INFO);
 
 struct OamIfData {
     enum ProtocolID type;
     int ifindex;
-//    int sockfd;
+    int vlan;
     struct ether_addr mac;
     char *oam_eth_str;  // hold eth address in text format
     unsigned short uid; // unique id of this iface
@@ -42,6 +43,13 @@ unsigned short oam_eth_if_get_uid(const struct Interface *iface)
     struct OamIfData *oid = (struct OamIfData *)iface->iface_private;
     return oid->uid;
 }
+
+unsigned oam_eth_if_get_vlan(const struct Interface *iface)
+{
+    struct OamIfData *oid = (struct OamIfData *)iface->iface_private;
+    return oid->vlan;
+}
+
 
 static bool oam_eth_recv(struct Interface *iface)
 {
@@ -113,6 +121,16 @@ static bool oam_eth_open(struct Interface *iface)
     oid->mac = *((struct ether_addr *)&if_mac.ifr_hwaddr.sa_data);
     oid->uid = oid->mac.ether_addr_octet[0]+(oid->mac.ether_addr_octet[1]<<8);  // TODO: is this OK??
     //      store this in an interface property
+
+    struct vlan_ioctl_args vlan_args;
+    memset(&vlan_args, 0, sizeof(vlan_args));
+    strncpy(vlan_args.device1, iface->ifname, sizeof(vlan_args.device1) - 1);
+    vlan_args.cmd = GET_VLAN_VID_CMD;
+
+    if (ioctl(sock, SIOCGIFVLAN, &vlan_args) < 0)
+        oid->vlan = -1;
+    else
+        oid->vlan = vlan_args.u.VID;
 
 /*    int enable = 1;
     if (setsockopt(sock, SOL_PACKET, PACKET_AUXDATA, &enable, sizeof(enable)) < 0) {
