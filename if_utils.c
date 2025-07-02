@@ -19,6 +19,7 @@
 #include <string.h>
 #include <poll.h>
 #include <errno.h>
+#include <stdio.h>
 
 #include <sys/timex.h> /* ntptimeval */
 #include <sys/ioctl.h> /* ioctl */
@@ -523,4 +524,23 @@ void print_ifaddrs(struct ifaddrs *ifa)
         //TODO this is usually AF_PACKET
         //log_debug("");
     }
+}
+
+/* hex dump packet - just debug  */
+void dump_packet(char *buffer, int n)
+{
+    char dump_str[4000], ch[8];
+    bzero(ch, sizeof(ch));
+    sprintf(dump_str,"received %d\n", n);
+
+    unsigned char *pp=(unsigned char *)buffer;
+    for(int i=1; i<=128; i++){
+        sprintf(ch, " %02x", *pp);
+        strcat(dump_str, ch);
+        pp++;
+        if(i%16==0)
+            strcat(dump_str, "\n");
+    }
+    strcat(dump_str, "\n");
+    log_info("packet: %s", dump_str);
 }

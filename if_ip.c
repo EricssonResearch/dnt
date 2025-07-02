@@ -58,22 +58,7 @@ static bool ip_recv(struct Interface *iface)
     p->start += 14;
     p->len -= 14;
 
-/* hex dump packet - just debug
-
-    char dump_str[4000], ch[5];
-    sprintf(dump_str,"\n");
-    unsigned char *pp=p->buf + p->start;;
-    for(int i=1; i<=128; i++){
-        sprintf(ch, " %02x", *pp);
-        strcat(dump_str, ch);
-        pp++;
-        if(i%16==0)
-            strcat(dump_str, "\n");
-    }
-    strcat(dump_str, "\n");
-    log_info("ip packet: %s", dump_str);
-*/
-
+    //dump_packet((char*)(p->buf + p->start), p->len);
     packet_logcat(p, "%s %u ", iface->name, p->len);
     return iface_common_process(iface, p);
 }

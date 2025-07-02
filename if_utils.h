@@ -50,6 +50,10 @@ NotificationLevel iface_notification_pull_fn(void *self, struct JsonValue **msg)
 struct ifaddrs;
 void print_ifaddrs(struct ifaddrs *ifa);
 
+// HEX dumps the packet
+void dump_packet(char *buffer, int n);
+
+
 // helper for the type-specific constructors
 #define _NEW_IFACE(type_)                               \
     struct Interface *iface = calloc_struct(Interface); \
