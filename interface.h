@@ -22,6 +22,7 @@ enum IfaceType {
     IF_INTERNAL,
     IF_IP,
     IF_OAM,
+    IF_OAM_ETH,
     IF_OAM_CMD,
     IF_UDP_IN,
     IF_UDP_OUT,

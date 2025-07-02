@@ -108,7 +108,7 @@ static bool parse_returnif(struct OamRequest *req, const char *ifname)
             }
         }
 
-        if (have_default_iface()) {
+        if (have_default_ip_iface()) {
             req->error = strdup_printf("invalid return interface name: %s", ifname);
         } else {
             req->error = strdup("config has no return interface, need to specify a return IP to send requests");

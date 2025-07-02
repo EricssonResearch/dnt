@@ -27,6 +27,13 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 
+#include <sys/socket.h>
+#include <sys/ioctl.h>
+#include <netinet/in.h>
+#include <net/if.h> /* struct ifreq */
+#include <linux/if_ether.h> /* ETH_P_ALL */
+#include <linux/if_packet.h> /* struct sockaddr_ll, PACKET_AUXDATA TODO netpacket/packet.h? */
+
 
 DEFAULT_LOGGING_MODULE(OAM, INFO);
 
@@ -289,6 +296,80 @@ static int oam_send_udp_reply(const char *address, unsigned port, const char *ms
     return 0;
 }
 
+/*
+ * Send OAM mesage out-of-band over ETH
+ * Address: destination address string (MAC)
+ * vlan: vlan id
+ * Msg: pointer to the message
+ * Return 0 on success
+*/
+static int oam_send_eth_reply(const char *address, unsigned vid, const char *msg, unsigned msg_len, unsigned level)
+{
+    struct Interface *eth_oam_if = get_default_oam_eth_interface();
+    if(!eth_oam_if) {
+        log_warning("Can not send reply because no ETH_OAM if specified");
+        return 1;
+    }
+
+    struct Packet *p = new_packet(NULL);
+    packet_clear_headers(p);
+    packet_enlarge_scratch(p);
+
+    int h=0;
+    unsigned header_len = 0;
+    packet_add_header(p, h, PROTO_ID_ETH, protocol_from_id(PROTO_ID_ETH)->bytelength);
+    unsigned char *eth = p->buf + p->headers[0].start;
+    memcpy(eth, address, 6);
+    memset(eth+6, 0, 6);
+    header_len += p->headers[h].len;
+
+    if (strchr(eth_oam_if->ifname, '.') != NULL) {
+        // VLAN iface, no need to add VLAN
+        eth[12] = 0x89;             // OAM ethertype or VLAN ethertype
+        eth[13] = 0x02;
+    } else {
+        eth[12] = 0x81;             // OAM ethertype or VLAN ethertype
+        eth[13] = 0x00;
+
+        // add VLAN header
+        h++; packet_add_header(p, h, PROTO_ID_CVLAN, protocol_from_id(PROTO_ID_CVLAN)->bytelength); // cvlan or svlan
+        unsigned char *vlan = p->buf + p->headers[h].start;
+        vlan[0] = vid & 0xff;
+        vlan[1] = (vid >> 8) & 0xff;
+        vlan[2] = 0x89; // cfm
+        vlan[3] = 0x02;
+        header_len += p->headers[h].len;
+    }
+
+    h++; packet_add_header(p, h, PROTO_ID_PAYLOAD, 4);
+    unsigned char *payload = p->buf + p->headers[0].start + header_len;
+    unsigned char *cfm = payload;
+    unsigned char *tlv = cfm + 4;
+    cfm[0] = level << 5;
+    cfm[1] = OAM_CFM_REQUEST_OPCODE;
+    cfm[2] = 0; // flags
+    cfm[3] = 0; // tlv offset
+
+    tlv[0] = 3; // generic data tlv
+    tlv[1] = (msg_len >> 8) & 0xff;
+    tlv[2] = msg_len & 0xff;
+    tlv[3] = 0; // end tlv indicator
+    memcpy(tlv+3, msg, msg_len+1); // also set the closing 0
+    header_len += p->headers[h].len;
+
+    unsigned new_len = header_len + 4 + 3 + msg_len + 1;
+    p->headers[p->header_count-1].len += new_len - p->scratch_len;
+    p->scratch_len = new_len;
+
+    struct timespec sendtime;
+    clock_gettime(CLOCK_REALTIME, &sendtime);
+    p->recv_time = sendtime;
+    timespec_to_tsntstamp(p->timestamp, &sendtime);
+
+    eth_oam_if->send(eth_oam_if, p);
+
+    return 0;
+}
 //TODO kept this as a reference for the time when we fix/rework the mask signalling
 // Only pre-Elimination AutoMIPs react to mask/unmask
 // pre-elim MIPs update the last heartbeat timestamp
@@ -324,7 +405,7 @@ static int oam_send_udp_reply(const char *address, unsigned port, const char *ms
 
 
 
-static bool send_message_outofband(const struct JsonValue *msg, struct JsonValue *address)
+static bool send_message_outofband(struct OAM_MaintenancePoint *mp, const struct JsonValue *msg, struct JsonValue *address)
 {
     struct JsonValue *ip = json_object_get_string(address, "ip");
     struct JsonValue *port = json_object_get_number(address, "port");
@@ -341,13 +422,17 @@ static bool send_message_outofband(const struct JsonValue *msg, struct JsonValue
     if (ip && port) {
         int err = oam_send_udp_reply(ip->v.string, port->v.number, msg_str, msg_len);
         free(msg_str);
-        log_packet("sent out-of-band message len %u to %s %g err %d", msg_len,
+        log_packet("sent UDP out-of-band message len %u to %s %g err %d", msg_len,
                 ip->v.string, port->v.number, err);
         json_delete(address);
         return err == 0;
     } else if (dmac && vlan) {
-        //TODO packet socket, construct eth, cvlan etc.
-        return false;
+        int err = oam_send_eth_reply(dmac->v.string, vlan->v.number, msg_str, msg_len, mp_get_level(mp));
+        free(msg_str);
+        log_packet("sent ETH out-of-band message len %u to %s %g err %d", msg_len,
+                dmac->v.string, vlan->v.number, err);
+        json_delete(address);
+        return err == 0;
     } else if (dmac) {
         //TODO packet socket, construct eth etc.
         return false;
@@ -432,7 +517,7 @@ static bool process_ping_request(struct OAM_MaintenancePoint *mp, struct JsonVal
 
     logpacket_reply(mp, js, return_dup, "ping reply");
 
-    return send_message_outofband(js, return_dup);
+    return send_message_outofband(mp, js, return_dup);
 }
 
 static bool send_rping_error(struct OAM_MaintenancePoint *mp, struct JsonValue *js, struct timespec recv_time,
@@ -450,7 +535,7 @@ static bool send_rping_error(struct OAM_MaintenancePoint *mp, struct JsonValue *
 
     logpacket_reply(mp, js, return_dup, "rping error");
 
-    return send_message_outofband(js, return_dup);
+    return send_message_outofband(mp, js, return_dup);
 }
 
 static bool process_rping_request(struct OAM_MaintenancePoint *mp, struct JsonValue *js, struct timespec recv_time)
@@ -532,7 +617,7 @@ static bool process_rlist_request(struct OAM_MaintenancePoint *mp, struct JsonVa
 
     logpacket_reply(mp, js, return_dup, "rlist reply");
 
-    return send_message_outofband(js, return_dup);
+    return send_message_outofband(mp, js, return_dup);
 }
 
 static bool process_trigger_request(struct OAM_MaintenancePoint *mp, struct JsonValue *js, struct timespec recv_time)

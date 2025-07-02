@@ -9,6 +9,7 @@
 #include "oam_session.h"
 
 #include "if_oam.h"
+#include "if_oam_eth.h"
 #include "hashmap.h"
 #include "log.h"
 #include "notification.h"
@@ -24,7 +25,8 @@ DEFAULT_LOGGING_MODULE(OAM, INFO);
 
 
 static struct HashMap *oam_ifaces;
-static struct Interface *oam_default_iface = NULL;
+static struct Interface *oam_default_ip_iface = NULL;
+static struct Interface *oam_default_eth_iface = NULL;
 static struct Interface *oam_cmd_iface = NULL;
 
 static bool oam_initialized = false;
@@ -57,22 +59,36 @@ void add_oam_if(struct Interface *iface)
     }
     hashmap_insert(oam_ifaces, iface->name, iface);
 
-    if (oam_default_iface == NULL) {
-        oam_default_iface = iface;
-    } else {
-        if (strcmp(iface->name, oam_default_iface->name) < 0)
-            oam_default_iface = iface;
+    if(iface->type == IF_OAM) {
+        if (oam_default_ip_iface == NULL) {
+            oam_default_ip_iface = iface;
+        } else {
+            if (strcmp(iface->name, oam_default_ip_iface->name) < 0)
+                oam_default_ip_iface = iface;
+        }
+    } else if(iface->type == IF_OAM_ETH) {
+        if (oam_default_eth_iface == NULL) {
+            oam_default_eth_iface = iface;
+        } else {
+            if (strcmp(iface->name, oam_default_eth_iface->name) < 0)
+                oam_default_eth_iface = iface;
+        }
     }
 }
 
 struct Interface *get_oam_interface(const char *ifname)
 {
-    return ifname[0] ? (struct Interface *)hashmap_find(oam_ifaces, ifname) : oam_default_iface;
+    return ifname[0] ? (struct Interface *)hashmap_find(oam_ifaces, ifname) : oam_default_ip_iface;
 }
 
-struct Interface *get_default_oam_interface(void)
+struct Interface *get_default_oam_ip_interface(void)
 {
-    return oam_default_iface;
+    return oam_default_ip_iface;
+}
+
+struct Interface *get_default_oam_eth_interface(void)
+{
+    return oam_default_eth_iface;
 }
 
 int foreach_oam_ifaces(hashmap_cb *cb, void *userdata)
@@ -80,14 +96,19 @@ int foreach_oam_ifaces(hashmap_cb *cb, void *userdata)
     return hashmap_foreach_sorted(oam_ifaces, cb, userdata);
 }
 
-bool have_default_iface(void)
+bool have_default_ip_iface(void)
 {
-    return oam_default_iface != NULL;
+    return oam_default_ip_iface != NULL;
 }
 
 unsigned short get_default_node_id(void)
 {
-    return oamif_get_uid(oam_default_iface);
+    if(oam_default_ip_iface != NULL)
+        return 0;
+    if(oam_default_ip_iface->type == IF_OAM_ETH)
+        return oam_eth_if_get_uid(oam_default_ip_iface);
+    else
+        return oamif_get_uid(oam_default_ip_iface);
 }
 
 // check when the last mask heartbeat received
@@ -216,10 +237,11 @@ bool init_oam(void)
     init_session_module();
     init_message_module();
 
-    if (oam_default_iface || oam_cmd_iface) {
-        log_info("Init OAM fuctionality:%s%s",
+    if (oam_default_ip_iface || oam_default_eth_iface || oam_cmd_iface) {
+        log_info("Init OAM fuctionality:%s%s%s",
                 oam_cmd_iface?" telnet interface":"",
-                oam_default_iface?" reply interface":"");
+                oam_default_ip_iface?" reply interface":"",
+                oam_default_eth_iface?" reply interface":"");
     } else {
         oam_initialized = true;
         return true;

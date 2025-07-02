@@ -12,6 +12,7 @@
 #include "if_internal.h"
 #include "if_ip.h"
 #include "if_oam.h"
+#include "if_oam_eth.h"
 #include "if_oam_cmd.h"
 #include "if_udp_in.h"
 #include "if_udp_out.h"
@@ -231,6 +232,15 @@ static int iface_cb(const char *key, void *value, void *userdata)
         struct Interface *iface = new_oam_interface(key, oam_ip, oam_port);
         if (!iface) {
             THROW("failed to create oam interface");
+        }
+        hashmap_insert(state->ifaces, iface->name, iface);
+    } else if (strcmp(tstate.type, "oam_eth") == 0) {
+        if (tstate.iface == NULL) {
+            THROW("hw interface is unspecified");
+        }
+        struct Interface *iface = new_oam_eth_interface(key, tstate.iface);
+        if (!iface) {
+            THROW("failed to create oam_eth interface");
         }
         hashmap_insert(state->ifaces, iface->name, iface);
     } else {

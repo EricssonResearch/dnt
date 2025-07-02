@@ -87,6 +87,8 @@ const char *iface_type_str(enum IfaceType type)
             return "IP";
         case IF_OAM:
             return "OAM Return";
+        case IF_OAM_ETH:
+            return "OAM ETH Return";
         case IF_OAM_CMD:
             return "OAM Command";
         case IF_UDP_IN:

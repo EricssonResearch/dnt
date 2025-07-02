@@ -140,7 +140,7 @@ static int list_oam_ifaces_cb(const char *ifname, void *value, void *userdata)
     unsigned return_port = oamif_get_port(iface);
     fprintf(cmd_w, "%s ip %s port %u",
             ifname, return_ip, return_port);
-    if (iface == get_default_oam_interface()) {
+    if (iface == get_default_oam_ip_interface()) {
         fprintf(cmd_w, " (default, node id %u)\n", oamif_get_uid(iface));
     } else {
         fprintf(cmd_w, "\n");
@@ -243,7 +243,7 @@ static void command_loop(struct CommandConnection *conn)
     while (conn->name == NULL) usleep(1000); // this is generated after the thread has been launched
 
     fprintf(cmd_w, "\033[32mOAM '%s' ready\033[0m%s\n", conn->name,
-            have_default_iface()?"":", but has no configured return interface");
+            have_default_ip_iface()?"":", but has no configured return interface");
 
     log_info("Telnet connection '%s' from %s %u", conn->name, conn->remote_ip, conn->remote_port);
     struct JsonValue *msg = json_object();
