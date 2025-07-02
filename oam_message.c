@@ -389,7 +389,7 @@ static bool logpacket_reply(struct OAM_MaintenancePoint *mp, struct JsonValue *j
     struct JsonValue *port = json_object_get_number(return_dup, "port");
     struct JsonValue *dmac = json_object_get_string(return_dup, "dmac");
     struct JsonValue *vlan = json_object_get_number(return_dup, "vlan");
-    if(!ip && !dmac) {  // avoid segfault when json is malformed 
+    if(!ip && !dmac) {  // avoid segfault when json is malformed
         log_error("neither ip nor dmac is present in ping request");
         return false;
     }
