@@ -20,20 +20,13 @@
 #include "state.h"
 #include "thread_utils.h"
 #include "utils.h"
+#include "inet_utils.h"
 
 #include <stdlib.h>
 #include <string.h>
 
 #include <unistd.h>
 #include <arpa/inet.h>
-
-#include <sys/socket.h>
-#include <sys/ioctl.h>
-#include <netinet/in.h>
-#include <net/if.h> /* struct ifreq */
-#include <linux/if_ether.h> /* ETH_P_ALL */
-#include <linux/if_packet.h> /* struct sockaddr_ll, PACKET_AUXDATA TODO netpacket/packet.h? */
-
 
 DEFAULT_LOGGING_MODULE(OAM, INFO);
 
@@ -319,7 +312,7 @@ static int oam_send_eth_reply(const char *address, unsigned vid, const char *msg
     unsigned header_len = 0;
     packet_add_header(p, h, PROTO_ID_ETH, protocol_from_id(PROTO_ID_ETH)->bytelength);
     unsigned char *eth = p->buf + p->headers[0].start;
-    memcpy(eth, address, 6);
+    ether_pton(address, eth);
     memset(eth+6, 0, 6);
     header_len += p->headers[h].len;
 

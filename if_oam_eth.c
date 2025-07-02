@@ -52,7 +52,7 @@ static bool oam_eth_recv(struct Interface *iface)
     if (n>0) {
         buffer[n]=0;
         //dump_packet(buffer+14+4+3, n-22);               // just debug
-        oam_receive_outofband(iface, &buffer[14+4+3s]);
+        oam_receive_outofband(iface, &buffer[14+4+3]);
     }
 
     return true;
@@ -63,6 +63,12 @@ static bool oam_eth_send(struct Interface *iface, struct Packet *p)
     struct OamIfData *oid = (struct OamIfData *)iface->iface_private;
 
     unsigned char *dst_mac = p->buf + p->headers[0].start;
+    unsigned char *src_mac = dst_mac + 6;
+    if( (src_mac[0]==0) && (src_mac[1]==0) && (src_mac[2]==0) &&
+        (src_mac[3]==0) &&  (src_mac[4]==0) && (src_mac[5]==0)) {
+        memcpy(src_mac, (char* )&oid->mac, 6);
+    }
+
     struct sockaddr_ll socket_address;
     memset(&socket_address, 0, sizeof(struct sockaddr_ll));
     socket_address.sll_family = AF_PACKET;
