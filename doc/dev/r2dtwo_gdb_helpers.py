@@ -9,6 +9,10 @@ class ConfActionForeach(gdb.Command):
     Walk through a ConfAction list.
     Usage example:
         (gdb) ca_foreach stst->actions
+
+    Alternative:
+        (gdb) call log_set_level ("CONFIG", DEBUG)
+        (gdb) call confactions_log (stst->actions, 3)
     """
 
     def __init__(self) -> None:
