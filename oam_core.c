@@ -211,7 +211,7 @@ bool oam_start_background_ping(const char *name, const char *command)
         log_error("background command '%s' is not ping", name);
         return false;
     }
-    struct OamRequest *ping_req = parse_ping_command(command+4, true, false, NULL);
+    struct OamRequest *ping_req = parse_ping_command(command+4, true, false);
 
     if (request_get_error(ping_req)) {
         log_error("background ping command '%s' invalid: %s", name, request_get_error(ping_req));
@@ -227,7 +227,7 @@ bool oam_start_background_ping(const char *name, const char *command)
         free(ping_req);
         return false;
     }
-    return initiate_request(ping_req);
+    return initiate_request(ping_req, NULL);
 }
 
 bool init_oam(void)

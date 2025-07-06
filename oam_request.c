@@ -36,7 +36,6 @@
 
 struct OamRequest {
     const char *type;
-    char *conn_name; // NULL if not issued from a command connection
     struct JsonValue *return_addr;
 
     unsigned char ttl;
@@ -54,6 +53,7 @@ struct OamRequest {
     bool measure_delay;
     unsigned count;
     unsigned interval_ms;
+    struct Thread *multireq_thread;
 
     // rping options
     char *remote_command; // rping carries this ping command string
@@ -65,12 +65,10 @@ struct OamRequest {
 
 DEFAULT_LOGGING_MODULE(OAM, INFO);
 
-// @conn_name will be owned by the request
-static struct OamRequest *new_oam_request(const char *type, const char *conn_name)
+static struct OamRequest *new_oam_request(const char *type)
 {
     struct OamRequest *req = calloc_struct(OamRequest);
 
-    req->conn_name = conn_name ? strdup(conn_name) : NULL; //TODO when do we get NULL?
     req->type = type;
     req->ttl = OAM_PING_TTL;
     req->count = 1;
@@ -196,14 +194,13 @@ static bool parse_ping_options(struct OamRequest *ping_req, const char *options_
 }
 
 // always returns a request, sets ret->error to an error message
-struct OamRequest *parse_ping_command(const char *oam_command, bool allow_returniface, bool allow_num,
-        const char *conn_name)
+struct OamRequest *parse_ping_command(const char *oam_command, bool allow_returniface, bool allow_num)
 {
     int l;
-    char start_name[32];
+    char start_name[64];
     char iface_name[64];
 
-    struct OamRequest *ping_req = new_oam_request("ping", conn_name);
+    struct OamRequest *ping_req = new_oam_request("ping");
 
     if (oam_command[0]=='@') {
         if (!allow_returniface) {
@@ -248,14 +245,13 @@ struct OamRequest *parse_ping_command(const char *oam_command, bool allow_return
 }
 
 // always returns a request, sets ret->error to an error message
-struct OamRequest *parse_rping_command(const char *oam_command,
-        const char *conn_name)
+struct OamRequest *parse_rping_command(const char *oam_command)
 {
     int l;
-    char start_name[32];
-    char iface_name[32];
+    char start_name[64];
+    char iface_name[64];
 
-    struct OamRequest *rping_req = new_oam_request("rping", conn_name);
+    struct OamRequest *rping_req = new_oam_request("rping");
 
     if (oam_command[0]=='@') {
         int k = sscanf(oam_command, "@%s %s %s %hhd%n",
@@ -362,13 +358,12 @@ static bool parse_trigger_options(struct OamRequest *trig_req, const char *optio
     return true;
 }
 
-struct OamRequest *parse_trigger_command(const char *oam_command, bool allow_num,
-        const char *conn_name)
+struct OamRequest *parse_trigger_command(const char *oam_command, bool allow_num)
 {
     int l;
-    char start_name[32];
+    char start_name[64];
 
-    struct OamRequest *trig_req = new_oam_request("trigger", conn_name);
+    struct OamRequest *trig_req = new_oam_request("trigger");
 
     int k = sscanf(oam_command, " %s %s %hhd%n",
                    start_name, trig_req->mep_stop, &trig_req->level, &l);
@@ -397,14 +392,13 @@ struct OamRequest *parse_trigger_command(const char *oam_command, bool allow_num
 }
 
 // always returns a request, sets ret->error to an error message
-struct OamRequest *parse_rlist_command(const char *oam_command,
-        const char *conn_name)
+struct OamRequest *parse_rlist_command(const char *oam_command)
 {
     int l;
-    char start_name[32];
-    char iface_name[32];
+    char start_name[64];
+    char iface_name[64];
 
-    struct OamRequest *rlist_req = new_oam_request("rlist", conn_name);
+    struct OamRequest *rlist_req = new_oam_request("rlist");
 
     if (oam_command[0]=='@') {
         int k = sscanf(oam_command, "@%s %s %s %hhd%n",
@@ -446,28 +440,29 @@ struct OamRequest *parse_rlist_command(const char *oam_command,
     return rlist_req;
 }
 
-struct OamRequest *parse_mask_command(const char *oam_command, const char *conn_name)
+struct OamRequest *parse_mask_command(const char *oam_command)
 {
     struct OamRequest *mask_req = NULL;
     bool new_mask = true;
     char pipename[64] = { 0 };
     int seek = 0;
     if (strncmp(oam_command, "unmask", 6) == 0) {
-        mask_req = new_oam_request("unmask", conn_name);
+        mask_req = new_oam_request("unmask");
         mask_req->count = 1;
         seek = 2;
         new_mask = false;
     } else {
-        mask_req = new_oam_request("mask", conn_name);
+        mask_req = new_oam_request("mask");
         mask_req->count = 0; // heartbeat until unmask
     }
     sprintf(mask_req->mep_stop, "nexthop");
 
     // called by mask_checker_thread (the re-generator codepath, no CLI or repl obj involved)
     // in that case we dont have CLI session or error cases
-    if (conn_name == NULL) {
+    //TODO rework this
+    /*if (conn_name == NULL) {
         return mask_req;
-    }
+    }*/
 
     if(sscanf(oam_command+seek, "mask %s", pipename) != 1) {
         mask_req->error = strdup_printf("mask command is invalid. Format: [un]mask PIPENAME");
@@ -483,7 +478,8 @@ struct OamRequest *parse_mask_command(const char *oam_command, const char *conn_
             return mask_req;
         }
 
-        struct CommandConnection *conn = find_command_connection(conn_name);
+        //TODO rework this
+        struct CommandConnection *conn = find_command_connection("conn_name");
         FILE *cmd_w = command_connection_get_w(conn);
         fprintf(cmd_w, "Pipeline '%s' %sed\n", pipename, mask_req->type);
         release_command_connection(conn);
@@ -502,12 +498,12 @@ struct OamRequest *parse_mask_command(const char *oam_command, const char *conn_
 struct OamRequest *delete_oam_request(struct OamRequest *req)
 {
     if (req == NULL) return NULL;
+    thread_stop(req->multireq_thread);
     if (req->mp_start)
         oam_unref_maintenance_point(req->mp_start);
     json_delete(req->return_addr);
     free(req->error);
     free(req->remote_command);
-    free(req->conn_name);
     free(req->originator_stream);
     free(req);
     return NULL;
@@ -690,14 +686,13 @@ static void *send_periodic_request_thread(void *arg)
         usleep(req->interval_ms * 1000);
     }
 
-    struct Thread *th = session_get_thread(stream, req->session_id);
-    // we keep the session live so we can still receive replies
-    session_set_thread(stream, req->session_id, NULL);
+    struct Thread *th = req->multireq_thread;
+    req->multireq_thread = NULL;
     thread_exit(th);
     return NULL;
 }
 
-bool initiate_request(struct OamRequest *req)
+bool initiate_request(struct OamRequest *req, const char *conn_name)
 {
     if (!req->mp_start) { //TODO this can only happen for mask
         req->error = strdup_printf("can't initiate %s request without start maintenance point", req->type);
@@ -710,7 +705,7 @@ bool initiate_request(struct OamRequest *req)
     }
 
     struct StreamSessions *stream = get_stream_sessions(mp_get_stream_name(req->mp_start));
-    int session_id = alloc_session_id(stream, req, req->conn_name, req->interval_ms);
+    int session_id = alloc_session_id(stream, req, conn_name, req->interval_ms);
     if (session_id < 0) {
         req->error = strdup_printf("stream %s has no free session id", mp_get_stream_name(req->mp_start));
         return false;
@@ -726,7 +721,7 @@ bool initiate_request(struct OamRequest *req)
              req->seq, req->level, req->type, mp_get_name(req->mp_start), req->mep_stop, req->count, req->interval_ms,
              req->record_route?"yes":"no", req->object_state?"yes":"no", return_str);
 
-    struct CommandConnection *conn = find_command_connection(req->conn_name);
+    struct CommandConnection *conn = find_command_connection(conn_name);
     FILE *cmd_w = command_connection_get_w(conn);
     if (cmd_w) fprintf(cmd_w, "OAM request %s session %u seq %u, %s -> %s level %d count %d interval %d,"
             " rr: %s os: %s\t%s\n",
@@ -737,11 +732,11 @@ bool initiate_request(struct OamRequest *req)
     release_command_connection(conn);
 
     if (req->count == 1) {
-        session_set_thread(stream, session_id, NULL);
+        req->multireq_thread = NULL;
         send_request(req);
     } else {
         struct Thread *th = thread_launch(send_periodic_request_thread, req, "oam req %d", session_id);
-        session_set_thread(stream, session_id, th);
+        req->multireq_thread = th;
         if (th == NULL) {
             req->error = strdup("could not create new request thread");
             log_error("%s", req->error);

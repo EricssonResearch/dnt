@@ -109,8 +109,7 @@ def start_r2dtwos(net, debug):
             # node.popen(f"xterm -T {n} -e env -i gdb -nx -ex=r --args ../r2dtwo oam/singlestage/{n}.cfg -vALL:NONE")
             node.popen(f"../r2dtwo oam/singlestage/{n}.cfg -vALL:NONE")
 
-# list of (sender, message, [expected JSON replies])
-# The sender 'node' sending 'message' from telnet and expect the list of replies
+# list of (sender node, telnet command, expected reply)
 testcases = [
     ('n1', 'ping s1n1-e4-01 s1n2-i3-12 3',
 """
@@ -361,14 +360,14 @@ OAM request ping session 1 seq 0, s3n3-e1-32 -> any level 1 count 1 interval 100
     (
         'n1', 'rping s1n1-e4-01 nonexistentmp 4 s1n3-i4-34 any 4',
 """
-OAM request rping session 6 seq 0, s1n1-e4-01 -> nonexistentmp level 4 count 1 interval 1000, rr: no os: no	[reply to ip 10.0.0.1 port 6634] 
+OAM request rping session 6 seq 0, s1n1-e4-01 -> nonexistentmp level 4 count 1 interval 1000, rr: no os: no	[reply to ip 10.0.0.1 port 6634]
 """
     ),
 
     (
         'n1', 'rping s1n1-e4-01 s1n3-i4-13 4 s1n3-i4-34 nonexistentmp 4',
 """
-OAM request rping session 7 seq 0, s1n1-e4-01 -> s1n3-i4-13 level 4 count 1 interval 1000, rr: no os: no	[reply to ip 10.0.0.1 port 6634] 
+OAM request rping session 7 seq 0, s1n1-e4-01 -> s1n3-i4-13 level 4 count 1 interval 1000, rr: no os: no	[reply to ip 10.0.0.1 port 6634]
 """
     ),
 
@@ -377,6 +376,24 @@ OAM request rping session 7 seq 0, s1n1-e4-01 -> s1n3-i4-13 level 4 count 1 inte
 """
 OAM request rping session 8 seq 0, s1n1-e4-01 -> s1n3-i4-13 level 4 count 1 interval 1000, rr: no os: no	[reply to ip 10.0.0.1 port 6634]
 Rping error from s1n3-i4-13 : could not create ping request: ping start 'nonexistentmp' invalid
+"""
+    ),
+
+    (
+        'n1', 'sessions', # note: exiting telnet clears the associated sessions
+"""
+Stream s1 sessions:
+    1 ping s1n1-e4-01 -> s1n4-e3-24 level 3 connection <background>
+Stream s3 sessions:
+    1 ping s3n1-e4-01 -> s3n4-e4-40 level 4 connection <background>
+"""
+    ),
+
+    (
+        'n1', 'sessions s3', # note: exiting telnet clears the associated sessions
+"""
+Stream s3 sessions:
+    1 ping s3n1-e4-01 -> s3n4-e4-40 level 4 connection <background>
 """
     ),
 ]
@@ -448,7 +465,7 @@ def run_tests(net, test):
                    reply)
             reply = re.sub(r'delay \d+\.\d+',
                    r'delay 0',
-                   reply)      
+                   reply)
             if reply.strip() == expected_reply.strip():
                 success += 1
                 print("✔")

@@ -23,9 +23,7 @@ struct SessionTracker {
     char *conn_name; // NULL if not issued from a command connection
     time_t access_time;
     unsigned interval_ms;
-    struct Thread *multireq_thread;
     struct OamRequest *req;
-    bool live; //TODO live = req!=NULL
 };
 
 struct StreamSessions {
@@ -43,7 +41,7 @@ struct CommandConnection *command_connection_for_session(const char *stream_name
 
     if (ss) {
         struct SessionTracker *sess = &ss->sessions[session_id];
-        if (!sess->live) {
+        if (!sess->req) {
             return NULL;
         }
 
@@ -69,16 +67,13 @@ struct StreamSessions *get_stream_sessions(const char *stream_name)
 // @session_lock must be acquired before calling this
 static int stop_session_locked(struct SessionTracker *s)
 {
-    int ret = 0;
-    if (s->live) {
-        s->multireq_thread = thread_stop(s->multireq_thread);
+    if (s->req) { //TODO do we need this?
+        s->req = delete_oam_request(s->req);
         free(s->conn_name);
         s->conn_name = NULL;
-        s->req = delete_oam_request(s->req);
-        s->live = false;
-        ret = 1;
+        return 1;
     }
-    return ret;
+    return 0;
 }
 
 
@@ -92,7 +87,7 @@ int alloc_session_id(struct StreamSessions *stream, struct OamRequest *req,
     struct timespec now;
     clock_gettime(CLOCK_REALTIME, &now);
 
-    while (stream->sessions[id].live) {
+    while (stream->sessions[id].req) {
         // "unmask" is fire-and-forget, we can always free its slot
         bool is_unmask = strcmp(request_get_type(stream->sessions[id].req), "unmask") == 0;
 
@@ -113,7 +108,7 @@ int alloc_session_id(struct StreamSessions *stream, struct OamRequest *req,
     if (!strcmp(request_get_type(req), "unmask")) {
         for (int i=0; i<16; ++i) {
             struct SessionTracker *session = &stream->sessions[i];
-            if (!session->live) continue;
+            if (!session->req) continue;
             if (!strcmp(request_get_type(session->req), "mask")) {
                 stop_session_locked(session);
                 break;
@@ -121,16 +116,13 @@ int alloc_session_id(struct StreamSessions *stream, struct OamRequest *req,
         }
     }
 
-    if (stream->sessions[id].live) {
+    if (stream->sessions[id].req) {
         pthread_mutex_unlock(&session_lock);
         return -1;
     } else {
         stream->last_session = id;
-        if (strcmp(request_get_type(req), "unmask") != 0) //FIXME: leaks
-            stream->sessions[id].live = true;
         stream->sessions[id].access_time = now.tv_sec + 1;
         stream->sessions[id].req = req;
-        stream->sessions[id].multireq_thread = NULL;
         stream->sessions[id].interval_ms = interval_ms;
         stream->sessions[id].conn_name = conn_name ? strdup(conn_name) : NULL;
         pthread_mutex_unlock(&session_lock);
@@ -142,7 +134,7 @@ int stream_live_session_count(const struct StreamSessions *stream)
 {
     pthread_mutex_lock(&session_lock);
     int live_session_count = 0;
-    for (int i=0; i<16; i++) if (stream->sessions[i].live) live_session_count++;
+    for (int i=0; i<16; i++) if (stream->sessions[i].req) live_session_count++;
     pthread_mutex_unlock(&session_lock);
     return live_session_count;
 }
@@ -172,7 +164,7 @@ int stop_all_sessions_of_connection(struct CommandConnection *conn)
 
         for (int i=0; i<16; i++) {
             struct SessionTracker *s = &stream->sessions[i];
-            if (s->live == false) continue;
+            if (s->req == NULL) continue;
 
             if (command_connection_is_same(conn, s->conn_name)) {
                 int res = stop_session_locked(s);
@@ -186,22 +178,24 @@ int stop_all_sessions_of_connection(struct CommandConnection *conn)
     return ret;
 }
 
-int list_sessions_of_stream(struct StreamSessions *stream, FILE *cmd_w)
+int list_sessions_of_stream(struct StreamSessions *stream, const char *name, FILE *cmd_w)
 {
     bool has_sessions = false;
-    for(int i=0; i<16; i++){
-        if(stream->sessions[i].live){
+    for (int i=0; i<16; i++) {
+        if (stream->sessions[i].req) {
             has_sessions = true;
         }
     }
-    if (!has_sessions) return 1;
+    if (!has_sessions) return 0;
 
-    for(int i=0; i<16; i++){
-        if(stream->sessions[i].live){
-            struct OamRequest *req = stream->sessions[i].req;
-            fprintf(cmd_w,"\t%d\t %s %s -> %s level %d\n",
+    fprintf(cmd_w, "Stream %s sessions:\n", name);
+    for (int i=0; i<16; i++) {
+        struct OamRequest *req = stream->sessions[i].req;
+        if (req) {
+            fprintf(cmd_w,"    %d %s %s -> %s level %d connection %s\n",
                     i, request_get_type(req), request_get_start_name(req),
-                    request_get_stop_name(req), request_get_level(req));
+                    request_get_stop_name(req), request_get_level(req),
+                    stream->sessions[i].conn_name ? stream->sessions[i].conn_name : "<background>");
         }
     }
     return 1;
@@ -211,8 +205,8 @@ static int list_all_sessions_cb(const char *key, void *value, void *userdata)
 {
     struct StreamSessions *stream = (struct StreamSessions *)value;
     FILE *cmd_w = (FILE *)userdata;
-    fprintf(cmd_w, "Stream %s sessions:\n", key);
-    return list_sessions_of_stream(stream, cmd_w);
+    list_sessions_of_stream(stream, key, cmd_w);
+    return 1;
 }
 
 int list_sessions_of_all_streams(FILE *cmd_w)
@@ -221,16 +215,6 @@ int list_sessions_of_all_streams(FILE *cmd_w)
     int ret = hashmap_foreach_sorted(session_ids, list_all_sessions_cb, cmd_w);
     pthread_mutex_unlock(&session_lock);
     return ret;
-}
-
-void session_set_thread(struct StreamSessions *stream, int session, struct Thread *th)
-{
-    stream->sessions[session].multireq_thread = th;
-}
-
-struct Thread *session_get_thread(struct StreamSessions *stream, int session)
-{
-    return stream->sessions[session].multireq_thread;
 }
 
 void session_touch(struct StreamSessions *stream, int session)

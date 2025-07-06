@@ -38,14 +38,9 @@ int stop_session(const char *stream_name, int session);
 // @returns the number of sessions stopped
 int stop_all_sessions_of_connection(struct CommandConnection *conn);
 
-int list_sessions_of_stream(struct StreamSessions *stream, FILE *cmd_w);
+int list_sessions_of_stream(struct StreamSessions *stream, const char *name, FILE *cmd_w);
 
 int list_sessions_of_all_streams(FILE *cmd_w);
-
-// set the thread that manages the periodic sending of requests
-void session_set_thread(struct StreamSessions *stream, int session, struct Thread *th);
-
-struct Thread *session_get_thread(struct StreamSessions *stream, int session);
 
 // update the last used time of the session to now
 // sessions that haven't been touched in a while are assumed to be timed out

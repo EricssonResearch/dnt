@@ -16,24 +16,19 @@
 struct OamRequest;
 
 // always returns a request, sets ret->error to an error message
-struct OamRequest *parse_ping_command(const char *oam_command, bool allow_returniface, bool allow_num,
-        const char *conn_name);
+struct OamRequest *parse_ping_command(const char *oam_command, bool allow_returniface, bool allow_num);
 
 // always returns a request, sets ret->error to an error message
-struct OamRequest *parse_rping_command(const char *oam_command,
-        const char *conn_name);
+struct OamRequest *parse_rping_command(const char *oam_command);
 
 // always returns a request, sets ret->error to an error message
-struct OamRequest *parse_trigger_command(const char *oam_command, bool allow_num,
-        const char *conn_name);
+struct OamRequest *parse_trigger_command(const char *oam_command, bool allow_num);
 
 // always returns a request, sets ret->error to an error message
-struct OamRequest *parse_rlist_command(const char *oam_command,
-        const char *conn_name);
+struct OamRequest *parse_rlist_command(const char *oam_command);
 
 // always returns a request, sets ret->error to an error message
-struct OamRequest *parse_mask_command(const char *oam_command,
-        const char *conn_name);
+struct OamRequest *parse_mask_command(const char *oam_command);
 
 // always returns NULL
 struct OamRequest *delete_oam_request(struct OamRequest *req);
@@ -74,8 +69,9 @@ void request_set_return_addr(struct OamRequest *req, struct JsonValue *addr);
 
 void request_set_originator(struct OamRequest *req, const char *stream, unsigned char session_id);
 
-// returns true on success
-bool initiate_request(struct OamRequest *req);
+// @returns true on success
+// @conn_name is the name of the command connection where the request comes from, can be NULL
+bool initiate_request(struct OamRequest *req, const char *conn_name);
 
 
 #endif // R2_OAM_REQUEST_H
