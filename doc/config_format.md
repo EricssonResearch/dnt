@@ -36,6 +36,8 @@ List of interfaces where we can send/receive packets. The keys of the items are 
 * `oam` receives OAM reply messages out-of-band, can have any number of these, the default one is the first one in alphabetic order
     * `ip` return address to listen on (required)
     * `port` return port (default: 6634)
+* `oam_eth` receives Ethernet OAM reply messages out-of-band. Can have any number of these, the default one is the first one in alphabetic order. It will listen on all of them, but will use the default for sending.
+    * `iface` the name of the hardware interface. It should be a VLAN interface, used for management VLAN
 * `oam_cmd` OAM command interface, can have only one, use `telnet` to connect to it, use the `help` command
     * `ip` address (optional, accept incoming telnet connections on any address if not given)
     * `port` listening port (default: 8000)
