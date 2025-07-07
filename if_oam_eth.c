@@ -127,7 +127,7 @@ static bool oam_eth_open(struct Interface *iface)
     oid->ifindex = if_idx.ifr_ifindex;
     oid->mac = *((struct ether_addr *)&if_mac.ifr_hwaddr.sa_data);
     ether_ntop(&oid->mac, oid->oam_eth_str, sizeof(oid->oam_eth_str));
-    oid->uid = oid->mac.ether_addr_octet[0]+(oid->mac.ether_addr_octet[1]<<8);  // TODO: is this OK??
+    oid->uid = oid->mac.ether_addr_octet[5]+(oid->mac.ether_addr_octet[4]<<8);  // TODO: is this OK??
     //oid->uid = djb2_hash(oid->oam_eth_str);                                   // maybe hash?
 
     //      store this in an interface property

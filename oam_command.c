@@ -11,6 +11,7 @@
 #include "oam_session.h"
 
 #include "if_oam.h"
+#include "if_oam_eth.h"
 #include "log.h"
 #include "notification.h"
 #include "oam.h"
@@ -136,15 +137,21 @@ static int list_oam_ifaces_cb(const char *ifname, void *value, void *userdata)
     struct Interface *iface = (struct Interface *)value;
     FILE *cmd_w = (FILE *)userdata;
 
-    const char *return_ip = oamif_get_ip(iface);
-    unsigned return_port = oamif_get_port(iface);
-    fprintf(cmd_w, "%s ip %s port %u",
-            ifname, return_ip, return_port);
-    if (iface == get_default_oam_ip_interface()) {
-        fprintf(cmd_w, " (default, node id %u)\n", oamif_get_uid(iface));
-    } else {
-        fprintf(cmd_w, "\n");
+    if (iface->type == IF_OAM) {
+        const char *return_ip = oamif_get_ip(iface);
+        unsigned return_port = oamif_get_port(iface);
+        fprintf(cmd_w, "  %s ip %s port %u",
+                ifname, return_ip, return_port);
+        if (iface == get_default_oam_ip_interface())
+            fprintf(cmd_w, " (default for UDP, node id %u)", oamif_get_uid(iface));
+    } else if (iface->type == IF_OAM_ETH) {
+        const char *return_mac = oam_eth_if_get_mac(iface);
+        fprintf(cmd_w, "  %s mac %s",
+                ifname, return_mac);
+        if (iface == get_default_oam_eth_interface())
+            fprintf(cmd_w, " (default for ETH, node id %u)", oam_eth_if_get_uid(iface));
     }
+    fprintf(cmd_w, "\n");
 
     return 1;
 }
