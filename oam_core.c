@@ -78,7 +78,7 @@ void add_oam_if(struct Interface *iface)
 
 struct Interface *get_oam_interface(const char *ifname)
 {
-    return ifname[0] ? (struct Interface *)hashmap_find(oam_ifaces, ifname) : oam_default_ip_iface;
+    return ifname[0] ? (struct Interface *)hashmap_find(oam_ifaces, ifname) : (have_default_ip_iface()? oam_default_ip_iface : oam_default_eth_iface);
 }
 
 struct Interface *get_default_oam_ip_interface(void)
@@ -99,6 +99,11 @@ int foreach_oam_ifaces(hashmap_cb *cb, void *userdata)
 bool have_default_ip_iface(void)
 {
     return oam_default_ip_iface != NULL;
+}
+
+bool have_default_eth_iface(void)
+{
+    return oam_default_eth_iface != NULL;
 }
 
 unsigned short get_default_node_id(void)
