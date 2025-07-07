@@ -18,7 +18,7 @@ Examples and naming convention for the interface and command parameters can be f
 ## Naming convention
 
 For a self-explanatory configuration file and proper OAM operation, there are recommended naming rules.
-The naming is also important for [automatically generated OAM points](#automatic-mip-generation) discussed later. Please note that `AutoMIP` is currently not available for Ethernet.
+The naming is also important for [automatically generated OAM points](#automatic-mip-generation) discussed later.
 Note that the `mip`s will be automatically generated only if `AutoMIP` is specified for the replication/elimination object.
 
 * to identify the streams one can use `s1` or `s2` names, or `m1` and `m2` for member streams. Compound streams can be `c1`, `c2`.
@@ -57,7 +57,7 @@ r1-m3 = ..., send if2
 e1-c1 = ..., send if3
 ```
 
-## Automatic MIP generation (for DetNet only)
+## Automatic MIP generation
 
 For each replication and elimination object, `mip` points can be automatically created with the `AutoMIP=level` parameter. In case of replication objects, a `mip` is placed before the replication. In case of elimination objects, a `mip` is placed before AND after the elimination.
 The automatically generated `mip`s are always uniquely identified with the following naming scheme.
@@ -267,7 +267,7 @@ Same deal as with ping: Json has the info from the fixed header, "return" is rem
 
 ## TSN OAM considerations
 
-For TSN OAM, the operation is similar to the Detet OAM, with a few differences.
+For TSN OAM, the operation is similar to the DetNet OAM, with a few differences.
 
 ### TSN OAM interface(s)
 

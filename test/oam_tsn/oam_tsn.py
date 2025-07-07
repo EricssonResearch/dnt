@@ -392,22 +392,22 @@ Rping error from s1n3-i4-13 : could not create ping request: ping start 'nonexis
 ]
 
 def auto_mip_test():
-    print("Test OAM automatic MIP configuration", end=" ")
-    exec_bg("../r2dtwo oam/autconfig/auto.ini -v ALL:NONE")
+    print("Test TSN OAM automatic MIP configuration", end=" ")
+    exec_bg("../r2dtwo oam_tsn/autconfig/auto.ini -v ALL:NONE")
     time.sleep(1)
     expected_reply = """Available MEP Start points:
-o_C1_L2_post-E1 in C1 type MIP level 2 PseudoWire (pipe M1 idx 6)
-o_C1_L3_pre-E2 in C1 type MIP level 3 PseudoWire (pipe M1 idx 8)
-o_C2_L3_pre-E2 in C2 type MIP level 3 PseudoWire (pipe C2 idx 3)
-o_C_L3_post-E2 in C type MIP level 3 PseudoWire (pipe M1 idx 11)
-o_C_L4_pre-R1 in C type MIP level 4 PseudoWire (pipe M1 idx 13)
-o_M1_L2_pre-E1 in M1 type MIP level 2 PseudoWire (pipe M1 idx 3)
-o_M2_L2_pre-E1 in M2 type MIP level 2 PseudoWire (pipe M2 idx 3)
-o_M5_L4_post-R1 in M5 type MIP level 4 PseudoWire (pipe M5 idx 1)
-o_M5_L5_pre-R2 in M5 type MIP level 5 PseudoWire (pipe M5 idx 3)
-o_M6_L4_post-R1 in M6 type MIP level 4 PseudoWire (pipe M6 idx 1)
-o_M7_L5_post-R2 in M7 type MIP level 5 PseudoWire (pipe M7 idx 1)
-o_M8_L5_post-R2 in M8 type MIP level 5 PseudoWire (pipe M8 idx 1)
+o_C1_L2_post-E1 in C1 type MIP level 2 TSN (pipe M1 idx 5)
+o_C1_L3_pre-E2 in C1 type MIP level 3 TSN (pipe M1 idx 7)
+o_C2_L3_pre-E2 in C2 type MIP level 3 TSN (pipe C2 idx 2)
+o_C_L3_post-E2 in C type MIP level 3 TSN (pipe M1 idx 10)
+o_C_L4_pre-R1 in C type MIP level 4 TSN (pipe M1 idx 12)
+o_M1_L2_pre-E1 in M1 type MIP level 2 TSN (pipe M1 idx 2)
+o_M2_L2_pre-E1 in M2 type MIP level 2 TSN (pipe M2 idx 2)
+o_M5_L4_post-R1 in M5 type MIP level 4 TSN (pipe M5 idx 1)
+o_M5_L5_pre-R2 in M5 type MIP level 5 TSN (pipe M5 idx 3)
+o_M6_L4_post-R1 in M6 type MIP level 4 TSN (pipe M6 idx 1)
+o_M7_L5_post-R2 in M7 type MIP level 5 TSN (pipe M7 idx 1)
+o_M8_L5_post-R2 in M8 type MIP level 5 TSN (pipe M8 idx 1)
 """
     try:
         with Telnet("127.0.0.1", 8000) as cli:
