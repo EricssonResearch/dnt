@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 from mininet.net import Mininet
+from mininet.node import OVSController, OVSSwitch
 from threading import Thread
 from mininet.cli import CLI
 from select import *
@@ -20,30 +21,51 @@ def create_net():
         talker ---- n1---n3---n4----listener
     192.168.1.1                    192.168.1.2
 
+    management switch: s
+        connecten to n1, n2, n3, n4 (eth_m interface)
+
+
     Router-local IPs for OAM: 10.0.0.{1,2,3,4}/32
     """
-    net = Mininet(autoStaticArp=True)
+    try:
+        net = Mininet(controller=OVSController, switch=OVSSwitch,
+                    waitConnected=True, autoStaticArp=True, topo=None,  build=False )
 
-    # nodes: a, b, c, d, talker, listener
-    talker = net.addHost('talker', ip='192.168.1.1/24')
-    listener =  net.addHost('listener', ip='192.168.1.2/24')
-    n1 = net.addHost('n1', ip=None)
-    n2 = net.addHost('n2', ip=None)
-    n3 = net.addHost('n3', ip=None)
-    n4 = net.addHost('n4', ip=None)
+        # nodes: a, b, c, d, talker, listener
+        talker = net.addHost('talker', ip='192.168.1.1/24')
+        listener =  net.addHost('listener', ip='192.168.1.2/24')
+        n1 = net.addHost('n1', ip=None)
+        n2 = net.addHost('n2', ip=None)
+        n3 = net.addHost('n3', ip=None)
+        n4 = net.addHost('n4', ip=None)
 
-    # links
-    net.addLink(talker, n1, intfName1='eth0', intfName2='eth0')
-    net.addLink(n1, n2, intfName1='eth12', intfName2='eth21')
-    net.addLink(n1, n3, intfName1='eth13', intfName2='eth31')
-    net.addLink(n2, n3, intfName1='eth23', intfName2='eth32')
-    # Uncomment line below for multi-stage PREOF network
-    # net.addLink(n2, n3, intfName1='eth230', intfName2='eth320') #redundant
-    net.addLink(n2, n4, intfName1='eth24', intfName2='eth42')
-    net.addLink(n3, n4, intfName1='eth34', intfName2='eth43')
-    net.addLink(listener, n4, intfName1='eth0', intfName2='eth0')
+        # switch and controller
+        c = net.addController( 'c', port=6633 )
+        s1 = net.addSwitch('s1',cls=OVSSwitch )
 
-    net.build()
+
+        # links
+        net.addLink(talker, n1, intfName1='eth0', intfName2='eth0')
+        net.addLink(n1, n2, intfName1='eth12', intfName2='eth21')
+        net.addLink(n1, n3, intfName1='eth13', intfName2='eth31')
+        net.addLink(n2, n3, intfName1='eth23', intfName2='eth32')
+        # Uncomment line below for multi-stage PREOF network
+        # net.addLink(n2, n3, intfName1='eth230', intfName2='eth320') #redundant
+        net.addLink(n2, n4, intfName1='eth24', intfName2='eth42')
+        net.addLink(n3, n4, intfName1='eth34', intfName2='eth43')
+        net.addLink(listener, n4, intfName1='eth0', intfName2='eth0')
+
+        net.addLink(n1, s1,intfName1='eth_m', intfName2='eth_n1' )
+        net.addLink(n2, s1,intfName1='eth_m', intfName2='eth_n2' )
+        net.addLink(n3, s1,intfName1='eth_m', intfName2='eth_n3' )
+        net.addLink(n4, s1,intfName1='eth_m', intfName2='eth_n4' )
+
+        net.build()
+
+        c.start()
+        s1.start( [ c ] )
+    except Exception as ex:
+        print(type(ex), ex)
     return net
 
 def config_net(net):
@@ -120,6 +142,14 @@ OAM request ping session 0 seq 0, s1n1-e4-01 -> s1n2-i3-12 level 3 count 1 inter
 """
      ),
 
+    ('n1', 'ping@oam1 s1n1-e4-01 s1n2-i3-12 3',
+"""
+OAM request ping session 0 seq 0, s1n1-e4-01 -> s1n2-i3-12 level 3 count 1 interval 1000, rr: no os: no	[reply to mac 00:00:00:00:00:00]
+  oam_r s1:0 seq 0 lvl 3 R - ping on stream s1 target s1n2-i3-12; reply from s1n2-i3-12
+"""
+     ),
+
+
     ('n1', 'ping s1n1-e4-01 s1n2-i3-12 3 -n 3',
 """
 OAM request ping session 0 seq 0, s1n1-e4-01 -> s1n2-i3-12 level 3 count 3 interval 1000, rr: no os: no	[reply to ip 10.0.0.1 port 6634]
@@ -186,6 +216,14 @@ OAM request ping session 0 seq 0, s1n1-e4-01 -> s1n4-i4-24 level 4 count 1 inter
     ('n1', 'ping s1n1-e4-01 s1n4-e4-40 4 -r',
 """
 OAM request ping session 0 seq 0, s1n1-e4-01 -> s1n4-e4-40 level 4 count 1 interval 1000, rr: yes os: no	[reply to ip 10.0.0.1 port 6634]
+  oam_r s1:0 seq 0 lvl 4 R - ping on stream s1 target s1n4-e4-40; reply from s1n4-e4-40
+	Record Route: [ s1n1-e4-01 s1n3-i4-23 s1n3-i4-34 s1n4-i4-34 s1n4-e4-40 ]
+"""
+    ),
+
+    ('n1', 'ping@oam1 s1n1-e4-01 s1n4-e4-40 4 -r',
+"""
+OAM request ping session 0 seq 0, s1n1-e4-01 -> s1n4-e4-40 level 4 count 1 interval 1000, rr: yes os: no	[reply to mac 00:00:00:00:00:00]
   oam_r s1:0 seq 0 lvl 4 R - ping on stream s1 target s1n4-e4-40; reply from s1n4-e4-40
 	Record Route: [ s1n1-e4-01 s1n3-i4-23 s1n3-i4-34 s1n4-i4-34 s1n4-e4-40 ]
 """
@@ -422,6 +460,9 @@ def run_tests(net, test):
                    reply)
             reply = re.sub(r':\d+ seq',
                    r':0 seq',
+                   reply)
+            reply = re.sub(r'reply to mac ([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}',
+                   r'reply to mac 00:00:00:00:00:00',
                    reply)
             if reply.strip() == expected_reply.strip():
                 success += 1
