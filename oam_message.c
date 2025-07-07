@@ -316,7 +316,7 @@ static int oam_send_eth_reply(const char *address, unsigned vid, const char *msg
     memset(eth+6, 0, 6);
 
     int if_vid = oam_eth_if_get_vlan(eth_oam_if);
-    if(if_vid != -1) {
+    if((if_vid != -1) || (vid == 0)) {
         // VLAN iface, no need to add VLAN
 
         if( (vid != 0) && ((unsigned)if_vid != vid) )
