@@ -135,7 +135,7 @@ Fixed header for DetNet PseudoWire messages:
 
 Fixed header for Ethernet OAM messages:
 
- The Ethernet ping uses an R-Tagged CFM message format (EtherType 0x8902), with a generic data TLV containing the actual Json string. The R-Tag uses the following fields:
+ The Ethernet ping uses a CFM message format (EtherType 0x8902), with a generic data TLV containing the actual Json string. When the stream is R-Tagged, the CFM frame will also be R-Tagged with the following fields:
  * OAM nibble (to identify as OAM R-tag)
  * 1 byte sequence number
  * 1 byte flags (0)
