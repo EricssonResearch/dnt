@@ -531,7 +531,7 @@ void dump_packet(char *buffer, int n)
 {
     char dump_str[4000], ch[8];
     bzero(ch, sizeof(ch));
-    sprintf(dump_str,"received %d\n", n);
+    sprintf(dump_str,"Packet received %d bytes:\n", n);
 
     unsigned char *pp=(unsigned char *)buffer;
     for(int i=1; i<=128; i++){
@@ -541,6 +541,5 @@ void dump_packet(char *buffer, int n)
         if(i%16==0)
             strcat(dump_str, "\n");
     }
-    strcat(dump_str, "\n");
-    log_info("packet: %s", dump_str);
+    log_debug("%s", dump_str);
 }

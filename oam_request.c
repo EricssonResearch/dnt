@@ -11,6 +11,7 @@
 #include "oam_session.h"
 
 #include "if_oam.h"
+#include "if_oam_eth.h"
 #include "inet_utils.h"
 #include "json.h"
 #include "log.h"
@@ -113,10 +114,18 @@ static bool parse_returnif(struct OamRequest *req, const char *ifname)
         }
         return false;
     } else {
-        //TODO depends on the type of the return interface
-        json_object_insert(req->return_addr, "ip", json_string(oamif_get_ip(iface)));
-        json_object_insert(req->return_addr, "port", json_number(oamif_get_port(iface)));
-        return true;
+        if (iface->type == IF_OAM) {
+            json_object_insert(req->return_addr, "ip", json_string(oamif_get_ip(iface)));
+            json_object_insert(req->return_addr, "port", json_number(oamif_get_port(iface)));
+            return true;
+        } else if(iface->type == IF_OAM_ETH){
+            json_object_insert(req->return_addr, "dmac", json_string(oam_eth_if_get_mac(iface)));
+            //json_object_insert(req->return_addr, "vlan", json_number(oam_eth_if_get_vlan(iface)));
+            return true;
+        } else {
+            log_error("Invalid interface specified for ping return: %s", ifname);
+            return false;
+        }
     }
 }
 

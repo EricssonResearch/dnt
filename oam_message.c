@@ -310,19 +310,17 @@ static int oam_send_eth_reply(const char *address, unsigned vid, const char *msg
     packet_enlarge_scratch(p);
 
     int h=0;
-    unsigned header_len = 0;
     packet_add_header(p, h, PROTO_ID_ETH, protocol_from_id(PROTO_ID_ETH)->bytelength);
     unsigned char *eth = p->buf + p->headers[0].start;
     ether_pton(address, eth);
     memset(eth+6, 0, 6);
-    header_len += p->headers[h].len;
 
     int if_vid = oam_eth_if_get_vlan(eth_oam_if);
     if(if_vid != -1) {
         // VLAN iface, no need to add VLAN
 
-        if((unsigned)if_vid != vid)
-            log_warning("Different VLAN ID specified for OAM_ETH VLAN return interface. VLAN ignored.");
+        if( (vid != 0) && ((unsigned)if_vid != vid) )
+            log_warning("Different VLAN ID specified for OAM_ETH VLAN return interface: %d. VLAN ignored.", vid);
 
         eth[12] = 0x89;             // OAM ethertype or VLAN ethertype
         eth[13] = 0x02;
@@ -337,15 +335,13 @@ static int oam_send_eth_reply(const char *address, unsigned vid, const char *msg
         vlan[1] = (vid >> 8) & 0xff;
         vlan[2] = 0x89; // cfm
         vlan[3] = 0x02;
-        header_len += p->headers[h].len;
     }
 
-    h++; packet_add_header(p, h, PROTO_ID_PAYLOAD, 4);
-    unsigned char *payload = p->buf + p->headers[0].start + header_len;
-    unsigned char *cfm = payload;
+    h++; packet_add_header(p, h, PROTO_ID_PAYLOAD, 4 + 3 + msg_len + 1);
+    unsigned char *cfm = p->buf + p->headers[h].start;
     unsigned char *tlv = cfm + 4;
     cfm[0] = level << 5;
-    cfm[1] = OAM_CFM_REQUEST_OPCODE;
+    cfm[1] = OAM_CFM_RESPONSE_OPCODE;
     cfm[2] = 0; // flags
     cfm[3] = 0; // tlv offset
 
@@ -354,11 +350,6 @@ static int oam_send_eth_reply(const char *address, unsigned vid, const char *msg
     tlv[2] = msg_len & 0xff;
     tlv[3] = 0; // end tlv indicator
     memcpy(tlv+3, msg, msg_len+1); // also set the closing 0
-    header_len += p->headers[h].len;
-
-    unsigned new_len = header_len + 4 + 3 + msg_len + 1;
-    p->headers[p->header_count-1].len += new_len - p->scratch_len;
-    p->scratch_len = new_len;
 
     struct timespec sendtime;
     clock_gettime(CLOCK_REALTIME, &sendtime);
@@ -429,7 +420,7 @@ static bool send_message_outofband(struct OAM_MaintenancePoint *mp, const struct
         int err = oam_send_eth_reply(dmac->v.string, vlan? vlan->v.number:0, msg_str, msg_len, mp_get_level(mp));
         free(msg_str);
         log_packet("sent ETH out-of-band message len %u to %s %g err %d", msg_len,
-                dmac->v.string, vlan->v.number, err);
+                dmac->v.string, vlan? vlan->v.number:0, err);
         json_delete(address);
         return err == 0;
     } else {
@@ -475,11 +466,13 @@ static bool logpacket_reply(struct OAM_MaintenancePoint *mp, struct JsonValue *j
         return false;
     }
     const char *addr = ip ? ip->v.string : dmac->v.string;
-    if(!port && !vlan) {
-        log_error("neither port nor vlan is present in ping request");
-        return false;
+    unsigned num = 0;
+    if(ip && port) {
+        num = port->v.number;
     }
-    unsigned num = port ? port->v.number : vlan->v.number;
+    if(dmac && vlan){
+        num = vlan->v.number;
+    }
 
     log_packet("%s send %s %s:%g seq %g lvl %g to %s %u",
             mp_get_name(mp), type, stream,

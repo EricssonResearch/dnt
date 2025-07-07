@@ -4,6 +4,7 @@
 
 #include "if_oam_eth.h"
 #include "if_utils.h"
+#include "inet_utils.h"
 #include "interface.h"
 #include "log.h"
 #include "oam.h"
@@ -34,7 +35,7 @@ struct OamIfData {
     int ifindex;
     int vlan;
     struct ether_addr mac;
-    char *oam_eth_str;  // hold eth address in text format
+    char oam_eth_str[ETHER_ADDSTRLEN];  // hold eth address in text format
     unsigned short uid; // unique id of this iface
 };
 
@@ -42,6 +43,12 @@ unsigned short oam_eth_if_get_uid(const struct Interface *iface)
 {
     struct OamIfData *oid = (struct OamIfData *)iface->iface_private;
     return oid->uid;
+}
+
+char *oam_eth_if_get_mac(const struct Interface *iface)
+{
+    struct OamIfData *oid = (struct OamIfData *)iface->iface_private;
+    return oid->oam_eth_str;
 }
 
 unsigned oam_eth_if_get_vlan(const struct Interface *iface)
@@ -95,7 +102,7 @@ static bool oam_eth_open(struct Interface *iface)
         return false;
     }
 
-    int sock = socket(AF_PACKET, SOCK_RAW, htons(OAM_ETHTYPE));
+    int sock = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_CFM));
     if (sock < 0) {
         log_perror("oam_eth %s socket", iface->name);
         return false;
@@ -119,7 +126,10 @@ static bool oam_eth_open(struct Interface *iface)
     }
     oid->ifindex = if_idx.ifr_ifindex;
     oid->mac = *((struct ether_addr *)&if_mac.ifr_hwaddr.sa_data);
+    ether_ntop(&oid->mac, oid->oam_eth_str, sizeof(oid->oam_eth_str));
     oid->uid = oid->mac.ether_addr_octet[0]+(oid->mac.ether_addr_octet[1]<<8);  // TODO: is this OK??
+    //oid->uid = djb2_hash(oid->oam_eth_str);                                   // maybe hash?
+
     //      store this in an interface property
 
     struct vlan_ioctl_args vlan_args;
@@ -143,14 +153,14 @@ static bool oam_eth_open(struct Interface *iface)
     struct sockaddr_ll socket_address;
     memset(&socket_address, 0, sizeof(socket_address));
     socket_address.sll_family = AF_PACKET;
-    socket_address.sll_protocol = htons(OAM_ETHTYPE);
+    socket_address.sll_protocol = htons(ETH_P_CFM);
     socket_address.sll_ifindex = if_idx.ifr_ifindex;
     if (bind(sock, (struct sockaddr *)&socket_address, sizeof(socket_address)) < 0) {
         log_perror("bind sock to iface");
         close(sock);
         return false;
     }
-    // set iface to promiscuous mode
+    /* set iface to promiscuous mode
     struct packet_mreq mreq;
     mreq.mr_type = PACKET_MR_PROMISC;
     mreq.mr_ifindex = if_idx.ifr_ifindex;
@@ -161,7 +171,7 @@ static bool oam_eth_open(struct Interface *iface)
         close(sock);
         return false;
     }
-
+    */
     // Ignore outgoing packets sent on other priority sockets (since Linux 4.20)
     int true_flag = 1;
     if (setsockopt(sock, SOL_PACKET, PACKET_IGNORE_OUTGOING, &true_flag, sizeof(true_flag)) < 0) {
