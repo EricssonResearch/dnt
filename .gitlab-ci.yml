@@ -105,6 +105,13 @@ pytest_oam:
     - python3 -m oam.oam
   allow_failure: false
 
+pytest_oam_tsn:
+  extends: .pytest.common
+  script:
+    - cd test
+    - python3 -m oam_tsn.oam_tsn
+  allow_failure: false
+
 pytest_elimination:
   extends: .pytest.common
   script:
