@@ -118,14 +118,14 @@ def config_net(net):
     # n3.cmd("tc qdisc add dev eth34 root netem delay 10ms")
 
     # Create the Linux bridge
-    s1.cmd('brctl addbr s1')
+    s1.cmd('ip link add s1 type bridge')
     s1.cmd('ip link set s1 up')
 
     # Attach the ports
-    s1.cmd('brctl addif s1 eth_n1')
-    s1.cmd('brctl addif s1 eth_n2')
-    s1.cmd('brctl addif s1 eth_n3')
-    s1.cmd('brctl addif s1 eth_n4')
+    s1.cmd('ip link set eth_n1 master s1')
+    s1.cmd('ip link set eth_n2 master s1')
+    s1.cmd('ip link set eth_n3 master s1')
+    s1.cmd('ip link set eth_n4 master s1')
 
 def start_r2dtwos(net, debug):
     # start R2DTWOs
