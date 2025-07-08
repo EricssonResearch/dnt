@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
 from mininet.net import Mininet
-from mininet.node import OVSController, OVSSwitch, OVSKernelSwitch
+from mininet.nodelib import LinuxBridge
 from threading import Thread
 from mininet.cli import CLI
 from select import *
@@ -28,7 +28,7 @@ def create_net():
     Router-local IPs for OAM: 10.0.0.{1,2,3,4}/32
     """
     try:
-        net = Mininet(switch=OVSKernelSwitch, controller=None,
+        net = Mininet(switch=LinuxBridge, controller=None,
                     waitConnected=True, autoStaticArp=True, topo=None,  build=False )
 
         # nodes: a, b, c, d, talker, listener
@@ -59,9 +59,6 @@ def create_net():
         net.addLink(n4, s1,intfName1='eth_m', intfName2='eth_n4' )
 
         net.build()
-
-        # Start switch
-        s1.start([])
 
     except Exception as ex:
         print(type(ex), ex)
@@ -120,10 +117,15 @@ def config_net(net):
     n4.cmd("tc qdisc add dev eth43 root netem delay 4ms")
     # n3.cmd("tc qdisc add dev eth34 root netem delay 10ms")
 
-    # Enable switch
-    s1.cmd('ovs-vsctl set-fail-mode s1 standalone')
-    # Enable normal forwarding
-    s1.cmd('ovs-ofctl add-flow s1 actions=normal')
+    # Create the Linux bridge
+    s1.cmd('brctl addbr s1')
+    s1.cmd('ip link set s1 up')
+
+    # Attach the ports
+    s1.cmd('brctl addif s1 eth_n1')
+    s1.cmd('brctl addif s1 eth_n2')
+    s1.cmd('brctl addif s1 eth_n3')
+    s1.cmd('brctl addif s1 eth_n4')
 
 def start_r2dtwos(net, debug):
     # start R2DTWOs
