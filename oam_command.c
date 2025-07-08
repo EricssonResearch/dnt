@@ -250,7 +250,7 @@ static void command_loop(struct CommandConnection *conn)
     while (conn->name == NULL) usleep(1000); // this is generated after the thread has been launched
 
     fprintf(cmd_w, "\033[32mOAM '%s' ready\033[0m%s\n", conn->name,
-            have_default_ip_iface()?"":", but has no configured return interface");
+            (have_default_ip_iface() || have_default_eth_iface())?"":", but has no configured return interface");
 
     log_info("Telnet connection '%s' from %s %u", conn->name, conn->remote_ip, conn->remote_port);
     struct JsonValue *msg = json_object();
