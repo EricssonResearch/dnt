@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
 from mininet.net import Mininet
-from mininet.nodelib import LinuxBridge
+#from mininet.nodelib import LinuxBridge
 from threading import Thread
 from mininet.cli import CLI
 from select import *
@@ -28,8 +28,7 @@ def create_net():
     Router-local IPs for OAM: 10.0.0.{1,2,3,4}/32
     """
     try:
-        net = Mininet(switch=LinuxBridge, controller=None,
-                    waitConnected=True, autoStaticArp=True, topo=None,  build=False )
+        net = Mininet( waitConnected=True, autoStaticArp=True, topo=None,  build=False )
 
         # nodes: a, b, c, d, talker, listener
         talker = net.addHost('talker', ip='192.168.1.1/24')
@@ -40,7 +39,7 @@ def create_net():
         n4 = net.addHost('n4', ip=None)
 
         # switch
-        s1 = net.addSwitch('s1')
+        s1 = net.addHost('s1')
 
         # links
         net.addLink(talker, n1, intfName1='eth0', intfName2='eth0')
