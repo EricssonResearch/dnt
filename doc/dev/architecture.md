@@ -22,24 +22,25 @@ The overall architecture of R2DTWO is shown in the figure below:
 
 ```
                                             ╔═══════════════════════════════════════════════╗
-  ───▷ Has pointer to                       ║                      OAM                      ║
-                                            ║ ┌──────────────────┐    ┌──────────────────┐  ║
-  ───▶ Has pointer to and holds reference   ║ │     Sessions     │    │     MP hash      │  ║
-                                            ║ └────────┬─────────┘    └────────┬─────────┘  ║
+                                            ║                      OAM                      ║
+  ───▷ Has pointer to                       ║ ┌──────────────────┐    ┌──────────────────┐  ║
+                                            ║ │     Sessions     │    │     MP hash      │  ║
+  ───▶ Has pointer to and holds reference   ║ └────────┬─────────┘    └────────┬─────────┘  ║
                                             ║          │                       │            ║
                                             ║ ┌────────▽─────────┐    ┌────────▽─────────┐  ║
-╔════════════════════════╗                  ║ │     Request      ├────▶ MaintenancePoint │  ║
-║         State          ║                  ║ └──────────────────┘    └──▲────────────┬──┘  ║
-║                        ║                  ╚════════════════════════════╪════════════╪═════╝
-║ ┌───────────────────┐  ║   ┌──────────────────┐              ┏━━━━━━━━━┷━━━━━━━━┓   │
+                                            ║ │     Request      ├────▶ MaintenancePoint │  ║
+╔════════════════════════╗                  ║ └──────────────────┘    └──┬─────▲──────┬──┘  ║
+║         State          ║                  ╚════════════════════════════╪═════╪══════╪═════╝
+║                        ║               ┌───────────────────────────────┘     │      │
+║ ┌───────────────────┐  ║   ┌───────────▼──────┐              ┏━━━━━━━━━━━━━━━┷━━┓   │
 ║ │   Objects hash    ├──╫───▶  PipelineObject  ◀──────┐       ┃    OAM action    ┃   │
 ║ └───────────────────┘  ║   └──────────────────┘      │       ┠──────────────────┨   │
 ║                        ║                             └───────┨ Stateful action  ┃   │
 ║ ┌───────────────────┐  ║   ┌──────────────────┐              ┠──────────────────┨   │
 ║ │  Interfaces hash  ├──╫───▶    Interface     ◀──────────────┨   Send action    ┃   │
 ║ └───────────────────┘  ║   └────────┬─────────┘              ┠──────────────────┨   │
-╚════════════════════════╝            │                        ┃      Action      ┃   │
-                                      │                ┌───────▶     Pipeline     ◁───┘
+╚════════════════════════╝            │                        ┃      Action      ◁───┘
+                                      │                ┌───────▶     Pipeline     ┃
                              ┌────────▽─────────┐      │       ┗━━━━━━━━━━━━━━━━━━┛
                              │    ParseTree     ├──────┤
                              └──────────────────┘      │       ┌──────────────────┐
@@ -93,10 +94,14 @@ It can send/receive probe messages to monitor the network using *MaintenancePoin
 
 Note that these two actions are not found in the configuration.
 A `mep-start` action is translated to an Injector, a `mep-stop` action is translated to a Receiver, and a `mip` action is translated to a Receiver and an Injector.
+Multiple OAM actions can reference the same *MaintenancePoint* state object, in this case they are considered to be the same OAM maintenance point.
 
-The *Sessions* registry keeps track of these messaging sessions, each active session is described with a *Request* structure.
+The *Sessions* registry keeps track of the OAM messaging sessions, each active session is described with a *Request* structure.
 
 The *OAM* module also has a hashmap that keeps track of the MaintenancePoint objects, but this is only used for enumeration, the owner of the MaintenancePoint objects is the OAM action.
+
+The MaintenancePoint objects can be associated with a PipelineObject to monitor and report its state, this association manifests in a reference held by the MaintenancePoint.
+When the AutoMIP option is enabled on a PipelineObject, the generated MIPs will be associated with that object.
 
 
 ## Packet processing
