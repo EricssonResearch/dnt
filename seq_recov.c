@@ -103,7 +103,8 @@ TESTABLE struct SequenceRecovery *get_oam_rcvy(struct PipelineObject *obj, const
     }
 
     if (oamrec == NULL) {
-        struct PipelineObject *r = new_seq_rec(session_id, RCVY_Match, false, false, 0, OAM_RCVY_RESET_MS, NULL);
+        struct RecoveryDiagnosticConf diag = {};
+        struct PipelineObject *r = new_seq_rec(session_id, RCVY_Match, false, false, 0, OAM_RCVY_RESET_MS, &diag);
         if (r == NULL) {
             // most likely we couldn't launch the reset thread
             return NULL;

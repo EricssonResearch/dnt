@@ -65,7 +65,8 @@ static struct Pipeline *new_pipeline(const char *name)
 
 static void test_window(void)
 {
-    struct PipelineObject *rec = new_seq_rec("vector", RCVY_Vector, false, false, history_length, reset_ms, NULL);
+    struct RecoveryDiagnosticConf diag = {};
+    struct PipelineObject *rec = new_seq_rec("vector", RCVY_Vector, false, false, history_length, reset_ms, &diag);
     OK_FATAL(rec, "have object");
 
     unsigned start = 200;
@@ -142,7 +143,8 @@ static void test_window(void)
 
 static void test_single(void)
 {
-    struct PipelineObject *rec = new_seq_rec("vector", RCVY_Vector, false, false, history_length, reset_ms, NULL);
+    struct RecoveryDiagnosticConf diag = {};
+    struct PipelineObject *rec = new_seq_rec("vector", RCVY_Vector, false, false, history_length, reset_ms, &diag);
     OK_FATAL(rec, "have object");
 
     srand(2020); // this seed looks nice

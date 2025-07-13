@@ -59,7 +59,8 @@ static const unsigned reset_ms = 300000; // way longer than OAM timeout so we kn
 static void test_get_oam_rcvy(void)
 {
     log_set_level("RCVY", DEBUG); //TODO to catch the flaky test in line 234
-    struct PipelineObject *rec = new_seq_rec("oam", RCVY_Vector, false, false, history_length, reset_ms, NULL);
+    struct RecoveryDiagnosticConf diag = {};
+    struct PipelineObject *rec = new_seq_rec("oam", RCVY_Vector, false, false, history_length, reset_ms, &diag);
     OK_FATAL(rec, "have object");
     // session id string can be anything
     struct SequenceRecovery *rec1 = get_oam_rcvy(rec, "one of the recovery objects ever created");
@@ -86,7 +87,8 @@ static void test_get_oam_rcvy(void)
 static void test_single(void)
 {
     //log_set_level("RCVY", PACKET);
-    struct PipelineObject *rec = new_seq_rec("oam", RCVY_Vector, false, false, history_length, reset_ms, NULL);
+    struct RecoveryDiagnosticConf diag = {};
+    struct PipelineObject *rec = new_seq_rec("oam", RCVY_Vector, false, false, history_length, reset_ms, &diag);
     OK_FATAL(rec, "have object");
 
     struct Packet *p = new_packet(NULL);
@@ -116,7 +118,8 @@ static void test_single(void)
 static void test_multi(void)
 {
     // two sessions don't affect each other
-    struct PipelineObject *rec = new_seq_rec("oam", RCVY_Vector, false, false, history_length, reset_ms, NULL);
+    struct RecoveryDiagnosticConf diag = {};
+    struct PipelineObject *rec = new_seq_rec("oam", RCVY_Vector, false, false, history_length, reset_ms, &diag);
     OK_FATAL(rec, "have object");
 
     struct Packet *p = new_packet(NULL);
@@ -141,7 +144,8 @@ static void test_multi(void)
 
 static void test_timeout(void)
 {
-    struct PipelineObject *rec = new_seq_rec("match", RCVY_Match, false, false, history_length, reset_ms, NULL);
+    struct RecoveryDiagnosticConf diag = {};
+    struct PipelineObject *rec = new_seq_rec("match", RCVY_Match, false, false, history_length, reset_ms, &diag);
     OK_FATAL(rec, "have object");
 
     struct Packet *p = new_packet(NULL);
@@ -162,8 +166,9 @@ static void test_timeout(void)
 
 static void test_objects(void)
 {
-    struct PipelineObject *rec1 = new_seq_rec("oam 1", RCVY_Vector, false, false, history_length, reset_ms, NULL);
-    struct PipelineObject *rec2 = new_seq_rec("oam 1", RCVY_Vector, false, false, history_length, reset_ms, NULL);
+    struct RecoveryDiagnosticConf diag = {};
+    struct PipelineObject *rec1 = new_seq_rec("oam 1", RCVY_Vector, false, false, history_length, reset_ms, &diag);
+    struct PipelineObject *rec2 = new_seq_rec("oam 1", RCVY_Vector, false, false, history_length, reset_ms, &diag);
     OK_FATAL(rec1, "have object");
     OK_FATAL(rec2, "have object");
 
