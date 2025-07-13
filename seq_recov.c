@@ -62,10 +62,13 @@ struct SequenceRecovery {
     int discarded_packets_last;
     int remaining_ticks;
     int seq_recovery_resets;
+
+    int latent_error_paths; // current value, max is diag.admin_latent_error_paths
     int latent_errors;
     int latent_reset_counter;
     int latent_error_counter;
     int latent_error_resets;
+
     /* for loss spike detection */
     int consecutive_loss;
     int consecutive_loss_max;
@@ -75,6 +78,7 @@ struct SequenceRecovery {
 
     struct HashMap *oam_seq_recoveries; // session_id -> struct SequenceRecovery
     char *session_id; // for OAM only
+
 };
 
 static int oam_rcvy_del_cb(const char *key, void *value, void *userdata)
@@ -143,7 +147,7 @@ static struct JsonValue *get_state_json(const struct PipelineObject *obj)
         json_object_insert(js, "use_init_flag", rec->use_init_flag ? json_true() : json_false());
         json_object_insert(js, "use_reset_flag", rec->use_reset_flag ? json_true() : json_false());
         json_object_insert(js, "history_length", json_number((double) rec->history_length));
-        json_object_insert(js, "latent_error_paths", json_number((double) rec->diag.latent_error_paths));
+        json_object_insert(js, "latent_error_paths", json_number((double) rec->latent_error_paths));
         json_object_insert(js, "latent_error_resets", json_number((double) rec->latent_error_resets));
         json_object_insert(js, "latent_errors", json_number((double) rec->latent_errors));
 
@@ -419,28 +423,28 @@ static void recovery_diagnostic(struct SequenceRecovery *rec)
     passed_diff = rec->passed_packets - rec->passed_packets_last;
     if (passed_diff == 0)
         return;
-    diff = discarded_diff - ((diag->latent_error_paths - 1) * passed_diff);
+    diff = discarded_diff - ((rec->latent_error_paths - 1) * passed_diff);
     unsigned int working_ceil = (discarded_diff + diag->latent_error_difference - 1) / passed_diff;
     unsigned int working_floor = (discarded_diff - diag->latent_error_difference) / passed_diff;
     if (diff > -diag->latent_error_difference && diff < diag->latent_error_difference) {
         goto update;
     } else if (diff >= diag->latent_error_difference) {
-        int more_percent = (discarded_diff * 100) / ((diag->latent_error_paths - 1) * passed_diff);
+        int more_percent = (discarded_diff * 100) / ((rec->latent_error_paths - 1) * passed_diff);
         ALERT(fmt_more, rec->base.name, more_percent);
         goto update;
     }
     if (discarded_diff < diag->latent_error_difference) {
-        disfunctioning_paths = diag->latent_error_paths - 1;
+        disfunctioning_paths = rec->latent_error_paths - 1;
         ALERT(fmt_disfunct, rec->base.name, disfunctioning_paths);
     } else if (working_ceil == working_floor) {
-        disfunctioning_paths = diag->latent_error_paths - 2 - working_ceil;
+        disfunctioning_paths = rec->latent_error_paths - 2 - working_ceil;
         if (disfunctioning_paths > 0) {
             ALERT(fmt_disfunct_absent, rec->base.name, disfunctioning_paths);
         } else {
             ALERT(fmt_absent, rec->base.name);
         }
     } else {
-        disfunctioning_paths = diag->latent_error_paths - 1 - working_ceil;
+        disfunctioning_paths = rec->latent_error_paths - 1 - working_ceil;
         ALERT(fmt_disfunct, rec->base.name, disfunctioning_paths);
     }
     if (rec->rogue_packets != rec->rogue_packets_last) {
@@ -458,8 +462,8 @@ update:
 
 static void latent_error_test(struct SequenceRecovery *rec)
 {
-    int diff = rec->cur_base_difference - ((rec->passed_packets * (rec->diag.latent_error_paths - 1)) - rec->discarded_packets);
-    if (rec->diag.latent_error_paths > 1 && rec->diag.latent_error_period > 0) {
+    int diff = rec->cur_base_difference - ((rec->passed_packets * (rec->latent_error_paths - 1)) - rec->discarded_packets);
+    if (rec->latent_error_paths > 1 && rec->diag.latent_error_period > 0) {
         if (diff < 0)
             diff = -diff;
         if (diff > rec->diag.latent_error_difference) {
@@ -472,7 +476,7 @@ static void latent_error_test(struct SequenceRecovery *rec)
 
 static void latent_error_reset(struct SequenceRecovery *rec)
 {
-    rec->cur_base_difference = (rec->passed_packets * (rec->diag.latent_error_paths - 1)) - rec->discarded_packets;
+    rec->cur_base_difference = (rec->passed_packets * (rec->latent_error_paths - 1)) - rec->discarded_packets;
     rec->latent_error_resets += 1;
     rec->skip_loss_after_reset_guard = rec->history_length - 1;
 }
@@ -550,8 +554,7 @@ void seq_rec_set_latent_error_paths(struct PipelineObject *obj, int paths)
                   paths, rec->diag.admin_latent_error_paths);
         return;
     }
-    rec->diag.latent_error_paths = paths;
-    rec->diag.invalid = true;
+    rec->latent_error_paths = paths;
     latent_error_reset(rec);
 }
 
@@ -590,14 +593,14 @@ struct PipelineObject *new_seq_rec(const char *name, enum SequenceRecoveryAlgori
     ret->use_init_flag = use_init_flag;
     ret->history_length = history_length;
     ret->reset_msec = reset_msec;
-    if (diag) {
-        ret->diag = *diag;
-    }
+    ret->diag = *diag;
+
     ret->history = (char *)calloc(history_length, sizeof(char)); //TODO not if algo==Match
     ret->init_history = (char *)calloc(history_length, sizeof(char)); //TODO we only need this when algo==Seamless
     ret->take_any = true;
     ret->init_take_any = true;
     ret->session_id = NULL;
+    ret->latent_error_paths = diag->admin_latent_error_paths;
 
     ret->reset_thread = thread_launch(reset_thread, ret, "sqrst %s", name);
     if (ret->reset_thread == NULL) {

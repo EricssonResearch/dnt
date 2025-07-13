@@ -23,7 +23,6 @@
  * Helper structure to passing and storing diagnostic entity related parameters
  * to the SequenceRecovery instance
  *
- * @latent_error_paths: expected healthy paths at normal operation
  * @admin_latent_error_paths: initial (user configured) value of latent_error_paths
  * @latent_error_period: periodicity of latent error testing in millisecs
  * @latent_error_period: periodicity of reseting latent error related counters
@@ -32,13 +31,11 @@
  * @outage_threshold: how large gaps in sequence space determined as an outage
  */
 struct RecoveryDiagnosticConf {
-    int latent_error_paths;
     int admin_latent_error_paths;
     int latent_error_period;
     int latent_reset_period;
     int latent_error_difference;
     int outage_threshold;
-    bool invalid;
 };
 
 enum SequenceRecoveryAlgorithm {

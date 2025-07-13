@@ -60,7 +60,7 @@ static void set_default_parameters(struct ObjectInfo *info)
             info->p.rec.use_init_flag = false;
             info->p.rec.history_length = 2;
             info->p.rec.reset_msec = 2000;
-            info->p.rec.diag.latent_error_paths = 2;
+            info->p.rec.diag.admin_latent_error_paths = 2;
             info->p.rec.diag.latent_error_period = 0;
             info->p.rec.algo = RCVY_Vector;
             break;
@@ -160,7 +160,6 @@ static bool token_cb(char *str, void *userdata)
                         if (sscanf(val, "%i%c", &path, &err) != 1) {
                             THROW("invalid latent error paths '%s'", val);
                         }
-                        info->p.rec.diag.latent_error_paths = path;
                         info->p.rec.diag.admin_latent_error_paths = path;
                     } else if (strcmp(key, "frerSeqRcvyLatentErrorPeriod") == 0) {
                         unsigned msec;
