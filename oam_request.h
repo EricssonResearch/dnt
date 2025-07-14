@@ -10,6 +10,7 @@
 #endif
 
 #include "json.h"
+#include "oam_maintenance.h"
 
 #include <stdbool.h>
 
@@ -27,11 +28,13 @@ struct OamRequest *parse_trigger_command(const char *oam_command, bool allow_num
 // always returns a request, sets ret->error to an error message
 struct OamRequest *parse_rlist_command(const char *oam_command);
 
-// always returns a request, sets ret->error to an error message
-struct OamRequest *parse_mask_command(const char *oam_command);
-
 // always returns NULL
 struct OamRequest *delete_oam_request(struct OamRequest *req);
+
+struct OamRequest *create_mask_request(struct OAM_MaintenancePoint *mp, const char *type);
+
+// always returns NULL
+struct OamRequest *delete_mask_request(struct OamRequest *req);
 
 
 const char *request_get_start_name(const struct OamRequest *req);

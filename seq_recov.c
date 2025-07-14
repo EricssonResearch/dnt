@@ -32,6 +32,11 @@
 DEFAULT_LOGGING_MODULE(RCVY, WARNING);
 LOGGING_MODULE(DIAGNOSTIC, WARNING);
 
+struct MaskState {
+    bool masked;
+    //TODO need something more?
+};
+
 struct SequenceRecovery {
     struct PipelineObject base;
 
@@ -77,8 +82,10 @@ struct SequenceRecovery {
     struct Thread *reset_thread;
 
     struct HashMap *oam_seq_recoveries; // session_id -> struct SequenceRecovery
-    char *session_id; // for OAM only
+    char *oam_session_id; // for OAM recovery instances only
 
+    struct HashMap *preAutoMIP; // name -> MaskState
+    char *postAutoMIP;
 };
 
 static int oam_rcvy_del_cb(const char *key, void *value, void *userdata)
@@ -110,9 +117,9 @@ TESTABLE struct SequenceRecovery *get_oam_rcvy(struct PipelineObject *obj, const
             return NULL;
         }
         oamrec = (struct SequenceRecovery *)r;
-        oamrec->session_id = strdup(session_id);
+        oamrec->oam_session_id = strdup(session_id);
         oamrec->oam_seq_recoveries = rec->oam_seq_recoveries; // need to point to the parent's hash
-        hashmap_insert(rec->oam_seq_recoveries, oamrec->session_id, oamrec);
+        hashmap_insert(rec->oam_seq_recoveries, oamrec->oam_session_id, oamrec);
     }
     return oamrec;
 }
@@ -377,7 +384,7 @@ static enum ActionResult seq_recovery(struct PipelineObject *r, struct PipelineI
 
 static void seq_recovery_reset(struct SequenceRecovery *rec)
 {
-    log_info("%s%s: Sequence recovery reset.", rec->session_id ? "(OAM)" : "", rec->base.name);
+    log_info("%s%s: Sequence recovery reset.", rec->oam_session_id ? "(OAM)" : "", rec->base.name);
     struct JsonValue *noti = json_object();
     json_object_insert(noti, "source", json_string(rec->base.name));
     json_object_insert(noti, "message", json_string("recovery reset"));
@@ -501,7 +508,7 @@ static bool decrement_ticks(struct SequenceRecovery *rec)
     if (rec->remaining_ticks == 0) {
         seq_recovery_reset(rec);
         // oam sequence recovery dies upon reset
-        if (rec->session_id)
+        if (rec->oam_session_id)
             return false; // stop reset thread
     }
     return true;
@@ -538,25 +545,140 @@ static void *reset_thread(void *arg)
     struct Thread *reset_thread = rec->reset_thread;
     rec->reset_thread = NULL;
     // here we use our pointer to the parent's hash
-    hashmap_remove(rec->oam_seq_recoveries, rec->session_id);
+    hashmap_remove(rec->oam_seq_recoveries, rec->oam_session_id);
     thread_exit(reset_thread);
     return rec;
 }
 
-void seq_rec_set_latent_error_paths(struct PipelineObject *obj, int paths)
+void seq_rec_register_preAutoMIP(struct PipelineObject *obj, const char *mip_name)
 {
     struct SequenceRecovery *rec = (struct SequenceRecovery *)obj;
-    if (paths < 0) {
-        log_error("%s: OAM detected negative available paths: %d", obj->name, paths);
-        return;
+
+    if (rec->preAutoMIP == NULL) {
+        rec->preAutoMIP = new_hashmap(5, NULL, NULL);
     }
-    if (paths > rec->diag.admin_latent_error_paths) {
-        log_error("%s: OAM detected more paths (%d) than configured (%d)", obj->name,
-                  paths, rec->diag.admin_latent_error_paths);
-        return;
+    struct MaskState *st = calloc_struct(MaskState);
+    hashmap_insert(rec->preAutoMIP, strdup(mip_name), st);
+}
+
+void seq_rec_register_postAutoMIP(struct PipelineObject *obj, const char *mip_name)
+{
+    struct SequenceRecovery *rec = (struct SequenceRecovery *)obj;
+
+    if (rec->postAutoMIP) {
+        if (strcmp(rec->postAutoMIP, mip_name)) {
+            log_error("%s has two post AutoMIPs %s and %s !?!", obj->name, rec->postAutoMIP, mip_name);
+        }
+    } else {
+        rec->postAutoMIP = strdup(mip_name);
     }
-    rec->latent_error_paths = paths;
+}
+
+bool seq_rec_path_masked(struct PipelineObject *obj, const char *mip_name)
+{
+    struct SequenceRecovery *rec = (struct SequenceRecovery *)obj;
+
+    if (rec->preAutoMIP == NULL) {
+        log_error("%s got mask signal, but has no preAutoMIP", obj->name);
+        return false;
+    }
+
+    struct MaskState *premip = (struct MaskState *)hashmap_find(rec->preAutoMIP, mip_name);
+    if (premip == NULL) {
+        log_error("%s got mask signal for '%s', but has no such preAutoMIP", obj->name, mip_name);
+        return false;
+    }
+
+    if (premip->masked) {
+        // note: MIP only calls us if it thinks the input is not masked
+        log_error("%s got mask signal for '%s', but it is already masked", obj->name, mip_name);
+        return false;
+    }
+
+    if (rec->latent_error_paths <= 0) {
+        log_error("%s got mask signal for '%s', but latent error paths is already %d",
+                obj->name, mip_name, rec->latent_error_paths);
+        return false;
+    }
+
+    premip->masked = true;
+    rec->latent_error_paths -= 1;
     latent_error_reset(rec);
+
+    log_info("%s input %s masked", rec->base.name, mip_name);
+
+    struct JsonValue *noti = json_object();
+    json_object_insert(noti, "rcvy", json_string(rec->base.name));
+    json_object_insert(noti, "mip", json_string(mip_name));
+    notification_push_event("seq_rcvy mask", NOTIF_INFO, noti);
+
+    if (rec->latent_error_paths == 0) {
+        oam_automip_start_mask_session(rec->postAutoMIP);
+    }
+
+    return true;
+}
+
+bool seq_rec_path_unmasked(struct PipelineObject *obj, const char *mip_name)
+{
+    struct SequenceRecovery *rec = (struct SequenceRecovery *)obj;
+
+    if (rec->preAutoMIP == NULL) {
+        log_error("%s got unmask signal, but has no preAutoMIP", obj->name);
+        return false;
+    }
+
+    struct MaskState *premip = (struct MaskState *)hashmap_find(rec->preAutoMIP, mip_name);
+    if (premip == NULL) {
+        log_error("%s got unmask signal for '%s', but has no such preAutoMIP", obj->name, mip_name);
+        return false;
+    }
+
+    if (!premip->masked) {
+        // note: MIP only calls us if it thinks the input is masked
+        log_error("%s got unmask signal for '%s', but it is not masked", obj->name, mip_name);
+        return false;
+    }
+
+    if (rec->latent_error_paths >= rec->diag.admin_latent_error_paths) {
+        log_error("%s got unmask signal for '%s', but latent error paths is already %d",
+                obj->name, mip_name, rec->latent_error_paths);
+        return false;
+    }
+
+    premip->masked = false;
+    rec->latent_error_paths += 1;
+    latent_error_reset(rec);
+
+    log_info("%s input %s unmasked", rec->base.name, mip_name);
+
+    struct JsonValue *noti = json_object();
+    json_object_insert(noti, "rcvy", json_string(rec->base.name));
+    json_object_insert(noti, "mip", json_string(mip_name));
+    notification_push_event("seq_rcvy unmask", NOTIF_INFO, noti);
+
+    if (rec->latent_error_paths == 1) {
+        oam_automip_stop_mask_session(rec->postAutoMIP);
+    }
+
+    return true;
+}
+
+void seq_rec_report_mask_state(struct PipelineObject *obj, FILE *cmd_w)
+{
+    struct SequenceRecovery *rec = (struct SequenceRecovery *)obj;
+
+    fprintf(cmd_w, "mask state for SequenceRecovery '%s'\n", obj->name);
+    fprintf(cmd_w, "  latent error paths %d / %d\n",
+            rec->latent_error_paths, rec->diag.admin_latent_error_paths);
+
+    if (rec->preAutoMIP) {
+        HASHMAP_ITERATE(rec->preAutoMIP, it) {
+            const char *mip = hash_iterator_key(&it);
+            struct MaskState *state = (struct MaskState *)hash_iterator_value(&it);
+            fprintf(cmd_w, "    %s is %smasked\n", mip, state->masked ? "" : "not ");
+        }
+    }
 }
 
 enum ActionResult oam_recovery(struct PipelineObject *obj, struct Packet *p, const char *session_id, unsigned char seq)
@@ -600,7 +722,7 @@ struct PipelineObject *new_seq_rec(const char *name, enum SequenceRecoveryAlgori
     ret->init_history = (char *)calloc(history_length, sizeof(char)); //TODO we only need this when algo==Seamless
     ret->take_any = true;
     ret->init_take_any = true;
-    ret->session_id = NULL;
+    ret->oam_session_id = NULL;
     ret->latent_error_paths = diag->admin_latent_error_paths;
 
     ret->reset_thread = thread_launch(reset_thread, ret, "sqrst %s", name);
@@ -618,11 +740,13 @@ struct PipelineObject *delete_seq_rec(struct PipelineObject *r)
     struct SequenceRecovery *rec = (struct SequenceRecovery *)r;
     notification_register_source(r->name, NULL, NULL, 2000);
     rec->reset_thread = thread_stop(rec->reset_thread);
-    if (rec->session_id == NULL) // oam rcvy points to its parent's hash
+    if (rec->oam_session_id == NULL) // oam rcvy points to its parent's hash
         delete_hashmap(rec->oam_seq_recoveries);
+    delete_hashmap(rec->preAutoMIP);
+    free(rec->postAutoMIP);
     free(rec->history);
     free(rec->init_history);
-    free(rec->session_id);
+    free(rec->oam_session_id);
     free(r->name);
     free(rec);
     return NULL;

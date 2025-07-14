@@ -5,11 +5,14 @@
 #define OAM_INTERNAL
 
 #include "oam_maintenance.h"
+#include "oam_request.h"
 
 #include "hashmap.h"
 #include "log.h"
 #include "notification.h"
 #include "oam.h"
+#include "seq_recov.h"
+#include "thread_utils.h"
 #include "utils.h"
 
 #include <stdlib.h>
@@ -56,6 +59,10 @@ struct OAM_MaintenancePoint {
 
     unsigned oam_send;
     unsigned oam_recv;
+
+    struct MessageQueue *mask_queue;
+    struct Thread *mask_send; // periodic sending of mask signal
+    struct Thread *mask_recv; // timeout for receiving mask signal
 };
 
 // note: this hash doesn't hold reference to the MPs in it
@@ -70,6 +77,18 @@ static int mp_delete_cb(const char *key, void *value, void *userdata)
     notification_register_source(key, NULL, NULL, 0);
     if (mp->object)
         pipeline_object_unref(mp->object);
+
+    if (mp->mask_queue) {
+        log_info("mp_delete_cb %s with mask_queue", key);
+        if (mp->mask_send) {
+            messagequeue_push(mp->mask_queue, mp);
+            thread_join(mp->mask_send);
+        }
+        if (mp->mask_recv) {
+            thread_stop(mp->mask_recv);
+        }
+        delete_messagequeue(mp->mask_queue);
+    }
     free(mp->name);
     free(mp->stream_name);
     free(mp);
@@ -683,7 +702,13 @@ struct OAM_MaintenancePoint *oam_new_maintenance_point(const char *stream_name, 
     mp->object = obj;
     if (obj) {
         pipeline_object_ref(obj);
-        pipelineobject_store_mep_start_name(obj, mp_name);
+        if (obj->type == PO_SEQREC) {
+            if (oam_is_automip_name(mp_name, 1)) {
+                seq_rec_register_postAutoMIP(obj, mp_name);
+            } else if (oam_is_automip_name(mp_name, -1)) {
+                seq_rec_register_preAutoMIP(obj, mp_name);
+            }
+        }
     }
 
     set_mp_address(mp, addr);
@@ -722,6 +747,27 @@ struct OAM_MaintenancePoint *find_maintenance_point(const char *name)
     } else {
         return NULL;
     }
+}
+
+char *oam_automip_name(const char *stream, unsigned level, const char *object_name, bool post)
+{
+    //TODO use a pattern that is impossible to manually create
+    return strdup_printf("o_%s_L%u_%s-%s", stream, level, post ? "post" : "pre", object_name);
+}
+
+bool oam_is_automip_name(const char *name, int position)
+{
+    bool is_automip = name[0] == 'o' && name[1] == '_';
+    if (is_automip) {
+        if (position > 0) {
+            const char *post = strstr(name, "_post-");
+            return post != NULL;
+        } else if (position < 0) {
+            const char *pre = strstr(name, "_pre-");
+            return pre != NULL;
+        }
+    }
+    return is_automip;
 }
 
 const char *oam_mp_type_to_str(enum OAM_MP_Type type)
@@ -862,6 +908,11 @@ void mp_print_info(const struct OAM_MaintenancePoint *mp, FILE *out, bool detail
     }
 }
 
+void mp_print_mask_signalling_state(const struct OAM_MaintenancePoint *mp, FILE *out)
+{
+    fprintf(out, "%s %ssending mask signal\n", mp->name, mp->mask_send ? "" : "not ");
+}
+
 int foreach_mp(bool sorted, hashmap_cb *cb, void *userdata)
 {
     if (sorted)
@@ -947,4 +998,194 @@ void mp_inject_packet(struct OAM_MaintenancePoint *mp, struct Packet *p)
     //TODO pipe_iterator_inject_at(pi, mp->pipe_pos_idx);
     pi->pos = mp->pipe_pos_idx;
     pipe_iterator_run(pi);
+}
+
+
+static void *send_mask_request_thread(void *arg)
+{
+    struct OAM_MaintenancePoint *mp = (struct OAM_MaintenancePoint *)arg;
+    struct OamRequest *mask_req = create_mask_request(mp, "mask");
+
+    while (1) {
+        struct Packet *packet = new_packet(NULL);
+        struct JsonValue *js = mp_pack_message_header(mp, packet, mask_req);
+
+        json_object_insert(js, "target", json_string("nexthop"));
+
+        if (!mp_pack_message_payload(mp, packet, js)) {
+            log_error("couldn't pack request payload");
+            json_delete(js);
+            delete_packet(packet);
+            continue; //TODO exit thread with error?
+        }
+        json_delete(js);
+
+        mp_inject_packet(mp, packet);
+        log_packet("%s sent mask signal", mp->name);
+
+        void *stop_signal = messagequeue_pop(mp->mask_queue, MASK_PERIOD_MS * 1000);
+
+        if (stop_signal) {
+            log_info("mask sending thread got stop signal");
+            break;
+        }
+    }
+
+    delete_mask_request(mask_req);
+
+    return NULL;
+}
+
+static void *recv_mask_timeout_thread(void *arg)
+{
+    struct OAM_MaintenancePoint *mp = (struct OAM_MaintenancePoint *)arg;
+
+    while (1) {
+        void *got_mask = messagequeue_pop(mp->mask_queue, MASK_TIMEOUT_MS * 1000);
+
+        if (got_mask) {
+            // got mask signal before timeout, nothing to do
+        } else {
+            log_packet("%s mask session timeout", mp->name);
+
+            seq_rec_path_unmasked(mp->object, mp->name);
+
+            struct Thread *mask_recv = mp->mask_recv;
+            mp->mask_recv = NULL;
+            thread_exit(mask_recv);
+        }
+    }
+
+    return NULL;
+}
+
+
+bool mp_initiate_mask_signalling(struct OAM_MaintenancePoint *mp, FILE *cmd_w)
+{
+    if (!mp_can_send(mp)) {
+        if (cmd_w) fprintf(cmd_w, "Error: can't initiate mask signalling, MIP '%s' can't send\n", mp->name);
+        return false;
+    }
+
+    if (mp->mask_queue == NULL) {
+        mp->mask_queue = new_messagequeue();
+    }
+    mp->mask_send = thread_launch(send_mask_request_thread, mp, "mask %s", mp->name);
+
+    if (cmd_w) fprintf(cmd_w, "Initiated mask signalling from MIP '%s'\n", mp->name);
+
+    return true;
+}
+
+bool mp_stop_mask_signalling(struct OAM_MaintenancePoint *mp, FILE *cmd_w)
+{
+    if (!mp_can_send(mp)) {
+        if (cmd_w) fprintf(cmd_w, "Error: can't stop mask signalling, MIP '%s' can't send\n", mp->name);
+        return false;
+    }
+
+    if (mp->mask_send == NULL) {
+        if (cmd_w) fprintf(cmd_w, "Error: can't stop mask signalling on MIP '%s', it's not running\n", mp->name);
+        return false;
+    }
+
+    messagequeue_push(mp->mask_queue, mp); // the pointer value doesn't matter just be non-null
+    mp->mask_send = thread_join(mp->mask_send);
+
+    if (cmd_w) fprintf(cmd_w, "Stopped mask signalling from MIP '%s'\n", mp->name);
+
+    struct OamRequest *unmask_req = create_mask_request(mp, "unmask");
+    struct Packet *packet = new_packet(NULL);
+    struct JsonValue *js = mp_pack_message_header(mp, packet, unmask_req);
+    json_object_insert(js, "target", json_string("nexthop"));
+
+    if (!mp_pack_message_payload(mp, packet, js)) {
+        log_error("couldn't pack request payload");
+        json_delete(js);
+        delete_packet(packet);
+        delete_oam_request(unmask_req);
+        return false;
+    }
+    json_delete(js);
+    mp_inject_packet(mp, packet);
+    delete_mask_request(unmask_req);
+    log_packet("%s sent unmask signal", mp->name);
+
+    return true;
+}
+
+void mp_receive_mask_signal(struct OAM_MaintenancePoint *mp)
+{
+    log_packet("%s received mask signal", mp->name);
+
+    if (mp->object) {
+        if (mp->object->type == PO_SEQREC) {
+            if (mp->mask_recv) {
+                // notify the thread so it doesn't timeout
+                // the pointer value doesn't matter just be non-null
+                messagequeue_push(mp->mask_queue, mp);
+            } else {
+                if (mp->mask_queue == NULL) {
+                    mp->mask_queue = new_messagequeue();
+                }
+
+                if (seq_rec_path_masked(mp->object, mp->name)) {
+                    mp->mask_recv = thread_launch(recv_mask_timeout_thread, mp, "maskTO %s", mp_get_name(mp));
+                } else {
+                    //TODO what?
+                }
+            }
+        } else {
+            log_warning("MP %s received mask signal, but the associated object is %s",
+                    mp->name, pipelineobject_name_from_type(mp->object->type));
+        }
+    } else {
+        log_warning("MP %s received mask signal, but has no associated object",
+                mp->name);
+    }
+}
+
+void mp_receive_unmask_signal(struct OAM_MaintenancePoint *mp)
+{
+    log_packet("%s received unmask signal", mp->name);
+
+    if (mp->object) {
+        if (mp->object->type == PO_SEQREC) {
+            if (mp->mask_recv) {
+                if (seq_rec_path_unmasked(mp->object, mp->name)) {
+                    mp->mask_recv = thread_stop(mp->mask_recv);
+                } else {
+                    //TODO what?
+                }
+            }
+        } else {
+            log_warning("MP %s received unmask signal, but the associated object is %s",
+                    mp->name, pipelineobject_name_from_type(mp->object->type));
+        }
+    } else {
+        log_warning("MP %s received unmask signal, but has no associated object",
+                mp->name);
+    }
+}
+
+void oam_automip_start_mask_session(const char *mip_name)
+{
+    struct OAM_MaintenancePoint *mp = (struct OAM_MaintenancePoint*)hashmap_find(mp_hash, mip_name);
+
+    if (mp) {
+        // we mustdn't keep holding this reference
+        oam_unref_maintenance_point(mp);
+        mp_initiate_mask_signalling(mp, NULL);
+    }
+}
+
+void oam_automip_stop_mask_session(const char *mip_name)
+{
+    struct OAM_MaintenancePoint *mp = (struct OAM_MaintenancePoint*)hashmap_find(mp_hash, mip_name);
+
+    if (mp) {
+        // we mustdn't keep holding this reference
+        oam_unref_maintenance_point(mp);
+        mp_stop_mask_signalling(mp, NULL);
+    }
 }

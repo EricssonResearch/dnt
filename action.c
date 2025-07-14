@@ -578,11 +578,11 @@ static enum ActionResult action_REPL_execute(struct Action *a, struct PipelineIt
     struct PipelineList *list = rd->pipes;
 
     if (rd->replobj) {
-        list = replicate_get_pipes(rd->replobj);
         rd->replobj->process_packet(rd->replobj, pi);
     }
 
     // extract the packet from our iterator
+    // TODO pipe_iterator_extract_packet()
     struct Packet *iterpacket = pi->packet;
     pi->packet = NULL;
 

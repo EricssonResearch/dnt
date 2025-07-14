@@ -10,6 +10,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 
 #define FRER_RCVY_SEQ_SPACE (1 << 16)
 #define FRER_TICKS_PER_SEC 1000
@@ -45,9 +46,20 @@ enum SequenceRecoveryAlgorithm {
 };
 
 
-// set the number of currently active incoming paths for latent error detection
-// it can be lower than the configured amount if some of the senders are masked
-void seq_rec_set_latent_error_paths(struct PipelineObject *obj, int paths);
+void seq_rec_register_preAutoMIP(struct PipelineObject *obj, const char *mip_name);
+
+void seq_rec_register_postAutoMIP(struct PipelineObject *obj, const char *mip_name);
+
+// set one recovery path to "masked" state: the replication intentionally won't send on this path
+// @returns false on error
+bool seq_rec_path_masked(struct PipelineObject *obj, const char *mip_name);
+
+// clears the "masked" state on one recovery path
+// @returns false on error
+bool seq_rec_path_unmasked(struct PipelineObject *obj, const char *mip_name);
+
+// prints masking status to @cmd_w
+void seq_rec_report_mask_state(struct PipelineObject *obj, FILE *cmd_w);
 
 // sequence recovery for OAM messages
 enum ActionResult oam_recovery(struct PipelineObject *obj, struct Packet *p, const char *session_id, unsigned char seq);

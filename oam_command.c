@@ -15,6 +15,8 @@
 #include "log.h"
 #include "notification.h"
 #include "oam.h"
+#include "replicate.h"
+#include "seq_recov.h"
 #include "state.h"
 #include "thread_utils.h"
 #include "utils.h"
@@ -48,7 +50,16 @@ struct CommandConnection {
 
 
 static struct HashMap *command_connections = NULL; // name -> struct command_connection
-static pthread_mutex_t command_connections_lock;
+static pthread_mutex_t command_connections_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t mask_lock = PTHREAD_MUTEX_INITIALIZER;
+
+struct MaskObjectForeachArg {
+    const char *stream;
+    FILE *cmd_w;
+    bool mask;
+    unsigned found_count;
+};
+
 
 static const char *terminal_format_name(enum TerminalFormat f)
 {
@@ -161,6 +172,115 @@ static int list_log_modules_cb(const char *mod_name, LOGGING_LEVELS current_leve
     FILE *cmd_w = (FILE *)userdata;
     fprintf(cmd_w, "  %s level %s\n", mod_name, log_string_from_level(current_level));
     return 1;
+}
+
+static int query_mask_cb(struct PipelineObject *obj, void *userdata)
+{
+    FILE *cmd_w = (FILE*)userdata;
+
+    if (obj->type == PO_REPL) {
+        //TODO replicate_report_mask_state(obj, cmd_w);
+        //      problem: we use too many oam-internal things in this loop
+        fprintf(cmd_w, "mask state for Replicate '%s'\n", obj->name);
+        struct PipelineList *rlist = replicate_get_pipes(obj);
+        while (rlist) {
+            if (rlist->pipe->mask && obj->auto_mip_level >= 0) {
+                char *mipname = oam_automip_name(rlist->pipe->name, obj->auto_mip_level, obj->name, true);
+                struct OAM_MaintenancePoint *mip = find_maintenance_point(mipname);
+                free(mipname);
+                if (mip) {
+                    fprintf(cmd_w, "  pipeline '%s' is %s, ", rlist->pipe->name,
+                            rlist->pipe->mask ? "masked" : "not masked");
+                    mp_print_mask_signalling_state(mip, cmd_w);
+                    oam_unref_maintenance_point(mip);
+                }
+            } else {
+                fprintf(cmd_w, "  pipeline '%s' is %s\n", rlist->pipe->name,
+                        rlist->pipe->mask ? "masked" : "not masked");
+            }
+
+            rlist = rlist->next;
+        }
+    } else if (obj->type == PO_SEQREC) {
+        seq_rec_report_mask_state(obj, cmd_w);
+    }
+
+    return 1;
+}
+
+static int set_mask_cb(struct PipelineObject *obj, void *userdata)
+{
+    struct MaskObjectForeachArg *arg = (struct MaskObjectForeachArg *)userdata;
+
+    if (obj->type == PO_REPL) {
+        //TODO move this loop to the replicate object somehow....
+        struct PipelineList *rlist = replicate_get_pipes(obj);
+        while (rlist) {
+            if (strcmp(rlist->pipe->name, arg->stream) == 0) {
+                arg->found_count++;
+                if (rlist->pipe->mask == arg->mask) {
+                    if (arg->cmd_w) fprintf(arg->cmd_w, "Pipeline '%s' in Replicate %s already %smasked\n",
+                            arg->stream, obj->name, arg->mask ? "" : "un");
+                } else {
+                    rlist->pipe->mask = arg->mask;
+
+                    struct JsonValue *noti = json_object();
+                    json_object_insert(noti, "replication_pipeline", json_string(rlist->pipe->name));
+                    json_object_insert(noti, "status", json_string("masked"));
+                    notification_push_event("mask", NOTIF_INFO, noti);
+
+                    if (arg->cmd_w) fprintf(arg->cmd_w, "Pipeline '%s' in Replicate %s now %smasked\n",
+                            arg->stream, obj->name, arg->mask ? "" : "un");
+
+                    if (obj->auto_mip_level >= 0) {
+                        char *mipname = oam_automip_name(arg->stream, obj->auto_mip_level, obj->name, true);
+                        struct OAM_MaintenancePoint *mip = find_maintenance_point(mipname);
+
+                        if (mip) {
+                            // we mustdn't keep holding this reference
+                            oam_unref_maintenance_point(mip);
+                            if (arg->mask) {
+                                mp_initiate_mask_signalling(mip, arg->cmd_w);
+                            } else {
+                                mp_stop_mask_signalling(mip, arg->cmd_w);
+                            }
+                        } else {
+                            if (arg->cmd_w) fprintf(arg->cmd_w, "ERROR can't find automip '%s' for object '%s'\n",
+                                    mipname, obj->name);
+                        }
+
+                        free(mipname);
+                    }
+                }
+            }
+            rlist = rlist->next;
+        }
+    }
+
+    return 1;
+}
+
+static void mask_query(FILE *cmd_w)
+{
+    state_foreach_objects(query_mask_cb, cmd_w);
+}
+
+static void mask_set(const char *stream, FILE *cmd_w)
+{
+    struct MaskObjectForeachArg arg = { .stream = stream, .cmd_w = cmd_w, .mask = true, .found_count = 0 };
+    pthread_mutex_lock(&mask_lock);
+    state_foreach_objects(set_mask_cb, &arg);
+    pthread_mutex_unlock(&mask_lock);
+    if (arg.found_count == 0) fprintf(cmd_w, "No pipelines are named '%s'\n", stream);
+}
+
+static void mask_unset(const char *stream, FILE *cmd_w)
+{
+    struct MaskObjectForeachArg arg = { .stream = stream, .cmd_w = cmd_w, .mask = false, .found_count = 0 };
+    pthread_mutex_lock(&mask_lock);
+    state_foreach_objects(set_mask_cb, &arg);
+    pthread_mutex_unlock(&mask_lock);
+    if (arg.found_count == 0) fprintf(cmd_w, "No pipelines are named '%s'\n", stream);
 }
 
 #define TELNET_IAC         0xffu /* Interpret As Command */
@@ -399,7 +519,7 @@ static void command_loop(struct CommandConnection *conn)
             else if (strncmp(oam_command, "sessions", 8) == 0) {
                 int k=sscanf(oam_command, "sessions %s", streamname);
                 if (k==0 || k==EOF) {
-                    list_sessions_of_all_streams(conn->cmd_w);
+                    list_sessions_of_all_streams(cmd_w);
                 }
                 else if (k==1) {
                     struct StreamSessions *stream = get_stream_sessions(streamname);
@@ -498,11 +618,28 @@ static void command_loop(struct CommandConnection *conn)
                     delete_oam_request(rlist_req);
                 }
             }
-            else if (!strncmp(oam_command, "mask", 4) || !strncmp(oam_command, "unmask", 6)) {
-                struct OamRequest *mask_req = parse_mask_command(oam_command);
-                CHECK_REQUEST(mask_req);
-                if (!initiate_request(mask_req, conn->name)) {
-                    log_info("sending '%s' signal failed (AutoMIP enabled?)", request_get_type(mask_req));
+            else if (!strncmp(oam_command, "mask", 4)) {
+                int k=sscanf(oam_command, "mask %s", streamname);
+                if (k==0 || k==EOF) {
+                    mask_query(cmd_w);
+                }
+                else if (k==1) {
+                    mask_set(streamname, cmd_w);
+                }
+                else {
+                    fprintf(cmd_w, "Invalid parameters for 'mask' command.\n");
+                }
+            }
+            else if (!strncmp(oam_command, "unmask", 6)) {
+                int k=sscanf(oam_command, "unmask %s", streamname);
+                if (k==0 || k==EOF) {
+                    mask_query(cmd_w);
+                }
+                else if (k==1) {
+                    mask_unset(streamname, cmd_w);
+                }
+                else {
+                    fprintf(cmd_w, "Invalid parameters for 'unmask' command.\n");
                 }
             }
             else {
@@ -601,7 +738,6 @@ static int command_connection_delete_cb(const char *key, void *value, void *user
 
 void init_cmd_module(void)
 {
-    pthread_mutex_init(&command_connections_lock, NULL);
     command_connections = new_hashmap(7, command_connection_delete_cb, NULL);
 }
 

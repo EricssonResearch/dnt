@@ -49,6 +49,10 @@ struct PipelineObject *delete_seq_gen(struct PipelineObject *gen) { (void)gen; r
 char *seq_gen_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep);
 char *seq_gen_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep)
     { (void)json; (void)record_sep; (void)line_sep; return NULL; }
+void oam_automip_start_mask_session(const char *mip_name);
+void oam_automip_start_mask_session(const char *mip_name) { (void)mip_name; }
+void oam_automip_stop_mask_session(const char *mip_name);
+void oam_automip_stop_mask_session(const char *mip_name) { (void)mip_name; }
 // XXX end stubs
 
 static const unsigned history_length = 64; // must be 2^n

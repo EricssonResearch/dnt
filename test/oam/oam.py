@@ -494,7 +494,7 @@ def main():
         net = create_net()
         config_net(net)
         if debug:
-            inp = input("Do you want ti start R2DWOs? (yes/no): ")
+            inp = input("Do you want to start R2DWOs? (yes/no): ")
             if inp.lower() in ["yes", "y"]:
                 start_r2dtwos(net, False)
             CLI(net)

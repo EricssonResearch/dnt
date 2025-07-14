@@ -88,32 +88,15 @@ int alloc_session_id(struct StreamSessions *stream, struct OamRequest *req,
     clock_gettime(CLOCK_REALTIME, &now);
 
     while (stream->sessions[id].req) {
-        // "unmask" is fire-and-forget, we can always free its slot
-        bool is_unmask = strcmp(request_get_type(stream->sessions[id].req), "unmask") == 0;
-
         unsigned timeout = MAX(ceil(1.0 + 0.001*stream->sessions[id].interval_ms), 2);
         bool timeout_exceeded = now.tv_sec > stream->sessions[id].access_time + timeout;
-        if (timeout_exceeded || is_unmask) {
+        if (timeout_exceeded) {
             //log_info("session %u timeouted", id);
             stop_session_locked(&stream->sessions[id]);
             break;
         }
         id = (id + 1) % 16;
         if (id == next_id) break;
-    }
-
-    // We cannot have more than one mask sessions per-stream (per-pipeline)
-    // Also if there is a mask session, we have to terminate that first before unmask
-    // This is not a good place for that, a simplified session handling would help
-    if (!strcmp(request_get_type(req), "unmask")) {
-        for (int i=0; i<16; ++i) {
-            struct SessionTracker *session = &stream->sessions[i];
-            if (!session->req) continue;
-            if (!strcmp(request_get_type(session->req), "mask")) {
-                stop_session_locked(session);
-                break;
-            }
-        }
     }
 
     if (stream->sessions[id].req) {

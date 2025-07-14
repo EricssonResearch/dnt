@@ -53,7 +53,7 @@ static NotificationLevel repl_notification_pull_fn(void *self, struct JsonValue 
 
 struct PipelineList *replicate_get_pipes(struct PipelineObject *rep)
 {
-    if (rep) {
+    if (rep->type == PO_REPL) {
         struct Replicate *r = (struct Replicate *) rep;
         return r->pipes;
     }
@@ -108,42 +108,4 @@ void store_replication_pipelines(struct PipelineObject *obj, struct PipelineList
 {
     struct Replicate *r = (struct Replicate *)obj;
     r->pipes = pipes;
-}
-
-
-struct LookupPipelineArg {
-    const char *pipename;
-    struct Pipeline *pipe;
-    struct PipelineObject *repl;
-};
-static int match_pipeline_by_name_cb(struct PipelineObject *obj, void *userdata)
-{
-    struct LookupPipelineArg *arg = (struct LookupPipelineArg *) userdata;
-    if (obj->type == PO_REPL) {
-        struct Replicate *repl = (struct Replicate *) obj;
-        struct PipelineList *rlist = repl->pipes;
-        while (rlist) {
-            if (!strcmp(rlist->pipe->name, arg->pipename)) {
-                arg->pipe = rlist->pipe;
-                arg->repl = obj;
-                return 0;
-            }
-            rlist = rlist->next;
-        }
-    }
-    return 1;
-}
-
-//TODO refactor this ugly thing
-struct Pipeline *replicate_lookup_pipeline(const char *name, struct PipelineObject **repl)
-{
-    (void) repl;
-    struct LookupPipelineArg arg = {
-        .pipename = name, .pipe = NULL, .repl = NULL
-    };
-    state_foreach_objects(match_pipeline_by_name_cb, &arg);
-    if (repl && arg.repl) {
-        *repl = arg.repl;
-    }
-    return arg.pipe;
 }

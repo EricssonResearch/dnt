@@ -28,7 +28,6 @@ struct PipelineObject {
     enum PipelineObjectType type;
     int auto_mip_level;
     int reference_count;
-    struct HashMap *meps; //TODO rework the mask signalling
 };
 
 // add a reference to the object
@@ -43,10 +42,6 @@ const char *pipelineobject_name_from_type(enum PipelineObjectType type);
 
 //TODO currently all members of PipelineObject are public...
 const char *pipelineobject_get_name(const struct PipelineObject *obj);
-
-// associate MEPStart (name) with the @obj PipelineObject
-// The name of the MEPStart stored in the hashmap PipielineObject::meps
-void pipelineobject_store_mep_start_name(struct PipelineObject *obj, const char *mep_start);
 
 // returns a string that is the @json data decoded into a pretty format
 // uses @record_sep and @line_sep for formatting

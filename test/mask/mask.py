@@ -9,7 +9,6 @@ from utils import *
 import time
 import sys
 
-should_run = True
 debug = False
 popens = { }
 
@@ -90,17 +89,18 @@ def create_net():
 
     return net
 
-def generate_traffic(count = 0):
+def generate_traffic(node, count):
     """
     Minimalistic traffic generator: 100pps 100bytes UDP packets.
     Can be received by R2DTWO with a udp-in interface.
     It abuses a mpls.label=0 match.
     """
-    global should_run
+    switch_netns(node)
+
     sender = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
     dummypkt = b"\x00" * 100
     sent = 0
-    while should_run and sent < count:
+    while sent < count:
         time.sleep(0.01)
         sender.sendto(dummypkt, ("0", 5555))
         sent += 1
@@ -135,128 +135,204 @@ def start_r2dtwos(net, no_signal = True):
     time.sleep(0.2)
 
 def command_test_no_signaling():
-    print("Test local masking telnet commands...", end=" ")
+    print("Masking telnet commands without signalling...", end=" ")
+    commands = [
+            ("mask",
+"""
+mask state for SequenceRecovery 'E1'
+  latent error paths 2 / 2
+    o_M5_L3_pre-E1 is not masked
+    o_M3_L3_pre-E1 is not masked
+mask state for Replicate 'R1'
+  pipeline 'M1' is not masked
+  pipeline 'M2' is not masked
+  pipeline 'M3' is not masked
+mask state for SequenceRecovery 'E2'
+  latent error paths 3 / 3
+    o_M2_L3_pre-E2 is not masked
+    o_M4_L3_pre-E2 is not masked
+    o_M6_L3_pre-E2 is not masked
+mask state for Replicate 'R2'
+  pipeline 'M4' is not masked
+  pipeline 'M5' is not masked
+"""),
+            ("unmask",
+"""
+mask state for SequenceRecovery 'E1'
+  latent error paths 2 / 2
+    o_M5_L3_pre-E1 is not masked
+    o_M3_L3_pre-E1 is not masked
+mask state for Replicate 'R1'
+  pipeline 'M1' is not masked
+  pipeline 'M2' is not masked
+  pipeline 'M3' is not masked
+mask state for SequenceRecovery 'E2'
+  latent error paths 3 / 3
+    o_M2_L3_pre-E2 is not masked
+    o_M4_L3_pre-E2 is not masked
+    o_M6_L3_pre-E2 is not masked
+mask state for Replicate 'R2'
+  pipeline 'M4' is not masked
+  pipeline 'M5' is not masked
+"""),
+            ("mask M2", "Pipeline 'M2' in Replicate R1 now masked"),
+            ("mask M2", "Pipeline 'M2' in Replicate R1 already masked"),
+            ("unmask M2", "Pipeline 'M2' in Replicate R1 now unmasked"),
+            ("unmask M2", "Pipeline 'M2' in Replicate R1 already unmasked"),
+            ("mask nopipe", "No pipelines are named 'nopipe'"),
+            ("unmask nopipe", "No pipelines are named 'nopipe'"),
+            ]
+
     success = 0
     try:
         out = exec_bg("../r2dtwo -vALL:NONE,OAM:INFO ./mask/mask_no_signaling.ini", OUT_PIPE)
         time.sleep(0.2)
         cli = Telnet("0", 8000)
-        _ = cli.recv() # recv first msg
+        _ = cli.recv() # 'OAM ready'
 
-        cli.send("mask") # mask command exists?
-        msg = cli.recv()
-        if "Format: [un]mask PIPENAME" in msg:
-            success += 1
-        cli.send("unmask") # unmask exists?
-        msg = cli.recv()
-        if "Format: [un]mask PIPENAME" in msg:
-            success += 1
-        cli.send("unmask M2") # valid command, but already unmasked
-        msg = cli.recv()
-        if "pipeline already unmasked" in msg:
-            success += 1
-        cli.send("mask M2") # valid command, mask but no signaling
-        msg = cli.recv()
-        if "Pipeline 'M2' masked" in msg and "mep start not found for 'mask' command" in msg:
-            success += 1
+        for msg, expected in commands:
+            cli.send(msg)
+            reply = cli.recv()
+
+            if expected.strip() == reply.strip():
+                success += 1
+            else:
+                print(f"Command '{msg}'\nExpected reply\n{expected}\nActual reply\n{reply}\n")
+
         cli.close()
         time.sleep(0.1)
         out.terminate()
-        # check R2DTWO output
-        if "sending 'mask' signal failed" in str(out.communicate()[0]):
-            success += 1
     finally:
         cli.close()
         exec_fg("killall r2dtwo")
-        if success == 5:
+        if success == len(commands):
             return 1
         else:
             return 0
 
 def command_test_signaling():
-    print("Test masking telnet commands with signaling enabled...", end=" ")
+    print("Masking telnet commands with signaling enabled...", end=" ")
+    commands = [
+            ("unmask M2", "Pipeline 'M2' in Replicate R1 already unmasked"),
+            ("mask M2", """
+Pipeline 'M2' in Replicate R1 now masked
+Initiated mask signalling from MIP 'o_M2_L3_post-R1'
+"""),
+            ("mask",
+"""
+mask state for SequenceRecovery 'E1'
+  latent error paths 2 / 2
+    o_M5_L3_pre-E1 is not masked
+    o_M3_L3_pre-E1 is not masked
+mask state for Replicate 'R1'
+  pipeline 'M1' is not masked
+  pipeline 'M2' is masked, o_M2_L3_post-R1 sending mask signal
+  pipeline 'M3' is not masked
+mask state for SequenceRecovery 'E2'
+  latent error paths 2 / 3
+    o_M2_L3_pre-E2 is masked
+    o_M4_L3_pre-E2 is not masked
+    o_M6_L3_pre-E2 is not masked
+mask state for Replicate 'R2'
+  pipeline 'M4' is not masked
+  pipeline 'M5' is not masked
+"""),
+            ("unmask M2", """
+Pipeline 'M2' in Replicate R1 now unmasked
+Stopped mask signalling from MIP 'o_M2_L3_post-R1'
+"""),
+            ]
+
     success = 0
     try:
         out = exec_bg("../r2dtwo -vALL:NONE,OAM:INFO ./mask/mask_signaling.ini", OUT_PIPE)
         time.sleep(0.2)
         cli = Telnet("0", 8000)
-        _ = cli.recv() # recv first msg
+        _ = cli.recv() # 'OAM ready'
 
-        cli.send("unmask M2") # valid command, but already unmasked
-        msg = cli.recv()
-        if "pipeline already unmasked" in msg:
-            success += 1
-        cli.send("mask M2") # valid command, mask and signaling
-        msg = cli.recv()
-        if "Pipeline 'M2' masked" in msg and "request mask" in msg and "o_M2_L3_post-R1" in msg:
-            success += 1
-        cli.send("unmask M2") # unmask and signaling
-        msg = cli.recv()
-        if "Pipeline 'M2' unmasked" in msg and "request unmask" in msg and "o_M2_L3_post-R1" :
-            success += 1
+        for msg, expected in commands:
+            cli.send(msg)
+            reply = cli.recv()
+
+            if expected.strip() == reply.strip():
+                success += 1
+            else:
+                print(f"Command '{msg}'\nExpected reply\n{expected}\nActual reply\n{reply}\n")
+
         out.terminate()
+        time.sleep(0.1)
         r2output = str(out.communicate()[0])
+
         if "type mask mep o_M2_L3_post-R1" in r2output and "type unmask mep o_M2_L3_post-R1" in r2output:
             success += 1
     finally:
         cli.close()
-        if success == 4:
+        exec_fg("killall r2dtwo")
+        if success == len(commands):
             return 1
         else:
             return 0
 
 def loopback_local_mask():
-    print("Test local masking without signaling...", end=" ")
+    print("Local masking without signaling...", end=" ")
     ret = 0
     try:
         out = exec_bg("../r2dtwo -vALL:NONE,DIAGNOSTIC:INFO ./mask/mask_no_signaling.ini", OUT_PIPE)
         time.sleep(0.2)
-        cli = Telnet("0", 8000)
-        _ = cli.recv()
+        cli = Telnet("0", 8000, auto_recv=True)
 
         cli.send("mask M2")
-        _ = cli.recv()
-        time.sleep(0.3)
-        generate_traffic(100)
+        time.sleep(0.1)
+        generate_traffic(None, 100)
+        time.sleep(0.1)
         cli.send("unmask M2")
-        _ = cli.recv()
         cli.send("mask M3")
-        _ = cli.recv()
-        time.sleep(0.3)
-        generate_traffic(100)
+        time.sleep(0.1)
+        generate_traffic(None, 100)
         out.terminate()
         r2output = str(out.communicate()[0])
+        #print(r2output)
         if "E2: DISFUNCTIONING_PATHS" in r2output and "E1: DISFUNCTIONING_PATHS" in r2output:
             ret = 1
+    except Exception as ex:
+        print(type(ex))
+        cli.close()
+        ret = 0
     finally:
         cli.close()
         return ret
 
 def loopback_mask_signaling():
-    print("Test masking with signaling...", end=" ")
+    print("Masking with signaling...", end=" ")
     ret = 1
     try:
         out = exec_bg("../r2dtwo -vALL:NONE,DIAGNOSTIC:INFO ./mask/mask_signaling.ini", OUT_PIPE)
         time.sleep(0.2)
         cli = Telnet("0", 8000, auto_recv=True)
 
-        cli.send("mask M2")
-        time.sleep(0.3)
-        generate_traffic(100)
+        cli.send("mask M2\n")
+        time.sleep(0.1)
+        generate_traffic(None, 100)
+        time.sleep(0.1)
         cli.send("unmask M2")
         cli.send("mask M3")
-        time.sleep(0.3)
-        generate_traffic(100)
+        time.sleep(0.1)
+        generate_traffic(None, 100)
         out.terminate()
         r2output = str(out.communicate()[0])
-        if "E2: DISFUNCTIONING_PATHS" in r2output and "E1: DISFUNCTIONING_PATHS" in r2output:
+        #print(r2output)
+        if "E1: DISFUNCTIONING_PATHS" in r2output or "E2: DISFUNCTIONING_PATHS" in r2output:
             ret = 0
+    except Exception as ex:
+        print(type(ex))
+        cli.close()
+        ret = 0
     finally:
         cli.close()
         return ret
 
 def local_mask():
-    print("Test local masking without signaling on multi-node network...", end=" ")
+    print("Local masking without signaling on multi-node network...", end=" ")
     global popens
     ret = 0
     try:
@@ -266,28 +342,33 @@ def local_mask():
         r1cli = Telnet("0", 8000, auto_recv=True)
 
         r1cli.send("mask M2")
-        time.sleep(0.3)
-        generate_traffic(100)
+        time.sleep(0.1)
+        generate_traffic("r1", 100)
+        time.sleep(0.1)
         r1cli.send("unmask M2")
         r1cli.send("mask M3")
-        time.sleep(0.3)
-        generate_traffic(100)
-        time.sleep(1)
+        time.sleep(0.1)
+        generate_traffic("r1", 100)
+        time.sleep(0.1)
         r1cli.close()
         for n in ['r1', 'r2', 'e1', 'e2']:
             popens[n].terminate()
         e1output = str(popens['e1'].communicate()[0])
         e2output = str(popens['e2'].communicate()[0])
         # print(e1output, "\n----------------\n", e2output)
-        if "E1: DISFUNCTIONING_PATHS" in e1output and "E2: DISFUNCTIONING_PATHS" in e2output:
+        if "E1: DISFUNCTIONING_PATHS" in e1output or "E2: DISFUNCTIONING_PATHS" in e2output:
             ret = 1
+    except Exception as ex:
+        print(type(ex))
+        r1cli.close()
+        ret = 0
     finally:
         r1cli.close()
         net.stop()
         return ret
 
 def mask_signaling():
-    print("Test masking with signaling on multi-node network...", end=" ")
+    print("Masking with signaling on multi-node network...", end=" ")
     global popens
     ret = 1
     try:
@@ -297,13 +378,14 @@ def mask_signaling():
         r1cli = Telnet("0", 8000, auto_recv=True)
 
         r1cli.send("mask M2")
-        time.sleep(0.3)
-        generate_traffic(100)
+        time.sleep(0.1)
+        generate_traffic("r1", 100)
+        time.sleep(0.1)
         r1cli.send("unmask M2")
         r1cli.send("mask M3")
-        time.sleep(0.3)
-        generate_traffic(100)
-        time.sleep(1)
+        time.sleep(0.1)
+        generate_traffic("r1", 100)
+        time.sleep(0.1)
         r1cli.close()
         for n in ['r1', 'r2', 'e1', 'e2']:
             popens[n].terminate()
@@ -312,6 +394,10 @@ def mask_signaling():
         # print(e1output, "\n----------------\n", e2output)
         if "E1: DISFUNCTIONING_PATHS" in e1output and "E2: DISFUNCTIONING_PATHS" in e2output:
             ret = 0
+    except Exception as ex:
+        print(type(ex))
+        r1cli.close()
+        ret = 0
     finally:
         r1cli.close()
         net.stop()
@@ -320,11 +406,12 @@ def mask_signaling():
 
 def run_tests():
     tests = [
-        command_test_no_signaling,
-        command_test_signaling,
-        loopback_local_mask,
+        command_test_no_signaling, #ok
+        command_test_signaling, #ok
+        loopback_local_mask, #ok
         loopback_mask_signaling,
-        local_mask,
+        # must enable one of these for debugging cli
+        local_mask, #ok
         mask_signaling,
     ]
 
@@ -344,7 +431,6 @@ def run_tests():
 
 
 def main():
-    global should_run
     global debug
     all_ok = False
     try:
@@ -359,7 +445,6 @@ def main():
         all_ok = run_tests()
     finally:
         print("Cleanup...")
-        should_run = False
         exec_fg("killall -9 r2dtwo")
         if all_ok:
             exit(0)

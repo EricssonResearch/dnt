@@ -24,9 +24,5 @@ void store_replication_pipelines(struct PipelineObject *obj, struct PipelineList
 
 struct PipelineList *replicate_get_pipes(struct PipelineObject *rep);
 
-// Check all replication object and for a pipeline with a given @name
-// Returns the replication object of the pipeline through @repl if provided
-// @return the pipeline if exist or NULL
-struct Pipeline *replicate_lookup_pipeline(const char *name, struct PipelineObject **repl);
 
 #endif // R2_REPLICATE_H

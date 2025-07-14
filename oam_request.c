@@ -449,67 +449,39 @@ struct OamRequest *parse_rlist_command(const char *oam_command)
     return rlist_req;
 }
 
-struct OamRequest *parse_mask_command(const char *oam_command)
-{
-    struct OamRequest *mask_req = NULL;
-    bool new_mask = true;
-    char pipename[64] = { 0 };
-    int seek = 0;
-    if (strncmp(oam_command, "unmask", 6) == 0) {
-        mask_req = new_oam_request("unmask");
-        mask_req->count = 1;
-        seek = 2;
-        new_mask = false;
-    } else {
-        mask_req = new_oam_request("mask");
-        mask_req->count = 0; // heartbeat until unmask
-    }
-    sprintf(mask_req->mep_stop, "nexthop");
-
-    // called by mask_checker_thread (the re-generator codepath, no CLI or repl obj involved)
-    // in that case we dont have CLI session or error cases
-    //TODO rework this
-    /*if (conn_name == NULL) {
-        return mask_req;
-    }*/
-
-    if(sscanf(oam_command+seek, "mask %s", pipename) != 1) {
-        mask_req->error = strdup_printf("mask command is invalid. Format: [un]mask PIPENAME");
-        return mask_req;
-    }
-
-    struct PipelineObject *repl = NULL;
-    struct Pipeline *pipe = replicate_lookup_pipeline(pipename, &repl);
-    if (pipe) {
-        bool changed = pipe_set_mask(pipe, new_mask);
-        if (changed == false) {
-            mask_req->error = strdup_printf("pipeline already %sed", mask_req->type);
-            return mask_req;
-        }
-
-        //TODO rework this
-        struct CommandConnection *conn = find_command_connection("conn_name");
-        FILE *cmd_w = command_connection_get_w(conn);
-        fprintf(cmd_w, "Pipeline '%s' %sed\n", pipename, mask_req->type);
-        release_command_connection(conn);
-
-        char *postmip_name = strdup_printf("o_%s_L%u_post-%s", pipename, repl->auto_mip_level, repl->name);
-        mask_req->mp_start = find_maintenance_point(postmip_name);
-    } else {
-        mask_req->error = strdup_printf("replication pipeline '%s' not found", pipename);
-        return mask_req;
-    }
-    mask_req->level = repl->auto_mip_level;
-    return mask_req;
-}
-
-
 struct OamRequest *delete_oam_request(struct OamRequest *req)
 {
     if (req == NULL) return NULL;
     thread_stop(req->multireq_thread);
     if (req->mp_start)
         oam_unref_maintenance_point(req->mp_start);
+    json_delete(req->return_addr);
+    free(req->error);
+    free(req->remote_command);
+    free(req->originator_stream);
+    free(req);
+    return NULL;
+}
+
+struct OamRequest *create_mask_request(struct OAM_MaintenancePoint *mp, const char *type)
+{
+    struct OamRequest *mask_req = new_oam_request(type);
+
+    mask_req->ttl = 1;
+    mask_req->count = 0; // infinite until unmask
+    mask_req->interval_ms = MASK_PERIOD_MS;
+
+    mask_req->mp_start = mp;
+    mask_req->level = mp_get_level(mp);
+    strncpy(mask_req->mep_stop, "nexthop", sizeof(mask_req->mep_stop));
+
+    return mask_req;
+}
+
+struct OamRequest *delete_mask_request(struct OamRequest *req)
+{
+    if (req == NULL) return NULL;
+    thread_stop(req->multireq_thread);
     json_delete(req->return_addr);
     free(req->error);
     free(req->remote_command);
@@ -703,7 +675,7 @@ static void *send_periodic_request_thread(void *arg)
 
 bool initiate_request(struct OamRequest *req, const char *conn_name)
 {
-    if (!req->mp_start) { //TODO this can only happen for mask
+    if (!req->mp_start) {
         req->error = strdup_printf("can't initiate %s request without start maintenance point", req->type);
         return false;
     }

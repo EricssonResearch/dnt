@@ -9,13 +9,16 @@
 #error "this header is internal to the OAM module"
 #endif
 
-#include "oam_request.h"
-
 #include "json.h"
 #include "oam.h"
 #include "packet.h"
 
 #include <stdio.h>
+
+#define MASK_PERIOD_MS 1000
+#define MASK_TIMEOUT_MS 2500
+
+struct OamRequest;
 
 // @returns a pointer and adds a reference to the MP
 // use @oam_unref_maintenance_point to release the reference
@@ -42,6 +45,9 @@ struct JsonValue *mp_get_state_json_by_object(const struct OAM_MaintenancePoint 
 // prints information about @mp to @out
 // without @details it just prints the name and the stream information
 void mp_print_info(const struct OAM_MaintenancePoint *mp, FILE *out, bool details);
+
+// prints masking information about @mp to @out
+void mp_print_mask_signalling_state(const struct OAM_MaintenancePoint *mp, FILE *out);
 
 // calls @cb for each mp in the system
 // @userdata is supplied to @cb
@@ -81,5 +87,24 @@ unsigned char mp_get_ttl(const struct OAM_MaintenancePoint *mp, const struct Pac
 // if @mp is an injection point, it launches @p on the pipeline
 void mp_inject_packet(struct OAM_MaintenancePoint *mp, struct Packet *p);
 
+// start sending mask requests periodically in-band
+// reports results to @cmd_w if it's not NULL
+// @returns false if it can't send
+bool mp_initiate_mask_signalling(struct OAM_MaintenancePoint *mp, FILE *cmd_w);
+
+// stops sending mask requests, and sends one unmask request in-band
+// reports results to @cmd_w if it's not NULL
+// @returns false if it can't send
+bool mp_stop_mask_signalling(struct OAM_MaintenancePoint *mp, FILE *cmd_w);
+
+// receive a mask signal on @mp
+// @mp should be a pre-automip of a SequenceRecovery object
+// this will set the incoming branch of the recovery as masked
+void mp_receive_mask_signal(struct OAM_MaintenancePoint *mp);
+
+// receive an unmask signal on @mp
+// @mp should be a pre-automip of a SequenceRecovery object
+// this will set the incoming branch of the recovery as not masked
+void mp_receive_unmask_signal(struct OAM_MaintenancePoint *mp);
 
 #endif // R2_OAM_MAINTENANCE_H

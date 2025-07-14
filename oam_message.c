@@ -239,7 +239,7 @@ static int process_reply(const char *msg)
  * Msg: pointer to the message
  * Return 0 on success
 */
-static int oam_send_udp_reply(const char *address, unsigned port, const char *msg, unsigned msg_len)
+static int send_udp_reply(const char *address, unsigned port, const char *msg, unsigned msg_len)
 {
     struct in_addr dst4;
     struct in6_addr dst6;
@@ -297,7 +297,7 @@ static int oam_send_udp_reply(const char *address, unsigned port, const char *ms
  * Msg: pointer to the message
  * Return 0 on success
 */
-static int oam_send_eth_reply(const char *address, unsigned vid, const char *msg, unsigned msg_len, unsigned level)
+static int send_eth_reply(const char *address, unsigned vid, const char *msg, unsigned msg_len, unsigned level)
 {
     struct Interface *eth_oam_if = get_default_oam_eth_interface();
     if(!eth_oam_if) {
@@ -410,14 +410,14 @@ static bool send_message_outofband(struct OAM_MaintenancePoint *mp, const struct
     }
 
     if (ip && port) {
-        int err = oam_send_udp_reply(ip->v.string, port->v.number, msg_str, msg_len);
+        int err = send_udp_reply(ip->v.string, port->v.number, msg_str, msg_len);
         free(msg_str);
         log_packet("sent UDP out-of-band message len %u to %s %g err %d", msg_len,
                 ip->v.string, port->v.number, err);
         json_delete(address);
         return err == 0;
     } else if (dmac) {
-        int err = oam_send_eth_reply(dmac->v.string, vlan? vlan->v.number:0, msg_str, msg_len, mp_get_level(mp));
+        int err = send_eth_reply(dmac->v.string, vlan? vlan->v.number:0, msg_str, msg_len, mp_get_level(mp));
         free(msg_str);
         log_packet("sent ETH out-of-band message len %u to %s %g err %d", msg_len,
                 dmac->v.string, vlan? vlan->v.number:0, err);
@@ -651,7 +651,7 @@ static bool process_inband_message(struct OAM_MaintenancePoint *mp, struct JsonV
     JS_OBJECT_GET(js, target, string);
     JS_OBJECT_GET(js, level, number);
 
-    log_packet("%s received OAM type '%s' code '%s' target '%s' level %f",
+    log_packet("%s received OAM type '%s' code '%s' target '%s' level %.0f",
             mp_get_name(mp), jstype->v.string, jscode->v.string,
             jstarget->v.string, jslevel->v.number);
 
@@ -717,9 +717,10 @@ static bool process_inband_message(struct OAM_MaintenancePoint *mp, struct JsonV
         }
         return mp_get_type(mp) != OAM_Stop;
     } else if (strcmp(jstype->v.string, "mask") == 0) {
-        //TODO figure out how process_mask_request() works (most likely it doesn't)
+        mp_receive_mask_signal(mp);
         return false;
-    } else if (strcmp(jstype->v.string, "unamask") == 0) { // compatibility with the old code :)
+    } else if (strcmp(jstype->v.string, "unmask") == 0) {
+        mp_receive_unmask_signal(mp);
         return false;
     } else {
         log_error("%s received unknown OAM type '%s'",

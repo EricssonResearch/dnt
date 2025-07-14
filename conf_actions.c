@@ -2319,10 +2319,8 @@ static bool oam_mip_autoconfig(struct StageState *stst, struct StageState *pstst
     struct ConfAction *ca = stst->actions;
     switch (ca->type) {
         case CA_ELIM: {
-            char *pre = strdup_printf("o_%s_L%u_pre-%s", stst->stream,
-                                      ca->elim.rec->auto_mip_level, ca->elim.rec->name);
-            char *post = strdup_printf("o_%s_L%u_post-%s", ca->elim.pipename,
-                                       ca->elim.rec->auto_mip_level, ca->elim.rec->name);
+            char *pre = oam_automip_name(stst->stream, ca->elim.rec->auto_mip_level, ca->elim.rec->name, false);
+            char *post = oam_automip_name(ca->elim.pipename, ca->elim.rec->auto_mip_level, ca->elim.rec->name, true);
             struct ConfAction *ca_pre = new_confaction(stst, CA_MIP,
                            strdup_printf("auto-generated MIP before '%s'", ca->text));
             struct ConfAction *ca_post = NULL;
@@ -2357,8 +2355,7 @@ static bool oam_mip_autoconfig(struct StageState *stst, struct StageState *pstst
             char *pre = NULL;
             char *post = NULL;
             if (pstst == NULL) {
-                pre = strdup_printf("o_%s_L%u_pre-%s", stst->stream,
-                                        ca->repl.replobj->auto_mip_level, ca->repl.replobj->name);
+                pre = oam_automip_name(stst->stream, ca->repl.replobj->auto_mip_level, ca->repl.replobj->name, false);
                 ca_pre = new_confaction(stst, CA_MIP,
                             strdup_printf("auto-generated MIP before '%s'", ca->text));
                 ca_pre->oam.name = pre;
@@ -2374,8 +2371,7 @@ static bool oam_mip_autoconfig(struct StageState *stst, struct StageState *pstst
                 stst->actions = confaction_swap_with_next(stst->actions);
             } else { // working on pstst (pipeline) action list
                 struct ConfAction *pca = pstst->actions;
-                post = strdup_printf("o_%s_L%u_post-%s", pstst->stream,
-                                       ca->repl.replobj->auto_mip_level, ca->repl.replobj->name);
+                post = oam_automip_name(pstst->stream, ca->repl.replobj->auto_mip_level, ca->repl.replobj->name, true);
                 ca_post = new_confaction(pstst, CA_MIP,
                                 strdup_printf("auto-generated MIP after '%s'", ca->text));
                 ca_post->oam.name = post;
