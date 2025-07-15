@@ -114,7 +114,7 @@ Of course, multiple notification interfaces can be used, using different paths t
 
 It is also possible to use the standard DetNet PRF/PEF functionalities for the notification messages as well, but in most cases a simple sequence number based elimination is enough. An example receiver script is available in the */json_receiver* directory.
 
-In some cases (for example in ?ininet) multiple nodes have the same hostname. For this case R2DTWO has a command line parameter *-h* which overrides the hostname for the notification messages.
+In some cases (for example in Mininet) multiple nodes have the same hostname. For this case R2DTWO has a command line parameter *-h* which overrides the hostname for the notification messages.
 
 
 ## Related telnet commands
@@ -127,6 +127,11 @@ The pull messages can be enabled/disabled from telnet command.
   * level is the trigger message level
   * valid options are the -n, -i and -t - similar to the ping options: n=count of packets, -i is the interval_ms, and -t is the TTL
 
+ * sysmon `command` `type` `target` [period_ms] - add/remove system monitoring.
+    Thee `command` is either `add` or `rem` - for remove.
+    The `type` can be: tc, modem. The target is specific to the command, as described below.
+    * tc - monitor the Linux Advanced Routing and Traffic Control, via the `tc` command. For `tc` type, the `target` is and interface name to be monitored. The system monitor will periodically query the root qdisc stats, and report the received json as-is.
+    * modem - monitor the attached modem statistics. The `target` is the name of the modem's TTY device name. For example, an attached Quectel USB modem will show 4 new USB TTY devices, for example /dev/ttyUSB0, /dev/ttyUSB1, /dev/ttyUSB2, and /dev/ttyUSB3. For monitor, the AT command TTY device must be specified, usually ttyUSB2. The `target` is the device name, without the "/dev/" prefix.
 
 ## Message formats
 
@@ -245,6 +250,29 @@ Usually we use TC filters or OVS to decouple the background traffic. However, in
     }
 ```
 
+* Modem report:
+The modem report consists of 4 JSON values, as responses for the corresponding AT commands.
+An example is:
+
+```
+"modem_ttyUSB2": {          - modem notification for TTYUSB2
+    "CEREG": {              - Registration status, according to the standard AT+CEREG? command.
+        "n": 0,
+        "stat": 1
+    },
+    "CSQ": {                - Signal Quality Report, result of AT+CSQ commaand.
+        "ber": 99,
+        "rssi": 20
+    },
+    "qcsq":                 - Query report of signal strength, result of AT+QCSQ command.
+        "'LTE',-72,-106,-3,-17",   - the report is service mode specific. In the example, an LTE mode response is shown.
+
+    "servingcell":          - Query report of the serving cell information, result of the AT+QENG="servingcell" command. For the exact format of the response, check the modem's AT command reference.
+        '"servingcell","NOCONN","LTE","FDD",216,30,16506,341,1644,3,3,3,2EE7,-107,-18,-71,8,0,-,16'
+    }
+```
+
+Note that the *CEREG* and *CSQ* reports are results of standard AT commands, while the *qcsq* and *servingcell* information are Quectel specific. For modems of other vendors, different commands may be necessary.
 
 ### Notification message JSONs
 
@@ -413,11 +441,10 @@ When AutoMIP is used, the target is automatically filled so all MIP reports are 
 
 ## Limitations
 
-The notification framework currently is limited to DetNet operation. There is no proper TSN support yet.
+The notification framework currently is limited to DetNet operation, i.e. notification messages are IP based.
 This means that:
 
 * Notification messages should be sent on UDP-out interfaces
-* MEP/MIP statistics are DetNet only (the MP functionality does not work with TSN)
 * Trigger messages are specific to the DetNet OAM
 
 However, TSN over DetNet is fully supported.
