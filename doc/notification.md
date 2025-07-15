@@ -116,11 +116,34 @@ It is also possible to use the standard DetNet PRF/PEF functionalities for the n
 
 In some cases (for example in Mininet) multiple nodes have the same hostname. For this case R2DTWO has a command line parameter *-h* which overrides the hostname for the notification messages.
 
+## System monitor
+
+The system monitor is a source for the notification framework. Its main purpose is to monitor critical system components and resources. The following monitoring functions are currently implemented:
+
+* synchronization monitor. Monitors the Linux PTP daemon, the *ptp4l* via the `pmc` interface. Sends immediate push notification when synchronization is lost.
+
+* Linux Trffic Control monitor. Monitors the interface qdisc setting and statistics via the `tc` command. When TAPRIO qdisc is used, the per-queue statistics can be used for monitoring and diagnostic purposes. It returns the root qdisc information, indifferent of qdisc type.
+
+* Modem monitor. Monitors the modem state and signal quality. In case of Quectel modems even more information is provided like QCSQ and serving cell information.
+
+To activte a system monitor component, the telnet interface can be used. With `sysmon add ...` telnet command, we can activate the monitoring of TC interfaces and/or modem statistics.
+For example the following commands activate the TC and modem monitor respectively.
+
+```
+sysmon add tc eth0
+
+sysmon add modem ttyUSB2
+```
+
+The synchronization monitor is started automatically if `delay` is enabled in the configuration file.
+
 
 ## Related telnet commands
 
 The pull messages can be enabled/disabled from telnet command.
+
 * notif_pull enable/disable - Enable or disable pull notification_source
+
 * notif_trigger `source MIP` `target MIP` level [options] - send trigger message, and trigger local push notification
   * source MIP is the starting point of the trigger message. It is usually the pre-replication MIP.
   * target MIP is the target of the trigger message. It is usually the post-elimination MIP.
@@ -129,7 +152,7 @@ The pull messages can be enabled/disabled from telnet command.
 
  * sysmon `command` `type` `target` [period_ms] - add/remove system monitoring.
     Thee `command` is either `add` or `rem` - for remove.
-    The `type` can be: tc, modem. The target is specific to the command, as described below.
+    The `type` can be: `tc`, `modem`. The `target` is specific to the command, as described below.
     * tc - monitor the Linux Advanced Routing and Traffic Control, via the `tc` command. For `tc` type, the `target` is and interface name to be monitored. The system monitor will periodically query the root qdisc stats, and report the received json as-is.
     * modem - monitor the attached modem statistics. The `target` is the name of the modem's TTY device name. For example, an attached Quectel USB modem will show 4 new USB TTY devices, for example /dev/ttyUSB0, /dev/ttyUSB1, /dev/ttyUSB2, and /dev/ttyUSB3. For monitor, the AT command TTY device must be specified, usually ttyUSB2. The `target` is the device name, without the "/dev/" prefix.
 
@@ -267,7 +290,8 @@ An example is:
     "qcsq":                 - Query report of signal strength, result of AT+QCSQ command.
         "'LTE',-72,-106,-3,-17",   - the report is service mode specific. In the example, an LTE mode response is shown.
 
-    "servingcell":          - Query report of the serving cell information, result of the AT+QENG="servingcell" command. For the exact format of the response, check the modem's AT command reference.
+    "servingcell":          - Query report of the serving cell information, result of the AT+QENG="servingcell" command.
+    For the exact format of the response, check the modem's AT command reference.
         '"servingcell","NOCONN","LTE","FDD",216,30,16506,341,1644,3,3,3,2EE7,-107,-18,-71,8,0,-,16'
     }
 ```
