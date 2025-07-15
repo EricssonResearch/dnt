@@ -241,6 +241,56 @@ mask state for Replicate 'R2'
 Pipeline 'M2' in Replicate R1 now unmasked
 Stopped mask signalling from MIP 'o_M2_L3_post-R1'
 """),
+
+            # masking M3 and M5 also masks M6
+            ("mask M3", """
+Pipeline 'M3' in Replicate R1 now masked
+Initiated mask signalling from MIP 'o_M3_L3_post-R1'
+"""),
+            ("mask M5", """
+Pipeline 'M5' in Replicate R2 now masked
+Initiated mask signalling from MIP 'o_M5_L3_post-R2'
+"""),
+            ("mask", """
+mask state for SequenceRecovery 'E1'
+  latent error paths 0 / 2
+    o_M5_L3_pre-E1 is masked
+    o_M3_L3_pre-E1 is masked
+mask state for Replicate 'R1'
+  pipeline 'M1' is not masked
+  pipeline 'M2' is not masked
+  pipeline 'M3' is masked, o_M3_L3_post-R1 sending mask signal
+mask state for SequenceRecovery 'E2'
+  latent error paths 2 / 3
+    o_M2_L3_pre-E2 is not masked
+    o_M4_L3_pre-E2 is not masked
+    o_M6_L3_pre-E2 is masked
+mask state for Replicate 'R2'
+  pipeline 'M4' is not masked
+  pipeline 'M5' is masked, o_M5_L3_post-R2 sending mask signal
+"""),
+            ("unmask M5", """
+Pipeline 'M5' in Replicate R2 now unmasked
+Stopped mask signalling from MIP 'o_M5_L3_post-R2'
+"""),
+            ("mask", """
+mask state for SequenceRecovery 'E1'
+  latent error paths 1 / 2
+    o_M5_L3_pre-E1 is not masked
+    o_M3_L3_pre-E1 is masked
+mask state for Replicate 'R1'
+  pipeline 'M1' is not masked
+  pipeline 'M2' is not masked
+  pipeline 'M3' is masked, o_M3_L3_post-R1 sending mask signal
+mask state for SequenceRecovery 'E2'
+  latent error paths 3 / 3
+    o_M2_L3_pre-E2 is not masked
+    o_M4_L3_pre-E2 is not masked
+    o_M6_L3_pre-E2 is not masked
+mask state for Replicate 'R2'
+  pipeline 'M4' is not masked
+  pipeline 'M5' is not masked
+"""),
             ]
 
     success = 0

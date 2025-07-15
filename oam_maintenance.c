@@ -1173,8 +1173,6 @@ void oam_automip_start_mask_session(const char *mip_name)
     struct OAM_MaintenancePoint *mp = (struct OAM_MaintenancePoint*)hashmap_find(mp_hash, mip_name);
 
     if (mp) {
-        // we mustdn't keep holding this reference
-        oam_unref_maintenance_point(mp);
         mp_initiate_mask_signalling(mp, NULL);
     }
 }
@@ -1184,8 +1182,6 @@ void oam_automip_stop_mask_session(const char *mip_name)
     struct OAM_MaintenancePoint *mp = (struct OAM_MaintenancePoint*)hashmap_find(mp_hash, mip_name);
 
     if (mp) {
-        // we mustdn't keep holding this reference
-        oam_unref_maintenance_point(mp);
         mp_stop_mask_signalling(mp, NULL);
     }
 }
