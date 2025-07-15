@@ -360,40 +360,6 @@ static int send_eth_reply(const char *address, unsigned vid, const char *msg, un
 
     return 0;
 }
-//TODO kept this as a reference for the time when we fix/rework the mask signalling
-// Only pre-Elimination AutoMIPs react to mask/unmask
-// pre-elim MIPs update the last heartbeat timestamp
-// @returns false on error
-/*static bool process_mask_request(struct OamEndPoint *oam, struct Packet *p, struct JsonValue *j)
-{
-    (void) p;
-    // not auto-generated MIPs ignore the mask signals
-    if (strncmp(oam->name, "o_", 2))
-        return false;
-
-    const char *req_type = json_object_get_string(j, "type")->v.string;
-    struct MepStart *mep = find_mep_start(oam->name);
-    if (mep && mep->target && mep->target->type == PO_SEQREC) {
-
-        clock_gettime(CLOCK_REALTIME, &mep->last_mask_heartbeat);
-
-        HASHMAP_ITERATE(mep->target->meps, it) {
-            // we updated the elimination pre-MIP's heartbeat timestamp
-            // now we can wake up the post-MIP's mask checker thread
-            // to calculate the number of masked paths
-            const char *key = hash_iterator_key(&it);
-            if (strstr(key, "_post-")) {
-                struct MepStart *postmep = find_mep_start(key);
-                mep_start_wakeup_mask_checker(postmep);
-                log_debug("%s: '%s' signal received", oam->name, req_type);
-                return true;
-            }
-        }
-    }
-    return false;
-}*/
-
-
 
 static bool send_message_outofband(struct OAM_MaintenancePoint *mp, const struct JsonValue *msg, struct JsonValue *address)
 {
