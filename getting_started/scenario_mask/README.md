@@ -225,17 +225,13 @@ Let's mask `prf-member1` replication pipeline with the following command in teln
 mask prf-member1
 ```
 
-Right after executing the command, we see two messages:
+Right after executing the command, we see this message:
 
 ```
-Pipeline 'prf-member1' masked
-mep start not found for 'mask' command
+Pipeline 'prf-member1' in Replicate prf now masked
 ```
 
-These might be confusing, but this is the expected behavior.
-The first message tells the path masking was successful (since the pipeline exist and not masked already).
-The second message tells we dont have MEP Start for mask command.
-Indeed, we dont have any MPs configured, therefor this is a local masking.
+This message tells us the path masking was successful (since the pipeline exists and not masked already).
 
 After the command executed, we can immediately verify from the packet logging PRF dont send replica packets on `prf-member1` anymore.
 On __nxp2__ we also verify that we only see ingress packets from one NNI:
@@ -280,7 +276,7 @@ pef = SeqRcvy AutoMIP=5 frerSeqRcvyHistoryLength=16 ...
 prf = Replicate AutoMIP=5
 ```
 
-With adding `AutoMIP` argument to the objects, we enabled automatic MP generation.
+With adding `AutoMIP` argument to the objects, we enabled automatic MP generation around the SeqRcvy and Replicate objects.
 Let's restart both R2DTWO instances to see them.
 After the restart, verify if the auto-generated MIPs are there from the telnet CLI with the `list` command:
 
@@ -297,7 +293,15 @@ o_pw2_L5_pre-pef level 5 in pipe pw2 at pos 3
 
 This is the output on __nxp1__ and it shows we have the auto-generated MIPs.
 The important here are the post-PRF MIPs since these do the OAM mask signaling.
-Now mask the `prf-member1` again as before (make sure the traffic generator is still running).
+Now when we mask the `prf-member1` again as before (make sure the traffic generator is still running), we see these messages:
+
+```
+Pipeline 'prf-member1' in Replicate prf now masked
+Initiated mask signalling from MIP 'o_prf-member1_L5_post-prf'
+```
+
+This tells us that the automatically generated MIP after the Replicate object has started sending mask signals so the Elimination point knows that this branch has been intentionally turned off.
+
 As visible in the output of __nxp2__ we dont see the `DISFUNCTIONING_PATHS` warnings anymore.
 This is exactly because the signaled masking update the `frerSeqRcvyLatentErrorPaths` value of the PEF as paths masked/unmasked.
 
