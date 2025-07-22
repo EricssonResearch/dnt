@@ -1,4 +1,5 @@
 import sys
+import argparse
 sys.path.append("../test")
 from utils import *
 
@@ -61,31 +62,16 @@ def run_tests(net,v_iperf):
 
     return no_error
 
+list_ops=("fwd","encap-tsn","repl-tsn")
 
 def parse_cmdline():
-    # total arguments
-    n = len(sys.argv)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("config",choices=list_ops, help="r2dtwo configuration")
+    parser.add_argument("-d","--debug", help="debug mode", action="store_true")
+    parser.add_argument("-i","--iperf", choices=("2","3"),help="iperf version to use, default is v2", default="2")
+    parser.add_argument("-t","--topo", choices=("1hop","2hop"),help="topology to run on, default 1hop", default="1hop")
 
-    if n == 1 :
-        print("Default topoplogy: 1hop, default iperf version: 2")
-        return ("1hop","iperf2")
-    elif n > 1 :
-        topo = sys.argv[1]
-        if topo == "1hop" or topo == "2hop":
-            if n == 2 :
-                print("Selected topology: ", topo, ", default iperf version: 2")
-                return(topo,"iperf2")
-        else:
-            print("Unknown topology: ", topo, " Use 1hop or 2hop as first argument")
-            print("Default topoplogy: 1hop, default iperf version: 2")
-            return ("1hop","iperf2")
-        if n > 2:
-            iperf_ver = sys.argv[2]
-        if iperf_ver == "2" or iperf_ver == "3":
-            iperf_ver_string = "iperf2" if iperf_ver == "2" else "iperf3"
-            print("Selected topology: ",topo, ", selected iperf version: ", iperf_ver_string)
-            return(topo, iperf_ver_string)
-        else:
-            print("Unknown iperf version: : ", iperf_ver, " Use 2 or 3 as second argument")
-            print("Topoplogy: ",topo, " default iperf version: 2")
-            return (topo,"iperf2")
+    args=parser.parse_args()
+
+    return (args.config, args.topo, "iperf2" if args.iperf == "2" else "iperf3", args.debug)
+

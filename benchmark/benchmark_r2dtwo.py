@@ -14,7 +14,7 @@ import json
 from mininet_tools import *
 from netbench_tools import *
 
-def start_r2dtwos(net, debug, topo):
+def start_r2dtwos(net, debug, topo, mode):
     # start R2DTWOs
     match topo:
         case "1hop" : nodelist = ['n']
@@ -23,32 +23,27 @@ def start_r2dtwos(net, debug, topo):
         node = net.get(n)
         if debug:
             # For debug! Spawns r2dtwo windows in gdb
-            node.popen(f"xterm -T {n} -e env -i gdb -nx --args ../r2dtwo config/fwd_{topo}.ini")
+            node.popen(f"xterm -T {n} -e env -i gdb -nx --args ../r2dtwo config/{mode}_{topo}.ini")
         else:
-            node.popen(f"../r2dtwo config/fwd_{topo}.ini -vALL:NONE")
+            node.popen(f"../r2dtwo config/{mode}_{topo}.ini -vALL:NONE")
 
 def main():
     all_ok = False
+
+    (ops, topo, iperf_ver, debug ) = parse_cmdline()
+
     try:
-        debug = False
-        if len(sys.argv) >= 2 and sys.argv[1] == "debug":
-            debug = True
-            sys.argv.pop(1)
         if debug:
             print("Mininet benchmark debug")
         else:
             print("Mininet benchmark test")
 
-
-        (topo,iperf_ver) = parse_cmdline()
-
-        net_type = topo
-
         net = create_net(topo)
         config_net_fw(net)
         config_net_mtu(net,topo)
 
-        start_r2dtwos(net, debug, topo)
+        start_r2dtwos(net, debug, topo, ops)
+
         time.sleep(2)
 
         if debug:
