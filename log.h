@@ -152,6 +152,15 @@ struct require_a_semicolon
         (__log_module_##_name.level >= _level)
 
 
+#define log_warning_once(...)                                                   \
+        if (__default_log_module->level >= WARNING) {                           \
+            static int was_warn = 0;                                            \
+            if (was_warn == 0) {                                                \
+                __log_func(WARNING, __default_log_module->name, ##__VA_ARGS__); \
+                was_warn = 1;                                                   \
+            }                                                                   \
+        }
+
 typedef int log_getlevel_cb(const char *mod_name, LOGGING_LEVELS current_level, void *userdata);
 
 // @userdata is supplied to the callback

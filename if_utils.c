@@ -239,7 +239,7 @@ static void dropstat(struct Interface *iface, int socket)
         struct tpacket_stats stats;
         unsigned optlen = sizeof(stats);
         if (getsockopt(socket, SOL_PACKET, PACKET_STATISTICS, &stats, &optlen) < 0) {
-            log_warning("eth %s send: can't get packet statistics", iface->name);
+            log_warning_once("eth %s send: can't get packet statistics", iface->name);
         } else {
             if (stats.tp_drops >= PKT_DROP_WARNING_THRESHOLD) {
                 struct timespec now;
