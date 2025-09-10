@@ -42,6 +42,8 @@ enum ProtocolID {
     PROTO_ID_OAM, //TODO rename to OAMDCW or DACH
     PROTO_ID_OAMRTAG,
     PROTO_ID_CFM,
+    PROTO_ID_ICMPv6,
+    PROTO_ID_ICMPv6ECHO,
 };
 
 // describes one field of a protocol header

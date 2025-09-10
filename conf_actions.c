@@ -1108,6 +1108,7 @@ static struct ConfAction *new_confaction(struct StageState *stst, enum ConfActio
 
 // possible protocol stacks in the pipeline, where OAM maintenance points are allowed
 // they are zero-terminated, assuming PROTO_ID_PAYLOAD=0
+static const enum ProtocolID oam_protostack_srv6[] = {PROTO_ID_IPv6, PROTO_ID_IPv6, PROTO_ID_PAYLOAD};
 static const enum ProtocolID oam_protostack_mplspw[] = {PROTO_ID_MPLS, PROTO_ID_DCW, PROTO_ID_PAYLOAD};
 static const enum ProtocolID oam_protostack_ethcvlan[] = {PROTO_ID_ETH, PROTO_ID_CVLAN, PROTO_ID_PAYLOAD};
 static const enum ProtocolID oam_protostack_ethsvlan[] = {PROTO_ID_ETH, PROTO_ID_SVLAN, PROTO_ID_PAYLOAD};
@@ -1115,6 +1116,7 @@ static const enum ProtocolID oam_protostack_ethcvlanrtag[] = {PROTO_ID_ETH, PROT
 static const enum ProtocolID oam_protostack_ethsvlanrtag[] = {PROTO_ID_ETH, PROTO_ID_SVLAN, PROTO_ID_RTAG, PROTO_ID_PAYLOAD};
 
 static const enum ProtocolID *oam_possible_protostacks[] = {
+    oam_protostack_srv6,
     oam_protostack_mplspw,
     oam_protostack_ethcvlanrtag, oam_protostack_ethsvlanrtag,
     oam_protostack_ethcvlan, oam_protostack_ethsvlan,
@@ -1150,6 +1152,8 @@ static const enum ProtocolID *check_header_stack_for_oam(const struct HeaderDesc
 static const char *header_field_thats_address_for_oam(enum ProtocolID proto)
 {
     switch (proto) {
+        case PROTO_ID_IPv6:
+            return "loc";
         case PROTO_ID_MPLS:
             return "label";
         case PROTO_ID_ETH:
@@ -1168,6 +1172,11 @@ static struct Value *address_for_oam_in_assignment(struct ConfAssignment *ass)
     //TODO can we support CVT_FIELD or CVT_IFACE somehow?
     if (ass->rhs.type != CVT_CONST)
         return NULL;
+
+    if (ass->lhs_protoid == PROTO_ID_IPv6) {
+        if (strcmp(ass->lhs.v.header.field_name, "loc") == 0)
+            return &ass->rhs.value;
+    }
 
     if (ass->lhs_protoid == PROTO_ID_MPLS) {
         if (strcmp(ass->lhs.v.header.field_name, "label") == 0)
@@ -1191,6 +1200,12 @@ static struct Value *address_for_oam_in_assignment(struct ConfAssignment *ass)
 static struct Value *address_for_oam_in_matches(struct HeaderDescriptor *h)
 {
     for (struct HeaderMatch *m=h->matches; m; m=m->next) {
+        if (h->id == PROTO_ID_IPv6) {
+            const struct ProtocolField *label = protocol_get_field_by_name(PROTO_ID_IPv6, "loc");
+            if (m->field.bitoffset == label->bitoffset && m->field.bitcount == label->bitcount) {
+                return &m->value;
+            }
+        }
         if (h->id == PROTO_ID_MPLS) {
             const struct ProtocolField *label = protocol_get_field_by_name(PROTO_ID_MPLS, "label");
             if (m->field.bitoffset == label->bitoffset && m->field.bitcount == label->bitcount) {
@@ -1223,6 +1238,8 @@ static struct MustWriteField *must_write_for_oam_in_header(struct HeaderDescript
 {
     struct MustWriteField *mw = calloc_struct(MustWriteField);
     mw->header = h;
+    if (h->id == PROTO_ID_IPv6)
+        mw->field = protocol_get_field_by_name(PROTO_ID_IPv6, "loc");
     if (h->id == PROTO_ID_MPLS)
         mw->field = protocol_get_field_by_name(PROTO_ID_MPLS, "label");
     else if (h->id == PROTO_ID_ETH)

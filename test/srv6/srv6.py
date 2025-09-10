@@ -25,6 +25,7 @@ def setup_network():
     ipv4 test command: t1 ping 10.0.5.1   and  t1 ping  -Q 0xc0 10.0.5.1
     TSN  test command: t1 ping 10.10.0.2  and  t1 ping  -Q 0xc0 10.10.0.2
 
+    SRv6 OAM telnet command: ping s1r2-det s1r4-det2 4 -n 3
     """
 
     net = Mininet(waitConnected=True)
@@ -185,6 +186,29 @@ def stop_r2dtwos():
 def stop_network(net):
     info('*** Stopping network')
     net.stop()
+
+def send_cli_commands():
+    ret = True
+    cli = Telnet("0", 8000)
+    _ = cli.recv() # recv first msg
+
+    cli.send("ping s1r2-det s1r4-det2 4 -n 3")
+    msg = cli.recv()
+    if "Notification pull is disabled" not in msg:
+        print("Error: ", msg)
+        ret = False
+
+    # wait for the previously requested packets
+    time.sleep(1)
+
+    cli.send("exit") # send add notification command
+    msg = cli.recv()
+    time.sleep(0.1)
+
+    print(msg)
+
+    cli.close()
+    return False
 
 def check_log(logfile, pattern, size):
     # Define the pattern to search for

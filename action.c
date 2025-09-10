@@ -434,6 +434,10 @@ static enum ActionResult action_OAMRECEIVE_execute(struct Action *a, struct Pipe
         // we have DetNet PseudoWire
         unsigned char *oam_hdr = p->buf + p->headers[1].start;
         packet_is_oam = (oam_hdr[0] & 0xf0) == 0x10;
+    } else if (ord->protostack[0] == PROTO_ID_IPv6) {
+        // we have SRv6 (probably)
+        unsigned char *ipv6_outer = p->buf + p->headers[0].start;
+        packet_is_oam = (ipv6_outer[36] & 0x0f) == 0x01; // OAM nibble
     } else {
         //TODO die?
         return ACR_CONTINUE;
