@@ -119,7 +119,7 @@ static bool ipproto_from_id(uint16_t *proto, enum ProtocolID id)
         case PROTO_ID_MPLS:
             SET_PROTO(IPPROTO_MPLS);
         case PROTO_ID_ICMPv6:
-            SET_PROTO(IPPROTO_IPV6);
+            SET_PROTO(IPPROTO_ICMPV6);
         case PROTO_ID_PAYLOAD:
         case PROTO_ID_CVLAN:
         case PROTO_ID_SVLAN:
@@ -325,7 +325,7 @@ static const struct ProtocolField cfm_fields[] = {
 static const struct ProtocolField icmpv6_fields[] = {
     {"type",       0,  8, FT_NUMBER},   // type, 128 = echo req
     {"code",       8,  8, FT_NUMBER},
-    {"Checksum",  16,  16, FT_CHECKSUM},  // needs to be calculated
+    {"checksum",  16,  16, FT_CHECKSUM},  // needs to be calculated
 };
 
 // ICMPv6 type echo fields

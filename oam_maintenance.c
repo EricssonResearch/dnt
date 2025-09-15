@@ -19,11 +19,8 @@
 #include "interface.h"
 
 #include <stdlib.h>
-#include <stdint.h>
-#include <string.h>
-#include <arpa/inet.h>
-#include <netinet/ip6.h>
-#include <netinet/icmp6.h>
+#include <arpa/inet.h>        // inet_pton()
+#include <netinet/icmp6.h>    // ICMP6_ECHO_REQUEST
 
 DEFAULT_LOGGING_MODULE(OAM, INFO);
 
@@ -187,8 +184,8 @@ static struct JsonValue *unpack_srv6_message(const struct Packet *p)
         return NULL;
     }
 
-    char *json_str = (char*)(p->buf + p->headers[2].start+8);
-    unsigned json_len = p->headers[2].len-8;
+    char *json_str = (char*)(p->buf + p->headers[2].start + sizeof(struct icmp6_hdr));
+    unsigned json_len = plen - header_len;
 
     char *jerror;
     struct JsonValue *js = json_parse(json_str, json_len, &jerror);
@@ -224,8 +221,8 @@ static struct JsonValue *pack_srv6_message_header(const struct OAM_MaintenancePo
     ipv6_outer[0]=0x60;
     ipv6_outer[1]=0; ipv6_outer[2]=0; ipv6_outer[3]=0;  // flow label
     //ipv6_outer[4-5] is length
-    ipv6_outer[6] = IPPROTO_IPV6; // IPv6
-    ipv6_outer[7] = 32;  // hop count
+    ipv6_outer[6] = IPPROTO_IPV6; // next header
+    ipv6_outer[7] = ttl;  // hop count
     memset(&ipv6_outer[8], 0, 16);  // if saddr is zero, the interface send will fill
     memcpy(&ipv6_outer[24], mp->sid_address.loc, 16);
 
@@ -236,7 +233,7 @@ static struct JsonValue *pack_srv6_message_header(const struct OAM_MaintenancePo
     ipv6[0]=0x60;
     ipv6[1]=0; ipv6[2]=0; ipv6[3]=0;  // flow label
     //ipv6[4..5] is length
-    ipv6[6] = IPPROTO_ICMPV6; // ICMPv6
+    ipv6[6] = IPPROTO_ICMPV6; // next header
     ipv6[7] = 32;   // hop count
 
     struct sockaddr_in6 sa6;
@@ -972,9 +969,11 @@ struct OAM_MaintenancePoint *oam_new_maintenance_point(const char *stream_name, 
         case PROTO_ID_ETH: mp->encap = OAM_TSN; break;
         case PROTO_ID_MPLS: mp->encap = OAM_PW; break;
         case PROTO_ID_IPv6: mp->encap = OAM_SRv6; break;
-        default: mp->encap = OAM_PW;    // maybe add OAM_NONE?
+        default:
+            log_error("%s '%s' unknown OAM protocol type",
+                    oam_mp_type_to_str(type), mp_name);
+            return NULL;
     }
-    //    mp->encap = protostack[0] == PROTO_ID_ETH ? OAM_TSN : OAM_PW;
     mp->level = level;
     mp->protostack = protostack;
 
