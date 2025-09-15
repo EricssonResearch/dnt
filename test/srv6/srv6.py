@@ -187,29 +187,6 @@ def stop_network(net):
     info('*** Stopping network')
     net.stop()
 
-def send_cli_commands():
-    ret = True
-    cli = Telnet("0", 8000)
-    _ = cli.recv() # recv first msg
-
-    cli.send("ping s1r2-det s1r4-det2 4 -n 3")
-    msg = cli.recv()
-    if "Notification pull is disabled" not in msg:
-        print("Error: ", msg)
-        ret = False
-
-    # wait for the previously requested packets
-    time.sleep(1)
-
-    cli.send("exit") # send add notification command
-    msg = cli.recv()
-    time.sleep(0.1)
-
-    print(msg)
-
-    cli.close()
-    return False
-
 def check_log(logfile, pattern, size):
     # Define the pattern to search for
     pattern = re.compile(pattern)
@@ -232,6 +209,79 @@ def check_log(logfile, pattern, size):
                 else:
                     print(f"Size mismatch: {size}: {line.strip()}")
     return n
+
+oam_testcases = [
+    ('r2', 'ping s1r2-det s1r4-det2 4',
+"""
+OAM request ping session 1 seq 0, s1r2-det -> s1r4-det2 level 4 count 1 interval 1000, rr: no os: no	[reply to ip fd12:fade::0 port 6634]
+  oam_r s2:1 seq 0 lvl 4 R - ping on stream s2 target s1r4-det2; reply from s1r4-det2
+"""
+     ),
+
+    ('r2', 'ping s1r2-det s1r4-det2 4 -n 3 -i 0.001',
+"""
+OAM request ping session 2 seq 0, s1r2-det -> s1r4-det2 level 4 count 3 interval 2, rr: no os: no	[reply to ip fd12:fade::0 port 6634]
+  oam_r s2:2 seq 0 lvl 4 R - ping on stream s2 target s1r4-det2; reply from s1r4-det2
+  oam_r s2:2 seq 1 lvl 4 R - ping on stream s2 target s1r4-det2; reply from s1r4-det2
+  oam_r s2:2 seq 2 lvl 4 R - ping on stream s2 target s1r4-det2; reply from s1r4-det2
+"""
+    ),
+]
+
+def test_oam():
+
+    pids={}
+    retval=1
+    try:
+        print("Test SRv6 OAM:")
+        # start r2DTWOs
+        for n in ['r2', 'r4']:
+            node = net.get(n)
+            p=node.popen(f"../r2dtwo -of srv6/{n}-ipv6.cfg -v PACKETTRACE:PACKET")    # in general this is enough for debug
+            pids[n]=f"r2dtwo-{n}-ipv6-{p.pid}.log"
+    except Exception as e:
+            print(e)
+            stop_r2dtwos()
+            return 0
+
+    time.sleep(2)
+    success = 0
+    for node, msg, expected_reply in oam_testcases:
+        switch_netns(node)
+
+        with Telnet("0", 8000) as cli:
+            _ = cli.recv() # OAM ready
+            cli.send(msg)
+            print(f"    Node: {node}, command: {msg}", end=" ")
+            if "any" in msg:
+                reply = cli.recv(1.0, aggregate=True)
+            else:
+                reply = cli.recv()
+            # these numbers are unstable due to the background pings
+            reply = re.sub(r'latest_valid_sequence_number \d+, passed \d+, discarded \d+',
+                   r'latest_valid_sequence_number 0, passed 0, discarded 0',
+                   reply)
+            reply = re.sub(r'delay \d+\.\d+',
+                   r'delay 0',
+                   reply)
+            if reply.strip() == expected_reply.strip():
+                success += 1
+                print("✔")
+            else:
+                print("✘ FAILED: OAM reply different")
+                print(f"Actual reply:\n{reply}\nExpected reply:\n{expected_reply}\n")
+
+#    switch_netns()
+    #clean up r2dtwos, logfiles
+    stop_r2dtwos()
+    time.sleep(2)
+    for n in ['r2', 'r4']:
+        os.remove(pids[n])
+
+    print(f"Successful OAM tests: {success}/{len(oam_testcases)}", end=" ")
+    if success == len(oam_testcases):
+        return True
+    return False
 
 def test_ipv6():
     pids={}
@@ -455,7 +505,7 @@ if __name__ == '__main__':
         tests = []
     else:
         print("R2DTWO SRv6 test")
-        tests = [test_ipv6, test_ipv4, test_tsn]
+        tests = [test_ipv6, test_ipv4, test_tsn, test_oam]
         for test in tests:
             result = test()
             ret += result
