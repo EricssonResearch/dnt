@@ -163,8 +163,8 @@ static uint16_t icmp6_checksum(unsigned char *src,
 
 static struct JsonValue *unpack_srv6_message(const struct Packet *p)
 {
-    if (p->header_count < 2) {
-        log_error("OAM packet doesn't have 2 identified headers (ipv6, ipv6), how was this matched??");
+    if (p->header_count < 3) {
+        log_error("OAM packet doesn't have 2 identified headers (ipv6, ipv6, payload), how was this matched??");
         return NULL;
     }
 
@@ -184,6 +184,7 @@ static struct JsonValue *unpack_srv6_message(const struct Packet *p)
         return NULL;
     }
 
+    // json is after the ICMPv6 header in payload
     char *json_str = (char*)(p->buf + p->headers[2].start + sizeof(struct icmp6_hdr));
     unsigned json_len = plen - header_len;
 
