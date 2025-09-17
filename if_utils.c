@@ -204,6 +204,12 @@ struct Packet *iface_common_recv(struct Interface *iface, msghdr_process_cb *msg
         return delete_packet(p);
     }
 
+    if (msg.msg_flags & MSG_TRUNC) {
+        log_warning_once("suspiciously large packet received, try turning off generic-receive-offload with ethtool"
+                " (it's a good idea to turn off all offloads)");
+        return delete_packet(p);
+    }
+
     if (packet_dummy(p)) {
         log_debug("packet overflow, received on interface %s", iface->name);
         return delete_packet(p);
