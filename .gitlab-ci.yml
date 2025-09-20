@@ -22,7 +22,7 @@ stages:
 verify-ci-config:
   stage: verify
   tags:
-    - rosetta-docker
+    - tsn
   script:
     - .gitlab-ci/verify_yaml.pl
 
@@ -30,7 +30,7 @@ verify-ci-config:
 build-r2dtwo-debug:
   stage: build
   tags:
-    - rosetta-docker
+    - tsn
   script:
     - CC=gcc make debug -j
   artifacts:
@@ -40,14 +40,14 @@ build-r2dtwo-debug:
 build-r2dtwo-release:
   stage: build
   tags:
-    - rosetta-docker
+    - tsn
   script:
     - CC=gcc make release -j
 
 build-r2dtwo-debug-cpp:
   stage: build
   tags:
-    - rosetta-docker
+    - tsn
   script:
     - .gitlab-ci/cppize.pl Makefile
     - make debug -j
@@ -55,7 +55,7 @@ build-r2dtwo-debug-cpp:
 build-r2dtwo-release-cpp:
   stage: build
   tags:
-    - rosetta-docker
+    - tsn
   script:
     - .gitlab-ci/cppize.pl Makefile
     - make release -j
@@ -63,14 +63,14 @@ build-r2dtwo-release-cpp:
 build-r2dtwo-debug-clang:
   stage: build
   tags:
-    - rosetta-docker
+    - tsn
   script:
     - CC=clang make debug -j
 
 build-r2dtwo-release-clang:
   stage: build
   tags:
-    - rosetta-docker
+    - tsn
   script:
     - CC=clang make release -j
 
@@ -78,7 +78,7 @@ build-r2dtwo-release-clang:
 build-unit_test:
   stage: build
   tags:
-    - rosetta-docker
+    - tsn
   script:
     - cd unit_test
     - mkdir build
@@ -164,7 +164,7 @@ pytest_srv6:
 .unit_test.common:
   stage: test
   tags:
-    - rosetta-docker
+    - tsn
   dependencies:
     - build-unit_test
   script:
