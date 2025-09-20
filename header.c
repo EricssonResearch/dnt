@@ -22,7 +22,6 @@ struct HeaderField *new_headerfield(unsigned header_idx, const struct ProtocolFi
     return ret;
 }
 
-
 // only full bytes, no loose bits at the beginning or the end
 static void write_bytes(void *state, struct Value *value, struct Packet *p)
 {
@@ -30,7 +29,7 @@ static void write_bytes(void *state, struct Value *value, struct Packet *p)
     uint8_t *src = (uint8_t *)value->value + value->bitoffset/8;
     uint8_t *dst = p->buf + p->headers[field->header_idx].start + field->bitoffset/8;
     unsigned len = value->bitcount / 8;
-    memcpy(dst, src, len);
+    for (unsigned i=0; i<len; i++) dst[i] = src[i];
 }
 
 // set bits in a single byte
@@ -72,7 +71,7 @@ static void write_generic(void *state, struct Value *value, struct Packet *p)
     unsigned byteoffset = 1;
 
     if (remaining_bytes) {
-        memcpy(dst+1, src+1, remaining_bytes);
+        for (unsigned i=0; i<remaining_bytes; i++) dst[1+i] = src[1+i];
         remaining_bits -= remaining_bytes * 8;
         byteoffset += remaining_bytes;
     }
@@ -148,7 +147,9 @@ static bool compare_bytes(const void *state, const struct Value *value, const st
     uint8_t *match_data = (uint8_t *)value->value + value->bitoffset/8;
     uint8_t *hdr_data = p->buf + p->headers[field->header_idx].start + field->bitoffset/8;
     unsigned len = value->bitcount / 8;
-    return !memcmp(hdr_data, match_data, len);
+    for (unsigned i=0; i<len; i++)
+        if (hdr_data[i] != match_data[i]) return false;
+    return true;
 }
 
 // return true if bits in a single byte at the header equal with the given @value
@@ -189,8 +190,8 @@ static bool compare_generic(const void *state, const struct Value *value, const 
     unsigned byteoffset = 1;
 
     if (remaining_bytes) {
-        if (memcmp(hdr_data+1, match_data+1, remaining_bytes) != 0)
-            return false;
+        for (unsigned i=0; i<remaining_bytes; i++)
+            if (hdr_data[1+i] != match_data[1+i]) return false;
         remaining_bits -= remaining_bytes * 8;
         byteoffset += remaining_bytes;
     }
