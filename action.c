@@ -757,24 +757,18 @@ static enum ActionResult action_WRITESEQ_execute(struct Action *a, struct Pipeli
     struct MetaData *md = (struct MetaData *)a->action_private;
     struct Packet *p = pi->packet;
 
-    uint8_t *src = p->buf + p->headers[md->field.header_idx].start + md->field.bitoffset/8;
-    unsigned len = md->field.bitcount/8; //TODO this is always 4
-    uint32_t seq;
-    memcpy(&seq, src, len);
-
-    if(p->headers[md->field.header_idx].type == PROTO_ID_IPv6) {
+    if (p->headers[md->field.header_idx].type == PROTO_ID_IPv6) {
         // this is an SRv6 sequence number, which is only 28 bit
-        src = (uint8_t *)&p->sequence;
+        uint8_t *src = (uint8_t *)&p->sequence;
         uint8_t *dst = p->buf + p->headers[md->field.header_idx].start + (md->field.bitoffset>>3);
-        dst[0] |= src[0] & 0x0f;  // write indcator bits, keep the first 4 bits
+        dst[0] = (dst[0] & 0xf0) + (src[0] & 0x0f);  // write indcator bits, keep the first 4 bits
         dst[1] = src[1];         // write reserved 1 byte
         dst[2] = src[2];         // write seqnum 2 bytes
         dst[3] = src[3];
 
-    // skip if seq already contains OAM associated channel header
-    } else if (!SEQ_IS_OAM(seq)) {
+    } else {
         uint8_t *dst = p->buf + p->headers[md->field.header_idx].start + md->field.bitoffset/8;
-        memcpy(dst, &p->sequence, len);
+        memcpy(dst, &p->sequence, 4);
     }
 
     return ACR_CONTINUE;

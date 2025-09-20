@@ -201,6 +201,9 @@ static struct JsonValue *pack_pw_message_header(const struct OAM_MaintenancePoin
     oam[6] = ((nodeid&0xf) << 4) + ((level & 0x07) << 1);
     oam[7] = session & 0x0f;
 
+    // make sure writeseq works fine
+    p->sequence = (oam[0]<<0) + (oam[1]<<8) + (oam[2]<<16) + (oam[3]<<24);
+
     p->ttl = ttl;
 
     struct JsonValue *js = json_object();
@@ -449,6 +452,9 @@ static struct JsonValue *pack_tsn_message_header(const struct OAM_MaintenancePoi
         rtag[3] = session & 0x0f; // upper bits are version=0
         rtag[4] = 0x89; // cfm
         rtag[5] = 0x02;
+
+        // make sure writeseq works fine
+        p->sequence = (rtag[0]<<0) + (rtag[1]<<8) + (rtag[2]<<16) + (rtag[3]<<24);
 
         cfm = p->buf + p->headers[3].start;
         tlv = cfm + 4;
