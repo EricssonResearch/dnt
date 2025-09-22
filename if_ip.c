@@ -16,6 +16,7 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
+#include <arpa/inet.h> /* inet_ntop() */
 #include <netinet/in.h>
 #include <net/if.h> /* struct ifreq */
 #include <ifaddrs.h>
@@ -342,6 +343,21 @@ static value_producer *ip_get_property_reader(const struct Interface *iface, con
     return NULL;
 }
 
+static void ip_print_private_info(const struct Interface *iface, FILE *cmd_w)
+{
+    struct IpIfData *iid = (struct IpIfData *)iface->iface_private;
+    fprintf(cmd_w, "    ifindex %d (%s) mtu %d\n",
+            iid->ifindex, iface->ifname, iid->mtu);
+    char buf4[INET_ADDRSTRLEN];
+    char buf6[INET6_ADDRSTRLEN];
+    if (inet_ntop(AF_INET, &iid->ipv4, buf4, sizeof(buf4))) {
+        fprintf(cmd_w, "    inet \033[35m%s\033[0m\n", buf4);
+    }
+    if (inet_ntop(AF_INET6, &iid->ipv6, buf6, sizeof(buf6))) {
+        fprintf(cmd_w, "    inet6 \033[34m%s\033[m\n", buf6);
+    }
+}
+
 struct Interface *new_ip_interface(const char *name, const char *ifname)
 {
     _NEW_IFACE(IF_IP);
@@ -351,6 +367,7 @@ struct Interface *new_ip_interface(const char *name, const char *ifname)
     iface->open = ip_open;
     iface->close_ = ip_close;
     iface->get_property_reader = ip_get_property_reader;
+    iface->print_private_info = ip_print_private_info;
 
     struct IpIfData *iid = calloc_struct(IpIfData);
     iface->iface_private = iid;

@@ -579,6 +579,41 @@ static value_producer *udpin_get_property_reader(const struct Interface *iface, 
     return NULL;
 }
 
+static void udpin_print_private_info(const struct Interface *iface, FILE *cmd_w)
+{
+    struct UdpInIfData *uid = (struct UdpInIfData *)iface->iface_private;
+
+    fprintf(cmd_w, "    ifindex %d (%s) mtu %d\n",
+            uid->ifindex, iface->ifname, uid->mtu);
+    if (uid->family == AF_INET) {
+        char buf4[INET_ADDRSTRLEN];
+        if (inet_ntop(AF_INET, &uid->srcip.v4, buf4, sizeof(buf4))) {
+            fprintf(cmd_w, "    inet \033[35m%s\033[0m port %u\n", buf4, uid->port);
+        } else {
+            fprintf(cmd_w, "    inet \033[35m<invalid>\033[0m port %u\n", uid->port);
+        }
+    } else if (uid->family == AF_INET6) {
+        char buf6[INET6_ADDRSTRLEN];
+        if (inet_ntop(AF_INET6, &uid->srcip.v6, buf6, sizeof(buf6))) {
+            fprintf(cmd_w, "    inet6 \033[34m%s\033[m port %u\n", buf6, uid->port);
+        } else {
+            fprintf(cmd_w, "    inet6 \033[34m<invalid>\033[m port %u\n", uid->port);
+        }
+    } else {
+        fprintf(cmd_w, "    <invalid adress family> port %u\n", uid->port);
+    }
+
+    for (struct SenderList *snd = uid->senders; snd; snd=snd->next) {
+        if (snd->family == AF_INET) {
+            fprintf(cmd_w, "    sender inet \033[35m%s\033[0m port %u ifname \033[36m%s\033[0m\n",
+                    snd->ip_str, snd->port, snd->ifname);
+        } else if (snd->family == AF_INET6) {
+            fprintf(cmd_w, "    sender inet6 \033[34m%s\033[m port %u ifname \033[36m%s\033[0m\n",
+                    snd->ip_str, snd->port, snd->ifname);
+        }
+    }
+}
+
 struct Interface *new_udp_in_interface(const char *name, const char *ifname,
         unsigned port, unsigned ipversion, const char *senders)
 {
@@ -589,6 +624,7 @@ struct Interface *new_udp_in_interface(const char *name, const char *ifname,
     iface->open = udpin_open;
     iface->close_ = udpin_close;
     iface->get_property_reader = udpin_get_property_reader;
+    iface->print_private_info = udpin_print_private_info;
 
     struct SenderList *sender_list = NULL;
     if (senders) {

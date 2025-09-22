@@ -10,6 +10,7 @@
 #include "time_utils.h"
 #include "value.h"
 
+#include <stdio.h>
 #include <stdbool.h>
 
 struct Interface;
@@ -89,6 +90,9 @@ struct Interface {
 
     // this method is optional
     iface_get_property_reader *get_property_reader;
+
+    // this method is optional
+    void (*print_private_info)(const struct Interface *iface, FILE *cmd_w);
 };
 
 // no global constructor, each interface type has its own, they all return Interface*
@@ -116,5 +120,9 @@ bool iface_add_stream(struct Interface *iface, struct HeaderDescriptor *headers,
 
 // @returns the name of this interface @type
 const char *iface_type_str(enum IfaceType type);
+
+// prints information about @iface to @cmd_w
+// for the 'iface' telnet command
+void iface_print_info(const struct Interface *iface, FILE *cmd_w);
 
 #endif // R2_INTERFACE_H

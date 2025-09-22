@@ -197,6 +197,21 @@ static value_producer *oam_get_property_reader(const struct Interface *iface, co
     return NULL;
 }*/
 
+static void oam_print_private_info(const struct Interface *iface, FILE *cmd_w)
+{
+    struct OamIfData *oid = (struct OamIfData *)iface->iface_private;
+    struct in_addr ip4;
+    struct in6_addr ip6;
+
+    if (inet_pton(AF_INET, oid->oam_ip_str, &ip4) == 1) {
+        fprintf(cmd_w, "    inet \033[35m%s\033[0m port %u\n", oid->oam_ip_str, oid->port);
+    } else if (inet_pton(AF_INET6, oid->oam_ip_str, &ip6) == 1) {
+        fprintf(cmd_w, "    inet6 \033[34m%s\033[m port %u\n", oid->oam_ip_str, oid->port);
+    } else {
+        fprintf(cmd_w, "    <invalid address> port %u\n", oid->port);
+    }
+}
+
 struct Interface *new_oam_interface(const char *name,
                         const char *oam_ip, unsigned port)
 {
@@ -206,6 +221,7 @@ struct Interface *new_oam_interface(const char *name,
     iface->open = oam_open;
     iface->close_ = oam_close;
     //iface->get_property_reader = oam_get_property_reader;
+    iface->print_private_info = oam_print_private_info;
 
     struct OamIfData *oid = calloc_struct(OamIfData);
     iface->iface_private = oid;

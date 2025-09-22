@@ -299,6 +299,32 @@ static value_producer *udpout_get_property_reader(const struct Interface *iface,
     return NULL;
 }
 
+static void udpout_print_private_info(const struct Interface *iface, FILE *cmd_w)
+{
+    struct UdpOutIfData *uid = (struct UdpOutIfData *)iface->iface_private;
+
+    fprintf(cmd_w, "    ifindex %d (%s) mtu %d priority %u opened %s\n",
+            uid->ifindex, iface->ifname, uid->mtu, uid->priority,
+            uid->opened ? "\033[32mYES\033[0m" : "\033[31mNO\033[0m");
+    if (uid->family == AF_INET) {
+        char buf4[INET_ADDRSTRLEN];
+        if (inet_ntop(AF_INET, &uid->dstip.v4, buf4, sizeof(buf4))) {
+            fprintf(cmd_w, "    inet \033[35m%s\033[0m port %u -> %u\n", buf4, uid->sport, uid->dport);
+        } else {
+            fprintf(cmd_w, "    inet \033[35m<invalid>\033[0m port %u -> %u\n", uid->sport, uid->dport);
+        }
+    } else if (uid->family == AF_INET6) {
+        char buf6[INET6_ADDRSTRLEN];
+        if (inet_ntop(AF_INET6, &uid->dstip.v6, buf6, sizeof(buf6))) {
+            fprintf(cmd_w, "    inet6 \033[34m%s\033[m port %u -> %u\n", buf6, uid->sport, uid->dport);
+        } else {
+            fprintf(cmd_w, "    inet6 \033[34m<invalid>\033[m port %u -> %u\n", uid->sport, uid->dport);
+        }
+    } else {
+        fprintf(cmd_w, "    <invalid adress family> port %u -> %u\n", uid->sport, uid->dport);
+    }
+}
+
 struct Interface *new_udp_out_interface(const char *name, const char *ifname,
         unsigned src_port, const char *dst_ip, unsigned dst_port, unsigned priority)
 {
@@ -309,6 +335,7 @@ struct Interface *new_udp_out_interface(const char *name, const char *ifname,
     iface->open = udpout_open;
     iface->close_ = udpout_close;
     iface->get_property_reader = udpout_get_property_reader;
+    iface->print_private_info = udpout_print_private_info;
 
     struct in_addr dst4 = {0};
     struct in6_addr dst6 = {0};

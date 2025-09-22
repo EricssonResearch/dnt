@@ -121,6 +121,7 @@ static const char help_str[] =
     "notif_pull [enable|disable] - enable or disable the pull notifications\n"
     "mode [mode] - set ping reply printing mode, can be 'dump' or 'json'\n"
     "list - list monitoring start points\n"
+    "iface [ifname] - print information about interfaces\n"
     "returns - list return interfaces\n"
     "sessions [stream] - list active sessions for stream, lists all sessions if no 'stream' is specified\n"
     "[un]mask <replication pipeline> - mask/unmask a replication pipeline\n"
@@ -164,6 +165,13 @@ static int list_oam_ifaces_cb(const char *ifname, void *value, void *userdata)
     }
     fprintf(cmd_w, "\n");
 
+    return 1;
+}
+
+static int iface_info_cb(struct Interface *iface, void *userdata)
+{
+    FILE *cmd_w = (FILE *)userdata;
+    iface_print_info(iface, cmd_w);
     return 1;
 }
 
@@ -219,7 +227,7 @@ static int set_mask_cb(struct PipelineObject *obj, void *userdata)
             if (strcmp(rlist->pipe->name, arg->stream) == 0) {
                 arg->found_count++;
                 if (rlist->pipe->mask == arg->mask) {
-                    if (arg->cmd_w) fprintf(arg->cmd_w, "Pipeline '%s' in Replicate %s already %smasked\n",
+                    fprintf(arg->cmd_w, "Pipeline '%s' in Replicate %s already %smasked\n",
                             arg->stream, obj->name, arg->mask ? "" : "un");
                 } else {
                     rlist->pipe->mask = arg->mask;
@@ -229,7 +237,7 @@ static int set_mask_cb(struct PipelineObject *obj, void *userdata)
                     json_object_insert(noti, "status", json_string("masked"));
                     notification_push_event("mask", NOTIF_INFO, noti);
 
-                    if (arg->cmd_w) fprintf(arg->cmd_w, "Pipeline '%s' in Replicate %s now %smasked\n",
+                    fprintf(arg->cmd_w, "Pipeline '%s' in Replicate %s now %smasked\n",
                             arg->stream, obj->name, arg->mask ? "" : "un");
 
                     if (obj->auto_mip_level >= 0) {
@@ -245,7 +253,7 @@ static int set_mask_cb(struct PipelineObject *obj, void *userdata)
                                 mp_stop_mask_signalling(mip, arg->cmd_w);
                             }
                         } else {
-                            if (arg->cmd_w) fprintf(arg->cmd_w, "ERROR can't find automip '%s' for object '%s'\n",
+                            fprintf(arg->cmd_w, "ERROR can't find automip '%s' for object '%s'\n",
                                     mipname, obj->name);
                         }
 
@@ -436,6 +444,20 @@ static void command_loop(struct CommandConnection *conn)
                 fprintf(cmd_w, "Available MEP Start points:\n");
                 foreach_mp(true, list_startpoints_cb, conn->cmd_w);
             }
+            else if (strncmp(oam_command, "iface", 5) == 0) {
+                char ifname[64];
+                int k = sscanf(oam_command, "iface %s", ifname);
+                if (k == 0 || k == EOF) {
+                    state_foreach_interfaces(iface_info_cb, cmd_w);
+                } else {
+                    struct Interface *iface = state_get_interface(ifname);
+                    if (iface) {
+                        iface_print_info(iface, cmd_w);
+                    } else {
+                        fprintf(cmd_w, "No interface named '%s'\n", ifname);
+                    }
+                }
+            }
             else if (strncmp(oam_command, "log", 3) == 0) {
                 char modulename[64];
                 char newlevel[16];
@@ -445,7 +467,7 @@ static void command_loop(struct CommandConnection *conn)
                     log_get_levels(list_log_modules_cb, cmd_w);
                 } else if (k == 2) {
                     if (!log_level_valid(newlevel)) {
-                        fprintf(cmd_w, "Invalid log level '%s'", newlevel);
+                        fprintf(cmd_w, "Invalid log level '%s'\n", newlevel);
                     } else {
                         LOGGING_LEVELS nlvl = log_level_from_string(newlevel);
                         if (!log_set_level(modulename, nlvl)) {

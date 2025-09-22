@@ -4,12 +4,13 @@
 
 #include "if_eth.h"
 #include "if_utils.h"
+#include "inet_utils.h"
 #include "interface.h"
+#include "log.h"
 #include "packet.h"
 #include "parsetree.h"
 #include "protocol.h"
 #include "utils.h"
-#include "log.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -297,6 +298,16 @@ static value_producer *eth_get_property_reader(const struct Interface *iface, co
     return eth_mac_producer;
 }
 
+static void eth_print_private_info(const struct Interface *iface, FILE *cmd_w)
+{
+    struct EthIfData *eid = (struct EthIfData *)iface->iface_private;
+    char buf[ETHER_ADDSTRLEN];
+    if (ether_ntop(&eid->mac, buf, sizeof(buf))) {
+        fprintf(cmd_w, "    ifindex %d (%s) mtu %d\n    mac \033[33m%s\033[0m\n",
+                eid->ifindex, iface->ifname, eid->mtu, buf);
+    }
+}
+
 struct Interface *new_eth_interface(const char *name, const char *ifname)
 {
     _NEW_IFACE(IF_ETH);
@@ -306,6 +317,7 @@ struct Interface *new_eth_interface(const char *name, const char *ifname)
     iface->open = eth_open;
     iface->close_ = eth_close;
     iface->get_property_reader = eth_get_property_reader;
+    iface->print_private_info = eth_print_private_info;
 
     struct EthIfData *eid = calloc_struct(EthIfData);
     iface->iface_private = eid;

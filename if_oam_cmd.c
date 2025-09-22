@@ -154,6 +154,28 @@ static bool oam_cmd_close(struct Interface *iface)
     return true;
 }
 
+static void oam_cmd_print_private_info(const struct Interface *iface, FILE *cmd_w)
+{
+    struct OamCmdIfData *oid = (struct OamCmdIfData *)iface->iface_private;
+
+    if (oid->family == AF_INET) {
+        char buf4[INET_ADDRSTRLEN];
+        if (inet_ntop(AF_INET, &oid->srcip.v4, buf4, sizeof(buf4))) {
+            fprintf(cmd_w, "    inet \033[35m%s\033[0m port %u\n", buf4, oid->port);
+        } else {
+            fprintf(cmd_w, "    inet \033[35m<invalid>\033[0m port %u\n", oid->port);
+        }
+    } else if (oid->family == AF_INET6) {
+        char buf6[INET6_ADDRSTRLEN];
+        if (inet_ntop(AF_INET6, &oid->srcip.v6, buf6, sizeof(buf6))) {
+            fprintf(cmd_w, "    inet6 \033[34m%s\033[m port %u\n", buf6, oid->port);
+        } else {
+            fprintf(cmd_w, "    inet6 \033[34m<invalid>\033[m port %u\n", oid->port);
+        }
+    } else {
+        fprintf(cmd_w, "    <invalid adress family> port %u\n", oid->port);
+    }
+}
 
 struct Interface *new_oam_cmd_interface(const char *name, const char *ifname,
                             const char *oam_cmd_ip, unsigned port)
@@ -171,6 +193,7 @@ struct Interface *new_oam_cmd_interface(const char *name, const char *ifname,
     iface->send = oam_cmd_send;
     iface->open = oam_cmd_open;
     iface->close_ = oam_cmd_close;
+    iface->print_private_info = oam_cmd_print_private_info;
 
     struct OamCmdIfData *oid = calloc_struct(OamCmdIfData);
     iface->iface_private = oid;

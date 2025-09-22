@@ -98,3 +98,18 @@ const char *iface_type_str(enum IfaceType type)
     }
     return NULL;
 }
+
+void iface_print_info(const struct Interface *iface, FILE *cmd_w)
+{
+    static const char *state_colors[] = { "\033[0m", "\033[33m", "\033[32m", "\033[31m" };
+    static const char *state_names[] = { "UNKNOWN", "INIT", "OPEN", "SHUTDOWN" };
+    fprintf(cmd_w, "iface \033[36m%s\033[0m type %s state %s%s\033[0m\n", iface->name,
+            iface_type_str(iface->type),
+            state_colors[iface->state], state_names[iface->state]);
+    fprintf(cmd_w, "    recv %llu packets %llu octets\n    send %llu packets %llu octets\n",
+            iface->recv_packets, iface->recv_octets, iface->send_packets, iface->send_octets);
+    if (iface->dropstat_cntr)
+        fprintf(cmd_w, "    dropstat %d\n", iface->dropstat_cntr);
+    if (iface->print_private_info)
+        iface->print_private_info(iface, cmd_w);
+}
