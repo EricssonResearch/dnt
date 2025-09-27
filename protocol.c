@@ -151,9 +151,9 @@ static const struct ProtocolField vlan_fields[] = {
 };
 
 static const struct ProtocolField rtag_fields[] = {
-    {"rt_flag",       5,  1, FT_NUMBER}, // rtag-ttag indicator
-    {"reset_flag",    6,  1, FT_NUMBER},
-    {"initseq_flag",  7,  1, FT_NUMBER},
+    {"rt_flag",       4,  1, FT_NUMBER}, // rtag-ttag indicator
+    {"reset_flag",    5,  1, FT_NUMBER},
+    {"initseq_flag",  6,  1, FT_NUMBER},
     {"resv",          0, 16, FT_NUMBER}, // reserved bits
     {"seqnum",       16, 16, FT_NUMBER}, // just the sequence number
     {"tpid",         32, 16, FT_NEXTHEADER}, // next protocol id (ethertype)
@@ -161,9 +161,9 @@ static const struct ProtocolField rtag_fields[] = {
 };
 
 static const struct ProtocolField ttag_fields[] = {
-    {"rt_flag",       5,  1, FT_NUMBER}, // rtag-ttag indicator
-    {"reset_flag",    6,  1, FT_NUMBER},
-    {"initseq_flag",  7,  1, FT_NUMBER},
+    {"rt_flag",       4,  1, FT_NUMBER}, // rtag-ttag indicator
+    {"reset_flag",    5,  1, FT_NUMBER},
+    {"initseq_flag",  6,  1, FT_NUMBER},
     {"resv",          0, 16, FT_NUMBER}, // reserved bits
     {"tstampnum",    11, 21, FT_NUMBER}, // just the timestamp
     {"tpid",         32, 16, FT_NEXTHEADER}, // next protocol id (ethertype)
@@ -178,18 +178,18 @@ static const struct ProtocolField mpls_fields[] = {
 };
 
 static const struct ProtocolField dcw_fields[] = {
-    {"rt_flag",       5,  1, FT_NUMBER}, // rtag-ttag indicator
-    {"reset_flag",    6,  1, FT_NUMBER},
-    {"initseq_flag",  7,  1, FT_NUMBER},
+    {"rt_flag",       4,  1, FT_NUMBER}, // rtag-ttag indicator
+    {"reset_flag",    5,  1, FT_NUMBER},
+    {"initseq_flag",  6,  1, FT_NUMBER},
     {"resv",          0, 16, FT_NUMBER}, // reserved bits
     {"seqnum",       16, 16, FT_NUMBER}, // just the sequence number
     {"seq",           0, 32, FT_TSNSEQ}, // sequence and the flags in reserved
 };
 
 static const struct ProtocolField tcw_fields[] = {
-    {"rt_flag",       5,  1, FT_NUMBER}, // rtag-ttag indicator
-    {"reset_flag",    6,  1, FT_NUMBER},
-    {"initseq_flag",  7,  1, FT_NUMBER},
+    {"rt_flag",       4,  1, FT_NUMBER}, // rtag-ttag indicator
+    {"reset_flag",    5,  1, FT_NUMBER},
+    {"initseq_flag",  6,  1, FT_NUMBER},
     {"resv",          0, 16, FT_NUMBER}, // reserved bits
     {"tstampnum",    11, 21, FT_NUMBER}, // just the timestamp
     {"tstamp",        0, 32, FT_TSNTSTAMP}, // timestamp and the flags in reserved
