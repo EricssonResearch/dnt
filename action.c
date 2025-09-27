@@ -258,11 +258,6 @@ static enum ActionResult action_ELIM_execute(struct Action *a, struct PipelineIt
     struct ElimData *ed = (struct ElimData *)a->action_private;
     struct Packet *p = pi->packet;
 
-    if (!packet_is_linear(p)) {
-        log_error("OAM packet is not continuous in memory");
-        return ACR_CONTINUE; //TODO ACR_DONE ?
-    }
-
     if (ed->protostack) {
         if (ed->protostack[0] == PROTO_ID_ETH) {
             // we have TSN
@@ -271,6 +266,11 @@ static enum ActionResult action_ELIM_execute(struct Action *a, struct PipelineIt
                 bool packet_is_oam = (rtag_hdr[0] & 0xf0) == 0x10;
 
                 if (packet_is_oam) {
+                    if (!packet_is_linear(p)) {
+                        log_error("OAM packet is not continuous in memory");
+                        return ACR_CONTINUE; //TODO ACR_DONE ?
+                    }
+
                     unsigned char *p_smac = p->buf + p->headers[0].start + 6;
                     unsigned char *p_seq = p->buf + p->headers[ed->rtag_index].start + 1;
                     unsigned char *p_sessionid = p->buf + p->headers[ed->rtag_index].start + 3;
@@ -295,6 +295,11 @@ static enum ActionResult action_ELIM_execute(struct Action *a, struct PipelineIt
             // we have DetNet PseudoWire
             if (SEQ_IS_OAM(p->sequence)) { //TODO what if READSEQ used a different header?
                                            // TODO support >1 mpls label
+                if (!packet_is_linear(p)) {
+                    log_error("OAM packet is not continuous in memory");
+                    return ACR_CONTINUE; //TODO ACR_DONE ?
+                }
+
                 INTERPRET_DACH(p->buf + p->headers[1].start);
                 char nodeid_str[10];
                 snprintf(nodeid_str, sizeof(nodeid_str), "%u", dach.nodeid);
