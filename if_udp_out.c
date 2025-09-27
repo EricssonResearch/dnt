@@ -114,17 +114,23 @@ static bool udpout_open(struct Interface *iface)
     uid->ifindex = if_idx.ifr_ifindex;
 
     if (uid->family == AF_INET6) {
-        if (uid->sport) {
-            struct sockaddr_in6 addr6;
-            memset(&addr6, 0, sizeof(addr6));
-            addr6.sin6_family = AF_INET6;
-            addr6.sin6_addr = in6addr_any;
-            addr6.sin6_port = htons(uid->sport);
-            if (bind(sock, (struct sockaddr*)&addr6, sizeof(addr6)) < 0) {
-                log_perror("udp-out bind sock udp6 src port %u", uid->sport);
-                close(sock);
-                return false;
-            }
+        // getsockname only works on bound sockets
+        // if we bind to port=0 we get an ephemeral port like without bind
+        struct sockaddr_in6 addr6;
+        memset(&addr6, 0, sizeof(addr6));
+        addr6.sin6_family = AF_INET6;
+        addr6.sin6_addr = in6addr_any;
+        addr6.sin6_port = htons(uid->sport);
+        if (bind(sock, (struct sockaddr*)&addr6, sizeof(addr6)) < 0) {
+            log_perror("udp-out bind sock udp6 src port %u", uid->sport);
+            close(sock);
+            return false;
+        }
+        socklen_t alen = sizeof(addr6);
+        if (getsockname(sock, (struct sockaddr*)&addr6, &alen) < 0) {
+            log_perror("udp-out getsockname failed");
+        } else {
+            uid->sport = ntohs(addr6.sin6_port);
         }
 
         int tos = (uid->priority & 7) << 5;
@@ -149,17 +155,23 @@ static bool udpout_open(struct Interface *iface)
         uid->dstaddr_size = sizeof(struct sockaddr_in6);
         uid->dstaddr = (struct sockaddr*)d6;
     } else {
-        if (uid->sport) {
-            struct sockaddr_in addr4;
-            memset(&addr4, 0, sizeof(addr4));
-            addr4.sin_family = AF_INET;
-            addr4.sin_addr.s_addr = htonl(INADDR_ANY);
-            addr4.sin_port = htons(uid->sport);
-            if (bind(sock, (struct sockaddr*)&addr4, sizeof(addr4)) < 0) {
-                log_perror("udp-out bind sock udp4 src port %u", uid->sport);
-                close(sock);
-                return false;
-            }
+        // getsockname only works on bound sockets
+        // if we bind to port=0 we get an ephemeral port like without bind
+        struct sockaddr_in addr4;
+        memset(&addr4, 0, sizeof(addr4));
+        addr4.sin_family = AF_INET;
+        addr4.sin_addr.s_addr = htonl(INADDR_ANY);
+        addr4.sin_port = htons(uid->sport);
+        if (bind(sock, (struct sockaddr*)&addr4, sizeof(addr4)) < 0) {
+            log_perror("udp-out bind sock udp4 src port %u", uid->sport);
+            close(sock);
+            return false;
+        }
+        socklen_t alen = sizeof(addr4);
+        if (getsockname(sock, (struct sockaddr*)&addr4, &alen) < 0) {
+            log_perror("udp-out getsockname failed");
+        } else {
+            uid->sport = ntohs(addr4.sin_port);
         }
 
         int tos = (uid->priority & 7) << 5;
