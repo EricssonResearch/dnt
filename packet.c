@@ -45,6 +45,26 @@ struct Packet *new_packet(struct Interface *from)
     return ret;
 }
 
+struct Packet *new_packet_fast(struct Interface *from)
+{
+    if (!dummybuf) dummybuf = (unsigned char *)calloc(1, PACKET_BUF_LEN);
+
+    struct Packet *ret = calloc_struct(Packet);
+    if (packet_count >= PACKET_COUNT_LIMIT) {
+        ret->buf = dummybuf;
+    } else {
+        ret->buf = (unsigned char *)malloc(PACKET_BUF_LEN); // faster than calloc
+        __atomic_fetch_add(&packet_count, 1, __ATOMIC_RELAXED);
+    }
+    // note: malloc returns pointers aligned to be suitable for long double
+    // this offset is divisible with 4, so the start position is okay
+    ret->start = PACKET_START_OFFSET;
+    ret->from = from;
+    ret->id = __atomic_fetch_add(&next_packet_id, 1, __ATOMIC_RELAXED);
+    ret->original_id = ret->id;
+    return ret;
+}
+
 struct Packet *delete_packet(struct Packet *p)
 {
     if (!p) return NULL;

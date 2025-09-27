@@ -183,7 +183,7 @@ bool enable_so_txtime(int sock, const char *sockname, const char *ifname, bool d
 
 struct Packet *iface_common_recv(struct Interface *iface, msghdr_process_cb *msg_cb, void *userdata)
 {
-    struct Packet *p = new_packet(iface);
+    struct Packet *p = new_packet_fast(iface);
 
     char control[1000]
         __attribute__ ((aligned(__alignof__(struct cmsghdr))));
@@ -223,6 +223,8 @@ struct Packet *iface_common_recv(struct Interface *iface, msghdr_process_cb *msg
     } else {
         return delete_packet(p);
     }
+
+    memset(p->buf, 0, PACKET_START_OFFSET); // clear scratch
 
     __atomic_add_fetch(&iface->recv_packets, 1, __ATOMIC_RELAXED);
     __atomic_add_fetch(&iface->recv_octets, p->len, __ATOMIC_RELAXED);

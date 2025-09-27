@@ -71,8 +71,14 @@ struct Packet {
     struct timespec delay;
 };
 
-// returns a newly allocated packet that has its own buffer
+// @returns a newly allocated packet that has its own buffer
+// the buffer is dummy, if there are too many packets already
 struct Packet *new_packet(struct Interface *from);
+
+// @returns a newly allocated packet that has its own buffer
+// the buffer is dummy, if there are too many packets already
+// this version doesn't init the buffer to improve receive latency
+struct Packet *new_packet_fast(struct Interface *from);
 
 // always @returns NULL
 struct Packet *delete_packet(struct Packet *p);
