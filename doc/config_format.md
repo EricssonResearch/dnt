@@ -97,17 +97,19 @@ The actions that manipulate the packet refer to the headers by their names. The 
 
 All headers must be specified in the `packet` line that are to be used in the `match` or `actions` line. The packet is only processed until the last header defined in the `packet` line, and the rest of the packet is considered `payload` that cannot be manipulated by the actions. If the last header before the `payload` specifies the type of the next header, then the type of the payload will be handled correctly when adding a new header just before the payload (the nextheader field of the new header will be set correctly), but no action can manipulate the `payload` directly.
 
+Note that incoming packets are not guaranteed to contain the headers listed in the *packet* line. Field matching can be used to resolve the ambiguities (e.g. match on the *nextheader* field for the desired protocol type) before performing the stream matching.
+
 ### match
 
-Separate from the packet structure definition there is a line that specifies which header field values identify the stream.
+Separate from the packet structure definition, there is a line that specifies which header field values identify the stream.
 
-Value matching for header fields is done with the following syntax: `headername fieldname=fieldvalue [fieldname=fieldvalue]`. It is possible to match multiple fields of the same header, separated by space. The header names used in this line refer to the names assigned in the `packet` line. Match specifications for different headers are separated by commas (,).
+Value matching for header fields is done with the following syntax: `headername fieldname=fieldvalue [fieldname=fieldvalue]`. Negative matching is also supported as `fieldname!=fieldvalue`. It is possible to match multiple fields of the same header, separated by space. The header names used in this line refer to the names assigned in the `packet` line. Match specifications for different headers are separated by commas (,). There can be no whitespace around the `=` and `!=` operators.
 
-The matches for a stream are processed in the order they are given.
+The matches for a stream are processed in the order they are given. The matches don't have to be in the order of the headers in the *packet* line.
 
 If there is no matching stream for an incoming packet, it is dropped.
 
-The fieldvalues accepted by the matching follow the same rules as the constants in the assignments of the `edit` action, with one addition: prefix matching is supported on MAC, IPv4, IPv6 addresses with the format `address/prefix`.
+The `fieldvalue` in *match* follows the same rules as the constants in the assignments of the `edit` action, with one addition: prefix matching is supported on MAC, IPv4, IPv6 addresses with the format `address/prefix`.
 
 ### actions
 
@@ -122,7 +124,7 @@ The available actions are the following:
 * `del header` removes the given header from the packet
 * `delay delay [offload]` puts the packet in a delay buffer, where it will be kept until the specified *delay* milliseconds have passed since the timestamp value of the packet; the *delay* should be between 0 and 2000 ms and it can be a float value as well; there is an optional `offload` parameter; when `offload` is set, it will use an external delay mechanism provided by the OS, for example ETF qdisc; however if `offload` is set and ETF is not configured, no packets will be delayed; we assume that ETF qdisc is configured on the interface; the delay is influenced by the ETF's delta; the ETF qdisc will schedule its next wake-up time for the next packet's txtime minus the delta value; precision of the actual delay depends on the software configuration and the ETF hardware `offload` support; in hardware `offload` case the system clock and the network interface's clock must be synchronized
 * `drop` unconditionally drops the packet; no further actions can be in the pipeline
-* `edit header.fieldname=newvalue` changes the given field of the given header; multiple fields can be edited at once (separated by space), can edit multiple headers, can edit headers created by `add`; the right-hand-side of the edit expression can be
+* `edit header.fieldname=newvalue` changes the given field of the given header; multiple fields can be edited at once (separated by space), can edit multiple headers, can edit headers created by `add`, no space allowed around the `=` operator; the right-hand-side of the edit expression can be
     * constant:  format must be appropriate for the field type
         * numbers can be given in decimal, octal, hexadecimal (they are always unsigned)
         * 1 bit values can be 0/1, true/false, yes/no

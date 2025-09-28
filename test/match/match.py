@@ -67,6 +67,13 @@ pkts_bad_stack = [
     Ether(dst="aa:bb:fc:fa:bb:cc")/Dot1Q(vlan=2065)/Dot1Q(vlan=3999)/IP(src="2.2.2.2",dst="6.6.6.6")/UDP()/MPLS(label=4444)/IPv6(src="dead::face", dst="dead::cafe"), # s40 but cvlan instead of svlan
 ]
 
+pkts_good_neg = [
+    Ether()/Dot1Q(vlan=2025)/IPv6(src="beef:dead:face::face", dst="cafe::cafe")/UDP(), # s50
+    Ether()/Dot1Q(vlan=2025)/IPv6(src="beef:dead:face::face", dst="cead:cafe::cafe")/UDP(), # s50
+]
+pkts_bad_neg = [
+    Ether()/Dot1Q(vlan=2025)/IPv6(src="beef:dead:face::face", dst="dead:cafe::cafe")/UDP(), # s50 but wrong dst
+]
 
 def start_r2dtwo():
     return exec_bg("../r2dtwo match/match.ini")
@@ -137,6 +144,7 @@ def main():
             ["IPv4", pkts_good_ipv4, pkts_bad_ipv4],
             ["IPv6", pkts_good_ipv6, pkts_bad_ipv6],
             ["Large stack", pkts_good_stack, pkts_bad_stack],
+            ["Negative", pkts_good_neg, pkts_bad_neg],
             ]
     config_ifaces()
     start_r2dtwo()

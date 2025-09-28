@@ -91,6 +91,11 @@ static bool process_match_token(char *token, void *userdata)
         // parse the match
         char *key, *val;
         if (parse_assignment(token, &key, &val)) {
+            bool neg = false;
+            if (val > token+2 && val[-2] == '!') {
+                neg = true;
+                val[-2] = 0; // last char of key
+            }
             const struct ProtocolField *f =  protocol_get_field_by_name(stst->current_header->id, key);
             if (f == NULL) {
                 THROW("invalid field %s", key);
@@ -99,6 +104,7 @@ static bool process_match_token(char *token, void *userdata)
             struct HeaderMatch *newmatch = calloc_struct(HeaderMatch);
             newmatch->next = stst->current_header->matches;
             stst->current_header->matches = newmatch;
+            newmatch->neg = neg;
             struct HeaderField *hf = new_headerfield(stst->current_idx, f);
             newmatch->field = *hf;
             free(hf);

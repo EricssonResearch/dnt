@@ -17,6 +17,7 @@ struct HeaderMatch {
     struct HeaderField field;
     struct Value value; // currently always a constant
     value_comparator *comparator;
+    bool neg;
 
     struct HeaderMatch *next;
 };

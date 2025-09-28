@@ -263,7 +263,8 @@ static bool parsetree_match_header(const struct HeaderMatch *fields, const struc
 {
     const struct HeaderMatch *f = fields;
     while (f) {
-        if (!f->comparator(&f->field, &f->value, p)) return false;
+        bool cmp = f->comparator(&f->field, &f->value, p) ^ f->neg;
+        if (!cmp) return false;
         f = f->next;
     }
     return true;
