@@ -17,6 +17,7 @@
 #include <sys/eventfd.h>
 
 DEFAULT_LOGGING_MODULE(INTERFACE, INFO);
+LOGGING_MODULE(PACKETTRACE, WARNING);
 
 // fifo queue implemented as a circular linked list
 struct PacketFifo {
@@ -97,7 +98,7 @@ static bool int_send(struct Interface *iface, struct Packet *p)
     }
 
     struct PacketFifo *pf = (struct PacketFifo *)iface->iface_private;
-    packet_logcat(p, "%s ", iface->name);
+    PACKET_LOGCAT(p, "%s ", iface->name);
 
     __atomic_add_fetch(&iface->send_packets, 1, __ATOMIC_RELAXED);
     __atomic_add_fetch(&iface->send_octets, packet_length(p), __ATOMIC_RELAXED);

@@ -24,6 +24,7 @@
 #include <linux/if_packet.h> /* struct sockaddr_ll */
 
 DEFAULT_LOGGING_MODULE(INTERFACE, INFO);
+LOGGING_MODULE(PACKETTRACE, WARNING);
 
 struct IpIfData {
     int sock4;
@@ -51,7 +52,7 @@ static bool ip_recv(struct Interface *iface)
     if((htons(*ethertype) != ETH_P_IPV6) && (htons(*ethertype) != ETH_P_IP)) {
         if (htons(*ethertype) == ETH_P_8021Q || htons(*ethertype) == ETH_P_8021AD)
             log_warning("VLAN tagged packet received on IP interface %s, open it on the VLAN interface?", iface->name);
-        packet_logcat(p, "%s %u not IPv4/IPv6 (%x), drop.", iface->name, p->len, htons(*ethertype));
+        PACKET_LOGCAT(p, "%s %u not IPv4/IPv6 (%x), drop.", iface->name, p->len, htons(*ethertype));
         return delete_packet(p);
     }
 
@@ -60,7 +61,7 @@ static bool ip_recv(struct Interface *iface)
     p->len -= 14;
 
     //dump_packet((char*)(p->buf + p->start), p->len);
-    packet_logcat(p, "%s %u ", iface->name, p->len);
+    PACKET_LOGCAT(p, "%s %u ", iface->name, p->len);
     return iface_common_process(iface, p);
 }
 

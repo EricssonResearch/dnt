@@ -6,6 +6,7 @@
 #include "seq_gen.h"
 #include "action.h"
 #include "json.h"
+#include "log.h"
 #include "notification.h"
 #include "packet.h"
 #include "pipeline.h"
@@ -19,6 +20,8 @@
 #include <arpa/inet.h> /* htonl() */
 
 #define FRER_SEQ_GEN_RESET_FLAG_COUNT 3
+
+LOGGING_MODULE(PACKETTRACE, WARNING);
 
 struct SequenceGenerator {
     struct PipelineObject base;
@@ -113,7 +116,7 @@ static enum ActionResult seq_generator(struct PipelineObject *gen, struct Pipeli
 {
     struct SequenceGenerator *g = (struct SequenceGenerator *)gen;
     unsigned new_seq = sequence_generation(g);
-    packet_logcat(pi->packet, "(%u) ", new_seq & 0xffff);
+    PACKET_LOGCAT(pi->packet, "(%u) ", new_seq & 0xffff);
     pi->packet->sequence = htonl(new_seq);
     return ACR_CONTINUE;
 }

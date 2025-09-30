@@ -444,11 +444,11 @@ static void test_logbuf(void)
     OK_FATAL(p != NULL, "have packet");
     OK_FATAL(p->buf != NULL, "have packet buffer");
 
-    packet_logcat(p, "by default the packettrace is disabled");
+    _packet_logcat(p, "by default the packettrace is disabled");
     log_set_level("PACKETTRACE", PACKET);
-    packet_logcat(p, "now %s", "we");
-    packet_logcat(p, " are");
-    packet_logcat(p, " %ding", 1099);
+    _packet_logcat(p, "now %s", "we");
+    _packet_logcat(p, " are");
+    _packet_logcat(p, " %ding", 1099);
 
     OK(strcmp(p->logbuf, "now we are 1099ing") == 0, "log '%s'", p->logbuf);
 

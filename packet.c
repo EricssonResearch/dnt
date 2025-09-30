@@ -259,11 +259,8 @@ void packets_check_performance(void)
     }
 }
 
-void packet_logcat(struct Packet *p, const char *frmt, ...)
+void _packet_logcat(struct Packet *p, const char *frmt, ...)
 {
-    if (!log_enabled_m(PACKETTRACE, PACKET))
-        return;
-
     char msg[PACKET_LOG_BUF_SIZE - 1];
     va_list argp;
 

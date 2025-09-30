@@ -35,6 +35,7 @@
 #include <linux/version.h>
 
 DEFAULT_LOGGING_MODULE(INTERFACE, INFO);
+LOGGING_MODULE(PACKETTRACE, WARNING);
 
 #define PKT_DROP_WARNING_THRESHOLD 10
 #define PKT_DROP_WARNING_INTERVAL_SEC 5
@@ -318,7 +319,7 @@ bool iface_common_send(struct Interface *iface, struct Packet *p, int socket, vo
     }
 #endif
 
-    packet_logcat(p, "%s ", iface->name);
+    PACKET_LOGCAT(p, "%s ", iface->name);
 
     __atomic_add_fetch(&iface->send_packets, 1, __ATOMIC_RELAXED);
     __atomic_add_fetch(&iface->send_octets, packet_length(p), __ATOMIC_RELAXED);

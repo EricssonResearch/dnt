@@ -30,6 +30,7 @@
 #include <linux/rtnetlink.h>
 
 DEFAULT_LOGGING_MODULE(INTERFACE, INFO);
+LOGGING_MODULE(PACKETTRACE, WARNING);
 
 struct SenderList {
     unsigned port;
@@ -415,7 +416,7 @@ static bool udpin_recv(struct Interface *iface)
 
     struct Packet *p = iface_common_recv(iface, NULL, NULL);
     if (p == NULL) return false;
-    packet_logcat(p, "%s %u ", iface->name, p->len);
+    PACKET_LOGCAT(p, "%s %u ", iface->name, p->len);
     return iface_common_process(iface, p);
 }
 

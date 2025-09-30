@@ -28,6 +28,7 @@
 #include <linux/filter.h> /* eBPF */
 
 DEFAULT_LOGGING_MODULE(INTERFACE, INFO);
+LOGGING_MODULE(PACKETTRACE, WARNING);
 
 struct EthIfData {
     int ifindex;
@@ -83,7 +84,7 @@ static bool eth_recv(struct Interface *iface)
         p_vlan[0] = htons(ETH_P_8021Q);
         p_vlan[1] = 0;
     }
-    packet_logcat(p, "%s %u ", iface->name, p->len);
+    PACKET_LOGCAT(p, "%s %u ", iface->name, p->len);
 
     return iface_common_process(iface, p);
 }

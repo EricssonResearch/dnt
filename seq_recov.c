@@ -31,6 +31,7 @@
 
 DEFAULT_LOGGING_MODULE(RCVY, WARNING);
 LOGGING_MODULE(DIAGNOSTIC, WARNING);
+LOGGING_MODULE(PACKETTRACE, WARNING);
 
 struct MaskState {
     bool masked;
@@ -375,9 +376,9 @@ static enum ActionResult seq_recovery(struct PipelineObject *r, struct PipelineI
     }
     //TODO release mutex
     if (accept){
-        packet_logcat(p, "(%d pass) ", seq);
+        PACKET_LOGCAT(p, "(%d pass) ", seq);
     } else {
-        packet_logcat(p, "(%d drop) ", seq);
+        PACKET_LOGCAT(p, "(%d drop) ", seq);
     }
     return accept ? ACR_CONTINUE : ACR_DONE;
 }
@@ -690,9 +691,9 @@ enum ActionResult oam_recovery(struct PipelineObject *obj, struct Packet *p, con
         accept = match_seq_recovery(oam_rec, seq);
     }
     if (accept) {
-        packet_logcat(p, "(OAM %d pass) ", seq);
+        PACKET_LOGCAT(p, "(OAM %d pass) ", seq);
     } else {
-        packet_logcat(p, "(OAM %d drop) ", seq);
+        PACKET_LOGCAT(p, "(OAM %d drop) ", seq);
     }
 
     return accept ? ACR_CONTINUE : ACR_DONE;

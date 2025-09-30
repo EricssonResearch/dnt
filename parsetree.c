@@ -16,6 +16,7 @@
 #include <string.h>
 
 DEFAULT_LOGGING_MODULE(PARSER, WARNING);
+LOGGING_MODULE(PACKETTRACE, WARNING);
 
 
 static struct HeaderMatch *delete_match_list(struct HeaderMatch *matches)
@@ -300,13 +301,13 @@ struct PipelineIterator *parsetree_identify(struct ParseTree *pt, struct Packet 
             packet_identify_header(p, PROTO_ID_PAYLOAD, offset, p->len-offset);
 
             log_packet("identified %u headers, pipe %s", p->header_count, s->pipe->name);
-            packet_logcat(p, "%s ", s->pipe->name);
+            PACKET_LOGCAT(p, "%s ", s->pipe->name);
             for (unsigned i=0; i<p->header_count; i++) {
                 log_packet("  header %u is %s at %u len %u", i,
                         protocol_from_id(p->headers[i].type)->name, p->headers[i].start, p->headers[i].len);
-                packet_logcat(p, "|%s", protocol_from_id(p->headers[i].type)->name);
+                PACKET_LOGCAT(p, "|%s", protocol_from_id(p->headers[i].type)->name);
             }
-            packet_logcat(p, "| ");
+            PACKET_LOGCAT(p, "| ");
             s->match_packets++;
             s->match_octets += packet_length(p);
 
@@ -315,7 +316,7 @@ struct PipelineIterator *parsetree_identify(struct ParseTree *pt, struct Packet 
     }
 
     log_packet("no pipeline found, unknown stream");
-    packet_logcat(p, "unknown stream");
+    PACKET_LOGCAT(p, "unknown stream");
     pt->nomatch_packets++;
     pt->nomatch_octets += packet_length(p);
     return NULL;

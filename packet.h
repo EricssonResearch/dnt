@@ -63,7 +63,6 @@ struct Packet {
     unsigned ttl;
 
     // log buffer for packet logging
-    // TODO: dynamic allocation in packet_logcat
     char logbuf[PACKET_LOG_BUF_SIZE];
 
     // filled by the delay action
@@ -140,7 +139,13 @@ bool packet_is_linear(const struct Packet *p);
 void packets_check_performance(void);
 
 // append text messages to the packet's log buffer
-void packet_logcat(struct Packet *p, const char *frmt, ...)
+// must declare the PACKETTRACE log module wherever this is used
+#define PACKET_LOGCAT(...) \
+    if (log_enabled_m(PACKETTRACE, PACKET)) \
+            _packet_logcat(__VA_ARGS__)
+
+// private, use PACKET_LOGCAT
+void _packet_logcat(struct Packet *p, const char *frmt, ...)
     __attribute__((format(printf, 2, 3)))
     __attribute__((nonnull(2)));
 
