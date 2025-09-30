@@ -438,17 +438,19 @@ static void test_copy(void)
     OK(delete_packet(ccp) == NULL, "always returns null");
 }
 
+LOGGING_MODULE(PACKETTRACE, WARNING);
+
 static void test_logbuf(void)
 {
     struct Packet *p = new_packet((struct Interface *)42);
     OK_FATAL(p != NULL, "have packet");
     OK_FATAL(p->buf != NULL, "have packet buffer");
 
-    _packet_logcat(p, "by default the packettrace is disabled");
+    PACKET_LOGCAT(p, "by default the packettrace is disabled");
     log_set_level("PACKETTRACE", PACKET);
-    _packet_logcat(p, "now %s", "we");
-    _packet_logcat(p, " are");
-    _packet_logcat(p, " %ding", 1099);
+    PACKET_LOGCAT(p, "now %s", "we");
+    PACKET_LOGCAT(p, " are");
+    PACKET_LOGCAT(p, " %ding", 1099);
 
     OK(strcmp(p->logbuf, "now we are 1099ing") == 0, "log '%s'", p->logbuf);
 
