@@ -275,14 +275,26 @@ bool iface_common_send(struct Interface *iface, struct Packet *p, int socket, vo
     msg.msg_name = dst;
     msg.msg_namelen = dstlen;
 
-    //TODO optimization: merge headers if h[i+1].start = h[i].start+h[i].len
     struct iovec iov[PACKET_MAX_HEADER_NUM];
+    // merge headers if they are continuous
+    unsigned hcount = 0;
     for (unsigned i=0; i<p->header_count; i++) {
-        iov[i].iov_base = p->buf + p->headers[i].start;
-        iov[i].iov_len = p->headers[i].len;
+        if (i) {
+            if (p->headers[i].start == p->headers[i-1].start + p->headers[i-1].len) {
+                iov[hcount-1].iov_len += p->headers[i].len;
+            } else {
+                iov[hcount].iov_base = p->buf + p->headers[i].start;
+                iov[hcount].iov_len = p->headers[i].len;
+                hcount++;
+            }
+        } else {
+            iov[0].iov_base = p->buf + p->headers[0].start;
+            iov[0].iov_len = p->headers[0].len;
+            hcount = 1;
+        }
     }
     msg.msg_iov = iov;
-    msg.msg_iovlen = p->header_count;
+    msg.msg_iovlen = hcount;
 
 // ntp_gettime is available since glibc 2.1 version but the ABI
 // was different, since "struct ntptimeval" had no "tai" member

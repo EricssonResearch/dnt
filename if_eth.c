@@ -52,7 +52,9 @@ static void restore_vlan(struct msghdr *msg, struct Packet *p, void *userdata)
 
                     if (aux->tp_status & TP_STATUS_VLAN_VALID) {
                         //printf("restoring vlan header in the packet\n");
-                        memmove(p->buf + p->start - 4, p->buf + p->start, 2*6);
+                        for (unsigned i=0; i<2*6; i++) {
+                            p->buf[p->start - 4 + i] = p->buf[p->start + i];
+                        }
                         p->start -= 4;
                         p->len += 4;
                         uint16_t *vlan = (uint16_t*)(p->buf + p->start + 2*6);
