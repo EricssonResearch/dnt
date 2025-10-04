@@ -32,8 +32,10 @@ static void *thread_exit_func(void *arg)
     usleep(1000*100); // make sure the assignment to param->th is done
     thread_stop(param->th); // should do nothing
     thread_join(param->th); // should do nothing
-    param->counter = 21;
+    if (thread_same(param->th))
+            param->counter = 21;
     thread_exit(param->th);
+    param->counter = 39; // should not be reached
     return NULL;
 }
 

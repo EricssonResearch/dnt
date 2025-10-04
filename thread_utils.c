@@ -115,7 +115,7 @@ void thread_exit(struct Thread *thread)
     free(thread->name);
     free(thread);
     pthread_detach(tid);
-    pthread_cancel(tid);
+    pthread_exit(NULL); // there is no way of catching this return value
 }
 
 struct Thread *thread_join(struct Thread *thread)
@@ -125,7 +125,7 @@ struct Thread *thread_join(struct Thread *thread)
     log_debug("joining thread '%s'", thread->name);
     // we could check for a returned error code, but
     // we cannot do anything about any of the possible errors :(
-    pthread_join(thread->tid, NULL);
+    pthread_join(thread->tid, NULL); //TODO capture and return the return value?
     free(thread->name);
     free(thread);
     return NULL;
@@ -137,6 +137,11 @@ void thread_wakeup(const struct Thread *thread)
         log_debug("waking up thread '%s'", thread->name);
         pthread_kill(thread->tid, SIGALRM);
     }
+}
+
+int thread_same(const struct Thread *thread)
+{
+    return thread->tid == pthread_self();
 }
 
 const char *thread_getname(const struct Thread *thread)

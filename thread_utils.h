@@ -50,6 +50,9 @@ struct Thread *thread_join(struct Thread *thread);
 // send alarm signal for a thread
 void thread_wakeup(const struct Thread *thread);
 
+// @returns true if called from @thread
+int thread_same(const struct Thread *thread);
+
 // returns the name of the thread
 const char *thread_getname(const struct Thread *thread);
 
