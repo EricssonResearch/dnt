@@ -1,3 +1,5 @@
+[![pipeline status](https://gitlab.rosetta.ericssondevops.com/gftl-er-tsn/tsn/r2dtwo/badges/main/pipeline.svg)](https://gitlab.rosetta.ericssondevops.com/gftl-er-tsn/tsn/r2dtwo/-/commits/main)  [![Latest Release](https://gitlab.rosetta.ericssondevops.com/gftl-er-tsn/tsn/r2dtwo/-/badges/release.svg)](https://gitlab.rosetta.ericssondevops.com/gftl-er-tsn/tsn/r2dtwo/-/releases)
+
 # R2DTWO: Reliable & Robust Deterministic Tool for netWOrking
 
 R2DTWO is a generic userspace deterministic networking toolbox.
