@@ -8,6 +8,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <signal.h>
+
 TEST_INIT("Thread Utils");
 
 //TODO we have to be careful, testing.h is not thread-safe!
@@ -49,8 +51,32 @@ static void *thread_join_func(void *arg)
     return NULL;
 }
 
+static void *thread_wakeup_func(void *arg)
+{
+    struct ThreadTestParam *param = (struct ThreadTestParam *)arg;
+    sleep(2000);
+    param->counter = 27;
+    thread_exit(param->th);
+    return NULL;
+}
+
+static int sigusr2_count = 0;
+static void sigusr2_handler(int sig, siginfo_t *si, void *uc)
+{
+    (void)sig;
+    (void)si;
+    (void)uc;
+    sigusr2_count++;
+}
+
 static void test_thread(void)
 {
+    struct sigaction sa;
+    sa.sa_flags = SA_SIGINFO;
+    sa.sa_sigaction = sigusr2_handler;
+    sigemptyset(&sa.sa_mask);
+    OK_FATAL(sigaction(SIGUSR2, &sa, NULL) == 0, "failed to install handler for SIGUSR2");
+
     struct ThreadTestParam param1;
     param1.counter = 0;
     param1.th = thread_launch(thread_func, &param1, "test thread %d", param1.counter);
@@ -100,6 +126,19 @@ static void test_thread(void)
     int64_t diff_us = time_diff_us(time2, time1);
     OK(diff_us > 400*1000, "diff %ld", diff_us);
 
+    // thread_wakeup() interrupts the sleeping thread
+    OK(sigusr2_count == 0, "count %d", sigusr2_count);
+    struct ThreadTestParam param5;
+    param5.counter = 0;
+    param5.th = thread_launch(thread_wakeup_func, &param5, "test wakeup");
+    OK_FATAL(param5.th, "have thread object");
+    usleep(1000*1000); // wait for the thread
+    OK(param5.counter == 0, "thread counter %u", param5.counter);
+    thread_wakeup(param5.th);
+    usleep(1000*1000); // wait for the thread
+    OK(param5.counter == 27, "thread counter %u", param5.counter);
+    OK(sigusr2_count == 1, "count %d", sigusr2_count);
+
     OK(id1 != id2, "different id");
     OK(id1 != id3, "different id");
     OK(id2 != id3, "different id");
@@ -108,15 +147,15 @@ static void test_thread(void)
     thread_exit(NULL); // exit NULL thread shouldn't segfault either
 
     log_set_level("THREAD", NONE);
-    struct ThreadTestParam param5;
-    param5.counter = 0;
-    param5.th = thread_launch_priority(thread_func, &param5, 10, "test thread %s", "p");
-    if (param5.th) {
+    struct ThreadTestParam param6;
+    param6.counter = 0;
+    param6.th = thread_launch_priority(thread_func, &param6, 10, "test thread %s", "p");
+    if (param6.th) {
         usleep(1000*500); // wait for the thread
-        OK(param5.counter == 1, "priority thread worked");
-        OK(strcmp(thread_getname(param5.th), "test thread p") == 0, "good name");
-        param5.th = thread_stop(param5.th);
-        OK_FATAL(param5.th == NULL, "thread object gone");
+        OK(param6.counter == 1, "priority thread worked");
+        OK(strcmp(thread_getname(param6.th), "test thread p") == 0, "good name");
+        param6.th = thread_stop(param6.th);
+        OK_FATAL(param6.th == NULL, "thread object gone");
     } else {
         SKIP("need CAP_SYS_NICE for the thread priority test");
     }

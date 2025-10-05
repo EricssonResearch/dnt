@@ -42,14 +42,19 @@ static void sigint_handler(int sig, siginfo_t *si, void *uc)
 
 static void sigusr1_handler(int sig, siginfo_t *si, void *uc)
 {
+    (void)sig;
     (void)si;
     (void)uc;
 
-    if (sig != SIGUSR1)
-        return;
-
     log_info("SIGUSR1 caught, resetting seq generators");
     state_foreach_objects(reset_seq_generator, NULL);
+}
+
+static void sigusr2_handler(int sig, siginfo_t *si, void *uc)
+{
+    (void)sig;
+    (void)si;
+    (void)uc;
 }
 
 static int add_iface_to_epollfd(struct Interface *iface, void *userdata) {
@@ -90,8 +95,10 @@ static void recv_loop(void)
         return;
     }
 
-    if (sigaction(SIGALRM, &sa, NULL) < 0) {    // ignore alarm signal
-        log_perror("sigaction for SIGALRM");
+    // must catch the SIGUSR2 of thread_wakeup()
+    sa.sa_sigaction = sigusr2_handler;
+    if (sigaction(SIGUSR2, &sa, NULL) < 0) {
+        log_perror("sigaction for SIGUSR2");
         return;
     }
 

@@ -47,7 +47,9 @@ void thread_exit(struct Thread *thread);
 // always returns NULL
 struct Thread *thread_join(struct Thread *thread);
 
-// send alarm signal for a thread
+// send SIGUSR2 signal to @thread to wake it up from a syscall like read()
+// important: the default action for this signal is terminate, so you
+//      should install a sigaction handler to catch the signal
 void thread_wakeup(const struct Thread *thread);
 
 // @returns true if called from @thread

@@ -135,7 +135,7 @@ void thread_wakeup(const struct Thread *thread)
 {
     if (thread) {
         log_debug("waking up thread '%s'", thread->name);
-        pthread_kill(thread->tid, SIGALRM);
+        pthread_kill(thread->tid, SIGUSR2);
     }
 }
 
