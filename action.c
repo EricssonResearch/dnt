@@ -437,7 +437,7 @@ static enum ActionResult action_OAMRECEIVE_execute(struct Action *a, struct Pipe
     } else if (ord->protostack[0] == PROTO_ID_IPv6) {
         // we have SRv6 (probably)
         unsigned char *ipv6_outer = p->buf + p->headers[0].start;
-        packet_is_oam = (ipv6_outer[36] & 0x0f) == 0x01; // OAM nibble
+        packet_is_oam = (ipv6_outer[36] & 0x01) == 0x01; // OAM bit
     } else {
         //TODO die?
         return ACR_CONTINUE;

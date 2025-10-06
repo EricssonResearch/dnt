@@ -164,12 +164,24 @@ static uint16_t icmp6_checksum(unsigned char *src,
 static struct JsonValue *unpack_srv6_message(const struct Packet *p)
 {
     if (p->header_count < 3) {
-        log_error("OAM packet doesn't have 2 identified headers (ipv6, ipv6, payload), how was this matched??");
+        log_error("OAM packet doesn't have 2 identified headers (ipv6, ipv6/ipv4/tsn, payload), how was this matched??");
         return NULL;
     }
 
     if (!packet_is_linear(p)) {
         log_error("OAM packet is not continuous in memory");
+        return NULL;
+    }
+
+    // OAM nibble is already checked here, so check next headers (ipv6, icmpv6)
+    unsigned char *ipv6_hdr  = p->buf + p->headers[0].start;
+    if(ipv6_hdr[6] != IPPROTO_IPV6) {
+        log_error("Not IPv6 OAM packet, can not unpack");
+        return NULL;
+    }
+    ipv6_hdr  = p->buf + p->headers[1].start;
+    if(ipv6_hdr[6] != IPPROTO_ICMPV6) {
+        log_error("Not ICMPv6 OAM packet, can not unpack");
         return NULL;
     }
 
@@ -184,6 +196,7 @@ static struct JsonValue *unpack_srv6_message(const struct Packet *p)
         return NULL;
     }
 
+    struct icmp6_hdr* icmp6 = (struct icmp6_hdr*)(p->buf + p->headers[2].start);
     // json is after the ICMPv6 header in payload
     char *json_str = (char*)(p->buf + p->headers[2].start + sizeof(struct icmp6_hdr));
     unsigned json_len = plen - header_len;
@@ -195,6 +208,8 @@ static struct JsonValue *unpack_srv6_message(const struct Packet *p)
         free(jerror);
         return NULL;
     }
+    json_object_insert(js, "session", json_number(icmp6->icmp6_dataun.icmp6_un_data8[1]));
+    json_object_insert(js, "seq", json_number(icmp6->icmp6_dataun.icmp6_un_data8[3]));
 
     return js;
 }
@@ -239,8 +254,8 @@ static struct JsonValue *pack_srv6_message_header(const struct OAM_MaintenancePo
 
     struct sockaddr_in6 sa6;
     if(inet_pton(AF_INET6, oamif_get_ip(get_default_oam_ip_interface()), &(sa6.sin6_addr)) <= 0) {
-        log_error("OAM interface '%s' does not have IPv6 address.", get_default_oam_ip_interface()->name);
-        memset(&ipv6[8], 0, 16);    // clear source addr.
+        log_warning_once("OAM interface '%s' does not have IPv6 address.", get_default_oam_ip_interface()->name);
+        memset(&ipv6[8], 0, 16);    // source addr ::0 (unknown addr)
     } else
         memcpy(&ipv6[8], &sa6.sin6_addr, 16);
     memset(&ipv6[24], 0, 16); ipv6[39]=1;       // ::1
@@ -265,8 +280,6 @@ static struct JsonValue *pack_srv6_message_header(const struct OAM_MaintenancePo
     // add required fields
     json_object_insert(js, "level", json_number(level));
     json_object_insert(js, "nodeid", json_number(nodeid));
-    json_object_insert(js, "session", json_number(session));
-    json_object_insert(js, "seq", json_number(seq));
 
     struct timespec sendtime;
     clock_gettime(CLOCK_REALTIME, &sendtime);
@@ -362,6 +375,7 @@ static unsigned char get_srv6_ttl(const struct Packet *p)
         return -1;
     }
 
+    // get it from outer header
     unsigned char *ipv6_start = p->buf + p->headers[0].start;
     return ipv6_start[7];
 }
