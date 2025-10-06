@@ -15,8 +15,10 @@ DEFAULT_LOGGING_MODULE(INTERFACE, INFO);
 static void delete_interface(struct Interface *iface)
 {
     iface->close_(iface);
-    thread_wakeup(iface->recv_th_);
-    thread_join(iface->recv_th_);
+    if (iface->recv_th_) {
+        thread_wakeup(iface->recv_th_);
+        thread_join(iface->recv_th_);
+    }
     delete_parsetree(iface->parsetree_);
     free(iface->name);
     free(iface->ifname);
@@ -37,8 +39,11 @@ void iface_unref(struct Interface *iface)
     if (refcount == 0) {
         iface->state = IFS_SHUTDOWN;
         if (iface->sender_count > 0) {
-            iface->parsetree_ = delete_parsetree(iface->parsetree_);//TODO this is not safe
-                                                                    // it might still be in use
+            if (iface->recv_th_) {
+                thread_wakeup(iface->recv_th_);
+                iface->recv_th_ = thread_join(iface->recv_th_);
+            }
+            iface->parsetree_ = delete_parsetree(iface->parsetree_);
         } else {
             delete_interface(iface);
         }
