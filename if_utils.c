@@ -199,7 +199,12 @@ struct Packet *iface_common_recv(struct Interface *iface, msghdr_process_cb *msg
     msg.msg_controllen = sizeof(control);
 
     int res = recvmsg(iface->recvfd, &msg, 0);
-    //printf("recvmsg %d controllen %zu\n", res, msg.msg_controllen);
+    log_debug("recvmsg %d controllen %zu\n", res, msg.msg_controllen);
+    if (iface->state == IFS_SHUTDOWN) {
+        log_debug("recv %s exiting", iface->name);
+        return delete_packet(p);
+    }
+
     if (res < 0) {
         log_perror("recvmsg on %s", iface->name);
         return delete_packet(p);
@@ -227,8 +232,9 @@ struct Packet *iface_common_recv(struct Interface *iface, msghdr_process_cb *msg
 
     memset(p->buf, 0, PACKET_START_OFFSET); // clear scratch
 
-    __atomic_add_fetch(&iface->recv_packets, 1, __ATOMIC_RELAXED);
-    __atomic_add_fetch(&iface->recv_octets, p->len, __ATOMIC_RELAXED);
+    // we don't need atomic, only 1 thread receives
+    iface->recv_packets += 1;
+    iface->recv_octets += p->len;
 
     get_rx_tstamp(&msg, p, userdata);
     log_debug("Used timestamp: %ld.%09ld", p->recv_time.tv_sec, p->recv_time.tv_nsec);
@@ -361,7 +367,8 @@ bool iface_common_send(struct Interface *iface, struct Packet *p, int socket, vo
 bool iface_common_process(struct Interface *iface, struct Packet *p)
 {
     if (iface->parsetree_ == NULL) {
-        iface->parsetree_ = new_parsetree(iface);
+        delete_packet(p);
+        return false;
     }
 
     struct PipelineIterator *pi = parsetree_identify(iface->parsetree_, p);
@@ -477,7 +484,7 @@ struct MonitorState *monitor_error_queue(int socket, int family, const char *nam
     st->socket = socket;
     st->family = family;
 
-    st->thread = thread_launch(socket_monitor_thread, st, "sockmon %s", name);
+    st->thread = thread_launch(socket_monitor_thread, st, "smon %s", name);
     if (st->thread == NULL) {
         log_error("could not create error queue monitoring thread for %s", name);
         free(st);

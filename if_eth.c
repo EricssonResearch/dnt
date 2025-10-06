@@ -10,6 +10,7 @@
 #include "packet.h"
 #include "parsetree.h"
 #include "protocol.h"
+#include "thread_utils.h"
 #include "utils.h"
 
 #include <stdlib.h>
@@ -73,7 +74,8 @@ static bool eth_recv(struct Interface *iface)
     (void)eid;
 
     struct Packet *p = iface_common_recv(iface, restore_vlan, NULL);
-    if (p == NULL) return false;
+    if (p == NULL)
+        return false;
 
     uint16_t *p_vlan = (uint16_t*)(p->buf + p->start + 2*6);
     unsigned short ethertype = ntohs(*p_vlan);
@@ -89,6 +91,16 @@ static bool eth_recv(struct Interface *iface)
     PACKET_LOGCAT(p, "%s %u ", iface->name, p->len);
 
     return iface_common_process(iface, p);
+}
+
+static void *eth_recv_loop(void *arg)
+{
+    struct Interface *iface = (struct Interface *)arg;
+
+    while (iface->state != IFS_SHUTDOWN)
+        eth_recv(iface);
+
+    return NULL;
 }
 
 static bool eth_send(struct Interface *iface, struct Packet *p)
@@ -254,6 +266,7 @@ static bool eth_open(struct Interface *iface)
     iface->dropstat_cntr = 0;
     iface->dropstat_last_warn = 0;
     iface->state = IFS_OPEN;
+    iface->recv_th_ = thread_launch(eth_recv_loop, iface, "rcv %s", iface->name);
     return true;
 }
 
@@ -315,7 +328,6 @@ struct Interface *new_eth_interface(const char *name, const char *ifname)
 {
     _NEW_IFACE(IF_ETH);
     iface->ifname = strdup(ifname);
-    iface->recv = eth_recv;
     iface->send = eth_send;
     iface->open = eth_open;
     iface->close_ = eth_close;

@@ -6,6 +6,7 @@
 #include "log.h"
 #include "parsetree.h"
 #include "pipeline.h"
+#include "thread_utils.h"
 
 #include <stdlib.h>
 
@@ -14,6 +15,8 @@ DEFAULT_LOGGING_MODULE(INTERFACE, INFO);
 static void delete_interface(struct Interface *iface)
 {
     iface->close_(iface);
+    thread_wakeup(iface->recv_th_);
+    thread_join(iface->recv_th_);
     delete_parsetree(iface->parsetree_);
     free(iface->name);
     free(iface->ifname);
@@ -32,9 +35,10 @@ void iface_unref(struct Interface *iface)
     log_debug("%s unref refcount %d senders %d", iface->name, refcount, iface->sender_count);
 
     if (refcount == 0) {
-        iface->parsetree_ = delete_parsetree(iface->parsetree_);
+        iface->state = IFS_SHUTDOWN;
         if (iface->sender_count > 0) {
-            iface->state = IFS_SHUTDOWN;
+            iface->parsetree_ = delete_parsetree(iface->parsetree_);//TODO this is not safe
+                                                                    // it might still be in use
         } else {
             delete_interface(iface);
         }

@@ -41,12 +41,6 @@ struct UdpOutIfData {
     bool opened;
 };
 
-static bool udpout_recv(struct Interface *iface)
-{
-    log_error("udp-out interface %s recv how??", iface->name);
-    return false;
-}
-
 static bool udpout_send(struct Interface *iface, struct Packet *p)
 {
     struct UdpOutIfData *uid = (struct UdpOutIfData *)iface->iface_private;
@@ -342,7 +336,6 @@ struct Interface *new_udp_out_interface(const char *name, const char *ifname,
 {
     _NEW_IFACE(IF_UDP_OUT);
     iface->ifname = strdup(ifname);
-    iface->recv = udpout_recv;
     iface->send = udpout_send;
     iface->open = udpout_open;
     iface->close_ = udpout_close;

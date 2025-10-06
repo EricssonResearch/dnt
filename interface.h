@@ -81,9 +81,9 @@ struct Interface {
     struct timespec last_alert;
 
     struct ParseTree *parsetree_; // private
+    struct Thread *recv_th_; // private
 
     // all of these methods are mandatory
-    iface_recv *recv;
     iface_send *send;
     iface_open *open;
     iface_close *close_;

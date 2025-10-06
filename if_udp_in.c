@@ -415,9 +415,21 @@ static bool udpin_recv(struct Interface *iface)
     (void)uid;
 
     struct Packet *p = iface_common_recv(iface, NULL, NULL);
-    if (p == NULL) return false;
+    if (p == NULL)
+        return false;
+
     PACKET_LOGCAT(p, "%s %u ", iface->name, p->len);
     return iface_common_process(iface, p);
+}
+
+static void *udpin_recv_loop(void *arg)
+{
+    struct Interface *iface = (struct Interface *)arg;
+
+    while (iface->state != IFS_SHUTDOWN)
+        udpin_recv(iface);
+
+    return NULL;
 }
 
 static bool udpin_send(struct Interface *iface, struct Packet *p)
@@ -514,6 +526,7 @@ static bool udpin_open(struct Interface *iface)
 
     iface->recvfd = sock;
     iface->state = IFS_OPEN;
+    iface->recv_th_ = thread_launch(udpin_recv_loop, iface, "rcv %s", iface->name);
     return true;
 }
 
@@ -620,7 +633,6 @@ struct Interface *new_udp_in_interface(const char *name, const char *ifname,
 {
     _NEW_IFACE(IF_UDP_IN);
     iface->ifname = strdup(ifname);
-    iface->recv = udpin_recv;
     iface->send = udpin_send;
     iface->open = udpin_open;
     iface->close_ = udpin_close;

@@ -8,6 +8,7 @@
 #include "log.h"
 #include "packet.h"
 #include "parsetree.h"
+#include "thread_utils.h"
 #include "utils.h"
 
 #include <stdlib.h>
@@ -15,6 +16,7 @@
 
 #include <unistd.h>
 #include <sys/eventfd.h>
+#include <pthread.h>
 
 DEFAULT_LOGGING_MODULE(INTERFACE, INFO);
 LOGGING_MODULE(PACKETTRACE, WARNING);
@@ -24,18 +26,22 @@ struct PacketFifo {
     struct Packet *p;
     struct PacketFifo *prev;
     struct PacketFifo *next;
+    pthread_mutex_t mutex; // only in the sentinel
 };
 
 static struct PacketFifo *new_packetfifo(void)
 {
     // this initial node is a sentinel
-    return calloc_struct(PacketFifo);
+    struct PacketFifo *ret = calloc_struct(PacketFifo);
+    pthread_mutex_init(&ret->mutex, NULL);
+    return ret;
 }
 
 static void packetfifo_insert(struct PacketFifo *pf, struct Packet *p)
 {
     struct PacketFifo *n = calloc_struct(PacketFifo);
     n->p = p;
+    pthread_mutex_lock(&pf->mutex);
     // new element is sentinel->next
     if (pf->next) {
         n->next = pf->next;
@@ -46,11 +52,13 @@ static void packetfifo_insert(struct PacketFifo *pf, struct Packet *p)
         n->prev = n->next = pf;
         pf->prev = pf->next = n;
     }
+    pthread_mutex_unlock(&pf->mutex);
 }
 
 static struct Packet *packetfifo_get(struct PacketFifo *pf)
 {
     // extracted element is sentinel->prev
+    pthread_mutex_lock(&pf->mutex);
     if (pf->prev) {
         struct PacketFifo *del = pf->prev;
         struct Packet *p = del->p;
@@ -62,9 +70,11 @@ static struct Packet *packetfifo_get(struct PacketFifo *pf)
             del->prev->next = del->next;
             del->next->prev = del->prev;
         }
+        pthread_mutex_unlock(&pf->mutex);
         free(del);
         return p;
     } else {
+        pthread_mutex_unlock(&pf->mutex);
         return NULL;
     }
 }
@@ -75,14 +85,30 @@ static bool int_recv(struct Interface *iface)
     struct PacketFifo *pf = (struct PacketFifo *)iface->iface_private;
     uint64_t one;
     int ret = read(iface->recvfd, &one, 8);
-    if (ret < 0)
+    if (iface->state == IFS_SHUTDOWN) {
+        return false;
+    }
+    if (ret < 0) {
         log_perror("read interface %s", iface->name);
+        return false;
+    }
     struct Packet *p = packetfifo_get(pf);
 
-    __atomic_add_fetch(&iface->recv_packets, 1, __ATOMIC_RELAXED);
-    __atomic_add_fetch(&iface->recv_octets, p->len, __ATOMIC_RELAXED);
+    // we receive on a single thread, no need for atomic
+    iface->recv_packets += 1;
+    iface->recv_octets += p->len;
 
     return iface_common_process(iface, p);
+}
+
+static void *int_recv_loop(void *arg)
+{
+    struct Interface *iface = (struct Interface *)arg;
+
+    while (iface->state != IFS_SHUTDOWN)
+        int_recv(iface);
+
+    return NULL;
 }
 
 static bool int_send(struct Interface *iface, struct Packet *p)
@@ -119,9 +145,10 @@ static bool int_open(struct Interface *iface)
         return false;
     }
     notification_register_source(iface->name, iface_notification_pull_fn, iface, 2000);
-    log_info("Internal interface %s", iface->name);
     iface->recvfd = eventfd(0, EFD_SEMAPHORE);
     iface->state = IFS_OPEN;
+    iface->recv_th_ = thread_launch(int_recv_loop, iface, "rcv %s", iface->name);
+    log_info("Internal interface %s", iface->name);
     return true;
 }
 
@@ -129,6 +156,7 @@ static bool int_close(struct Interface *iface)
 {
     struct PacketFifo *pf = (struct PacketFifo *)iface->iface_private;
     struct Packet *p;
+    pthread_mutex_destroy(&pf->mutex); // only the sentinel has this
     while ((p = packetfifo_get(pf)) != NULL) {
         delete_packet(p);
     }
@@ -143,7 +171,6 @@ struct Interface *new_internal_interface(const char *name)
 {
     _NEW_IFACE(IF_INTERNAL);
     iface->ifname = NULL;
-    iface->recv = int_recv;
     iface->send = int_send;
     iface->open = int_open;
     iface->close_ = int_close;

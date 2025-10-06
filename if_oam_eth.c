@@ -9,6 +9,7 @@
 #include "log.h"
 #include "oam.h"
 #include "packet.h"
+#include "thread_utils.h"
 #include "utils.h"
 
 #include <stdlib.h>
@@ -57,13 +58,26 @@ static bool oam_eth_recv(struct Interface *iface)
     int n;
 
     n = recv(iface->recvfd, buffer, sizeof(buffer)-1, 0);
-    if (n>0) {
+    if (iface->state == IFS_SHUTDOWN) {
+        return false;
+    }
+    if (n > 0) {
         buffer[n]=0;
         //dump_packet(buffer+14+4+3, n-22);               // just debug
         oam_receive_outofband(iface, &buffer[14+4+3]);
     }
 
     return true;
+}
+
+static void *oam_eth_recv_loop(void *arg)
+{
+    struct Interface *iface = (struct Interface *)arg;
+
+    while (iface->state != IFS_SHUTDOWN)
+        oam_eth_recv(iface);
+
+    return NULL;
 }
 
 static bool oam_eth_send(struct Interface *iface, struct Packet *p)
@@ -172,6 +186,7 @@ static bool oam_eth_open(struct Interface *iface)
     log_info("OAM_ETH return interface %s %s (idx: %d)", iface->name, iface->ifname, oid->ifindex);
     iface->recvfd = sock;
     iface->state = IFS_OPEN;
+    iface->recv_th_ = thread_launch(oam_eth_recv_loop, iface, "rtn %s", iface->name);
     add_oam_if(iface);
     return true;
 }
@@ -188,7 +203,6 @@ static bool oam_eth_close(struct Interface *iface)
 struct Interface *new_oam_eth_interface(const char *name, const char *ifname)
 {
     _NEW_IFACE(IF_OAM_ETH);
-    iface->recv = oam_eth_recv;
     iface->send = oam_eth_send;
     iface->open = oam_eth_open;
     iface->close_ = oam_eth_close;
