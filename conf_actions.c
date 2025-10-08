@@ -1108,7 +1108,7 @@ static struct ConfAction *new_confaction(struct StageState *stst, enum ConfActio
 
 // possible protocol stacks in the pipeline, where OAM maintenance points are allowed
 // they are zero-terminated, assuming PROTO_ID_PAYLOAD=0
-static const enum ProtocolID oam_protostack_srv6[] = {PROTO_ID_IPv6, PROTO_ID_IPv6, PROTO_ID_PAYLOAD};
+static const enum ProtocolID oam_protostack_srv6[] = {PROTO_ID_IPv6, PROTO_ID_PAYLOAD};
 static const enum ProtocolID oam_protostack_mplspw[] = {PROTO_ID_MPLS, PROTO_ID_DCW, PROTO_ID_PAYLOAD};
 static const enum ProtocolID oam_protostack_ethcvlan[] = {PROTO_ID_ETH, PROTO_ID_CVLAN, PROTO_ID_PAYLOAD};
 static const enum ProtocolID oam_protostack_ethsvlan[] = {PROTO_ID_ETH, PROTO_ID_SVLAN, PROTO_ID_PAYLOAD};
