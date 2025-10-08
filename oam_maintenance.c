@@ -306,10 +306,12 @@ static bool pack_srv6_payload(struct Packet *p, const struct JsonValue *msg)
         return false;
     }
 
-    // write the new json string into p
-    unsigned header_len = p->headers[2].len+p->headers[3].len;
+    // here we may have only 3 headers identified if packet is forwareded in-band
+    unsigned header_len = protocol_from_id(PROTO_ID_ICMPv6)->bytelength +
+                          protocol_from_id(PROTO_ID_ICMPv6ECHO)->bytelength;
 
-    char *payload = (char *)(p->buf + p->headers[4].start);
+    // write the new json string into p
+    char *payload = (char *)(p->buf + p->headers[2].start + header_len);
     memcpy(payload, js_string, js_length);
     free(js_string);
     unsigned new_len = header_len + js_length;
