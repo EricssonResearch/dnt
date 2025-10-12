@@ -123,6 +123,7 @@ const char *iface_type_str(enum IfaceType type);
 
 // prints information about @iface to @cmd_w
 // for the 'iface' telnet command
-void iface_print_info(const struct Interface *iface, FILE *cmd_w);
+// prints more info if @stream_info is true
+void iface_print_info(const struct Interface *iface, FILE *cmd_w, bool stream_info);
 
 #endif // R2_INTERFACE_H

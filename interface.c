@@ -99,17 +99,21 @@ const char *iface_type_str(enum IfaceType type)
     return NULL;
 }
 
-void iface_print_info(const struct Interface *iface, FILE *cmd_w)
+void iface_print_info(const struct Interface *iface, FILE *cmd_w, bool stream_info)
 {
-    static const char *state_colors[] = { "\033[0m", "\033[33m", "\033[32m", "\033[31m" };
-    static const char *state_names[] = { "UNKNOWN", "INIT", "OPEN", "SHUTDOWN" };
-    fprintf(cmd_w, "iface \033[36m%s\033[0m type %s state %s%s\033[0m\n", iface->name,
-            iface_type_str(iface->type),
-            state_colors[iface->state], state_names[iface->state]);
+    static const char *state_names[] = { "\033[0mUNKNOWN", "\033[33mINIT", "\033[32mOPEN", "\033[31mSHUTDOWN" };
+    fprintf(cmd_w, "iface \033[36m%s\033[0m type \033[1m%s\033[0m state %s\033[0m\n", iface->name,
+            iface_type_str(iface->type), state_names[iface->state]);
     fprintf(cmd_w, "    recv %llu packets %llu octets\n    send %llu packets %llu octets\n",
             iface->recv_packets, iface->recv_octets, iface->send_packets, iface->send_octets);
     if (iface->dropstat_cntr)
         fprintf(cmd_w, "    dropstat %d\n", iface->dropstat_cntr);
     if (iface->print_private_info)
         iface->print_private_info(iface, cmd_w);
+    if (stream_info) {
+        fprintf(cmd_w, "    senders %d\n", iface->sender_count);
+        if (iface->parsetree_) {
+            parsetree_print_info(iface->parsetree_, cmd_w);
+        }
+    }
 }

@@ -122,6 +122,8 @@ static const char help_str[] =
     "mode [mode] - set ping reply printing mode, can be 'dump' or 'json'\n"
     "list - list monitoring start points\n"
     "iface [ifname] - print information about interfaces\n"
+    "mp [mpname] - print information about maintenance points\n"
+    "object [objname] - print information about pipeline objects\n"
     "returns - list return interfaces\n"
     "sessions [stream] - list active sessions for stream, lists all sessions if no 'stream' is specified\n"
     "[un]mask <replication pipeline> - mask/unmask a replication pipeline\n"
@@ -141,6 +143,16 @@ static int list_startpoints_cb(const char *key, void *value, void *userdata)
         mp_print_info(mp, cmd_w, false);
         fprintf(cmd_w, "\n");
     }
+    return 1;
+}
+
+static int list_mp_cb(const char *key, void *value, void *userdata)
+{
+    (void)key;
+    struct OAM_MaintenancePoint *mp = (struct OAM_MaintenancePoint*)value;
+    FILE *cmd_w = (FILE *)userdata;
+    mp_print_info(mp, cmd_w, false);
+    fprintf(cmd_w, "\n");
     return 1;
 }
 
@@ -171,7 +183,14 @@ static int list_oam_ifaces_cb(const char *ifname, void *value, void *userdata)
 static int iface_info_cb(struct Interface *iface, void *userdata)
 {
     FILE *cmd_w = (FILE *)userdata;
-    iface_print_info(iface, cmd_w);
+    iface_print_info(iface, cmd_w, false);
+    return 1;
+}
+
+static int list_objects_cb(struct PipelineObject *obj, void *userdata)
+{
+    FILE *cmd_w = (FILE *)userdata;
+    pipelineobject_print_info(obj, cmd_w);
     return 1;
 }
 
@@ -442,7 +461,7 @@ static void command_loop(struct CommandConnection *conn)
             }
             else if (strcmp(oam_command, "list") == 0) {
                 fprintf(cmd_w, "Available MEP Start points:\n");
-                foreach_mp(true, list_startpoints_cb, conn->cmd_w);
+                foreach_mp(true, list_startpoints_cb, cmd_w);
             }
             else if (strncmp(oam_command, "iface", 5) == 0) {
                 char ifname[64];
@@ -452,9 +471,38 @@ static void command_loop(struct CommandConnection *conn)
                 } else {
                     struct Interface *iface = state_get_interface(ifname);
                     if (iface) {
-                        iface_print_info(iface, cmd_w);
+                        iface_print_info(iface, cmd_w, true);
                     } else {
                         fprintf(cmd_w, "No interface named '%s'\n", ifname);
+                    }
+                }
+            }
+            else if (strncmp(oam_command, "mp", 2) == 0) {
+                char mpname[64];
+                int k = sscanf(oam_command, "mp %s", mpname);
+                if (k == 0 || k == EOF) {
+                    foreach_mp(true, list_mp_cb, cmd_w);
+                } else {
+                    struct OAM_MaintenancePoint *mp = find_maintenance_point(mpname);
+                    if (mp) {
+                        mp_print_info(mp, cmd_w, true);
+                        fprintf(cmd_w, "\n");
+                    } else {
+                        fprintf(cmd_w, "No maintenance point named '%s'\n", mpname);
+                    }
+                }
+            }
+            else if (strncmp(oam_command, "object", 6) == 0) {
+                char objname[64];
+                int k = sscanf(oam_command, "object %s", objname);
+                if (k == 0 || k == EOF) {
+                    state_foreach_objects(list_objects_cb, cmd_w);
+                } else {
+                    struct PipelineObject *obj = state_get_object(objname);
+                    if (obj) {
+                        pipelineobject_print_info(obj, cmd_w);
+                    } else {
+                        fprintf(cmd_w, "No pipeline object named '%s'\n", objname);
                     }
                 }
             }

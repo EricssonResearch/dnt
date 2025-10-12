@@ -788,7 +788,7 @@ static void *outofband_receiver_th(void *arg)
         if (msg == NULL)
             return NULL;
 
-        process_reply(msg->message); //TODO do we need to adjust this?
+        process_reply(msg->message);
         free(msg->message);
         free(msg);
     }

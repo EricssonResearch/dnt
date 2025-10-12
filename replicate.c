@@ -20,11 +20,11 @@ struct Replicate {
     struct PipelineObject base;
     struct PipelineList *pipes;
 
-    unsigned packets_passed;
-    unsigned octets_passed;
+    unsigned long long packets_passed;
+    unsigned long long octets_passed;
 };
 
-static struct JsonValue *get_state_json(const struct PipelineObject *obj)
+static struct JsonValue *repl_get_state_json(const struct PipelineObject *obj)
 {
     const struct Replicate *rep = (struct Replicate *)obj;
     struct JsonValue *js = json_object();
@@ -43,10 +43,19 @@ static struct JsonValue *get_state_json(const struct PipelineObject *obj)
     return js;
 }
 
+static void repl_print_info(const struct PipelineObject *self, FILE *cmd_w)
+{
+    const struct Replicate *rep = (struct Replicate *)self;
+
+    fprintf(cmd_w, "    sent %llu packets %llu octets\n",
+            rep->packets_passed, rep->octets_passed);
+    //TODO also print pipeline state
+}
+
 static NotificationLevel repl_notification_pull_fn(void *self, struct JsonValue **msg)
 {
     struct PipelineObject *rep = (struct PipelineObject *)self;
-    struct JsonValue *js = get_state_json(rep);
+    struct JsonValue *js = repl_get_state_json(rep);
     *msg = js;
     return NOTIF_PULL;
 }
@@ -89,7 +98,8 @@ struct PipelineObject *new_replicate(const char *name)
     ret->base.type = PO_REPL;
     ret->base.name = strdup(name);
     ret->base.process_packet = replicate_packet_passed;
-    ret->base.get_state = get_state_json;
+    ret->base.get_state = repl_get_state_json;
+    ret->base.print_info = repl_print_info;
     ret->base.reference_count = 1;
     notification_register_source(name, repl_notification_pull_fn, ret, 2000);
     return (struct PipelineObject *)ret;

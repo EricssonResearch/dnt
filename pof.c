@@ -114,6 +114,14 @@ char *pof_sprintf_state_json(struct JsonValue *json, const char *record_sep, con
     }
 }
 
+static void pof_print_info(const struct PipelineObject *self, FILE *cmd_w)
+{
+    const struct Pof *pof = (const struct Pof *)self;
+
+    fprintf(cmd_w, "    queue length %d last sent %d take any %s\n",
+            pof->queue_len, pof->pof_last_sent, pof->take_any ? "yes" : "no");
+}
+
 static NotificationLevel pof_notification_pull_fn(void *self, struct JsonValue **msg)
 {
     const struct PipelineObject *pof = (struct PipelineObject *) self;
@@ -345,6 +353,7 @@ struct PipelineObject *new_pof(const char *name, unsigned pof_max_delay, unsigne
     ret->base.name = strdup(name);
     ret->base.get_state = pof_get_state_json;
     ret->base.process_packet = pof_insert;
+    ret->base.print_info = pof_print_info;
     ret->base.reference_count = 1;
 
     timespec_from_msec(&ret->pof_max_delay, pof_max_delay);

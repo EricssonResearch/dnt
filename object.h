@@ -11,6 +11,7 @@
 #include "pipeline.h"
 
 #include <stdbool.h>
+#include <stdio.h>
 
 enum PipelineObjectType {
     PO_SEQGEN = 1,
@@ -25,6 +26,7 @@ struct PipelineObject {
     char *name;
     enum ActionResult (*process_packet)(struct PipelineObject *self, struct PipelineIterator *pi);
     struct JsonValue *(*get_state)(const struct PipelineObject *self);
+    void (*print_info)(const struct PipelineObject *self, FILE *cmd_w);
     enum PipelineObjectType type;
     int auto_mip_level;
     int reference_count;
@@ -48,6 +50,9 @@ const char *pipelineobject_get_name(const struct PipelineObject *obj);
 // uses the appropriate printing function based on the type encoded in the @json
 // always returns a valid string
 char *pipelineobject_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep);
+
+// prints information about @obj to @cmd_w
+void pipelineobject_print_info(const struct PipelineObject *obj, FILE *cmd_w);
 
 #endif // R2_OBJECT_H
 

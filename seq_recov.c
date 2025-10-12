@@ -130,7 +130,7 @@ static void reset_ticks(struct SequenceRecovery *rec)
     rec->remaining_ticks = ((rec->reset_msec * FRER_TICKS_PER_SEC) + 999) / 1000;
 }
 
-static struct JsonValue *get_state_json(const struct PipelineObject *obj)
+static struct JsonValue *srec_get_state_json(const struct PipelineObject *obj)
 {
     // TODO: print OAM match recovery child's status too
     const struct SequenceRecovery *rec = (const struct SequenceRecovery *)obj;
@@ -175,11 +175,23 @@ static struct JsonValue *get_state_json(const struct PipelineObject *obj)
     return js;
 }
 
+static void srec_print_info(const struct PipelineObject *self, FILE *cmd_w)
+{
+    const struct SequenceRecovery *rec = (const struct SequenceRecovery *)self;
+
+    fprintf(cmd_w, "    use reset flag %s init flag %s individual %s history len %d reset %u msec\n"
+                   "    recv seq %u init recv seq %u take any %s init take any %s was star %s\n",
+                   rec->use_reset_flag ? "yes" : "no", rec->use_init_flag ? "yes" : "no",
+                   rec->individual_recovery ? "yes" : "no", rec->history_length, rec->reset_msec,
+                   rec->recv_seq, rec->init_recv_seq, rec->take_any ? "yes" : "no",
+                   rec->init_take_any ? "yes" : "no", rec->was_star ? "yes" : "no");
+    //TODO more info?
+}
 
 static NotificationLevel seq_rec_notification_pull_fn(void *self, struct JsonValue **msg)
 {
     struct PipelineObject *rep = (struct PipelineObject *)self;
-    struct JsonValue *js = get_state_json(rep);
+    struct JsonValue *js = srec_get_state_json(rep);
     *msg = js;
     return NOTIF_PULL;
 }
@@ -708,8 +720,9 @@ struct PipelineObject *new_seq_rec(const char *name, enum SequenceRecoveryAlgori
 
     ret->base.type = PO_SEQREC;
     ret->base.name = strdup(name);
-    ret->base.get_state = get_state_json;
+    ret->base.get_state = srec_get_state_json;
     ret->base.process_packet = seq_recovery;
+    ret->base.print_info = srec_print_info;
     ret->base.reference_count = 1;
 
     ret->algorithm = algo;

@@ -96,3 +96,9 @@ char *pipelineobject_sprintf_state_json(struct JsonValue *json, const char *reco
 
 }
 
+void pipelineobject_print_info(const struct PipelineObject *obj, FILE *cmd_w)
+{
+    fprintf(cmd_w, "object \033[36m%s\033[0m type \033[1m%s\033[0m refcount %d\n",
+            obj->name, pipelineobject_name_from_type(obj->type), obj->reference_count);
+    obj->print_info(obj, cmd_w);
+}

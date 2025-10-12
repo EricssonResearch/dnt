@@ -5,12 +5,11 @@
 #ifndef R2_IF_UTILS_H
 #define R2_IF_UTILS_H
 
+#include "interface.h"
 #include "notification.h"
+#include "packet.h"
 
 #include <stdbool.h>
-
-struct Interface;
-struct Packet;
 
 struct msghdr;
 
@@ -47,6 +46,7 @@ struct MonitorState *stop_monitoring_error_queue(struct MonitorState *st);
 // @self must be struct Interface
 NotificationLevel iface_notification_pull_fn(void *self, struct JsonValue **msg);
 
+// debug helper for getifaddrs()
 struct ifaddrs;
 void print_ifaddrs(struct ifaddrs *ifa);
 

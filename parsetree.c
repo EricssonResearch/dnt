@@ -197,9 +197,9 @@ struct ParseTree *delete_parsetree(struct ParseTree *pt)
     return NULL;
 }
 
-bool parsetree_streams_empty(struct ParseTree *pt)
+bool parsetree_empty(const struct ParseTree *pt)
 {
-    return (pt->streams == NULL);
+    return pt->streams == NULL;
 }
 
 bool parsetree_add_stream(struct ParseTree *pt, struct HeaderDescriptor *headers, struct Pipeline *pipe)
@@ -318,8 +318,15 @@ struct PipelineIterator *parsetree_identify(struct ParseTree *pt, struct Packet 
     log_packet("no pipeline found, unknown stream");
     PACKET_LOGCAT(p, "unknown stream");
     pt->nomatch_packets++;
-    pt->nomatch_octets += packet_length(p);
+    pt->nomatch_octets += p->len;
     return NULL;
 }
 
-
+void parsetree_print_info(const struct ParseTree *pt, FILE *cmd_w)
+{
+    fprintf(cmd_w, "    streams:\n");
+    for (struct Stream *s=pt->streams; s; s=s->next) {
+        fprintf(cmd_w, "      %s %llu packets %llu octets\n", s->pipe->name, s->match_packets, s->match_octets);
+    }
+    fprintf(cmd_w, "    no match: %llu packets %llu octets\n", pt->nomatch_packets, pt->nomatch_octets);
+}

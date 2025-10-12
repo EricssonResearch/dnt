@@ -60,9 +60,8 @@ bool parsetree_add_stream(struct ParseTree *pt, struct HeaderDescriptor *headers
 // @returns true on success, false if the stream is unknown
 bool parsetree_del_stream(struct ParseTree *pt, const char *stream_name);
 
-// Checks if streams are empty.
-// @returns true on empty, false if there are streams
-bool parsetree_streams_empty(struct ParseTree *pt);
+// @returns true if @pt has no streams
+bool parsetree_empty(const struct ParseTree *pt);
 
 // replaces an existing stream in the decision tree
 // the name of the stream is @pipe->name
@@ -74,7 +73,12 @@ bool parsetree_replace_stream(struct ParseTree *pt, struct HeaderDescriptor *hea
 // parses the packet:
 //      - identify headers, fill p->headers
 //      - match header field values against known streams
+// assumes p->len bytes of continuous packet data at p->start
 // @returns an action pipeline iterator to process the packet or NULL if unknown stream
 struct PipelineIterator *parsetree_identify(struct ParseTree *pt, struct Packet *p);
+
+// prints information about @pt to @cmd_w
+// intended for @iface_print_info of the 'iface' telnet command
+void parsetree_print_info(const struct ParseTree *pt, FILE *cmd_w);
 
 #endif // R2_PARSETREE_H

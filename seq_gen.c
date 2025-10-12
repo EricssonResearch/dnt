@@ -38,7 +38,7 @@ struct SequenceGenerator {
     unsigned resets;
 };
 
-static struct JsonValue *get_state_json(const struct PipelineObject *obj)
+static struct JsonValue *sgen_get_state_json(const struct PipelineObject *obj)
 {
     const struct SequenceGenerator *gen = (const struct SequenceGenerator *)obj;
     struct JsonValue *js = json_object();
@@ -53,9 +53,22 @@ static struct JsonValue *get_state_json(const struct PipelineObject *obj)
 static NotificationLevel seq_gen_notification_pull_fn(void *self, struct JsonValue **msg)
 {
     struct PipelineObject *rep = (struct PipelineObject *)self;
-    struct JsonValue *js = get_state_json(rep);
+    struct JsonValue *js = sgen_get_state_json(rep);
     *msg = js;
     return NOTIF_PULL;
+}
+
+static void sgen_print_info(const struct PipelineObject *self, FILE *cmd_w)
+{
+    const struct SequenceGenerator *gen = (const struct SequenceGenerator *)self;
+
+    fprintf(cmd_w, "    use reset flag %s init flag %s init start %u\n"
+                   "    seq %u init seq %u reset %s init %s resets %u\n",
+                   gen->use_reset_flag ? "yes" : "no", gen->use_init_flag ? "yes" : "no", gen->init_seq_start,
+                   gen->gen_seq_num, gen->init_gen_seq_num,
+                   gen->reset_flag ? "\033[31m]YES\033[0m" : "no",
+                   gen->use_init_seq_space ? "\033[35m]YES\033[0m" : "no",
+                   gen->resets);
 }
 
 static void sequence_generation_reset(struct SequenceGenerator *gen)
@@ -126,8 +139,9 @@ struct PipelineObject *new_seq_gen(const char *name, bool use_reset_flag, bool u
     struct SequenceGenerator *ret = calloc_struct(SequenceGenerator);
     ret->base.type = PO_SEQGEN;
     ret->base.name = strdup(name);
-    ret->base.get_state = get_state_json;
+    ret->base.get_state = sgen_get_state_json;
     ret->base.process_packet = seq_generator;
+    ret->base.print_info = sgen_print_info;
     ret->base.reference_count = 1;
 
     ret->use_reset_flag = use_reset_flag;
