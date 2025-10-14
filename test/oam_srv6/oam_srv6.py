@@ -179,12 +179,12 @@ def start_r2dtwos(net, debug):
         if debug:
             # For debug! Spawns 4 r2dtwo windows in gdb
             #node.popen(f"xterm -T {n} -e env -i gdb -nx --args ../r2dtwo oam_srv6/singlestage/{n}.cfg -v PACKETTRACE:PACKET")
-#            node.popen(f"../r2dtwo -of oam_srv6/singlestage/{n}.cfg -v PACKETTRACE:PACKET")    # in general this is enough for debug
-            node.popen(f"../r2dtwo -of oam_srv6/singlestage/{n}.cfg -v ALL:ALL")    # in general this is enough for debug
+            node.popen(f"../r2dtwo -of oam_srv6/singlestage/{n}.cfg -v PACKETTRACE:PACKET")    # in general this is enough for debug
+#            node.popen(f"../r2dtwo -of oam_srv6/singlestage/{n}.cfg -v ALL:ALL")    # in general this is enough for debug
         else:
             # node.popen(f"xterm -T {n} -e env -i gdb -nx -ex=r --args ../r2dtwo oam_srv6/singlestage/{n}.cfg -vALL:NONE")
-#            node.popen(f"../r2dtwo oam_srv6/singlestage/{n}.cfg -vALL:NONE")
-            node.popen(f"../r2dtwo -of oam_srv6/singlestage/{n}.cfg -v PACKETTRACE:PACKET")    # in general this is enough for debug
+            node.popen(f"../r2dtwo oam_srv6/singlestage/{n}.cfg -vALL:NONE")
+#            node.popen(f"../r2dtwo -of oam_srv6/singlestage/{n}.cfg -v PACKETTRACE:PACKET")    # in general this is enough for debug
 
 # list of (sender node, telnet command, expected reply)
 testcases = [
