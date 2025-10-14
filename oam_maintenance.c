@@ -241,6 +241,7 @@ static struct JsonValue *pack_srv6_message_header(const struct OAM_MaintenancePo
     ipv6_outer[7] = ttl;  // hop count
     memset(&ipv6_outer[8], 0, 16);  // if saddr is zero, the interface send will fill
     memcpy(&ipv6_outer[24], mp->sid_address.loc, 16);
+    ipv6_outer[39] = seq;
 
     // Indicate OAM
     ipv6_outer[36] |= 0x01;
@@ -250,7 +251,7 @@ static struct JsonValue *pack_srv6_message_header(const struct OAM_MaintenancePo
     ipv6[1]=0; ipv6[2]=0; ipv6[3]=0;  // flow label
     //ipv6[4..5] is length
     ipv6[6] = IPPROTO_ICMPV6; // next header
-    ipv6[7] = 32;   // hop count
+    ipv6[7] = ttl;   // hop count
 
     struct sockaddr_in6 sa6;
     if(inet_pton(AF_INET6, oamif_get_ip(get_default_oam_ip_interface()), &(sa6.sin6_addr)) <= 0) {
@@ -263,15 +264,17 @@ static struct JsonValue *pack_srv6_message_header(const struct OAM_MaintenancePo
     unsigned char *icmpv6  = p->buf + p->headers[2].start;
     icmpv6[0] = ICMP6_ECHO_REQUEST;     // type
     icmpv6[1] = 0;                      // code
-    icmpv6[2] = 0; icmpv6[3] = 0;       // checksum will be calculated later
+    //icmpv6[2] = 0; icmpv6[3] = 0;       // checksum will be calculated later
 
     unsigned char *icmpv6echo  = p->buf + p->headers[3].start;
     icmpv6echo[1] = session & 0xf;  // Identifier
-    icmpv6echo[0] = 0;
+    icmpv6echo[0] = nodeid;         // ToDo: how to encode correctly?
     icmpv6echo[3] = seq;            // Sequence
-    icmpv6echo[2] = 0;
+    icmpv6echo[2] = level;          // ToDo: how to encode correctly?
+                                    // (must be in line with elimination action!)
 
     p->ttl = ttl;
+    p->sequence = htonl(seq);
 
     struct JsonValue *js = json_object();
     json_object_insert(js, "type", json_string(request_get_type(req)));
@@ -323,6 +326,7 @@ static bool pack_srv6_payload(struct Packet *p, const struct JsonValue *msg)
 
     // calc ICMPv6 checksum
     unsigned char *icmpv6  = p->buf + p->headers[2].start;
+    icmpv6[2] = 0; icmpv6[3] = 0;   // clear old checksum
     uint16_t sum = icmp6_checksum(&ipv6[8], &ipv6[24], icmpv6, new_len);
     icmpv6[3] = (sum >> 8) & 0xff;
     icmpv6[2] = sum & 0xff;
