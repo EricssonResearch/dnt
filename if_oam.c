@@ -100,7 +100,11 @@ static bool oam_open(struct Interface *iface)
         addr6.sin6_family = AF_INET6;
         addr6.sin6_addr = ip6;
         addr6.sin6_port = htons(oid->port);
-        oid->uid = ntohs(ip6.s6_addr16[7]);
+        int i;
+        for(i=15; i>0; i--)                 // search for non-zero in IPv6 addr.
+            if(ip6.s6_addr16[i]!=0)         // ToDo: handle errors
+                break;
+        oid->uid = ntohs(ip6.s6_addr16[i-1]);
     } else {
         sa = (struct sockaddr*)&addr4;
         sa_len = sizeof(addr4);
