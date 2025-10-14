@@ -60,6 +60,7 @@ def config_net(net):
         n.cmd("ip link add name vrf1 type vrf table 254")
         n.cmd("ip link set vrf1 mtu 2000 up")
         n.cmd(f"ip -6 addr add fd00:a2d2:0:0:0:1::{ip_lo}/96 dev vrf1")  # used for sending, this IP will be used as source for inner IPv6 source
+        n.cmd(f"ip6tables -t mangle -A OUTPUT -s fd00:a2d2:0:0:0:1::{ip_lo}/96 -j HL --hl-inc 1")
         n.cmd("ip link add name ve1 type veth peer name ve2")
         n.cmd("ip link set ve1 mtu 2000 up")
         n.cmd("ip link set ve2 mtu 2000 up")
@@ -120,8 +121,8 @@ def config_net(net):
     n3.cmd("ip -6 route add fd11:fade::/64 via fd03:a1fa::1 dev eth31")
     n3.cmd("ip -6 route add fd12:fade::/64 via fd04:a1fa::2 dev eth32")
     n3.cmd("ip -6 route add fd14:fade::/64 via fd06:a1fa::4 dev eth34")
-    n4.cmd("ip -6 route add fd11:fade::/64 via fd06:a1fa::3 dev eth42")
-    n4.cmd("ip -6 route add fd12:fade::/64 via fd06:a1fa::3 dev eth42")
+    n4.cmd("ip -6 route add fd11:fade::/64 via fd06:a1fa::3 dev eth43")
+    n4.cmd("ip -6 route add fd12:fade::/64 via fd05:a1fa::2 dev eth42")
     n4.cmd("ip -6 route add fd13:fade::/64 via fd06:a1fa::3 dev eth43")
 
     # add TC filters for UNI traffic
@@ -156,13 +157,13 @@ def config_net(net):
 
 
     # delay
-    n1.cmd("tc qdisc add dev eth13 root netem delay 20ms")
-    n1.cmd("tc qdisc add dev eth12 root netem delay 1ms")
-    n2.cmd("tc qdisc add dev eth24 root netem delay 20ms")
-    n2.cmd("tc qdisc add dev eth23 root netem delay 2ms")
-    n2.cmd("tc qdisc add dev eth21 root netem delay 2ms")
-    n3.cmd("tc qdisc add dev eth31 root netem delay 3ms")
-    n4.cmd("tc qdisc add dev eth43 root netem delay 4ms")
+    n1.cmd("tc qdisc add dev eth13 root netem delay 40ms")
+    n1.cmd("tc qdisc add dev eth12 root netem delay 2ms")
+    n2.cmd("tc qdisc add dev eth24 root netem delay 40ms")
+    n2.cmd("tc qdisc add dev eth23 root netem delay 4ms")
+    n2.cmd("tc qdisc add dev eth21 root netem delay 4ms")
+    n3.cmd("tc qdisc add dev eth31 root netem delay 6ms")
+    n4.cmd("tc qdisc add dev eth43 root netem delay 8ms")
     # n3.cmd("tc qdisc add dev eth34 root netem delay 10ms")
 
     info('*** Starting network\n')
@@ -178,8 +179,8 @@ def start_r2dtwos(net, debug):
         if debug:
             # For debug! Spawns 4 r2dtwo windows in gdb
             #node.popen(f"xterm -T {n} -e env -i gdb -nx --args ../r2dtwo oam_srv6/singlestage/{n}.cfg -v PACKETTRACE:PACKET")
-            node.popen(f"../r2dtwo -of oam_srv6/singlestage/{n}.cfg -v PACKETTRACE:PACKET")    # in general this is enough for debug
-#            node.popen(f"../r2dtwo -of oam_srv6/singlestage/{n}.cfg -v ALL:ALL")    # in general this is enough for debug
+#            node.popen(f"../r2dtwo -of oam_srv6/singlestage/{n}.cfg -v PACKETTRACE:PACKET")    # in general this is enough for debug
+            node.popen(f"../r2dtwo -of oam_srv6/singlestage/{n}.cfg -v ALL:ALL")    # in general this is enough for debug
         else:
             # node.popen(f"xterm -T {n} -e env -i gdb -nx -ex=r --args ../r2dtwo oam_srv6/singlestage/{n}.cfg -vALL:NONE")
 #            node.popen(f"../r2dtwo oam_srv6/singlestage/{n}.cfg -vALL:NONE")
@@ -396,22 +397,23 @@ Error: rping command is invalid: rping start 'nonexistentmp' invalid
     (
         'n4', 'ping s2n4-e5-04 s2n1-i5-21 5',
 """
-OAM request ping session 2 seq 0, s2n4-e5-04 -> s2n1-i5-21 level 5 count 1 interval 1000, rr: no os: no	[reply to ip fd11:fade::0 port 6634]
-  oam_r s2:2 seq 0 lvl 5 R - ping on stream s2 target s2n1-i5-21; reply from s2n1-i5-21
+OAM request ping session 1 seq 0, s2n4-e5-04 -> s2n1-i5-21 level 5 count 1 interval 1000, rr: no os: no	[reply to ip fd14:fade::0 port 6634]
+  oam_r s2:1 seq 0 lvl 5 R - ping on stream s2 target s2n1-i5-21; reply from s2n1-i5-21
 """
     ),
     (
         'n4', 'ping s2n4-e5-04 s2n1-i5-31 5',
 """
-OAM request ping session 3 seq 0, s2n4-e5-04 -> s2n1-i5-31 level 5 count 1 interval 1000, rr: no os: no	[reply to ip fd11:fade::0 port 6634]
-  oam_r s2:3 seq 0 lvl 5 R - ping on stream s2 target s2n1-i5-31; reply from s2n1-i5-31
+OAM request ping session 2 seq 0, s2n4-e5-04 -> s2n1-i5-31 level 5 count 1 interval 1000, rr: no os: no	[reply to ip fd14:fade::0 port 6634]
+  oam_r s2:2 seq 0 lvl 5 R - ping on stream s2 target s2n1-i5-31; reply from s2n1-i5-31
 """
     ),
     (
         'n4', 'ping s2n4-e5-04 s2n1-e5-10 5',
 """
-OAM request ping session 4 seq 0, s2n4-e5-04 -> s2n1-e5-10 level 5 count 1 interval 1000, rr: no os: no	[reply to ip fd11:fade::0 port 6634]
-  oam_r s2:4 seq 0 lvl 5 R - ping on stream s2 target s2n1-e5-10; reply from s2n1-e5-10
+OAM request ping session 3 seq 0, s2n4-e5-04 -> s2n1-e5-10 level 5 count 1 interval 1000, rr: no os: no	[reply to ip fd14:fade::0 port 6634]
+  oam_r s2:3 seq 0 lvl 5 R - ping on stream s2 target s2n1-e5-10; reply from s2n1-e5-10
+
 """
     ),
 
@@ -419,10 +421,10 @@ OAM request ping session 4 seq 0, s2n4-e5-04 -> s2n1-e5-10 level 5 count 1 inter
         'n1', 'ping s3n1-e4-01 any 4',
 """
 OAM request ping session 2 seq 0, s3n1-e4-01 -> any level 4 count 1 interval 1000, rr: no os: no	[reply to ip fd11:fade::0 port 6634]
-  oam_r s3:2 seq 0 lvl 4 R - ping on stream s3 target any; reply from s3n4-i4-24
-  oam_r s3:2 seq 0 lvl 4 R - ping on stream s3 target any; reply from s3n4-i4-34
-  oam_r s3:2 seq 0 lvl 4 R - ping on stream s3 target any; reply from s3n4-e4-40
   oam_r s3:2 seq 0 lvl 4 R - ping on stream s3 target any; reply from s3n3-i4-13
+  oam_r s3:2 seq 0 lvl 4 R - ping on stream s3 target any; reply from s3n4-i4-34
+  oam_r s3:2 seq 0 lvl 4 R - ping on stream s3 target any; reply from s3n4-i4-24
+  oam_r s3:2 seq 0 lvl 4 R - ping on stream s3 target any; reply from s3n4-e4-40
 """
     ),
     (
@@ -496,7 +498,7 @@ o_M8_L5_post-R2 in M8 type MIP level 5 PseudoWire (pipe M8 idx 1)
         with Telnet("127.0.0.1", 8000) as cli:
             _ = cli.recv()
             cli.send("list")
-            time.sleep(1)
+            time.sleep(0.5)
             reply = cli.recv(timeout = 2.0, aggregate=True)
             cli.close()
             if reply == expected_reply:
@@ -522,7 +524,7 @@ def run_tests(net, test):
     exec_fg("killall r2dtwo")
     time.sleep(0.3)
     start_r2dtwos(net, False)
-    time.sleep(1.5)
+    time.sleep(2.5)
     success = 0
     for node, msg, expected_reply in test:
         switch_netns(node)
@@ -539,7 +541,7 @@ def run_tests(net, test):
             reply = re.sub(r'latest_valid_sequence_number \d+, passed \d+, discarded \d+',
                    r'latest_valid_sequence_number 0, passed 0, discarded 0',
                    reply)
-            reply = re.sub(r'delay \d+\.\d+',
+            reply = re.sub(r'delay -?\d+\.\d+',
                    r'delay 0',
                    reply)
             if reply.strip() == expected_reply.strip():
