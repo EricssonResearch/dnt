@@ -360,12 +360,18 @@ static int compare_srv6_level(const struct OAM_MaintenancePoint *mp, const struc
         return -1;
     }
 
-    //  use protostack
-    char *json_str = (char *)(p->buf + p->headers[2].start+8);
+    // here we either have IP6+IP6+payload or IP6+IP6+ICMPv6+ICMPv6 Echo+payload
+    unsigned header_len = protocol_from_id(PROTO_ID_ICMPv6)->bytelength +
+                          protocol_from_id(PROTO_ID_ICMPv6ECHO)->bytelength;
+    char *json_str = (char *)(p->buf + p->headers[2].start + header_len);
+    // calculate payload length
+    unsigned char *ipv6  = p->buf + p->headers[1].start;
+    int payload_len = (ipv6[4] << 8) + ipv6[5] - header_len;
+
     char *jerr;
-    struct JsonValue *j = json_parse(json_str,  p->headers[2].len-8, &jerr);
+    struct JsonValue *j = json_parse(json_str,  payload_len, &jerr);
     if (j == NULL || j->type != JSON_OBJECT) {
-        log_error("SRv6 JSON is invalid: %s, js: %s", jerr, json_str);
+        log_error("SRv6 JSON len %d is invalid: %s, js: %s", payload_len, jerr, json_str);
         free(jerr);
         return -1;
     }
