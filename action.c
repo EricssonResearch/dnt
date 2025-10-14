@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include <arpa/inet.h> /* htonl() */
 #include <linux/if_ether.h> /* ETH_P_* */
+#include <netinet/icmp6.h>    // ICMP6_ECHO_REQUEST
 
 DEFAULT_LOGGING_MODULE(PIPELINE, WARNING);
 
@@ -292,6 +293,24 @@ static enum ActionResult action_ELIM_execute(struct Action *a, struct PipelineIt
                 free(session);
                 return ret;
             }
+        } else if (ed->protostack[0] == PROTO_ID_IPv6) {
+            // we have SRv6
+            if (ntohl(p->sequence) & 0x01000000u) { // for SRv6 the OAM bit is at the flags
+                if (!packet_is_linear(p)) {
+                    log_error("OAM packet is not continuous in memory");
+                    return ACR_CONTINUE; //TODO ACR_DONE ?
+                }
+
+                struct icmp6_hdr* icmp6 = (struct icmp6_hdr*)(p->buf + p->headers[2].start);
+                char nodeid_str[10];
+                snprintf(nodeid_str, sizeof(nodeid_str), "%u", icmp6->icmp6_dataun.icmp6_un_data8[0]);
+                char *session = strdup_printf("%s:%hhu:%hhu", nodeid_str, icmp6->icmp6_dataun.icmp6_un_data8[1], icmp6->icmp6_dataun.icmp6_un_data8[2]);
+                log_debug("SRv6 session %s", session);
+
+                enum ActionResult ret = oam_recovery(ed->rcvy, pi->packet, session, icmp6->icmp6_dataun.icmp6_un_data8[3]);
+                free(session);
+                return ret;
+            }
         } else {
             //TODO die?
         }
@@ -518,7 +537,7 @@ static enum ActionResult action_READSEQ_execute(struct Action *a, struct Pipelin
     if(p->headers[md->field.header_idx].type == PROTO_ID_IPv6) {
         // this is an SRv6 sequence number, which is only 28 bit
         uint8_t *dst = (uint8_t *)&p->sequence;
-        dst[0] = src[0] & 0x0f;      // write indcator bits
+        dst[0] = (src[0] & 0x0f);    // write indcator bits, clear OAM bit
         dst[1] = src[1];             // read reserved
         dst[2] = src[2];             // read seqnum 2 bytes
         dst[3] = src[3];
@@ -752,7 +771,7 @@ static enum ActionResult action_WRITESEQ_execute(struct Action *a, struct Pipeli
         // this is an SRv6 sequence number, which is only 28 bit
         uint8_t *src = (uint8_t *)&p->sequence;
         uint8_t *dst = p->buf + p->headers[md->field.header_idx].start + (md->field.bitoffset>>3);
-        dst[0] = (dst[0] & 0xf0) + (src[0] & 0x0f);  // write indcator bits, keep the first 4 bits
+        dst[0] = (dst[0] & 0xf1) | (src[0] & 0x0f);  // write indcator bits, keep the first 4 bits+OAM bit
         dst[1] = src[1];         // write reserved 1 byte
         dst[2] = src[2];         // write seqnum 2 bytes
         dst[3] = src[3];
