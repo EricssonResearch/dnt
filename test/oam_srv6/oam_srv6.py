@@ -68,7 +68,7 @@ def config_net(net):
         n.cmd(f"ip -6 addr add fd00:a2d2:0:0:0:3::{ip_lo}/96 dev ve2")   # R2DTWO requires that IP type interfaces must have IP address
         # add dummy loopback interfaces for local SIDs (loopback interfaces do not work with SRv6)
         n.cmd("ip link add name sr0 type dummy")
-        n.cmd(f"ip a a fd1{ip_lo}:fade::0/64 dev sr0")
+        n.cmd(f"ip a a fd1{ip_lo}:fade::{ip_lo}/64 dev sr0")
         n.cmd("ip link set sr0 up")
         # add veth interfaces (not needed for TSN over SRv6)
         n.cmd("ip link add veth0 type veth peer name veth1")
@@ -190,14 +190,14 @@ def start_r2dtwos(net, debug):
 testcases = [
     ('n1', 'ping s1n1-e4-01 s1n2-i3-12 3',
 """
-OAM request ping session 2 seq 0, s1n1-e4-01 -> s1n2-i3-12 level 3 count 1 interval 1000, rr: no os: no	[reply to ip fd11:fade::0 port 6634]
+OAM request ping session 2 seq 0, s1n1-e4-01 -> s1n2-i3-12 level 3 count 1 interval 1000, rr: no os: no	[reply to ip fd11:fade::1 port 6634]
   oam_r s1:2 seq 0 lvl 3 R - ping on stream s1 target s1n2-i3-12; reply from s1n2-i3-12
 """
      ),
 
     ('n1', 'ping s1n1-e4-01 s1n2-i3-12 3 -n 3 -i 0.001',
 """
-OAM request ping session 3 seq 0, s1n1-e4-01 -> s1n2-i3-12 level 3 count 3 interval 2, rr: no os: no	[reply to ip fd11:fade::0 port 6634]
+OAM request ping session 3 seq 0, s1n1-e4-01 -> s1n2-i3-12 level 3 count 3 interval 2, rr: no os: no	[reply to ip fd11:fade::1 port 6634]
   oam_r s1:3 seq 0 lvl 3 R - ping on stream s1 target s1n2-i3-12; reply from s1n2-i3-12
   oam_r s1:3 seq 1 lvl 3 R - ping on stream s1 target s1n2-i3-12; reply from s1n2-i3-12
   oam_r s1:3 seq 2 lvl 3 R - ping on stream s1 target s1n2-i3-12; reply from s1n2-i3-12
@@ -207,21 +207,21 @@ OAM request ping session 3 seq 0, s1n1-e4-01 -> s1n2-i3-12 level 3 count 3 inter
 
     ('n1', 'ping s1n1-e4-01 s1n3-i4-23 4',
 """
-OAM request ping session 4 seq 0, s1n1-e4-01 -> s1n3-i4-23 level 4 count 1 interval 1000, rr: no os: no	[reply to ip fd11:fade::0 port 6634]
+OAM request ping session 4 seq 0, s1n1-e4-01 -> s1n3-i4-23 level 4 count 1 interval 1000, rr: no os: no	[reply to ip fd11:fade::1 port 6634]
   oam_r s1:4 seq 0 lvl 4 R - ping on stream s1 target s1n3-i4-23; reply from s1n3-i4-23
 """
      ),
 
     ('n1', 'ping s1n1-e4-01 s1n4-i4-34 4',
 """
-OAM request ping session 5 seq 0, s1n1-e4-01 -> s1n4-i4-34 level 4 count 1 interval 1000, rr: no os: no	[reply to ip fd11:fade::0 port 6634]
+OAM request ping session 5 seq 0, s1n1-e4-01 -> s1n4-i4-34 level 4 count 1 interval 1000, rr: no os: no	[reply to ip fd11:fade::1 port 6634]
   oam_r s1:5 seq 0 lvl 4 R - ping on stream s1 target s1n4-i4-34; reply from s1n4-i4-34
 """
      ),
 
     ('n1', 'ping s1n1-e4-01 s1n4-e4-40 4 -o',
 """
-OAM request ping session 6 seq 0, s1n1-e4-01 -> s1n4-e4-40 level 4 count 1 interval 1000, rr: no os: yes	[reply to ip fd11:fade::0 port 6634]
+OAM request ping session 6 seq 0, s1n1-e4-01 -> s1n4-e4-40 level 4 count 1 interval 1000, rr: no os: yes	[reply to ip fd11:fade::1 port 6634]
   oam_r s1:6 seq 0 lvl 4 R - ping on stream s1 target s1n4-e4-40; reply from s1n4-e4-40
 	Object pef4 type seqrec
 		recovery_algorithm vector, reset_timer 2000ms
@@ -235,14 +235,14 @@ OAM request ping session 6 seq 0, s1n1-e4-01 -> s1n4-e4-40 level 4 count 1 inter
 
     ('n1', 'ping s1n1-e4-01 s1n4-e4-40 4 -t 1',
 """
-OAM request ping session 7 seq 0, s1n1-e4-01 -> s1n4-e4-40 level 4 count 1 interval 1000, rr: no os: no	[reply to ip fd11:fade::0 port 6634]
+OAM request ping session 7 seq 0, s1n1-e4-01 -> s1n4-e4-40 level 4 count 1 interval 1000, rr: no os: no	[reply to ip fd11:fade::1 port 6634]
   oam_r s1:7 seq 0 lvl 4 R - ping on stream s1 target s1n4-e4-40; reply from s1n3-i4-13
 """
      ),
 
     ('n1', 'ping s1n1-e4-01 s1n4-e4-40 4 -t 2',
 """
-OAM request ping session 8 seq 0, s1n1-e4-01 -> s1n4-e4-40 level 4 count 1 interval 1000, rr: no os: no	[reply to ip fd11:fade::0 port 6634]
+OAM request ping session 8 seq 0, s1n1-e4-01 -> s1n4-e4-40 level 4 count 1 interval 1000, rr: no os: no	[reply to ip fd11:fade::1 port 6634]
   oam_r s1:8 seq 0 lvl 4 R - ping on stream s1 target s1n4-e4-40; reply from s1n3-i4-23
   oam_r s1:8 seq 0 lvl 4 R - ping on stream s1 target s1n4-e4-40; reply from s1n4-i4-34
   oam_r s1:8 seq 0 lvl 4 R - ping on stream s1 target s1n4-e4-40; reply from s1n4-i4-24
@@ -251,7 +251,7 @@ OAM request ping session 8 seq 0, s1n1-e4-01 -> s1n4-e4-40 level 4 count 1 inter
 
     ('n1', 'ping s1n1-e4-01 s1n4-e4-40 4 -t 3',
 """
-OAM request ping session 9 seq 0, s1n1-e4-01 -> s1n4-e4-40 level 4 count 1 interval 1000, rr: no os: no	[reply to ip fd11:fade::0 port 6634]
+OAM request ping session 9 seq 0, s1n1-e4-01 -> s1n4-e4-40 level 4 count 1 interval 1000, rr: no os: no	[reply to ip fd11:fade::1 port 6634]
   oam_r s1:9 seq 0 lvl 4 R - ping on stream s1 target s1n4-e4-40; reply from s1n4-i4-34
   oam_r s1:9 seq 0 lvl 4 R - ping on stream s1 target s1n4-e4-40; reply from s1n4-e4-40
 """
@@ -259,21 +259,21 @@ OAM request ping session 9 seq 0, s1n1-e4-01 -> s1n4-e4-40 level 4 count 1 inter
 
     ('n1', 'ping s1n1-e4-01 s1n4-e4-40 4 -t 4',
 """
-OAM request ping session 10 seq 0, s1n1-e4-01 -> s1n4-e4-40 level 4 count 1 interval 1000, rr: no os: no	[reply to ip fd11:fade::0 port 6634]
+OAM request ping session 10 seq 0, s1n1-e4-01 -> s1n4-e4-40 level 4 count 1 interval 1000, rr: no os: no	[reply to ip fd11:fade::1 port 6634]
   oam_r s1:10 seq 0 lvl 4 R - ping on stream s1 target s1n4-e4-40; reply from s1n4-e4-40
 """
      ),
 
     ('n1', 'ping s1n1-e4-01 s1n4-e4-40 4 -d',
 """
-OAM request ping session 11 seq 0, s1n1-e4-01 -> s1n4-e4-40 level 4 count 1 interval 1000, rr: no os: no	[reply to ip fd11:fade::0 port 6634]
+OAM request ping session 11 seq 0, s1n1-e4-01 -> s1n4-e4-40 level 4 count 1 interval 1000, rr: no os: no	[reply to ip fd11:fade::1 port 6634]
   oam_r s1:11 seq 0 lvl 4 R - ping on stream s1 target s1n4-e4-40; reply from s1n4-e4-40 delay 0
 """
      ),
 
     ('n1', 'ping s1n1-e4-01 any 4',
 """
-OAM request ping session 12 seq 0, s1n1-e4-01 -> any level 4 count 1 interval 1000, rr: no os: no	[reply to ip fd11:fade::0 port 6634]
+OAM request ping session 12 seq 0, s1n1-e4-01 -> any level 4 count 1 interval 1000, rr: no os: no	[reply to ip fd11:fade::1 port 6634]
   oam_r s1:12 seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n3-i4-23
   oam_r s1:12 seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n3-i4-34
   oam_r s1:12 seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n4-i4-34
@@ -285,7 +285,7 @@ OAM request ping session 12 seq 0, s1n1-e4-01 -> any level 4 count 1 interval 10
 
     ('n1', 'ping s1n1-e4-01 s1n4-i4-24 4 -r',
 """
-OAM request ping session 13 seq 0, s1n1-e4-01 -> s1n4-i4-24 level 4 count 1 interval 1000, rr: yes os: no	[reply to ip fd11:fade::0 port 6634]
+OAM request ping session 13 seq 0, s1n1-e4-01 -> s1n4-i4-24 level 4 count 1 interval 1000, rr: yes os: no	[reply to ip fd11:fade::1 port 6634]
   oam_r s1:13 seq 0 lvl 4 R - ping on stream s1 target s1n4-i4-24; reply from s1n4-i4-24
 	Record Route: [ s1n1-e4-01 s1n4-i4-24 ]
 """
@@ -293,7 +293,7 @@ OAM request ping session 13 seq 0, s1n1-e4-01 -> s1n4-i4-24 level 4 count 1 inte
 
     ('n1', 'ping s1n1-e4-01 s1n4-e4-40 4 -r',
 """
-OAM request ping session 14 seq 0, s1n1-e4-01 -> s1n4-e4-40 level 4 count 1 interval 1000, rr: yes os: no	[reply to ip fd11:fade::0 port 6634]
+OAM request ping session 14 seq 0, s1n1-e4-01 -> s1n4-e4-40 level 4 count 1 interval 1000, rr: yes os: no	[reply to ip fd11:fade::1 port 6634]
   oam_r s1:14 seq 0 lvl 4 R - ping on stream s1 target s1n4-e4-40; reply from s1n4-e4-40
 	Record Route: [ s1n1-e4-01 s1n3-i4-23 s1n3-i4-34 s1n4-i4-34 s1n4-e4-40 ]
 """
@@ -302,7 +302,7 @@ OAM request ping session 14 seq 0, s1n1-e4-01 -> s1n4-e4-40 level 4 count 1 inte
     (
         'n1', 'rlist s1n1-e4-01 any 4',
 """
-OAM request rlist session 15 seq 0, s1n1-e4-01 -> any level 4 count 1 interval 1000, rr: no os: no	[reply to ip fd11:fade::0 port 6634]
+OAM request rlist session 15 seq 0, s1n1-e4-01 -> any level 4 count 1 interval 1000, rr: no os: no	[reply to ip fd11:fade::1 port 6634]
 Rlist result from s1n3-i4-23:
 s1n3-i4-13
 s1n3-i4-23
@@ -335,7 +335,7 @@ s1n4-i4-34
     (
         'n1', 'rlist s1n1-e4-01 any 3',
 """
-OAM request rlist session 0 seq 0, s1n1-e4-01 -> any level 3 count 1 interval 1000, rr: no os: no	[reply to ip fd11:fade::0 port 6634]
+OAM request rlist session 0 seq 0, s1n1-e4-01 -> any level 3 count 1 interval 1000, rr: no os: no	[reply to ip fd11:fade::1 port 6634]
 Rlist result from s1n2-i3-12:
 s1n2-i3-12
 
@@ -352,7 +352,7 @@ s1n4-i4-34
     (
         'n1', 'rping s1n1-e4-01 s1n3-i4-13 4 s1n3-i4-13 any 4',
 """
-OAM request rping session 2 seq 0, s1n1-e4-01 -> s1n3-i4-13 level 4 count 1 interval 1000, rr: no os: no	[reply to ip fd11:fade::0 port 6634]
+OAM request rping session 2 seq 0, s1n1-e4-01 -> s1n3-i4-13 level 4 count 1 interval 1000, rr: no os: no	[reply to ip fd11:fade::1 port 6634]
   oam_r s1:2 seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n3-i4-34
   oam_r s1:2 seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n4-i4-34
   oam_r s1:2 seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n4-e4-40
@@ -362,7 +362,7 @@ OAM request rping session 2 seq 0, s1n1-e4-01 -> s1n3-i4-13 level 4 count 1 inte
     (
         'n1', 'rping s1n1-e4-01 s1n3-i4-13 4 s1n3-i4-34 any 4',
 """
-OAM request rping session 3 seq 0, s1n1-e4-01 -> s1n3-i4-13 level 4 count 1 interval 1000, rr: no os: no	[reply to ip fd11:fade::0 port 6634]
+OAM request rping session 3 seq 0, s1n1-e4-01 -> s1n3-i4-13 level 4 count 1 interval 1000, rr: no os: no	[reply to ip fd11:fade::1 port 6634]
   oam_r s1:3 seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n4-i4-34
   oam_r s1:3 seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n4-e4-40
 """
@@ -371,7 +371,7 @@ OAM request rping session 3 seq 0, s1n1-e4-01 -> s1n3-i4-13 level 4 count 1 inte
     (
         'n1', 'rping s1n1-e4-01 s1n3-i4-34 4 s1n3-i4-13 any 4',
 """
-OAM request rping session 4 seq 0, s1n1-e4-01 -> s1n3-i4-34 level 4 count 1 interval 1000, rr: no os: no	[reply to ip fd11:fade::0 port 6634]
+OAM request rping session 4 seq 0, s1n1-e4-01 -> s1n3-i4-34 level 4 count 1 interval 1000, rr: no os: no	[reply to ip fd11:fade::1 port 6634]
   oam_r s1:4 seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n3-i4-34
   oam_r s1:4 seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n4-i4-34
   oam_r s1:4 seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n4-e4-40
@@ -381,7 +381,7 @@ OAM request rping session 4 seq 0, s1n1-e4-01 -> s1n3-i4-34 level 4 count 1 inte
     (
         'n1', 'rping s1n1-e4-01 s1n3-i4-34 4 s1n3-i4-34 any 4',
 """
-OAM request rping session 5 seq 0, s1n1-e4-01 -> s1n3-i4-34 level 4 count 1 interval 1000, rr: no os: no	[reply to ip fd11:fade::0 port 6634]
+OAM request rping session 5 seq 0, s1n1-e4-01 -> s1n3-i4-34 level 4 count 1 interval 1000, rr: no os: no	[reply to ip fd11:fade::1 port 6634]
   oam_r s1:5 seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n4-i4-34
   oam_r s1:5 seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n4-e4-40
 """
@@ -397,21 +397,21 @@ Error: rping command is invalid: rping start 'nonexistentmp' invalid
     (
         'n4', 'ping s2n4-e5-04 s2n1-i5-21 5',
 """
-OAM request ping session 1 seq 0, s2n4-e5-04 -> s2n1-i5-21 level 5 count 1 interval 1000, rr: no os: no	[reply to ip fd14:fade::0 port 6634]
+OAM request ping session 1 seq 0, s2n4-e5-04 -> s2n1-i5-21 level 5 count 1 interval 1000, rr: no os: no	[reply to ip fd14:fade::4 port 6634]
   oam_r s2:1 seq 0 lvl 5 R - ping on stream s2 target s2n1-i5-21; reply from s2n1-i5-21
 """
     ),
     (
         'n4', 'ping s2n4-e5-04 s2n1-i5-31 5',
 """
-OAM request ping session 2 seq 0, s2n4-e5-04 -> s2n1-i5-31 level 5 count 1 interval 1000, rr: no os: no	[reply to ip fd14:fade::0 port 6634]
+OAM request ping session 2 seq 0, s2n4-e5-04 -> s2n1-i5-31 level 5 count 1 interval 1000, rr: no os: no	[reply to ip fd14:fade::4 port 6634]
   oam_r s2:2 seq 0 lvl 5 R - ping on stream s2 target s2n1-i5-31; reply from s2n1-i5-31
 """
     ),
     (
         'n4', 'ping s2n4-e5-04 s2n1-e5-10 5',
 """
-OAM request ping session 3 seq 0, s2n4-e5-04 -> s2n1-e5-10 level 5 count 1 interval 1000, rr: no os: no	[reply to ip fd14:fade::0 port 6634]
+OAM request ping session 3 seq 0, s2n4-e5-04 -> s2n1-e5-10 level 5 count 1 interval 1000, rr: no os: no	[reply to ip fd14:fade::4 port 6634]
   oam_r s2:3 seq 0 lvl 5 R - ping on stream s2 target s2n1-e5-10; reply from s2n1-e5-10
 
 """
@@ -420,7 +420,7 @@ OAM request ping session 3 seq 0, s2n4-e5-04 -> s2n1-e5-10 level 5 count 1 inter
     (
         'n1', 'ping s3n1-e4-01 any 4',
 """
-OAM request ping session 2 seq 0, s3n1-e4-01 -> any level 4 count 1 interval 1000, rr: no os: no	[reply to ip fd11:fade::0 port 6634]
+OAM request ping session 2 seq 0, s3n1-e4-01 -> any level 4 count 1 interval 1000, rr: no os: no	[reply to ip fd11:fade::1 port 6634]
   oam_r s3:2 seq 0 lvl 4 R - ping on stream s3 target any; reply from s3n3-i4-13
   oam_r s3:2 seq 0 lvl 4 R - ping on stream s3 target any; reply from s3n4-i4-34
   oam_r s3:2 seq 0 lvl 4 R - ping on stream s3 target any; reply from s3n4-i4-24
@@ -430,7 +430,7 @@ OAM request ping session 2 seq 0, s3n1-e4-01 -> any level 4 count 1 interval 100
     (
         'n3', 'ping s3n3-e1-32 any 1',
 """
-OAM request ping session 1 seq 0, s3n3-e1-32 -> any level 1 count 1 interval 1000, rr: no os: no	[reply to ip fd13:fade::0 port 6634]
+OAM request ping session 1 seq 0, s3n3-e1-32 -> any level 1 count 1 interval 1000, rr: no os: no	[reply to ip fd13:fade::3 port 6634]
   oam_r tx332:1 seq 0 lvl 1 R - ping on stream tx332 target any; reply from s3n4-e1-24
 """
     ),
@@ -438,21 +438,21 @@ OAM request ping session 1 seq 0, s3n3-e1-32 -> any level 1 count 1 interval 100
     (
         'n1', 'rping s1n1-e4-01 nonexistentmp 4 s1n3-i4-34 any 4',
 """
-OAM request rping session 6 seq 0, s1n1-e4-01 -> nonexistentmp level 4 count 1 interval 1000, rr: no os: no	[reply to ip fd11:fade::0 port 6634]
+OAM request rping session 6 seq 0, s1n1-e4-01 -> nonexistentmp level 4 count 1 interval 1000, rr: no os: no	[reply to ip fd11:fade::1 port 6634]
 """
     ),
 
     (
         'n1', 'rping s1n1-e4-01 s1n3-i4-13 4 s1n3-i4-34 nonexistentmp 4',
 """
-OAM request rping session 7 seq 0, s1n1-e4-01 -> s1n3-i4-13 level 4 count 1 interval 1000, rr: no os: no	[reply to ip fd11:fade::0 port 6634]
+OAM request rping session 7 seq 0, s1n1-e4-01 -> s1n3-i4-13 level 4 count 1 interval 1000, rr: no os: no	[reply to ip fd11:fade::1 port 6634]
 """
     ),
 
     (
         'n1', 'rping s1n1-e4-01 s1n3-i4-13 4 nonexistentmp any 4',
 """
-OAM request rping session 8 seq 0, s1n1-e4-01 -> s1n3-i4-13 level 4 count 1 interval 1000, rr: no os: no	[reply to ip fd11:fade::0 port 6634]
+OAM request rping session 8 seq 0, s1n1-e4-01 -> s1n3-i4-13 level 4 count 1 interval 1000, rr: no os: no	[reply to ip fd11:fade::1 port 6634]
 Rping error from s1n3-i4-13 : could not create ping request: ping start 'nonexistentmp' invalid
 """
     ),
