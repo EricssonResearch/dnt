@@ -1542,10 +1542,26 @@ static bool process_action(struct StageState *stst)
                 // also cancel the TTLReduce action? no, OAM might need it
             }
 
-            for (struct MustWriteField *mw=stst->must_write; mw; mw=mw->next) {
+            struct MustWriteField *mw_last = NULL;
+            for (struct MustWriteField *mw=stst->must_write; mw;) {
                 if (mw->header == delh) {
-                    log_warning("deleting header %s that is on the must_write list (field %s)",
-                            delh->name, mw->field->name);
+                    //TODO what if requester is not an oam action?
+                    log_warning("deleting header %s that is on the must_write list (field: %s), MP %s won't be able to inject",
+                            delh->name, mw->field->name, mw->requester->oam.name);
+
+                    // remove it from mw
+                    if (mw_last) {
+                        mw_last->next = mw->next;
+                        free(mw);
+                        mw = mw_last->next;
+                    } else {
+                        stst->must_write = mw->next;
+                        free(mw);
+                        mw = stst->must_write;
+                    }
+                } else {
+                    mw_last = mw;
+                    mw = mw->next;
                 }
             }
 
