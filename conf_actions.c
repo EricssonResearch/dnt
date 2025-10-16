@@ -193,6 +193,7 @@ struct StageState {
     struct MustWriteField *must_write;
     struct HashMap *stream_names;
     unsigned depth; // limit recursion depth with JUMP and REPLICATE
+    struct StageState *parent; // after recursion in JUMP and REPLICATE
 };
 
 
@@ -923,6 +924,7 @@ static bool process_token(char *token, void *userdata)
                 pstst.actions = NULL;
                 pstst.must_write = copy_mustwrite_list(stst, pstst.headers);
                 pstst.depth += 1;
+                pstst.parent = stst;
                 if (stst->must_write && !pstst.must_write) {
                     CLEANUP_PSTST(pstst);
                     THROW("failed to copy the must_write list?!?");
@@ -1257,13 +1259,16 @@ static void find_addressing_for_mp(struct StageState *stst)
     log_debug("find addressing for MP %s", mpaction->oam.name);
     struct HeaderDescriptor *h = stst->headers;
     for (unsigned p=0; mpaction->oam.protostack[p]; p++) {
-        if (header_field_thats_address_for_oam(h->id) == NULL) // same as mpaction->oam.protostack[p]
+        if (header_field_thats_address_for_oam(h->id) == NULL) {// same as mpaction->oam.protostack[p]
+            h = h->next;
             continue;
+        }
 
         log_debug("  checking for proto %s", protocol_type_from_id(h->id));
         bool header_was_added = false;
         struct Value *val = NULL;
-        for (struct ConfAction *a=stst->actions; a; a=a->next) {
+        struct StageState *pstst = stst;
+        for (struct ConfAction *a=pstst->actions; a; ) {
             log_debug("  checking action %s '%s'", confaction_name_from_type(a->type), a->text);
             if (a->type == CA_ADD && strcmp(a->add.newname, h->name) == 0) {
                 // the header was added by this action, and we haven't had a write since then
@@ -1283,6 +1288,16 @@ static void find_addressing_for_mp(struct StageState *stst)
                 if (val) {
                     log_debug("    found assignment for the address field");
                     break;
+                }
+            }
+            a = a->next;
+            if (a == NULL) {
+                // continue with the parent action chain
+                // before JUMP or REPLICATE
+                if (pstst->parent) {
+                    log_debug("  stepping to parent action chain");
+                    pstst = pstst->parent;
+                    a = pstst->actions;
                 }
             }
         }
@@ -1670,6 +1685,7 @@ static bool process_action(struct StageState *stst)
                 jstst.stream = jumpname;
                 jstst.actions = NULL;
                 jstst.depth += 1;
+                jstst.parent = stst;
                 // not copying header and must_write lists, because we don't branch (unlike REPLICATE)
 
                 if (!foreach_stages(pipestring, process_stage, &jstst)) {
@@ -1858,6 +1874,7 @@ struct ConfAction *parse_actions_line(const char *stream, const char *line,
         .must_write = NULL,
         .stream_names = new_hashmap(11, NULL, NULL),
         .depth = 0,
+        .parent = NULL,
     };
 
     // automatically reduce TTL & schedule a check, if the very first header has such a field
