@@ -200,6 +200,41 @@ s3:match = ipv6_outer flowid=0x15555        ; match Locator 64 bit, both functio
 s3:actions = readseq ipv6_outer, del ipv6_outer, pef1 send_uni1
 ```
 
+## OAM
+
+SRv6 implementation also supports the same OAM functionalities as described in [OAM](oam.md). Just like for TSN and Detnet OAM, there is a protocol-specific header for OAM messages, while the payload is JSON. The OAM replies are sent out-of-band, as UDP messages containing the JSON payload to the return interface specified. The same ping, rping, rlist,... commands are supported.
+
+### OAM message format
+
+SRv6 OAM uses an ICMPv6 Echo-like message format, but with a specific experimental type (200). It is always IPv6, IPv4 OAM messages are not supported (i.e. ICMPv4 not supported).
+The message is an ICMPv6 Echo extended with a 32 bit ACH:
+
+```
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|     Type      |     Code      |          Checksum             |       ICMPv6, Type = 200 vagy 201
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|          Identifier           |        Sequence Number        |       Echo
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                 Node ID               |Level|  Flags  |Session|       ACH
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|     JSON Data ...
++-+-+-+-+-+-+-+-+-+-
+```
+
+Where Data is the JSON payload.
+The Identifier and Sequence Number are similar to the ICMPv6 Echo request, and the next 32 bit is the ACH.
+
+### Configuration of SRv6 OAM
+
+For SRv6 OAM MPs can be added to the action pipeline similarly to TSN/DetNet. However, there are some SRv6 specific requirements.
+
+* `match`: the requirement for SRv6 matching is at least (ipv6_outer, ip*) headers on SRv6 interfaces.
+* Write `loc`: the pipeline SHOULD write the "loc" field of the outer IPv6 header in order to satisfy the MP addressing.
+* After an MP injection point, `WriteSeq` must be added to write the sequence number to the IPv6 SID.
+
+The oam_srv6 test in the `test` directory gives an example for SRv6 OAM usage and configuration.
+
+
 ## Examples
 
 An SRv6 test script is available in the 'test' directory. The associated configuration files are in the `test/srv6` directory. There is a Readme too explaining the test scenario and srv6 script usage.

@@ -75,6 +75,7 @@ static bool ethertype_from_id(uint16_t *nexthdr, enum ProtocolID id)
         case PROTO_ID_OAM:
         case PROTO_ID_ICMPv6:
         case PROTO_ID_ICMPv6ECHO:
+        case PROTO_ID_ICMPv6ACH:
             return false;
     }
     return false;
@@ -132,6 +133,7 @@ static bool ipproto_from_id(uint16_t *proto, enum ProtocolID id)
         case PROTO_ID_OAMRTAG:
         case PROTO_ID_CFM:
         case PROTO_ID_ICMPv6ECHO:
+        case PROTO_ID_ICMPv6ACH:
             return false;
     }
     return false;
@@ -334,6 +336,13 @@ static const struct ProtocolField icmpv6_echo_fields[] = {
     {"sequence",   16, 16, FT_NUMBER},
 };
 
+// ICMPv6 ACH fields
+static const struct ProtocolField icmpv6_ach_fields[] = {
+    {"nodeid",     0,  20, FT_NUMBER},
+    {"level",      20,  3, FT_NUMBER},
+    {"flags",      23,  5, FT_NUMBER}, // all reserved
+    {"session",    28,  4, FT_NUMBER},
+};
 
 // the internal id of the protocols is their index in this array
 //TODO autogenerate this list
@@ -359,6 +368,7 @@ const struct Protocol protocol_list[] = {
     {"cfm", cfm_fields, ARRAY_SIZE(cfm_fields), 4, NULL, NULL, NULL, 0},
     {"icmpv6", icmpv6_fields, ARRAY_SIZE(icmpv6_fields), 4, NULL, NULL, NULL, 0},
     {"icmpv6echo", icmpv6_echo_fields, ARRAY_SIZE(icmpv6_echo_fields), 4, NULL, NULL, NULL, 0},
+    {"icmpv6ach", icmpv6_ach_fields, ARRAY_SIZE(icmpv6_ach_fields), 4, NULL, NULL, NULL, 0},
 };
 
 static const unsigned protocol_count = ARRAY_SIZE(protocol_list);

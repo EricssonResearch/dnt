@@ -301,13 +301,21 @@ static enum ActionResult action_ELIM_execute(struct Action *a, struct PipelineIt
                     return ACR_CONTINUE; //TODO ACR_DONE ?
                 }
 
-                struct icmp6_hdr* icmp6 = (struct icmp6_hdr*)(p->buf + p->headers[2].start);
+/*                struct icmp6_hdr* icmp6 = (struct icmp6_hdr*)(p->buf + p->headers[2].start);  // keep until header format decision
                 char nodeid_str[10];
                 snprintf(nodeid_str, sizeof(nodeid_str), "%u", icmp6->icmp6_dataun.icmp6_un_data8[0]);
                 char *session = strdup_printf("%s:%hhu:%hhu", nodeid_str, icmp6->icmp6_dataun.icmp6_un_data8[1], icmp6->icmp6_dataun.icmp6_un_data8[2]);
                 log_debug("SRv6 session %s", session);
 
                 enum ActionResult ret = oam_recovery(ed->rcvy, pi->packet, session, icmp6->icmp6_dataun.icmp6_un_data8[3]);
+*/
+                unsigned char *icmp6 = p->buf + p->headers[2].start + 4;
+                char nodeid_str[10];
+                snprintf(nodeid_str, sizeof(nodeid_str), "%u", (icmp6[4]>>12)+(icmp6[5]>>4)+(icmp6[6]>>4));
+                char *session = strdup_printf("%s:%hhu:%hhu", nodeid_str, icmp6[1], (icmp6[6]>>1) & 0x07);
+                //log_debug("SRv6 session %s", session);
+                enum ActionResult ret = oam_recovery(ed->rcvy, pi->packet, session, icmp6[3]);
+
                 free(session);
                 return ret;
             }
