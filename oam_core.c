@@ -155,10 +155,10 @@ bool init_oam(void)
     init_message_module();
 
     if(get_default_node_id()==0)
-        log_warning("OAM nodeid is zero.");
+        log_warning("OAM nodeid is zero. OAM interface IP's last bytes should be non-zero.");
 
     if (oam_default_ip_iface || oam_default_eth_iface || oam_cmd_iface) {
-        log_info("Init OAM fuctionality, NodeId %d :%s%s%s", get_default_node_id(),
+        log_info("Init OAM fuctionality nodeid %d :%s%s%s", get_default_node_id(),
                 oam_cmd_iface?" telnet interface":"",
                 oam_default_ip_iface?" reply interface":"",
                 oam_default_eth_iface?" reply interface":"");
