@@ -257,6 +257,8 @@ static bool ip_open(struct Interface *iface)
             return false;
         }
 
+        enable_rx_tstamp(sock_raw, "ip-in", iface->ifname/*, HWTSTAMP_FILTER_ALL*/);
+
         // Ignore outgoing packets sent on other priority sockets (since Linux 4.20)
         int true_flag = 1;
         if (setsockopt(sock_raw, SOL_PACKET, PACKET_IGNORE_OUTGOING, &true_flag, sizeof(true_flag)) < 0) {
