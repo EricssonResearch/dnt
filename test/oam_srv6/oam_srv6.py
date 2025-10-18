@@ -541,7 +541,7 @@ def run_tests(net, test):
             reply = re.sub(r'latest_valid_sequence_number \d+, passed \d+, discarded \d+',
                    r'latest_valid_sequence_number 0, passed 0, discarded 0',
                    reply)
-            reply = re.sub(r'delay -?\d+\.\d+',
+            reply = re.sub(r'delay \d+\.\d+',
                    r'delay 0',
                    reply)
             if reply.strip() == expected_reply.strip():
