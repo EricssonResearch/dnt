@@ -1,10 +1,11 @@
-#!/usr/bin/perl -pi
+#!/usr/bin/perl -p
 use strict;
 use warnings;
 # rewrites the Makefile to be suitable for compiling as C++
 
 use vars qw($first); # declare a global variable outside the main loop
 
+# hardcode g++, as clang++ refuses to compile C sources
 print "CC = g++\n\n" unless $first++; # write this only once
 
 s/^CC\s*=.*$//; # remove the original compiler selection if there is any

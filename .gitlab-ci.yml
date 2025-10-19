@@ -49,16 +49,16 @@ build-r2dtwo-debug-cpp:
   tags:
     - tsn
   script:
-    - .gitlab-ci/cppize.pl Makefile
-    - make debug -j
+    - .gitlab-ci/cppize.pl Makefile > Makefile-cpp
+    - make debug -j -f Makefile-cpp
 
 build-r2dtwo-release-cpp:
   stage: build
   tags:
     - tsn
   script:
-    - .gitlab-ci/cppize.pl Makefile
-    - make release -j
+    - .gitlab-ci/cppize.pl Makefile > Makefile-cpp
+    - make release -j -f Makefile-cpp
 
 build-r2dtwo-debug-clang:
   stage: build
