@@ -626,16 +626,16 @@ static struct JsonValue *unpack_tsn_message(const struct Packet *p)
     unsigned header_len = protocol_from_id(PROTO_ID_ETH)->bytelength +
         protocol_from_id(PROTO_ID_CVLAN)->bytelength;
 
-    if (plen < header_len) {
-        log_error("TSN OAM packet is too short");
-        return NULL;
-    }
-
     unsigned char *eth = p->buf + p->headers[0].start;
     unsigned char *vlan = eth + protocol_from_id(PROTO_ID_ETH)->bytelength;
 
     unsigned char *cfm = vlan + protocol_from_id(PROTO_ID_CVLAN)->bytelength;
     header_len += protocol_from_id(PROTO_ID_CFM)->bytelength + 3; // added the tlv header
+
+    if (plen < header_len) {
+        log_error("TSN OAM packet is too short");
+        return NULL;
+    }
 
     unsigned char *rtag = NULL;
     if (vlan[2] == 0xf1 && vlan[3] == 0xc1) {
@@ -796,14 +796,13 @@ static struct JsonValue *pack_tsn_message_header(const struct OAM_MaintenancePoi
     return js;
 }
 
-static bool pack_tsn_payload(struct Packet *p, const struct JsonValue *msg)
+static bool pack_tsn_payload(const struct OAM_MaintenancePoint *mp, struct Packet *p, const struct JsonValue *msg)
 {
     if (!packet_is_linear(p)) {
         log_error("can't update message in packet that is not continuous in memory");
         return false;
     }
 
-    //TODO adapt this to TSN
     struct JsonValue *out = json_duplicate(msg);
     const char *ach_keys[] = { "version", "seq", "channel", "nodeid", "level", "flags", "session" };
     for (unsigned i=0; i<ARRAY_SIZE(ach_keys); i++) {
@@ -822,11 +821,10 @@ static bool pack_tsn_payload(struct Packet *p, const struct JsonValue *msg)
     // write the new json string into p
     // TODO this packet manipulation is extremely ugly
     unsigned header_len = 0;
-    for (unsigned i=0; p->headers[i].type != PROTO_ID_PAYLOAD; i++) {
-        header_len += p->headers[i].len;
+    for (unsigned i=0; mp->protostack[i] != PROTO_ID_PAYLOAD; i++) {
+        header_len += protocol_from_id(mp->protostack[i])->bytelength;
     }
-    unsigned char *payload = p->buf + p->headers[0].start + header_len;
-    unsigned char *cfm = payload;
+    unsigned char *cfm = p->buf + p->headers[0].start + header_len;
     unsigned char *tlv = cfm + 4;
     tlv[1] = (js_length >> 8) & 0xff;
     tlv[2] = js_length & 0xff;
@@ -1289,7 +1287,7 @@ bool mp_pack_message_payload(const struct OAM_MaintenancePoint *mp, struct Packe
         return pack_pw_payload(p, msg);
     }
     else if (mp->encap == OAM_TSN) {
-        return pack_tsn_payload(p, msg);
+        return pack_tsn_payload(mp, p, msg);
     }
 
     return false;

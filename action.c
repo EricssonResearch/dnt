@@ -284,9 +284,7 @@ static enum ActionResult action_ELIM_execute(struct Action *a, struct PipelineIt
                 }
 
                 INTERPRET_DACH(p->buf + p->headers[1].start);
-                char nodeid_str[10];
-                snprintf(nodeid_str, sizeof(nodeid_str), "%u", dach.nodeid);
-                char *session = strdup_printf("%s:%hhu:%hhu", nodeid_str, dach.session, dach.level);
+                char *session = strdup_printf("%u:%hhu:%hhu", dach.nodeid, dach.session, dach.level);
                 log_debug("PW session %s", session);
 
                 enum ActionResult ret = oam_recovery(ed->rcvy, pi->packet, session, dach.seq);
