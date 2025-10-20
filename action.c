@@ -310,7 +310,7 @@ static enum ActionResult action_ELIM_execute(struct Action *a, struct PipelineIt
                 unsigned char *icmp6 = p->buf + p->headers[2].start + 4;
                 char nodeid_str[10];
                 snprintf(nodeid_str, sizeof(nodeid_str), "%u", (icmp6[4]>>12)+(icmp6[5]>>4)+(icmp6[6]>>4));
-                char *session = strdup_printf("%s:%hhu:%hhu", nodeid_str, icmp6[1], (icmp6[6]>>1) & 0x07);
+                char *session = strdup_printf("%s:%hhu:%u", nodeid_str, icmp6[1], (icmp6[6]>>1) & 0x07);
                 //log_debug("SRv6 session %s", session);
                 enum ActionResult ret = oam_recovery(ed->rcvy, pi->packet, session, icmp6[3]);
 
