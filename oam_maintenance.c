@@ -26,6 +26,8 @@ DEFAULT_LOGGING_MODULE(OAM, INFO);
 
 #define OAM_CHANNEL 0x7fff /* Experimental channel type, we are not compatible with anything */
 
+#define ICMP6_PRIVATE_EXP 200 /* Private experimentation, as defined in RFC 4443  */
+
 struct MP_SRv6_Address {
     unsigned char loc[8];
     enum OAM_MP_Addr_Source loc_source;
@@ -189,19 +191,18 @@ static struct JsonValue *unpack_srv6_message(const struct Packet *p)
     unsigned header_len = protocol_from_id(PROTO_ID_IPv6)->bytelength +
                           protocol_from_id(PROTO_ID_IPv6)->bytelength +
                           protocol_from_id(PROTO_ID_ICMPv6)->bytelength +
-                          protocol_from_id(PROTO_ID_ICMPv6ECHO)->bytelength +
-                          protocol_from_id(PROTO_ID_ICMPv6ACH)->bytelength;
+                          protocol_from_id(PROTO_ID_ICMPv6_NODEID)->bytelength;
 
     if (plen < header_len) {
         log_error("SRv6 OAM packet is too short");
         return NULL;
     }
 
-    struct icmp6_hdr* icmp6 = (struct icmp6_hdr*)(p->buf + p->headers[2].start);
+    unsigned char *icmp6 = p->buf + p->headers[2].start;
+
     // json is after the ICMPv6 header in payload
     char *json_str = (char*)(p->buf + p->headers[2].start + protocol_from_id(PROTO_ID_ICMPv6)->bytelength +
-                                                            protocol_from_id(PROTO_ID_ICMPv6ECHO)->bytelength +
-                                                            protocol_from_id(PROTO_ID_ICMPv6ACH)->bytelength);
+                                                            protocol_from_id(PROTO_ID_ICMPv6_NODEID)->bytelength);
     unsigned json_len = plen - header_len;
 
     char *jerror;
@@ -211,8 +212,11 @@ static struct JsonValue *unpack_srv6_message(const struct Packet *p)
         free(jerror);
         return NULL;
     }
-    json_object_insert(js, "session", json_number(icmp6->icmp6_dataun.icmp6_un_data8[1]));
-    json_object_insert(js, "seq", json_number(icmp6->icmp6_dataun.icmp6_un_data8[3]));
+
+    json_object_insert(js, "session", json_number(icmp6[5] & 0x0f));
+    json_object_insert(js, "seq", json_number(icmp6[7]));
+    json_object_insert(js, "level", json_number((icmp6[5] >> 4) & 0x07));
+    json_object_insert(js, "nodeid", json_number((icmp6[10] << 8) | icmp6[11]));
 
     return js;
 }
@@ -233,22 +237,21 @@ static struct JsonValue *pack_srv6_message_header(const struct OAM_MaintenancePo
     packet_add_header(p, 0, PROTO_ID_IPv6, protocol_from_id(PROTO_ID_IPv6)->bytelength);
     packet_add_header(p, 1, PROTO_ID_IPv6, protocol_from_id(PROTO_ID_IPv6)->bytelength);
     packet_add_header(p, 2, PROTO_ID_ICMPv6, protocol_from_id(PROTO_ID_ICMPv6)->bytelength);
-    packet_add_header(p, 3, PROTO_ID_ICMPv6ECHO, protocol_from_id(PROTO_ID_ICMPv6ECHO)->bytelength);
-    packet_add_header(p, 4, PROTO_ID_ICMPv6ACH, protocol_from_id(PROTO_ID_ICMPv6ACH)->bytelength);
-    packet_add_header(p, 5, PROTO_ID_PAYLOAD, 0);
+    packet_add_header(p, 3, PROTO_ID_ICMPv6_NODEID, protocol_from_id(PROTO_ID_ICMPv6_NODEID)->bytelength);
+    packet_add_header(p, 4, PROTO_ID_PAYLOAD, 0);
 
-    unsigned char *ipv6_outer  = p->buf + p->headers[0].start;
-    ipv6_outer[0]=0x60;
-    ipv6_outer[1]=0; ipv6_outer[2]=0; ipv6_outer[3]=0;  // flow label
-    //ipv6_outer[4-5] is length
-    ipv6_outer[6] = IPPROTO_IPV6; // next header
-    ipv6_outer[7] = ttl;  // hop count
-    memset(&ipv6_outer[8], 0, 16);  // if saddr is zero, the interface send will fill
-    memcpy(&ipv6_outer[24], mp->sid_address.loc, 16);
-    ipv6_outer[39] = seq;   // fill in seqnum in SID
+    unsigned char *ipv6_detnetsid  = p->buf + p->headers[0].start;
+    ipv6_detnetsid[0]=0x60;
+    ipv6_detnetsid[1]=0; ipv6_detnetsid[2]=0; ipv6_detnetsid[3]=0;  // flow label
+    //ipv6_detnetsid[4-5] is length
+    ipv6_detnetsid[6] = IPPROTO_IPV6; // next header
+    ipv6_detnetsid[7] = ttl;  // hop count
+    memset(&ipv6_detnetsid[8], 0, 16);  // if saddr is zero, the interface send will fill
+    memcpy(&ipv6_detnetsid[24], mp->sid_address.loc, 16);
+    ipv6_detnetsid[39] = seq;   // fill in seqnum in SID
 
-    // Indicate OAM
-    ipv6_outer[36] |= 0x01;
+    // Indicate OAM by setting the `o` bit in sequence number field
+    ipv6_detnetsid[36] |= 0x01;
 
     unsigned char *ipv6 = p->buf + p->headers[1].start;
     ipv6[0]=0x60;
@@ -266,22 +269,22 @@ static struct JsonValue *pack_srv6_message_header(const struct OAM_MaintenancePo
     memset(&ipv6[24], 0, 16); ipv6[39]=1;       // ::1
 
     unsigned char *icmpv6  = p->buf + p->headers[2].start;
-    //    icmpv6[0] = ICMP6_ECHO_REQUEST;     // type
-    icmpv6[0] = 200;                      // type 200  Private experimentation
+    //icmpv6[0] = ICMP6_ECHO_REQUEST;     // type
+    icmpv6[0] = ICMP6_PRIVATE_EXP;        // type 200  Private experimentation
     icmpv6[1] = 0;                        // code
     //icmpv6[2] = 0; icmpv6[3] = 0;       // checksum will be calculated later
 
-    unsigned char *icmpv6echo  = p->buf + p->headers[3].start;
-    icmpv6echo[1] = session & 0xf;  // Identifier
-    icmpv6echo[0] = 0;              // ToDo: how to encode correctly?
-    icmpv6echo[3] = seq;            // Sequence
-    icmpv6echo[2] = 0;              // ToDo: how to encode correctly?
-                                    // (must be in line with elimination action!)
-    // ACH
-    icmpv6echo[4] = (nodeid>>12) & 0xff;
-    icmpv6echo[5] = (nodeid>>4) & 0xff;
-    icmpv6echo[6] = ((nodeid&0xf) << 4) + ((level & 0x07) << 1);
-    icmpv6echo[7] = session & 0x0f;
+    // Type specific ICMPv6 fields
+    icmpv6[5] = ((level & 0x07) << 4) | (session & 0x0f);  // Identifier
+    icmpv6[4] = 0;              // Network byte order is Big Endian
+    icmpv6[7] = seq;            // Sequence
+    icmpv6[6] = 0;              // Network byte order is Big Endian
+                                // (must be in line with elimination action!)
+    // Node Id extension bytes
+    icmpv6[8]  = 0;             // Flags, reserved bits
+    icmpv6[9]  = 0;             // we use 16 bit node id, so this is 0
+    icmpv6[10] = (nodeid>>8) & 0xff;
+    icmpv6[11] = nodeid & 0xff;
 
     p->ttl = ttl;
     p->sequence = htonl(seq);
@@ -289,10 +292,6 @@ static struct JsonValue *pack_srv6_message_header(const struct OAM_MaintenancePo
     struct JsonValue *js = json_object();
     json_object_insert(js, "type", json_string(request_get_type(req)));
     json_object_insert(js, "code", json_string("request"));
-
-    // add required fields
-    json_object_insert(js, "level", json_number(level));
-    json_object_insert(js, "nodeid", json_number(nodeid));
 
     struct timespec sendtime;
     clock_gettime(CLOCK_REALTIME, &sendtime);
@@ -321,8 +320,7 @@ static bool pack_srv6_payload(struct Packet *p, const struct JsonValue *msg)
 
     // here we may have only 3 headers identified if packet is forwareded in-band
     unsigned header_len = protocol_from_id(PROTO_ID_ICMPv6)->bytelength +
-                          protocol_from_id(PROTO_ID_ICMPv6ECHO)->bytelength +
-                          protocol_from_id(PROTO_ID_ICMPv6ACH)->bytelength;
+                          protocol_from_id(PROTO_ID_ICMPv6_NODEID)->bytelength;
 
     // write the new json string into p
     char *payload = (char *)(p->buf + p->headers[2].start + header_len);
@@ -371,26 +369,13 @@ static int compare_srv6_level(const struct OAM_MaintenancePoint *mp, const struc
         return -1;
     }
 
-    // here we either have IP6+IP6+payload or IP6+IP6+ICMPv6+ICMPv6 Echo+payload
-    unsigned header_len = protocol_from_id(PROTO_ID_ICMPv6)->bytelength +
-                          protocol_from_id(PROTO_ID_ICMPv6ECHO)->bytelength +
-                          protocol_from_id(PROTO_ID_ICMPv6ACH)->bytelength;
+    // here we either have IP6+IP6+payload or IP6+IP6+ICMPv6+payload
+    unsigned header_len = protocol_from_id(PROTO_ID_IPv6)->bytelength;
 
-    char *json_str = (char *)(p->buf + p->headers[2].start + header_len);
-    // calculate payload length
-    unsigned char *ipv6  = p->buf + p->headers[1].start;
-    int payload_len = (ipv6[4] << 8) + ipv6[5] - header_len;
+    unsigned char *p_level_session = p->buf + p->headers[1].start + header_len + 5;     // level|session is in the 5th byte of ICMPv6
+    unsigned char level = ((*p_level_session) >> 4) & 0x07;
 
-    char *jerr;
-    struct JsonValue *j = json_parse(json_str,  payload_len, &jerr);
-    if (j == NULL || j->type != JSON_OBJECT) {
-        log_error("SRv6 JSON len %d is invalid: %s, js: %s", payload_len, jerr, json_str);
-        free(jerr);
-        return -1;
-    }
-    struct JsonValue *jlevel = json_object_get_any(j, "level");
-
-    return (int)jlevel->v.number - (int)mp->level;
+    return (int)level - (int)mp->level;
 }
 
 static unsigned char get_srv6_ttl(const struct Packet *p)
@@ -400,7 +385,7 @@ static unsigned char get_srv6_ttl(const struct Packet *p)
         return -1;
     }
 
-    // get it from outer header
+    // get it from DetNet SID header
     unsigned char *ipv6_start = p->buf + p->headers[0].start;
     return ipv6_start[7];
 }

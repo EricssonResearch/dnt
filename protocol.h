@@ -43,8 +43,7 @@ enum ProtocolID {
     PROTO_ID_OAMRTAG,
     PROTO_ID_CFM,
     PROTO_ID_ICMPv6,
-    PROTO_ID_ICMPv6ECHO,
-    PROTO_ID_ICMPv6ACH,
+    PROTO_ID_ICMPv6_NODEID,
 };
 
 // describes one field of a protocol header

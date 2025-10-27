@@ -207,22 +207,37 @@ SRv6 implementation also supports the same OAM functionalities as described in [
 ### OAM message format
 
 SRv6 OAM uses an ICMPv6 Echo-like message format, but with a specific experimental type (200). It is always IPv6, IPv4 OAM messages are not supported (i.e. ICMPv4 not supported).
-The message is an ICMPv6 Echo extended with a 32 bit ACH:
+
+OAM messages use the DetNet sequence field similar to the TSN or DetNet sequence field, but it's only 28 bits. Since the 4 bit OAM nibble is not included, the 4th flag bit is used to indicate the OAM message type. Thus the sequence number field in the DetNet SID is defined as:
+
+
+```
+┌─┬─┬─┬─┬──────────────────┬────────────────────────────────────────┐
+│ | | |o│  8 bit reserved  │           16 bit sequence number       │
+└─┴─┴─┴─┴──────────────────┴────────────────────────────────────────┘
+```
+
+Where `o` is  the OAM flag, indicating OAM message.
+
+The message itself is an ICMPv6 Echo extended with a 32 bit Node ID extension:
 
 ```
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|     Type      |     Code      |          Checksum             |       ICMPv6, Type = 200 vagy 201
+|     Type      |     Code      |          Checksum             |       ICMPv6, Type = 200 or 201
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|          Identifier           |        Sequence Number        |       Echo
+|   Reserved (0)  | Lvl |Session|        Sequence Number        |       Echo
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|                 Node ID               |Level|  Flags  |Session|       ACH
+|  Flags  |  Reserved   |             Node ID                   |       Node ID extension
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 |     JSON Data ...
 +-+-+-+-+-+-+-+-+-+-
 ```
 
 Where Data is the JSON payload.
-The Identifier and Sequence Number are similar to the ICMPv6 Echo request, and the next 32 bit is the ACH.
+The `Identifier` and `Sequence Number` are similar to the ICMPv6 Echo request, and the next 32 bit is the Node ID extension.
+The `Identifier` consists of 9 reserved bits of 0, the level and the session ID.
+
+The Node ID extension holds 5 bit `Flags`, and 20 bit `Node ID`, from which we use only 16 bits.
 
 ### Configuration of SRv6 OAM
 

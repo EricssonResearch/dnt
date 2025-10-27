@@ -299,21 +299,15 @@ static enum ActionResult action_ELIM_execute(struct Action *a, struct PipelineIt
                     return ACR_CONTINUE; //TODO ACR_DONE ?
                 }
 
-/*                struct icmp6_hdr* icmp6 = (struct icmp6_hdr*)(p->buf + p->headers[2].start);  // keep until header format decision
-                char nodeid_str[10];
-                snprintf(nodeid_str, sizeof(nodeid_str), "%u", icmp6->icmp6_dataun.icmp6_un_data8[0]);
-                char *session = strdup_printf("%s:%hhu:%hhu", nodeid_str, icmp6->icmp6_dataun.icmp6_un_data8[1], icmp6->icmp6_dataun.icmp6_un_data8[2]);
+                unsigned char *icmp6 = p->buf + p->headers[1].start + protocol_from_id(PROTO_ID_IPv6)->bytelength;
+                unsigned char sessionid = icmp6[5] & 0x0f;
+                unsigned char level = (icmp6[5] >> 4) & 0x07;
+                unsigned char seq = icmp6[7];
+                unsigned node_id = (icmp6[10] << 8) | icmp6[11];
+                char *session = strdup_printf("%u:%hhu:%hhu", node_id, sessionid, level);
                 log_debug("SRv6 session %s", session);
 
-                enum ActionResult ret = oam_recovery(ed->rcvy, pi->packet, session, icmp6->icmp6_dataun.icmp6_un_data8[3]);
-*/
-                unsigned char *icmp6 = p->buf + p->headers[2].start + 4;
-                char nodeid_str[10];
-                snprintf(nodeid_str, sizeof(nodeid_str), "%u", (icmp6[4]>>12)+(icmp6[5]>>4)+(icmp6[6]>>4));
-                char *session = strdup_printf("%s:%hhu:%u", nodeid_str, icmp6[1], (icmp6[6]>>1) & 0x07);
-                //log_debug("SRv6 session %s", session);
-                enum ActionResult ret = oam_recovery(ed->rcvy, pi->packet, session, icmp6[3]);
-
+                enum ActionResult ret = oam_recovery(ed->rcvy, pi->packet, session, seq);
                 free(session);
                 return ret;
             }
@@ -461,8 +455,8 @@ static enum ActionResult action_OAMRECEIVE_execute(struct Action *a, struct Pipe
         packet_is_oam = (oam_hdr[0] & 0xf0) == 0x10;
     } else if (ord->protostack[0] == PROTO_ID_IPv6) {
         // we have SRv6 (probably)
-        unsigned char *ipv6_outer = p->buf + p->headers[0].start;
-        packet_is_oam = (ipv6_outer[36] & 0x01) == 0x01; // OAM bit
+        unsigned char *ipv6_detnetsid = p->buf + p->headers[0].start;
+        packet_is_oam = (ipv6_detnetsid[36] & 0x01) == 0x01; // OAM bit
     } else {
         //TODO die?
         return ACR_CONTINUE;

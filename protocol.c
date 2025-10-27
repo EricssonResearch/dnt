@@ -74,8 +74,7 @@ static bool ethertype_from_id(uint16_t *nexthdr, enum ProtocolID id)
         case PROTO_ID_TCP:
         case PROTO_ID_OAM:
         case PROTO_ID_ICMPv6:
-        case PROTO_ID_ICMPv6ECHO:
-        case PROTO_ID_ICMPv6ACH:
+        case PROTO_ID_ICMPv6_NODEID:
             return false;
     }
     return false;
@@ -132,8 +131,7 @@ static bool ipproto_from_id(uint16_t *proto, enum ProtocolID id)
         case PROTO_ID_ARP:
         case PROTO_ID_OAMRTAG:
         case PROTO_ID_CFM:
-        case PROTO_ID_ICMPv6ECHO:
-        case PROTO_ID_ICMPv6ACH:
+        case PROTO_ID_ICMPv6_NODEID:
             return false;
     }
     return false;
@@ -323,25 +321,25 @@ static const struct ProtocolField cfm_fields[] = {
     {"tlvoffset", 24,  8, FT_NUMBER}, // length of a fixed header after CFM
 };
 
-// ICMPv6 protocol fields
+// ICMPv6 protocol fields, including type specific fields
 static const struct ProtocolField icmpv6_fields[] = {
-    {"type",       0,  8, FT_NUMBER},   // type, 128 = echo req
+    {"type",       0,  8, FT_NUMBER},     // type, 128 = echo req
     {"code",       8,  8, FT_NUMBER},
     {"checksum",  16,  16, FT_CHECKSUM},  // needs to be calculated
+
+    // These are type-specific fields
+    {"identifier",32,  16, FT_NUMBER},    // ICMPv6 Echo fields
+    {"sequence",  48,  16, FT_NUMBER},
+    {"mtu",       32,  32, FT_NUMBER},    // Packet Too Big error
+    {"pointer",   32,  32, FT_NUMBER},    // Parameter problem
+    {"reserved",  32,  32, FT_NUMBER},    // Unused
 };
 
-// ICMPv6 type echo fields
-static const struct ProtocolField icmpv6_echo_fields[] = {
-    {"identifier", 0,  16, FT_NUMBER},
-    {"sequence",   16, 16, FT_NUMBER},
-};
-
-// ICMPv6 ACH fields
-static const struct ProtocolField icmpv6_ach_fields[] = {
-    {"nodeid",     0,  20, FT_NUMBER},
-    {"level",      20,  3, FT_NUMBER},
-    {"flags",      23,  5, FT_NUMBER}, // all reserved
-    {"session",    28,  4, FT_NUMBER},
+// ICMPv6 Node ID extension fields
+static const struct ProtocolField icmpv6_nodeid_fields[] = {
+    {"flags",      0,  5, FT_NUMBER},
+    {"reserved",   5,  7, FT_NUMBER},
+    {"nodeid",    12, 20, FT_NUMBER},
 };
 
 // the internal id of the protocols is their index in this array
@@ -366,9 +364,8 @@ const struct Protocol protocol_list[] = {
     {"oam", oam_fields, ARRAY_SIZE(oam_fields), 8, NULL, NULL, NULL, 0},
     {"oamrtag", oamrtag_fields, ARRAY_SIZE(oamrtag_fields), 4, NULL, NULL, NULL, 0},
     {"cfm", cfm_fields, ARRAY_SIZE(cfm_fields), 4, NULL, NULL, NULL, 0},
-    {"icmpv6", icmpv6_fields, ARRAY_SIZE(icmpv6_fields), 4, NULL, NULL, NULL, 0},
-    {"icmpv6echo", icmpv6_echo_fields, ARRAY_SIZE(icmpv6_echo_fields), 4, NULL, NULL, NULL, 0},
-    {"icmpv6ach", icmpv6_ach_fields, ARRAY_SIZE(icmpv6_ach_fields), 4, NULL, NULL, NULL, 0},
+    {"icmpv6", icmpv6_fields, ARRAY_SIZE(icmpv6_fields), 8, NULL, NULL, NULL, 0},
+    {"icmpv6nodeid", icmpv6_nodeid_fields, ARRAY_SIZE(icmpv6_nodeid_fields), 4, NULL, NULL, NULL, 0},
 };
 
 static const unsigned protocol_count = ARRAY_SIZE(protocol_list);
