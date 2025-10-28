@@ -532,6 +532,7 @@ def run_tests(net, test):
         with Telnet(raddrs[node], 8000) as cli:
             _ = cli.recv() # OAM ready
             cli.send(msg)
+            time.sleep(0.5)
             print(f"Node: {node}, command: {msg}", end=" ")
             if "any" in msg:
                 reply = cli.recv(1.0, aggregate=True)
