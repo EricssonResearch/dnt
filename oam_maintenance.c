@@ -190,8 +190,7 @@ static struct JsonValue *unpack_srv6_message(const struct Packet *p)
     unsigned plen = packet_length(p);
     unsigned header_len = protocol_from_id(PROTO_ID_IPv6)->bytelength +
                           protocol_from_id(PROTO_ID_IPv6)->bytelength +
-                          protocol_from_id(PROTO_ID_ICMPv6)->bytelength +
-                          protocol_from_id(PROTO_ID_ICMPv6_NODEID)->bytelength;
+                          protocol_from_id(PROTO_ID_ICMPv6)->bytelength;
 
     if (plen < header_len) {
         log_error("SRv6 OAM packet is too short");
@@ -201,8 +200,7 @@ static struct JsonValue *unpack_srv6_message(const struct Packet *p)
     unsigned char *icmp6 = p->buf + p->headers[2].start;
 
     // json is after the ICMPv6 header in payload
-    char *json_str = (char*)(p->buf + p->headers[2].start + protocol_from_id(PROTO_ID_ICMPv6)->bytelength +
-                                                            protocol_from_id(PROTO_ID_ICMPv6_NODEID)->bytelength);
+    char *json_str = (char*)(p->buf + p->headers[2].start + protocol_from_id(PROTO_ID_ICMPv6)->bytelength);
     unsigned json_len = plen - header_len;
 
     char *jerror;
@@ -216,7 +214,7 @@ static struct JsonValue *unpack_srv6_message(const struct Packet *p)
     json_object_insert(js, "session", json_number(icmp6[5] & 0x0f));
     json_object_insert(js, "seq", json_number(icmp6[7]));
     json_object_insert(js, "level", json_number((icmp6[5] >> 4) & 0x07));
-    json_object_insert(js, "nodeid", json_number((icmp6[10] << 8) | icmp6[11]));
+    json_object_insert(js, "nodeid", json_number((ipv6_hdr[23] << 8) | ipv6_hdr[22]));  // last 2 bytes of IPv6 source addr.
 
     return js;
 }
@@ -237,8 +235,7 @@ static struct JsonValue *pack_srv6_message_header(const struct OAM_MaintenancePo
     packet_add_header(p, 0, PROTO_ID_IPv6, protocol_from_id(PROTO_ID_IPv6)->bytelength);
     packet_add_header(p, 1, PROTO_ID_IPv6, protocol_from_id(PROTO_ID_IPv6)->bytelength);
     packet_add_header(p, 2, PROTO_ID_ICMPv6, protocol_from_id(PROTO_ID_ICMPv6)->bytelength);
-    packet_add_header(p, 3, PROTO_ID_ICMPv6_NODEID, protocol_from_id(PROTO_ID_ICMPv6_NODEID)->bytelength);
-    packet_add_header(p, 4, PROTO_ID_PAYLOAD, 0);
+    packet_add_header(p, 3, PROTO_ID_PAYLOAD, 0);
 
     unsigned char *ipv6_detnetsid  = p->buf + p->headers[0].start;
     ipv6_detnetsid[0]=0x60;
@@ -269,8 +266,8 @@ static struct JsonValue *pack_srv6_message_header(const struct OAM_MaintenancePo
     memset(&ipv6[24], 0, 16); ipv6[39]=1;       // ::1
 
     unsigned char *icmpv6  = p->buf + p->headers[2].start;
-    //icmpv6[0] = ICMP6_ECHO_REQUEST;     // type
-    icmpv6[0] = ICMP6_PRIVATE_EXP;        // type 200  Private experimentation
+    icmpv6[0] = ICMP6_ECHO_REQUEST;     // type
+    //icmpv6[0] = ICMP6_PRIVATE_EXP;        // type 200  Private experimentation
     icmpv6[1] = 0;                        // code
     //icmpv6[2] = 0; icmpv6[3] = 0;       // checksum will be calculated later
 
@@ -280,11 +277,6 @@ static struct JsonValue *pack_srv6_message_header(const struct OAM_MaintenancePo
     icmpv6[7] = seq;            // Sequence
     icmpv6[6] = 0;              // Network byte order is Big Endian
                                 // (must be in line with elimination action!)
-    // Node Id extension bytes
-    icmpv6[8]  = 0;             // Flags, reserved bits
-    icmpv6[9]  = 0;             // we use 16 bit node id, so this is 0
-    icmpv6[10] = (nodeid>>8) & 0xff;
-    icmpv6[11] = nodeid & 0xff;
 
     p->ttl = ttl;
     p->sequence = htonl(seq);
@@ -319,8 +311,7 @@ static bool pack_srv6_payload(struct Packet *p, const struct JsonValue *msg)
     }
 
     // here we may have only 3 headers identified if packet is forwareded in-band
-    unsigned header_len = protocol_from_id(PROTO_ID_ICMPv6)->bytelength +
-                          protocol_from_id(PROTO_ID_ICMPv6_NODEID)->bytelength;
+    unsigned header_len = protocol_from_id(PROTO_ID_ICMPv6)->bytelength;
 
     // write the new json string into p
     char *payload = (char *)(p->buf + p->headers[2].start + header_len);

@@ -299,11 +299,14 @@ static enum ActionResult action_ELIM_execute(struct Action *a, struct PipelineIt
                     return ACR_CONTINUE; //TODO ACR_DONE ?
                 }
 
+                unsigned char *ipv6_hdr = p->buf + p->headers[1].start;
+                unsigned node_id = (ipv6_hdr[23] << 8) | ipv6_hdr[22];   // last 2 bytes of IPv6 source addr.
+
                 unsigned char *icmp6 = p->buf + p->headers[1].start + protocol_from_id(PROTO_ID_IPv6)->bytelength;
                 unsigned char sessionid = icmp6[5] & 0x0f;
                 unsigned char level = (icmp6[5] >> 4) & 0x07;
                 unsigned char seq = icmp6[7];
-                unsigned node_id = (icmp6[10] << 8) | icmp6[11];
+
                 char *session = strdup_printf("%u:%hhu:%hhu", node_id, sessionid, level);
                 log_debug("SRv6 session %s", session);
 

@@ -223,11 +223,9 @@ The message itself is an ICMPv6 Echo extended with a 32 bit Node ID extension:
 
 ```
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|     Type      |     Code      |          Checksum             |       ICMPv6, Type = 200 or 201
+|     Type      |     Code      |          Checksum             |       ICMPv6, Type = Echo or 200 (Experimental)
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 |   Reserved (0)  | Lvl |Session|        Sequence Number        |       Echo
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|  Flags  |  Reserved   |             Node ID                   |       Node ID extension
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 |     JSON Data ...
 +-+-+-+-+-+-+-+-+-+-
@@ -236,8 +234,8 @@ The message itself is an ICMPv6 Echo extended with a 32 bit Node ID extension:
 Where Data is the JSON payload.
 The `Identifier` and `Sequence Number` are similar to the ICMPv6 Echo request, and the next 32 bit is the Node ID extension.
 The `Identifier` consists of 9 reserved bits of 0, the level and the session ID.
-
-The Node ID extension holds 5 bit `Flags`, and 20 bit `Node ID`, from which we use only 16 bits.
+The (NodeID, Level, Sequence) triplet uniquely identifies an OAM session. The *Node ID* is the source IP address of the ICMPv6 message.  
+(Normally the default OAM interface address is used as *Node ID*.)
 
 ### Configuration of SRv6 OAM
 

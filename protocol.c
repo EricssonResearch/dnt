@@ -74,7 +74,6 @@ static bool ethertype_from_id(uint16_t *nexthdr, enum ProtocolID id)
         case PROTO_ID_TCP:
         case PROTO_ID_OAM:
         case PROTO_ID_ICMPv6:
-        case PROTO_ID_ICMPv6_NODEID:
             return false;
     }
     return false;
@@ -131,7 +130,6 @@ static bool ipproto_from_id(uint16_t *proto, enum ProtocolID id)
         case PROTO_ID_ARP:
         case PROTO_ID_OAMRTAG:
         case PROTO_ID_CFM:
-        case PROTO_ID_ICMPv6_NODEID:
             return false;
     }
     return false;
@@ -335,13 +333,6 @@ static const struct ProtocolField icmpv6_fields[] = {
     {"reserved",  32,  32, FT_NUMBER},    // Unused
 };
 
-// ICMPv6 Node ID extension fields
-static const struct ProtocolField icmpv6_nodeid_fields[] = {
-    {"flags",      0,  5, FT_NUMBER},
-    {"reserved",   5,  7, FT_NUMBER},
-    {"nodeid",    12, 20, FT_NUMBER},
-};
-
 // the internal id of the protocols is their index in this array
 //TODO autogenerate this list
 const struct Protocol protocol_list[] = {
@@ -365,7 +356,6 @@ const struct Protocol protocol_list[] = {
     {"oamrtag", oamrtag_fields, ARRAY_SIZE(oamrtag_fields), 4, NULL, NULL, NULL, 0},
     {"cfm", cfm_fields, ARRAY_SIZE(cfm_fields), 4, NULL, NULL, NULL, 0},
     {"icmpv6", icmpv6_fields, ARRAY_SIZE(icmpv6_fields), 8, NULL, NULL, NULL, 0},
-    {"icmpv6nodeid", icmpv6_nodeid_fields, ARRAY_SIZE(icmpv6_nodeid_fields), 4, NULL, NULL, NULL, 0},
 };
 
 static const unsigned protocol_count = ARRAY_SIZE(protocol_list);
