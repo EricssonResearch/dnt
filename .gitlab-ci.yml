@@ -220,7 +220,7 @@ pytest_srv6:
   dependencies:
     - build-unit_test
   script:
-    - TEST_COLOR=1 valgrind --error-exitcode=42 --leak-check=full unit_test/build/$TESTNAME
+    - TEST_COLOR=1 unit_test/build/$TESTNAME
 
 unit_test.conf_utils:
   extends: .unit_test.common

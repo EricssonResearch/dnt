@@ -4,7 +4,7 @@ project(R2DTWO_Testing)
 
 include_directories(../)
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -Og -std=gnu99 -Wall -Wextra -Wstrict-prototypes -Wmissing-declarations -Wwrite-strings -Wshadow -Wvla -Wc++-compat -Werror")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -Og -std=gnu99 -fsanitize=address -fno-omit-frame-pointer -Wall -Wextra -Wstrict-prototypes -Wmissing-declarations -Wwrite-strings -Wshadow -Wvla -Wc++-compat -Werror")
 
 #TODO enable these to compile as C++
 #file(GLOB_RECURSE CFILES "${CMAKE_SOURCE_DIR}/../*.c")
