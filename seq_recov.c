@@ -515,7 +515,7 @@ static bool decrement_ticks(struct SequenceRecovery *rec)
     if (rec->remaining_ticks == 0)
         return false;
 
-    if (rec->remaining_ticks-- == 0) {
+    if (--rec->remaining_ticks == 0) {
         return true;
     }
     return false;
