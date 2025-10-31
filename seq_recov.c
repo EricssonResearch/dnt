@@ -18,6 +18,8 @@
 #include <string.h>
 #include <stdlib.h>
 
+#include <pthread.h>
+
 #include <arpa/inet.h>
 #include <time.h>
 
@@ -35,7 +37,6 @@ LOGGING_MODULE(PACKETTRACE, WARNING);
 
 struct MaskState {
     bool masked;
-    //TODO need something more?
 };
 
 struct SequenceRecovery {
@@ -89,6 +90,9 @@ struct SequenceRecovery {
     char *postAutoMIP;
 };
 
+// the insert/delete to this hash is sporadic, we can get away with a global lock
+static pthread_mutex_t oam_seq_recoveries_lock = PTHREAD_MUTEX_INITIALIZER;
+
 static int oam_rcvy_del_cb(const char *key, void *value, void *userdata)
 {
     (void)key;
@@ -120,7 +124,9 @@ TESTABLE struct SequenceRecovery *get_oam_rcvy(struct PipelineObject *obj, const
         oamrec = (struct SequenceRecovery *)r;
         oamrec->oam_session_id = strdup(session_id);
         oamrec->oam_seq_recoveries = rec->oam_seq_recoveries; // need to point to the parent's hash
+        pthread_mutex_lock(&oam_seq_recoveries_lock);
         hashmap_insert(rec->oam_seq_recoveries, oamrec->oam_session_id, oamrec);
+        pthread_mutex_unlock(&oam_seq_recoveries_lock);
     }
     return oamrec;
 }
@@ -150,6 +156,7 @@ static struct JsonValue *srec_get_state_json(const struct PipelineObject *obj)
     json_object_insert(js, "recovery_seq_num", json_number((double) rec->recv_seq));
     json_object_insert(js, "passed_packets", json_number((double) rec->passed_packets));
     json_object_insert(js, "discarded_packets", json_number((double) rec->discarded_packets));
+    json_object_insert(js, "out_of_order_packets", json_number((double) rec->out_of_order_packets));
     json_object_insert(js, "seq_recovery_resets", json_number((double) rec->seq_recovery_resets));
 
     if (rec->algorithm != RCVY_Match) { //only for vector & seamless
@@ -502,39 +509,24 @@ static void latent_error_reset(struct SequenceRecovery *rec)
     rec->skip_loss_after_reset_guard = rec->history_length - 1;
 }
 
-// return false to stop reset thread
+// @returns true if the ticks have reached zero
 static bool decrement_ticks(struct SequenceRecovery *rec)
 {
-    rec->latent_reset_counter += 1000 / FRER_TICKS_PER_SEC;
-    if (rec->diag.latent_reset_period && (rec->latent_reset_counter >= rec->diag.latent_reset_period)) {
-        latent_error_reset(rec);
-        rec->latent_reset_counter = 0;
-    }
-    rec->latent_error_counter += 1000 / FRER_TICKS_PER_SEC;
-    if (rec->latent_error_counter >= rec->diag.latent_error_period) {
-        latent_error_test(rec);
-        rec->latent_error_counter = 0;
-    }
     if (rec->remaining_ticks == 0)
+        return false;
+
+    if (rec->remaining_ticks-- == 0) {
         return true;
-    rec->remaining_ticks -= 1;
-    if (rec->remaining_ticks == 0) {
-        seq_recovery_reset(rec);
-        // oam sequence recovery dies upon reset
-        if (rec->oam_session_id)
-            return false; // stop reset thread
     }
-    return true;
+    return false;
 }
 
-// This thread decrement the @remaining_ticks periodically
-// and check do a Sequence Recovery reset if it reach zero.
+// decrement @remaining_ticks periodically
+// do a Sequence Recovery reset when the ticks expire
 static void *reset_thread(void *arg)
 {
     struct SequenceRecovery *rec = (struct SequenceRecovery *)arg;
     struct timespec sleep_until, delta, now;
-
-    //TODO grab mutex
 
     reset_ticks(rec);
 
@@ -543,24 +535,48 @@ static void *reset_thread(void *arg)
     delta.tv_nsec = tick_ns % NSEC_PER_SEC;
     clock_gettime(CLOCK_REALTIME, &now);
     timespecadd(&now, &delta, &sleep_until);
-    bool should_run = true;
-    while (should_run) {
+
+    while (1) {
         clock_nanosleep(CLOCK_REALTIME, TIMER_ABSTIME, &sleep_until, NULL);
         clock_gettime(CLOCK_REALTIME, &now);
         if (timespeccmp(&now, &sleep_until, <)) {
-            log_debug("%s: Early wakeup. continue sleep...", rec->base.name);
-            // Unlikely early wake up, continue with sleeping
+            //TODO has this ever happened?
+            log_warning("%s: Early wakeup. continue sleep...", rec->base.name);
             continue;
         }
-        should_run = decrement_ticks(rec);
+
+        if (decrement_ticks(rec)) {
+            if (rec->oam_session_id) {
+                // OAM recovery just dies on timeout
+                struct Thread *reset_thread = rec->reset_thread;
+                rec->reset_thread = NULL;
+                // here we use our pointer to the parent's hash
+                pthread_mutex_lock(&oam_seq_recoveries_lock);
+                hashmap_remove(rec->oam_seq_recoveries, rec->oam_session_id);
+                pthread_mutex_unlock(&oam_seq_recoveries_lock);
+                thread_exit(reset_thread);
+                return NULL;
+            }
+
+            seq_recovery_reset(rec);
+        }
+
+        rec->latent_reset_counter += 1000 / FRER_TICKS_PER_SEC;
+        if (rec->diag.latent_reset_period && (rec->latent_reset_counter >= rec->diag.latent_reset_period)) {
+            latent_error_reset(rec);
+            rec->latent_reset_counter = 0;
+        }
+
+        rec->latent_error_counter += 1000 / FRER_TICKS_PER_SEC;
+        if (rec->latent_error_counter >= rec->diag.latent_error_period) {
+            latent_error_test(rec);
+            rec->latent_error_counter = 0;
+        }
+
         timespecadd(&now, &delta, &sleep_until);
     }
-    struct Thread *reset_thread = rec->reset_thread;
-    rec->reset_thread = NULL;
-    // here we use our pointer to the parent's hash
-    hashmap_remove(rec->oam_seq_recoveries, rec->oam_session_id);
-    thread_exit(reset_thread);
-    return rec;
+
+    return NULL;
 }
 
 void seq_rec_register_preAutoMIP(struct PipelineObject *obj, const char *mip_name)
