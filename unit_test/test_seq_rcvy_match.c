@@ -2,14 +2,18 @@
 #include "testing.h"
 
 #include "action.h"
+#include "json.h"
 #include "notification.h"
 #include "packet.h"
 #include "pipeline.h"
 #include "seq_recov.h"
+#include "thread_utils.h"
 #include "utils.h"
 
 #include <stdlib.h>
 #include <string.h>
+
+#include <pthread.h>
 
 #include <arpa/inet.h>
 
@@ -154,11 +158,95 @@ static void test_single(void)
     OK(delete_packet(p) == NULL, "delete packet");
 }
 
+#define ITERATIONS 300
+static pthread_spinlock_t spinlock;
+static unsigned seq = 0;
+static unsigned results[ITERATIONS*2+1] = {};
+
+static void *multi_thread(void *arg)
+{
+    // note: testing.h is not thread-safe, we can't use OK() here
+
+    //pthread_t tid = pthread_self();
+    struct PipelineObject *rec = (struct PipelineObject *)arg;
+
+    struct Packet *p = new_packet(NULL);
+    struct Pipeline *pl = new_pipeline("test");
+    struct PipelineIterator *pi = new_pipe_iterator(pl, p);
+
+    for (unsigned i=0; i<ITERATIONS; i++) {
+        pthread_spin_lock(&spinlock);
+
+        p->sequence = htonl(seq);
+        enum ActionResult result = rec->process_packet(rec, pi);
+        if (result == ACR_CONTINUE)
+            __atomic_add_fetch(&results[seq], 1, __ATOMIC_RELAXED);
+
+        //usleep(10*1000);
+        volatile int k = 0;
+        for (unsigned a=0; a<10000000;a++) {
+            k += a;
+        }
+        seq++;
+
+        pthread_spin_unlock(&spinlock);
+
+        p->sequence = htonl(seq);
+        result = rec->process_packet(rec, pi);
+        if (result == ACR_CONTINUE)
+            __atomic_add_fetch(&results[seq], 1, __ATOMIC_RELAXED);
+
+        //printf("\n%lu %u", tid, i);
+    }
+
+    free(pi);
+    pipeline_unref(pl);
+    delete_packet(p);
+    return NULL;
+}
+
 static void test_multi(void)
 {
-    SKIP("first implement the locking");
+    OK_FATAL(pthread_spin_init(&spinlock, 0) == 0, "create spinlock");
 
-    // note: match recovery is intended for slow streams
+    struct RecoveryDiagnosticConf diag = {};
+    struct PipelineObject *rec = new_seq_rec("match", RCVY_Match, false, false, history_length, 1000, &diag);
+    OK_FATAL(rec, "have object");
+
+    struct Thread *t[2];
+    for (unsigned i=0; i<2; i++) {
+        t[i] = thread_launch(multi_thread, rec, "rcvy %u", i);
+        //printf("\nlaunched %p", t[i]);
+    }
+
+    for (unsigned i=0; i<2; i++) {
+        thread_join(t[i]);
+    }
+
+#define VERIFY_COUNTER(name, expected)                                              \
+    do {                                                                            \
+        struct JsonValue *cnt = json_object_get_number(rec_state, #name);           \
+        OK_FATAL(cnt != NULL, "recovery state is missing " #name);                  \
+        OK(cnt->v.number == expected, "recovery " #name " %.0f", cnt->v.number);    \
+    } while (0)
+
+    struct JsonValue *rec_state = rec->get_state(rec);
+    OK_FATAL(rec_state, "have state");
+    VERIFY_COUNTER(passed_packets, ITERATIONS*2 + 1);
+    VERIFY_COUNTER(discarded_packets, ITERATIONS*2 - 1);
+    VERIFY_COUNTER(out_of_order_packets, 0);
+    VERIFY_COUNTER(recovery_seq_num, ITERATIONS*2);
+    VERIFY_COUNTER(seq_recovery_resets, 0);
+    json_delete(rec_state);
+
+#undef VERIFY_COUNTER
+
+    pipeline_object_unref(rec);
+    pthread_spin_destroy(&spinlock);
+
+    for (unsigned i=0; i<ARRAY_SIZE(results); i++) {
+        OK(results[i] == 1, "seq %u is %u", i, results[i]);
+    }
 }
 
 TEST_CASES = {
