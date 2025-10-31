@@ -49,6 +49,7 @@ struct SequenceRecovery {
     bool individual_recovery;
     int history_length;
     unsigned reset_msec;
+    pthread_mutex_t mutex;
 
     unsigned recv_seq;
     unsigned init_recv_seq;
@@ -310,7 +311,6 @@ static bool match_seq_recovery(struct SequenceRecovery *rec, unsigned seq)
         if (delta != 1) {
             rec->out_of_order_packets += 1;
         }
-        //TODO: use atomic, no lock required
         rec->recv_seq = seq;
         rec->passed_packets += 1;
         reset_ticks(rec);
@@ -374,14 +374,14 @@ static void seamless_seq_recovery_reset(struct SequenceRecovery *rec)
     rec->init_take_any = true;
 }
 
-//TODO: race condition
 static enum ActionResult seq_recovery(struct PipelineObject *r, struct PipelineIterator *pi)
 {
     struct SequenceRecovery *rec = (struct SequenceRecovery *)r;
     struct Packet *p = pi->packet;
     bool accept = true;
     uint32_t seq = ntohl(p->sequence);
-    //TODO grab mutex
+
+    pthread_mutex_lock(&rec->mutex);
     switch (rec->algorithm) {
         case RCVY_Vector:
             accept = vector_seq_recovery(rec, seq);
@@ -393,7 +393,8 @@ static enum ActionResult seq_recovery(struct PipelineObject *r, struct PipelineI
             accept = match_seq_recovery(rec, seq);
             break;
     }
-    //TODO release mutex
+    pthread_mutex_unlock(&rec->mutex);
+
     if (accept){
         PACKET_LOGCAT(p, "(%d pass) ", seq);
     } else {
@@ -716,7 +717,9 @@ enum ActionResult oam_recovery(struct PipelineObject *obj, struct Packet *p, con
     bool accept = true;
 
     if (oam_rec) {
+        pthread_mutex_lock(&oam_rec->mutex);
         accept = match_seq_recovery(oam_rec, seq);
+        pthread_mutex_unlock(&oam_rec->mutex);
     }
     if (accept) {
         PACKET_LOGCAT(p, "(OAM %d pass) ", seq);
@@ -747,6 +750,7 @@ struct PipelineObject *new_seq_rec(const char *name, enum SequenceRecoveryAlgori
     ret->history_length = history_length;
     ret->reset_msec = reset_msec;
     ret->diag = *diag;
+    pthread_mutex_init(&ret->mutex, NULL);
 
     ret->history = (char *)calloc(history_length, sizeof(char)); //TODO not if algo==Match
     ret->init_history = (char *)calloc(history_length, sizeof(char)); //TODO we only need this when algo==Seamless
@@ -773,6 +777,7 @@ struct PipelineObject *delete_seq_rec(struct PipelineObject *r)
     if (rec->oam_session_id == NULL) // oam rcvy points to its parent's hash
         delete_hashmap(rec->oam_seq_recoveries);
     delete_hashmap(rec->preAutoMIP);
+    pthread_mutex_destroy(&rec->mutex);
     free(rec->postAutoMIP);
     free(rec->history);
     free(rec->init_history);
