@@ -24,8 +24,9 @@ struct ConfAction *parse_actions_line(const char *stream, const char *line,
 struct ConfAction *delete_confaction_list(struct ConfAction *ca_list);
 
 // creates an action pipeline from the action descriptor list
+// @masked must be false, it's only for the replicate branches
 // @returns NULL if @ca_list is empty
-struct Pipeline *assemble_actions(const char *stream_name, const struct ConfAction *ca_list);
+struct Pipeline *assemble_actions(const char *stream_name, const struct ConfAction *ca_list, bool masked);
 
 // prints the action list to the log
 //  basic information is INFO, details are DEBUG

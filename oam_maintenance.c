@@ -961,6 +961,15 @@ struct OAM_MaintenancePoint *oam_new_maintenance_point(const char *stream_name, 
 
         set_mp_address(mp, addr);
 
+        if (mp->object && mp->object->type == PO_REPL) {
+            if (oam_is_automip_name(mp_name, 1)) {
+                if (mp->pipe && mp->pipe->mask) {
+                    mp_initiate_mask_signalling(mp, NULL);
+                    log_debug("%s started mask signal on refcount increase", mp->name);
+                }
+            }
+        }
+
         int refcount = __atomic_add_fetch(&mp->reference_count, 1, __ATOMIC_RELAXED);
         log_debug("%s ref refcount %d", mp_name, refcount);
         return mp;
@@ -996,6 +1005,8 @@ struct OAM_MaintenancePoint *oam_new_maintenance_point(const char *stream_name, 
     mp->pipe = pipe;
     mp->pipe_pos_idx = idx;
 
+    set_mp_address(mp, addr);
+
     mp->object = obj;
     if (obj) {
         pipeline_object_ref(obj);
@@ -1005,13 +1016,20 @@ struct OAM_MaintenancePoint *oam_new_maintenance_point(const char *stream_name, 
             } else if (oam_is_automip_name(mp_name, -1)) {
                 seq_rec_register_preAutoMIP(obj, mp_name);
             }
+        } else if (obj->type == PO_REPL) {
+            if (oam_is_automip_name(mp_name, 1)) {
+                // we never get here, because first the reception point is created without pipe...
+                if (pipe && pipe->mask) {
+                    mp_initiate_mask_signalling(mp, NULL);
+                    log_debug("%s started mask signal on creation", mp->name);
+                }
+            }
         }
     }
 
-    set_mp_address(mp, addr);
-
     hashmap_insert(mp_hash, mp->name, mp);
     notification_register_source(mp_name, mp_notification_pull_fn, mp, 2000);
+
 
     log_debug("%s create refcount 1", mp_name);
 
@@ -1064,7 +1082,7 @@ bool oam_is_automip_name(const char *name, int position)
             return pre != NULL;
         }
     }
-    return is_automip;
+    return false;
 }
 
 const char *oam_mp_type_to_str(enum OAM_MP_Type type)

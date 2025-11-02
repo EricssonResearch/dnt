@@ -2093,7 +2093,7 @@ static struct EditAssign *assemble_fieldassigns(struct ConfAssignment *list, uns
 }
 
 
-struct Pipeline *assemble_actions(const char *stream_name, const struct ConfAction *ca_list)
+struct Pipeline *assemble_actions(const char *stream_name, const struct ConfAction *ca_list, bool masked)
 {
 #define THROW(msg, ...)                                         \
     do {                                                        \
@@ -2124,6 +2124,7 @@ struct Pipeline *assemble_actions(const char *stream_name, const struct ConfActi
     ret->actions = actions;
     ret->action_count = count;
     ret->name = strdup(stream_name);
+    ret->mask = masked;
     ret->reference_count = 1; // the initial owner is the caller of assemble_actions()
 
     unsigned i = 0;
@@ -2197,7 +2198,7 @@ struct Pipeline *assemble_actions(const char *stream_name, const struct ConfActi
             case CA_REPL: {
                 struct PipelineList *pipes = NULL;
                 for (struct ReplicateList *r=ca->repl.pipelines; r; r=r->next) {
-                    struct Pipeline *r_pipe = assemble_actions(r->name, r->actions);
+                    struct Pipeline *r_pipe = assemble_actions(r->name, r->actions, r->masked);
                     if (r_pipe == NULL) {
                         //TODO need more cleanup on error?
                         THROW("failed to assemble actions for branch %s of replicate in stream %s",
@@ -2206,9 +2207,7 @@ struct Pipeline *assemble_actions(const char *stream_name, const struct ConfActi
 
                     struct PipelineList *p = calloc_struct(PipelineList);
                     p->pipe = r_pipe;
-                    p->text = r->name;
                     p->next = pipes;
-                    p->pipe->mask = r->masked;
                     pipes = p;
                 }
                 REVERSE_LIST(pipes);

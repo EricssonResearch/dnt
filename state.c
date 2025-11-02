@@ -198,7 +198,7 @@ static int addstream_cb(const char *key, void *value, void *userdata)
             log_info("  reusing already compiled pipeline");
         } else {
             log_info("  compiling new pipeline");
-            pipe = assemble_actions(s->stream_name, s->stream->actions);
+            pipe = assemble_actions(s->stream_name, s->stream->actions, false);
             if (!pipe) {
                 log_error("failed to create action pipeline for stream %s", s->stream_name);
                 return 0;

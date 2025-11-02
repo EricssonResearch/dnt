@@ -73,7 +73,6 @@ struct EditAssign {
 // this is the state of the Replicate action
 struct PipelineList {
     struct Pipeline *pipe;
-    const char *text;
     struct PipelineList *next;
 };
 
