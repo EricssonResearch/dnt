@@ -933,6 +933,11 @@ static bool process_token(char *token, void *userdata)
                     CLEANUP_PSTST(pstst);
                     THROW("failed to copy the must_write list?!?");
                 }
+                if (newaction->repl.replobj && newaction->repl.replobj->auto_mip_level > 0
+                        && oam_mip_autoconfig(stst, &pstst) == false) {
+                    CLEANUP_PSTST(pstst);
+                    THROW("AutoMIP configuration for replication pipeline '%s' failed", token);
+                }
                 if (!foreach_stages(pstring, process_stage, &pstst)) {
                     CLEANUP_PSTST(pstst);
                     delete_confaction_list(pstst.actions);
@@ -950,11 +955,6 @@ static bool process_token(char *token, void *userdata)
                     }
                 }
                 REVERSE_LIST(pstst.actions);
-                if (newaction->repl.replobj && newaction->repl.replobj->auto_mip_level > 0
-                        && oam_mip_autoconfig(stst, &pstst) == false) {
-                    CLEANUP_PSTST(pstst);
-                    THROW("AutoMIP configuration for replication pipeline '%s' failed", token);
-                }
                 CLEANUP_PSTST(pstst);
                 replicatelist_push(&newaction->repl.pipelines, strdup(token), pstst.actions, masked);
                 hashmap_insert(stst->stream_names, strdup(token), NULL);
