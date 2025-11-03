@@ -656,6 +656,8 @@ static bool process_token(char *token, void *userdata)
                         case PO_REPL:
                             newaction->type = CA_REPL;
                             newaction->repl.replobj = obj;
+                            if (obj->auto_mip_level > 0 && !oam_mip_autoconfig(stst, NULL))
+                                log_warning("cannot generate pre-AutoMIP for '%s'", obj->name);
                             break;
                     }
                 } else {
@@ -903,6 +905,8 @@ static bool process_token(char *token, void *userdata)
                     if (obj) {
                         if (obj->type == PO_REPL) {
                             newaction->repl.replobj = obj;
+                            if (obj->auto_mip_level > 0 && !oam_mip_autoconfig(stst, NULL))
+                                log_warning("cannot generate pre-AutoMIP for '%s'", obj->name);
                         } else {
                             THROW("state of replicate action must be a Replicate object");
                         }
@@ -1767,8 +1771,6 @@ static bool process_action(struct StageState *stst)
             if (newaction->repl.pipelines == NULL) {
                 THROW("no pipelines specified");
             }
-            if (newaction->repl.replobj && newaction->repl.replobj->auto_mip_level > 0 && !oam_mip_autoconfig(stst, NULL))
-                log_warning("cannot generate MIP for '%s'", newaction->repl.replobj->name);
             REVERSE_LIST(newaction->repl.pipelines);
             // we already checked that the branches are correctly writing the fields
             stst->must_write = delete_must_write_list(stst->must_write);
