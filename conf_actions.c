@@ -893,6 +893,9 @@ static bool process_token(char *token, void *userdata)
             if (pstring && pstring_masked) {
                 THROW("pipeline '%s' is defined both as normal and masked", token);
             } else if (pstring_masked != NULL) {
+                if (newaction->repl.replobj == NULL) {
+                    THROW("pipeline '%s' is masked but replicate has no state object", token);
+                }
                 pstring = pstring_masked;
                 masked = true;
             }
