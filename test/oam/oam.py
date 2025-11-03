@@ -398,23 +398,67 @@ Stream s3 sessions:
     ),
 ]
 
+#TODO also check that they have the correct address
 def auto_mip_test():
+    verdict = True
     print("Test OAM automatic MIP configuration", end=" ")
     exec_bg("../r2dtwo oam/autconfig/auto.ini -v ALL:NONE")
     time.sleep(1)
-    expected_reply = """Available MEP Start points:
-o_C1_L2_post-E1 in C1 type MIP level 2 PseudoWire (pipe M1 idx 6)
-o_C1_L3_pre-E2 in C1 type MIP level 3 PseudoWire (pipe M1 idx 8)
-o_C2_L3_pre-E2 in C2 type MIP level 3 PseudoWire (pipe C2 idx 3)
-o_C_L3_post-E2 in C type MIP level 3 PseudoWire (pipe M1 idx 11)
-o_C_L4_pre-R1 in C type MIP level 4 PseudoWire (pipe M1 idx 13)
-o_M1_L2_pre-E1 in M1 type MIP level 2 PseudoWire (pipe M1 idx 3)
-o_M2_L2_pre-E1 in M2 type MIP level 2 PseudoWire (pipe M2 idx 3)
-o_M5_L4_post-R1 in M5 type MIP level 4 PseudoWire (pipe M5 idx 1)
-o_M5_L5_pre-R2 in M5 type MIP level 5 PseudoWire (pipe M5 idx 3)
-o_M6_L4_post-R1 in M6 type MIP level 4 PseudoWire (pipe M6 idx 1)
-o_M7_L5_post-R2 in M7 type MIP level 5 PseudoWire (pipe M7 idx 1)
-o_M8_L5_post-R2 in M8 type MIP level 5 PseudoWire (pipe M8 idx 1)
+    expected_list = """Available MEP Start points:
+o_Eeditafter2_L5_pre-EforEditAfter in Eeditafter2 type MIP level 5 PseudoWire (pipe Eeditafter2 idx 3)
+o_Eeditafter3_L5_pre-EforEditAfter in Eeditafter3 type MIP level 5 PseudoWire (pipe Eeditafter3 idx 3)
+o_Eeditafter_L5_post-EforEditAfter in Eeditafter type MIP level 5 PseudoWire (pipe Eeditafter2 idx 6)
+o_Eeditbefore2_L4_pre-EforEditBefore in Eeditbefore2 type MIP level 4 PseudoWire (pipe Eeditbefore2 idx 4)
+o_Eeditbefore3_L4_pre-EforEditBefore in Eeditbefore3 type MIP level 4 PseudoWire (pipe Eeditbefore3 idx 4)
+o_Eeditbefore_L4_post-EforEditBefore in Eeditbefore type MIP level 4 PseudoWire (pipe Eeditbefore2 idx 7)
+o_Ematch2_L3_pre-EforMatch in Ematch2 type MIP level 3 PseudoWire (pipe Ematch2 idx 4)
+o_Ematch3_L3_pre-EforMatch in Ematch3 type MIP level 3 PseudoWire (pipe Ematch3 idx 4)
+o_Ematch_L3_post-EforMatch in Ematch type MIP level 3 PseudoWire (pipe Ematch2 idx 7)
+o_Enoaddr2_L6_pre-EforNoAddr in Enoaddr2 type MIP level 6 PseudoWire (pipe Enoaddr2 idx 3) CAN'T SEND
+o_Enoaddr3_L6_pre-EforNoAddr in Enoaddr3 type MIP level 6 PseudoWire (pipe Enoaddr3 idx 3) CAN'T SEND
+o_Enoaddr_L6_post-EforNoAddr in Enoaddr type MIP level 6 PseudoWire (pipe Enoaddr2 idx 6) CAN'T SEND
+o_Reditafter1_L5_post-RforEditAfter in Reditafter1 type MIP level 5 PseudoWire (pipe Reditafter1 idx 1)
+o_Reditafter2_L5_post-RforEditAfter in Reditafter2 type MIP level 5 PseudoWire (pipe Reditafter2 idx 1)
+o_Reditafter_L5_pre-RforEditAfter in Reditafter type MIP level 5 PseudoWire (pipe Reditafter idx 4)
+o_Reditbefore1_L4_post-RforEditBefore in Reditbefore1 type MIP level 4 PseudoWire (pipe Reditbefore1 idx 1)
+o_Reditbefore2_L4_post-RforEditBefore in Reditbefore2 type MIP level 4 PseudoWire (pipe Reditbefore2 idx 1)
+o_Reditbefore_L4_pre-RforEditBefore in Reditbefore type MIP level 4 PseudoWire (pipe Reditbefore idx 5)
+o_Rmatch1_L3_post-RforMatch in Rmatch1 type MIP level 3 PseudoWire (pipe Rmatch1 idx 1)
+o_Rmatch2_L3_post-RforMatch in Rmatch2 type MIP level 3 PseudoWire (pipe Rmatch2 idx 1)
+o_Rmatch_L3_pre-RforMatch in Rmatch type MIP level 3 PseudoWire (pipe Rmatch idx 4)
+o_Rnoaddr1_L6_post-RforNoAddr in Rnoaddr1 type MIP level 6 PseudoWire (pipe Rnoaddr1 idx 1) CAN'T SEND
+o_Rnoaddr2_L6_post-RforNoAddr in Rnoaddr2 type MIP level 6 PseudoWire (pipe Rnoaddr2 idx 1) CAN'T SEND
+o_Rnoaddr_L6_pre-RforNoAddr in Rnoaddr type MIP level 6 PseudoWire (pipe Rnoaddr idx 4) CAN'T SEND
+"""
+    expected_mask = """
+mask state for SequenceRecovery 'EforEditAfter'
+  latent error paths 2 / 2
+    o_Eeditafter3_L5_pre-EforEditAfter is not masked
+    o_Eeditafter2_L5_pre-EforEditAfter is not masked
+mask state for Replicate 'RforEditAfter'
+  pipeline 'Reditafter1' is not masked
+  pipeline 'Reditafter2' is masked, o_Reditafter2_L5_post-RforEditAfter sending mask signal
+mask state for Replicate 'RforMatch'
+  pipeline 'Rmatch1' is not masked
+  pipeline 'Rmatch2' is not masked
+mask state for SequenceRecovery 'EforMatch'
+  latent error paths 2 / 2
+    o_Ematch3_L3_pre-EforMatch is not masked
+    o_Ematch2_L3_pre-EforMatch is not masked
+mask state for SequenceRecovery 'EforNoAddr'
+  latent error paths 2 / 2
+    o_Enoaddr2_L6_pre-EforNoAddr is not masked
+    o_Enoaddr3_L6_pre-EforNoAddr is not masked
+mask state for Replicate 'RforEditBefore'
+  pipeline 'Reditbefore1' is masked, o_Reditbefore1_L4_post-RforEditBefore sending mask signal
+  pipeline 'Reditbefore2' is not masked
+mask state for Replicate 'RforNoAddr'
+  pipeline 'Rnoaddr1' is not masked
+  pipeline 'Rnoaddr2' is not masked
+mask state for SequenceRecovery 'EforEditBefore'
+  latent error paths 2 / 2
+    o_Eeditbefore2_L4_pre-EforEditBefore is not masked
+    o_Eeditbefore3_L4_pre-EforEditBefore is not masked
 """
     try:
         with Telnet("127.0.0.1", 8000) as cli:
@@ -422,13 +466,24 @@ o_M8_L5_post-R2 in M8 type MIP level 5 PseudoWire (pipe M8 idx 1)
             cli.send("list")
             time.sleep(0.5)
             reply = cli.recv(timeout = 2.0, aggregate=True)
+            if reply.strip() != expected_list.strip():
+                print(f"\nActual list:\n{reply}\nExpected list:\n{expected_list}\n")
+                verdict = False
+
+            cli.send("mask")
+            time.sleep(0.5)
+            reply = cli.recv(timeout = 2.0, aggregate=True)
+            if reply.strip() != expected_mask.strip():
+                print(f"\nActual mask:\n{reply}\nExpected mask:\n{expected_mask}\n")
+                verdict = False
+
             cli.close()
-            if reply == expected_reply:
+
+            if verdict == True:
                 print("✔")
                 return True
             else:
-                print("✘ ")
-                print(f"Actual reply:\n{reply}\nExpected reply:\n{expected_reply}\n")
+                print("✘")
                 return False
     except Exception:
         print("✘ Exception")
