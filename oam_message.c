@@ -200,9 +200,9 @@ static int process_reply(const char *msg)
             JS_OBJECT_GET(jreceiver, data_octets, number);
             JS_OBJECT_GET(jreceiver, oam_recv, number);
             JS_OBJECT_GET(jreceiver, oam_send, number);
-            stat_str = strdup_printf("MP stats: data packets %.0f octets %.0f OAM recv %.0f sent %.0f\n\t",
+            stat_str = strdup_printf("%s stats: data packets %.0f octets %.0f OAM recv %.0f sent %.0f\n\t", jreceivername->v.string,
                                     jreceiverdata_packets->v.number, jreceiverdata_octets->v.number, jreceiveroam_recv->v.number, jreceiveroam_send->v.number);
-            stat_str_log = strdup_printf("MP stats: data packets %.0f octets %.0f OAM recv %.0f sent %.0f ; ",
+            stat_str_log = strdup_printf("%s stats: data packets %.0f octets %.0f OAM recv %.0f sent %.0f ; ", jreceivername->v.string,
                                     jreceiverdata_packets->v.number, jreceiverdata_octets->v.number, jreceiveroam_recv->v.number, jreceiveroam_send->v.number);
 
             obj_str = pipelineobject_sprintf_state_json(o_info, ", ", "\n\t\t");
