@@ -192,15 +192,27 @@ static int process_reply(const char *msg)
         // different format between log/dump
         char *obj_str = NULL;
         char *obj_str_log = NULL;
+        char *stat_str = NULL;
+        char *stat_str_log = NULL;
         struct JsonValue *o_info = json_object_get_object(jreceiver, "object");
         if (o_info) {
+            JS_OBJECT_GET(jreceiver, data_packets, number);
+            JS_OBJECT_GET(jreceiver, data_octets, number);
+            JS_OBJECT_GET(jreceiver, oam_recv, number);
+            JS_OBJECT_GET(jreceiver, oam_send, number);
+            stat_str = strdup_printf("MP stats: data packets %.0f octets %.0f OAM recv %.0f sent %.0f\n\t",
+                                    jreceiverdata_packets->v.number, jreceiverdata_octets->v.number, jreceiveroam_recv->v.number, jreceiveroam_send->v.number);
+            stat_str_log = strdup_printf("MP stats: data packets %.0f octets %.0f OAM recv %.0f sent %.0f ; ",
+                                    jreceiverdata_packets->v.number, jreceiverdata_octets->v.number, jreceiveroam_recv->v.number, jreceiveroam_send->v.number);
+
             obj_str = pipelineobject_sprintf_state_json(o_info, ", ", "\n\t\t");
             obj_str_log = pipelineobject_sprintf_state_json(o_info, ", ", "; ");
         }
         if (obj_str_log == NULL) obj_str_log = strdup("");
+        if (stat_str_log == NULL) stat_str_log = strdup("");
 
         // Logging
-        log_info("%s %s %s", reply_str, rr_str, obj_str_log);
+        log_info("%s %s %s %s", reply_str, rr_str, stat_str_log, obj_str_log);
         free(obj_str_log);
 
         j = json_delete(j);
@@ -217,6 +229,7 @@ static int process_reply(const char *msg)
             }
             if (obj_str) {
                 strcat(reply_str, "\n\t");
+                strcat(reply_str, stat_str);
                 strcat(reply_str, obj_str);
                 free(obj_str);
             }
@@ -456,23 +469,27 @@ static bool process_ping_request(struct OAM_MaintenancePoint *mp, struct JsonVal
         THROW("OAM ping is '%s' not request", jscode->v.string);
     }
 
-    JS_OBJECT_GET(js, return, object);
-    struct JsonValue *return_dup = json_duplicate(jsreturn);
-    json_object_remove(js, "return");
+    struct JsonValue *js_dup = json_duplicate(js);
 
-    struct JsonValue *jos = json_object_get_any(js, "object");
-    json_object_remove(js, "object");
-    json_object_insert(js, "receiver", mp_get_state_json(mp, jos != NULL));
+    JS_OBJECT_GET(js_dup, return, object);
+    struct JsonValue *return_dup = json_duplicate(js_dupreturn);
+    json_object_remove(js_dup, "return");
 
-    json_object_insert(js, "code", json_string("reply"));
-    json_object_insert(js, "recv_s", json_number(recv_time.tv_sec));
-    json_object_insert(js, "recv_ns", json_number(recv_time.tv_nsec));
+    struct JsonValue *jos = json_object_get_any(js_dup, "object");
+    json_object_remove(js_dup, "object");
+    json_object_insert(js_dup, "receiver", mp_get_state_json(mp, jos != NULL));
+
+    json_object_insert(js_dup, "code", json_string("reply"));
+    json_object_insert(js_dup, "recv_s", json_number(recv_time.tv_sec));
+    json_object_insert(js_dup, "recv_ns", json_number(recv_time.tv_nsec));
 
     //TODO the old code also added the mpls label from the packet header, but we can't do that here
 
-    logpacket_reply(mp, js, return_dup, "ping reply");
+    logpacket_reply(mp, js_dup, return_dup, "ping reply");
 
-    return send_message_outofband(mp, js, return_dup);
+    bool ret = send_message_outofband(mp, js_dup, return_dup);
+    json_delete(js_dup);
+    return ret;
 }
 
 static bool send_rping_error(struct OAM_MaintenancePoint *mp, struct JsonValue *js, struct timespec recv_time,
