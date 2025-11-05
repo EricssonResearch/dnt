@@ -469,6 +469,7 @@ static enum ActionResult action_OAMRECEIVE_execute(struct Action *a, struct Pipe
         oam_receive_inband(ord->mp, pi);
         return ACR_HOLD;
     } else {
+        oam_mp_count_data_packet(ord->mp, packet_length(p));
         return ACR_CONTINUE;
     }
 }

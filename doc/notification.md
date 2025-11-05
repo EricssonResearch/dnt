@@ -167,16 +167,16 @@ First, the object-specific JSON messages are described, then the notification me
 
 ```
     "mp_name": {
+        "data_octets": 0,
+        "data_packets": 0,
         "mask_signal_state": "masked"/"unmasked",   - used by mask signaling
         "name": "mip_name",                         - the name of the sender
-        "oam_octets_passed": 0,
-        "oam_packets_passed": 0,
-        "octets_passed": 0,
-        "packets_passed": 0,
+        "oam_recv": 0,
+        "oam_send": 0,
         "type": "mep_state"                         - type
     }
 ```
-  The MEP/MIP differentiates between OAM and regular TSN/DetNet traffic received within a stream. Since OAM packets share fate with the normal traffic, their identification at interface/parser level is not possible: those statistics include both normal and OAM traffic.
+  The MEP/MIP has separate counters for OAM and regular user traffic received within a stream. Since OAM packets share fate with the normal traffic, their identification at interface/parser level is not possible: those statistics include both normal and OAM traffic.
 
 * Sequence generator report:
 

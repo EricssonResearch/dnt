@@ -69,6 +69,8 @@ struct OAM_MaintenancePoint {
 
     unsigned oam_send;
     unsigned oam_recv;
+    unsigned long long data_packets;
+    unsigned long long data_octets;
 
     struct MessageQueue *mask_queue;
     struct Thread *mask_send; // periodic sending of mask signal
@@ -1050,6 +1052,12 @@ void oam_unref_maintenance_point(struct OAM_MaintenancePoint *mp)
     }
 }
 
+void oam_mp_count_data_packet(struct OAM_MaintenancePoint *mp, unsigned len)
+{
+    __atomic_add_fetch(&mp->data_packets, 1, __ATOMIC_RELAXED);
+    __atomic_add_fetch(&mp->data_octets, len, __ATOMIC_RELAXED);
+}
+
 struct OAM_MaintenancePoint *find_maintenance_point(const char *name)
 {
     if (mp_hash) {
@@ -1160,8 +1168,10 @@ struct JsonValue *mp_get_state_json(const struct OAM_MaintenancePoint *mp, bool 
     json_object_insert(ret, "stream_name", json_string(mp->stream_name));
     json_object_insert(ret, "type", json_string(oam_mp_type_to_str(mp->type)));
     json_object_insert(ret, "level", json_number(mp->level));
-    json_object_insert(ret, "send", json_number(mp->oam_send));
-    json_object_insert(ret, "recv", json_number(mp->oam_recv));
+    json_object_insert(ret, "oam_send", json_number(mp->oam_send));
+    json_object_insert(ret, "oam_recv", json_number(mp->oam_recv));
+    json_object_insert(ret, "data_packets", json_number(mp->data_packets));
+    json_object_insert(ret, "data_octets", json_number(mp->data_octets));
 
     if (mp->object) {
         if (object_info) {
@@ -1172,7 +1182,11 @@ struct JsonValue *mp_get_state_json(const struct OAM_MaintenancePoint *mp, bool 
         }
     }
 
-    //TODO add mask state
+    if (mp->mask_recv) {
+         json_object_insert(ret, "mask_signal_state", json_string("receiving"));
+    } else if (mp->mask_send) {
+         json_object_insert(ret, "mask_signal_state", json_string("sending"));
+    }
 
     return ret;
 }

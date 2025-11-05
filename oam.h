@@ -83,6 +83,9 @@ struct OAM_MaintenancePoint *oam_new_maintenance_point(const char *stream_name, 
 // @mp is deleted when its reference count reaches zero
 void oam_unref_maintenance_point(struct OAM_MaintenancePoint *mp);
 
+// MP has counter for non-OAM packets
+void oam_mp_count_data_packet(struct OAM_MaintenancePoint *mp, unsigned len);
+
 // @returns the canonical name for an automatically generated MIP
 // the return value is a dynamically allocated string
 char *oam_automip_name(const char *stream, unsigned level, const char *object_name, bool post);
