@@ -411,7 +411,6 @@ static bool send_message_outofband(struct OAM_MaintenancePoint *mp, const struct
 #define THROW(msg, ...)                     \
     do {                                    \
         log_error(msg, ##__VA_ARGS__);      \
-        json_delete(js);                    \
         return false;                       \
     } while (0)
 
@@ -469,6 +468,8 @@ static bool process_ping_request(struct OAM_MaintenancePoint *mp, struct JsonVal
         THROW("OAM ping is '%s' not request", jscode->v.string);
     }
 
+    // we have to duplicate for the reply, because when we need to forward a
+    // route-request we have to repackage @js into the request to be forwarded
     struct JsonValue *js_dup = json_duplicate(js);
 
     JS_OBJECT_GET(js_dup, return, object);
