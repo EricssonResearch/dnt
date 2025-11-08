@@ -370,6 +370,7 @@ static int send_eth_reply(const char *address, unsigned vid, const char *msg, un
     timespec_to_tsntstamp(p->timestamp, &sendtime);
 
     eth_oam_if->send(eth_oam_if, p);
+    delete_packet(p);
 
     return 0;
 }
