@@ -67,6 +67,9 @@ create_pdf() {
     echo "" >> ${AGGREGATE}
   done
 
+  # remove badges (they are for gitlab)
+  sed -i "/badges/d" $AGGREGATE
+
   # generate the PDF with pandoc and texlive-xetex
 	pandoc \
     --toc \
