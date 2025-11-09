@@ -1210,10 +1210,9 @@ static int add_mp_cb(const char *key, void *value, void *userdata)
 struct JsonValue *mp_get_state_json_by_object(const struct OAM_MaintenancePoint *mp)
 {
     struct JsonValue *jlist = json_array();
+    json_array_push(jlist, mp_get_state_json(mp, false));
 
     if (mp->object) {
-        json_array_push(jlist, mp_get_state_json(mp, false));
-    } else {
         struct AddMPState st = { jlist, mp->object };
         foreach_mp(false, add_mp_cb, &st);
     }
