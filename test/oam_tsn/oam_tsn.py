@@ -28,11 +28,11 @@ def create_net():
     Router-local IPs for OAM: 10.0.0.{1,2,3,4}/32
     """
     try:
-        net = Mininet( waitConnected=True, autoStaticArp=True, topo=None,  build=False )
+        net = Mininet( autoStaticArp=True, topo=None,  build=False )
 
         # nodes: a, b, c, d, talker, listener
-        talker = net.addHost('talker', ip='192.168.1.1/24')
-        listener =  net.addHost('listener', ip='192.168.1.2/24')
+        talker   = net.addHost('talker', ip='192.168.1.1/24')
+        listener = net.addHost('listener', ip='192.168.1.2/24')
         n1 = net.addHost('n1', ip=None)
         n2 = net.addHost('n2', ip=None)
         n3 = net.addHost('n3', ip=None)
@@ -68,43 +68,11 @@ def config_net(net):
     ip_lo = 1
     for n in [n1, n2, n3, n4]:
         n.cmd(f"ip a a 10.0.0.{ip_lo}/32 dev lo")
-        n.cmd("sysctl -w net.ipv4.ip_forward=1")
         ip_lo += 1
     # t.cmd("ip a a 192.168.1.1/24 dev eth0")
+    # l.cmd("ip a a 192.168.1.2/24 dev eth0")
     t.cmd("ethtool -K eth0 tx off rx off")
     l.cmd("ethtool -K eth0 tx off rx off")
-    # l.cmd("ip a a 192.168.1.2/24 dev eth0")
-    n1.cmd("ip a a 10.0.12.1/24 dev eth12")
-    n1.cmd("ip a a 10.0.13.1/24 dev eth13")
-    n2.cmd("ip a a 10.0.12.2/24 dev eth21")
-    n2.cmd("ip a a 10.0.23.2/24 dev eth23")
-    n2.cmd("ip a a 10.0.24.2/24 dev eth24")
-    n3.cmd("ip a a 10.0.13.3/24 dev eth31")
-    n3.cmd("ip a a 10.0.23.3/24 dev eth32")
-    n3.cmd("ip a a 10.0.34.3/24 dev eth34")
-    n4.cmd("ip a a 10.0.24.4/24 dev eth42")
-    n4.cmd("ip a a 10.0.34.4/24 dev eth43")
-
-    # routing only for router-local IPs
-    n1.cmd("ip r add 10.0.0.2/32 via 10.0.12.2")
-    n1.cmd("ip r add 10.0.0.3/32 via 10.0.13.3")
-    n1.cmd("ip r add 10.0.0.4/32 via 10.0.13.3")
-
-    n2.cmd("ip r add 10.0.0.1/32 via 10.0.12.1")
-    n2.cmd("ip r add 10.0.0.3/32 via 10.0.23.3")
-    n2.cmd("ip r add 10.0.0.4/32 via 10.0.24.4")
-
-    n3.cmd("ip r add 10.0.0.1/32 via 10.0.13.1")
-    n3.cmd("ip r add 10.0.0.2/32 via 10.0.23.2")
-    n3.cmd("ip r add 10.0.0.4/32 via 10.0.34.4")
-
-    n4.cmd("ip r add 10.0.0.1/32 via 10.0.34.3")
-    n4.cmd("ip r add 10.0.0.2/32 via 10.0.24.2")
-    n4.cmd("ip r add 10.0.0.3/32 via 10.0.34.3")
-
-    # required for r2dtwo to catch the replay
-    n1.cmd("ip r a 10.0.34.0/24 via 10.0.13.3")
-    n4.cmd("ip r a 10.0.13.0/24 via 10.0.34.3")
 
     # delay
     n1.cmd("tc qdisc add dev eth13 root netem delay 20ms")
@@ -733,7 +701,7 @@ def main():
         else:
             all_ok = run_tests(net, testcases)
     except Exception as ex:
-        print(type(ex))
+        print(type(ex), ex)
     finally:
         print("Cleanup...")
         exec_fg("killall r2dtwo")

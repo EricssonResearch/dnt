@@ -25,8 +25,8 @@ def create_net():
     net = Mininet(autoStaticArp=True)
 
     # nodes: a, b, c, d, talker, listener
-    talker = net.addHost('talker', ip='192.168.1.1/24')
-    listener =  net.addHost('listener', ip='192.168.1.2/24')
+    talker   = net.addHost('talker', ip='192.168.1.1/24')
+    listener = net.addHost('listener', ip='192.168.1.2/24')
     n1 = net.addHost('n1', ip=None)
     n2 = net.addHost('n2', ip=None)
     n3 = net.addHost('n3', ip=None)
@@ -54,9 +54,10 @@ def config_net(net):
         n.cmd("sysctl -w net.ipv4.ip_forward=1")
         ip_lo += 1
     # t.cmd("ip a a 192.168.1.1/24 dev eth0")
+    # l.cmd("ip a a 192.168.1.2/24 dev eth0")
     t.cmd("ethtool -K eth0 tx off rx off")
     l.cmd("ethtool -K eth0 tx off rx off")
-    # l.cmd("ip a a 192.168.1.2/24 dev eth0")
+
     n1.cmd("ip a a 12.0.0.1/24 dev eth12")
     n1.cmd("ip a a 13.0.0.1/24 dev eth13")
     n2.cmd("ip a a 12.0.0.2/24 dev eth21")
