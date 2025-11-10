@@ -1193,7 +1193,7 @@ struct JsonValue *mp_get_state_json(const struct OAM_MaintenancePoint *mp, bool 
 
 struct AddMPState {
     struct JsonValue *jlist;
-    struct PipelineObject *object;
+    const struct OAM_MaintenancePoint *mp;
 };
 static int add_mp_cb(const char *key, void *value, void *userdata)
 {
@@ -1201,7 +1201,7 @@ static int add_mp_cb(const char *key, void *value, void *userdata)
     struct AddMPState *st = (struct AddMPState *)userdata;
     struct OAM_MaintenancePoint *mp = (struct OAM_MaintenancePoint *)value;
 
-    if (mp->object == st->object) {
+    if (mp != st->mp && mp->object == st->mp->object) {
         json_array_push(st->jlist, mp_get_state_json(mp, false));
     }
     return 1;
@@ -1213,7 +1213,7 @@ struct JsonValue *mp_get_state_json_by_object(const struct OAM_MaintenancePoint 
     json_array_push(jlist, mp_get_state_json(mp, false));
 
     if (mp->object) {
-        struct AddMPState st = { jlist, mp->object };
+        struct AddMPState st = { jlist, mp };
         foreach_mp(false, add_mp_cb, &st);
     }
 

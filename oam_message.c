@@ -606,7 +606,7 @@ static bool process_trigger_request(struct OAM_MaintenancePoint *mp, struct Json
     JS_OBJECT_GET(js, level, number);
     JS_OBJECT_GET(js, nodeid, number);
     JS_OBJECT_GET(js, session, number);
-    JS_OBJECT_GET(js, source, string);
+    JS_OBJECT_GET(js, source, object);
     JS_OBJECT_GET(js, stream, string);
     JS_OBJECT_GET(js, target, string);
 
@@ -617,7 +617,7 @@ static bool process_trigger_request(struct OAM_MaintenancePoint *mp, struct Json
     json_object_insert(notif, "session", json_number(jssession->v.number));
     json_object_insert(notif, "recv_s", json_number(recv_time.tv_sec));
     json_object_insert(notif, "recv_ns", json_number(recv_time.tv_nsec));
-    json_object_insert(notif, "source", json_string(jssource->v.string));
+    json_object_insert(notif, "source", json_duplicate(jssource));
     json_object_insert(notif, "stream", json_string(jsstream->v.string));
     json_object_insert(notif, "target", json_string(jstarget->v.string));
 
