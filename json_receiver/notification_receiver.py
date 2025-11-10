@@ -12,11 +12,11 @@ class NotificationReceiver:
         self.last_seqnums = deque(maxlen=self.SEQ_HISTORY_SIZE)
         self.mpart_collector = {}
 
-    def process_notification(self, host, port, data):
+    def process_notification(self, ip, port, data):
         """
         Performs the reassembly of message fragments and also elimination
         of duplicate messages. Returns only full json messages.
-        @host, @port - sender host and port, needed for elimination
+        @ip, @port - sender ip and port, needed for elimination
         @data - the received json fragment
         @return None if message is partial, or the full json message.
         """
@@ -29,10 +29,10 @@ class NotificationReceiver:
             frag_id = jsonReceived.get("notif_fragment")
             timestamp = jsonReceived.get("notif_tstamp")
 
-            if self._is_duplicate(hostname, seq_num, str(frag_id)):
+            if self._is_duplicate(hostname, port, seq_num, str(frag_id)):
                 return None
 
-            self.last_seqnums.append((hostname, seq_num, str(frag_id)))
+            self.last_seqnums.append((hostname, port, seq_num, str(frag_id)))
 
             if frag_id is None or frag_id == "1/1":
                 return self._handle_single_part(jsonReceived)
@@ -55,8 +55,8 @@ class NotificationReceiver:
             if field not in message:
                 raise ValueError(f"Missing required field: {field}")
 
-    def _is_duplicate(self, hostname, seq_num, frag_id):
-        return (hostname, seq_num, frag_id) in self.last_seqnums
+    def _is_duplicate(self, hostname, port, seq_num, frag_id):
+        return (hostname, port, seq_num, frag_id) in self.last_seqnums
 
     def _handle_single_part(self, message):
         message["notif_msg"] = json.loads(message["notif_msg"])
