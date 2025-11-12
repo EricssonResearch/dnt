@@ -43,6 +43,7 @@ static NotificationLevel log_level = NOTIF_WARNING;
 static NotificationLevel submit_level = NOTIF_ALL;
 
 static unsigned notif_seq = 0;
+static int notif_sessionid = 0;
 static bool pull_enabled = 0;
 
 static char *myhostname = NULL;
@@ -85,6 +86,7 @@ static void send_packet(char *payload, unsigned len)
 static void send_notification_message(char *msg, unsigned len)
 {
     struct JsonValue *pkt = json_object();
+    json_object_insert(pkt, "notif_session", json_number(notif_sessionid));
     json_object_insert(pkt, "notif_seq", json_number(notif_seq++));
     struct timespec now;
     clock_gettime(CLOCK_REALTIME, &now);
@@ -299,6 +301,8 @@ static void *notification_thread(void *arg)
 
 void init_notification(struct HashMap *conf_streams)
 {
+    notif_sessionid = rand();
+
     struct ConfStream *notif_sess = (struct ConfStream *)hashmap_find(conf_streams, "notification_session");
     if (notif_sess) {
         notification_pipe = assemble_actions("notification_session", notif_sess->actions, false);

@@ -25,14 +25,15 @@ class NotificationReceiver:
             self._validate_input(jsonReceived)
 
             seq_num = jsonReceived.get("notif_seq")
+            session_id = jsonReceived.get("notif_session")
             hostname = jsonReceived.get("notif_hostname")
             frag_id = jsonReceived.get("notif_fragment")
             timestamp = jsonReceived.get("notif_tstamp")
 
-            if self._is_duplicate(hostname, port, seq_num, str(frag_id)):
+            if self._is_duplicate(hostname, session_id, seq_num, str(frag_id)):
                 return None
 
-            self.last_seqnums.append((hostname, port, seq_num, str(frag_id)))
+            self.last_seqnums.append((hostname, session_id, seq_num, str(frag_id)))
 
             if frag_id is None or frag_id == "1/1":
                 return self._handle_single_part(jsonReceived)
@@ -55,8 +56,8 @@ class NotificationReceiver:
             if field not in message:
                 raise ValueError(f"Missing required field: {field}")
 
-    def _is_duplicate(self, hostname, port, seq_num, frag_id):
-        return (hostname, port, seq_num, frag_id) in self.last_seqnums
+    def _is_duplicate(self, hostname, session_id, seq_num, frag_id):
+        return (hostname, session_id, seq_num, frag_id) in self.last_seqnums
 
     def _handle_single_part(self, message):
         message["notif_msg"] = json.loads(message["notif_msg"])

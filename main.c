@@ -333,8 +333,17 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
 
 static struct argp argp = { options, parse_opt, args_doc, NULL, NULL, NULL, NULL };
 
+static void init_rand(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    srand(ts.tv_nsec);
+}
+
 int main(int argc, char **argv)
 {
+    init_rand();
+
     const char *verbose_env = getenv("R2DTWO_VERBOSE");
     if (verbose_env) {
         if (!set_loglevels(verbose_env)) {
