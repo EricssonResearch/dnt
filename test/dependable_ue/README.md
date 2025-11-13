@@ -12,6 +12,11 @@ We will use the following topology, which consists:
 * two R2DTWO instances, running on the **nxp1** and **nxp2** nodes.
 
 ```
+                      PRF ───►                     ───► PEF
+
+                      PEF ◄───                     ◄─── PRF
+
+
     talker              nxp1                         nxp2              listener
 ┌──────────┐    ┌──────────────────┐         ┌──────────────────┐    ┌──────────┐
 │          │    │      192.168.55.1│         │192.168.55.2      │    │          │
@@ -24,17 +29,23 @@ We will use the following topology, which consists:
 │          │    │                  │         │                  │    │          │
 │          │    │         fc0b::1  │         │ fc0b::2          │    │          │
 │          │    │           swp3  ─┼─────────┼─  swp3           │    │          │
-│          │    │      192.168.77.1│         │192.168.77.2      │    │          │
+│          │    │eno0  192.168.77.1│         │192.168.77.2  eno0│    │          │
 └──────────┘    └──────────────────┘         └──────────────────┘    └──────────┘
+                  |         R2DTWO          R2DTWO           |
+                  |192.168.111.2                192.168.111.2|
+                  |               ┌──────────┐               |
+                  |               │   OAM    │               |
+                  └───────────────│  bridge  │───────────────┘
+                                  │   br0    │
+                                  └──────────┘
+                                  192.168.111.3
 
-                      PRF ───►                     ───► PEF
-
-                      PEF ◄───                     ◄─── PRF
-
-                      R2DTWO                       R2DTWO
 ```
 As you can see, there are more redundant paths between **nxp1** and **nxp2**.
 These paths will be utilized by R2DTWO for redundancy.
+There is a separate OAM network, connecting nxp1 and nxp2 to the OAM receiver via the eno0 interfaces.
+On the OAM node, briding is used, thus nxp1 and nxp2 can reach each other via their OAM interfaces, on 192.168.111.x network.
+The notifications are sent to 192.168.111.3, where the notification receiver runs.
 
 
 ## The R2DTWO configurations

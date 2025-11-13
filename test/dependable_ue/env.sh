@@ -4,10 +4,12 @@ function talker() { ip netns exec talker $@ ; }
 function listener() { ip netns exec listener $@ ; }
 function nxp1() { ip netns exec nxp1 $@ ; }
 function nxp2() { ip netns exec nxp2 $@ ; }
+function oam() { ip netns exec oam $@ ; }
 export -f talker
 export -f listener
 export -f nxp1
 export -f nxp2
+export -f oam
 
 if [ $(id -u) -ne 0 ]; then
   echo "Usage: run 'source env.sh' as root"
@@ -55,12 +57,16 @@ configure_networkenv() {
   ip netns add listener 2>/dev/null
   ip netns add nxp1 2>/dev/null
   ip netns add nxp2 2>/dev/null
+  ip netns add oam 2>/dev/null
 
   ip link add swp0 netns nxp1 type veth peer eth0 netns talker
   ip link add swp1 netns nxp1 type veth peer swp1 netns nxp2
   ip link add swp2 netns nxp1 type veth peer swp2 netns nxp2
   ip link add swp3 netns nxp1 type veth peer swp3 netns nxp2
   ip link add swp0 netns nxp2 type veth peer eth0 netns listener
+
+  ip link add eno0 netns nxp1 type veth peer eth0 netns oam        # for OAM
+  ip link add eno0 netns nxp2 type veth peer eth1 netns oam        # for OAM
 
   # Configure the test environment inside the namespace
   talker ip link set dev lo up
@@ -75,11 +81,21 @@ configure_networkenv() {
   nxp1 ip link set dev swp1 mtu 1600 up      # bigger MTU for NNI interfaces
   nxp1 ip link set dev swp2 mtu 1600 up
   nxp1 ip link set dev swp3 mtu 1600 up
+  nxp1 ip link set dev eno0 mtu 1600 up
   nxp1 ip link set dev swp0 up
   nxp2 ip link set dev swp1 mtu 1600 up
   nxp2 ip link set dev swp2 mtu 1600 up
   nxp2 ip link set dev swp3 mtu 1600 up
+  nxp2 ip link set dev eno0 mtu 1600 up
   nxp2 ip link set dev swp0 up
+
+  oam ip link add name br0 type bridge
+  oam ip link set dev eth0 master br0
+  oam ip link set dev eth1 master br0
+  oam ip addr add 192.168.111.3/24 dev br0
+  oam ip link set dev eth0 up
+  oam ip link set dev eth1 up
+  oam ip link set dev br0 up
 
   # disable path MTU discovery - done per socket, so not needed
   #nxp1 sysctl -w net.ipv4.ip_no_pmtu_disc=1
@@ -110,6 +126,10 @@ configure_networkenv() {
   nxp2 ip address add fc0c::2/64 dev swp3
   nxp2 ip address add 2002::2/64 dev swp0
 
+  nxp1 ip address add 192.168.111.1/24 dev eno0
+  nxp2 ip address add 192.168.111.2/24 dev eno0
+
+
   # Enable IP forwarding
   nxp1 sysctl -w net.ipv4.ip_forward=1
   nxp1 sysctl -w net.ipv6.conf.all.forwarding=1
@@ -125,15 +145,13 @@ configure_networkenv() {
 
 start_r2dtwos() {
     # For debug! Spawns r2dtwo windows in gdb
-    # xterm -T {n} -e env -i gdb -nx --args ../r2dtwo nxp1.ini -v PACKETTRACE:PACKET
-
     #nxp1 xterm -T nxp1 -e env -i gdb -nx --args ../../r2dtwo nxp1.ini -v ALL:ALL &
-    nxp1 ../../r2dtwo -of nxp1.ini -v ALL:ALL &
-    #nxp1 ../../r2dtwo -of nxp1.ini -v PACKETTRACE:PACKET &
+    #nxp1 ../../r2dtwo -of nxp1.ini -v ALL:ALL &
+    nxp1 ../../r2dtwo -of nxp1.ini -v PACKETTRACE:PACKET &
 
     #nxp2 xterm -T nxp2 -e env -i gdb -nx --args ../../r2dtwo nxp2.ini -v ALL:ALL &
-    nxp2 ../../r2dtwo -of nxp2.ini -v ALL:ALL &
-    #nxp2 ../../r2dtwo -of nxp2.ini -v PACKETTRACE:PACKET &
+    #nxp2 ../../r2dtwo -of nxp2.ini -v ALL:ALL &
+    nxp2 ../../r2dtwo -of nxp2.ini -v PACKETTRACE:PACKET &
     #nxp2 ../../r2dtwo -of nxp2.ini -vALL:NONE &
 }
 
@@ -153,12 +171,46 @@ else
   start_r2dtwos
 fi
 
+# Usage: send_telnet_command <host> <port> "command_string" <namespace>
+send_telnet_command() {
+    # Function arguments are now host, port, command, and namespace
+    local host="$1"
+    local port="$2"
+    local cmd="$3"
+    local namespace="$4"
+
+    # Use process substitution to feed input to the command run inside the namespace
+    (
+        sleep 0.5  # Wait for connection establishment
+        echo "$cmd"
+        sleep 0.5  # Wait for server response
+        echo "quit"
+    ) | ip netns exec "$namespace" telnet "$host" "$port" 2>&1 | \
+        tr -d '\r' | \
+        sed 's/\x1B\[[0-9;]*[JKmsu]//g' | \
+        grep -v "Escape character is" | \
+        grep -v "Connection closed by foreign host." | \
+        grep -v "^Trying " | \
+        grep -v "^Exiting." | \
+        grep -v "Connected to " | \
+        grep -v "^OAM 'conn" | \
+        grep -v "$cmd" # Filter out the echoed command itself
+}
+export -f send_telnet_command
+
+TELNET_RESPONSE=$(send_telnet_command "127.0.0.1" "8000" "notif_pull enable" "nxp1")
+echo "nxp1: '$TELNET_RESPONSE'"
+TELNET_RESPONSE=$(send_telnet_command "127.0.0.1" "8000" "notif_pull enable" "nxp2")
+echo "nxp2: '$TELNET_RESPONSE'"
+
 # start some background traffic
 talker ping -i .2 10.0.200.22 > /dev/null 2 &
 
 # Start xterm in background and record its PID
 nxp1 xterm -T "TelnetControl" -hold -e ./telnet_control &
 #nxp1 "xterm -T 'Telnet Control' -hold -e ./telnet_control &"
+
+oam xterm -T "JsonReceiver" -hold -e python3 ../../json_receiver/multipart_json_udp_receiver.py 192.168.111.3 9000  &
 
 # --- Table of loss/delay values (5 lines) ---
 # Format: d1 l1 d2 l2 d3 l3
@@ -234,6 +286,7 @@ if [ $cntvalue -eq 1 ]; then #last bash instance in the env, do cleanup
   ip netns del listener 2>/dev/null
   ip netns del nxp1 2>/dev/null
   ip netns del nxp2 2>/dev/null
+  ip netns del oam 2>/dev/null
 else
   newvalue=`expr $cntvalue - 1`
   echo "$SCENNAME $newvalue" > $CNTFILE
