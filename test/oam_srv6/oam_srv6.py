@@ -223,6 +223,7 @@ OAM request ping session 5 seq 0, s1n1-e4-01 -> s1n4-i4-34 level 4 count 1 inter
 """
 OAM request ping session 6 seq 0, s1n1-e4-01 -> s1n4-e4-40 level 4 count 1 interval 1000, rr: no os: yes	[reply to ip fd11:fade::1 port 6634]
   oam_r s1:6 seq 0 lvl 4 R - ping on stream s1 target s1n4-e4-40; reply from s1n4-e4-40
+	s1n4-e4-40 stats: data packets 0 octets 0 OAM recv 3 sent 0
 	Object pef4 type seqrec
 		recovery_algorithm vector, reset_timer 2000ms
 		use_init_flag false, use_reset_flag false, history_length 2
@@ -524,7 +525,7 @@ def run_tests(net, test):
     exec_fg("killall r2dtwo")
     time.sleep(0.3)
     start_r2dtwos(net, False)
-    time.sleep(2.5)
+    time.sleep(1.5)
     success = 0
     for node, msg, expected_reply in test:
         switch_netns(node)
@@ -532,7 +533,7 @@ def run_tests(net, test):
         with Telnet(raddrs[node], 8000) as cli:
             _ = cli.recv() # OAM ready
             cli.send(msg)
-            time.sleep(2)
+            time.sleep(0.5)
             print(f"Node: {node}, command: {msg}", end=" ")
             if "any" in msg:
                 reply = cli.recv(1.0, aggregate=True)
