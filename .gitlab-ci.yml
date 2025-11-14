@@ -2,6 +2,11 @@
 
 # run on the main branch, from web, for merge requests
 #   only run for feature branch commits when there is no associated merge request
+
+variables:
+  IMAGE_NAME: r2dtwo-ci
+  IMAGE_VERSION: v3
+
 workflow:
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -12,23 +17,41 @@ workflow:
     - when: always
 
 # this Docker image should contain everything we need
-image: mtmkls/ci-runner:v2
+# image: ${IMAGE_NAME}:${IMAGE_VERSION}
 
 stages:
+  - build-image
   - verify
   - build
   - test
 
 verify-ci-config:
+  image: ${IMAGE_NAME}:${IMAGE_VERSION}
   stage: verify
   tags:
     - tsn
   script:
     - .gitlab-ci/verify_yaml.pl
 
+build-docker-image:
+  stage: build-image
+  image:
+    name: docker:29.0.0-cli
+  services:
+    - name: docker:29.0.0-dind
+  tags:
+    - tsn-shell
+  before_script:
+    - docker info
+  script:
+    - docker build . -t ${IMAGE_NAME}:${IMAGE_VERSION} -f .gitlab-ci/Dockerfile
+  rules:
+    - changes:
+      - .gitlab-ci/Dockerfile
 
 build-r2dtwo-debug:
   stage: build
+  image: ${IMAGE_NAME}:${IMAGE_VERSION}
   tags:
     - tsn
   script:
@@ -39,6 +62,7 @@ build-r2dtwo-debug:
 
 build-r2dtwo-release:
   stage: build
+  image: ${IMAGE_NAME}:${IMAGE_VERSION}
   tags:
     - tsn
   script:
@@ -46,6 +70,7 @@ build-r2dtwo-release:
 
 build-r2dtwo-debug-cpp:
   stage: build
+  image: ${IMAGE_NAME}:${IMAGE_VERSION}
   tags:
     - tsn
   script:
@@ -54,6 +79,7 @@ build-r2dtwo-debug-cpp:
 
 build-r2dtwo-release-cpp:
   stage: build
+  image: ${IMAGE_NAME}:${IMAGE_VERSION}
   tags:
     - tsn
   script:
@@ -62,6 +88,7 @@ build-r2dtwo-release-cpp:
 
 build-r2dtwo-debug-clang:
   stage: build
+  image: ${IMAGE_NAME}:${IMAGE_VERSION}
   tags:
     - tsn
   script:
@@ -69,6 +96,7 @@ build-r2dtwo-debug-clang:
 
 build-r2dtwo-release-clang:
   stage: build
+  image: ${IMAGE_NAME}:${IMAGE_VERSION}
   tags:
     - tsn
   script:
@@ -77,6 +105,7 @@ build-r2dtwo-release-clang:
 
 build-unit_test:
   stage: build
+  image: ${IMAGE_NAME}:${IMAGE_VERSION}
   tags:
     - tsn
   script:
@@ -92,6 +121,7 @@ build-unit_test:
 
 .pytest.common:
   stage: test
+  image: ${IMAGE_NAME}:${IMAGE_VERSION}
   tags:
     - tsn
   dependencies:
@@ -169,6 +199,7 @@ pytest_srv6:
   allow_failure: false
 
 .unit_test.common:
+  image: ${IMAGE_NAME}:${IMAGE_VERSION}
   stage: test
   tags:
     - tsn
