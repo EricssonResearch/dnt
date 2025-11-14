@@ -149,6 +149,20 @@ pytest_oam_srv6:
     - python3 -m oam_srv6.oam_srv6
   allow_failure: false
 
+pytest_notification_tsn:
+  extends: .pytest.common
+  script:
+    - cd test
+    - python3 -m notification.notification
+  allow_failure: false
+
+pytest_notification_detnet:
+  extends: .pytest.common
+  script:
+    - cd test
+    - python3 -m notification.notification-detnet
+  allow_failure: false
+
 pytest_elimination:
   extends: .pytest.common
   script:
