@@ -55,6 +55,10 @@ static int packetline_cb(const char *key, void *value, void *userdata)
                 THROW("packet line invalid");
             }
 
+            if (inisection_get(state->streams_section, streamname)) {
+                THROW("stream found with :packet and without it");
+            }
+
             // find the corresponding :match line
             int chars = snprintf(NULL, 0, "%s:match", streamname);
             matchname = (char *)malloc((chars+1)*sizeof(char));
