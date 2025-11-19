@@ -235,25 +235,49 @@ static NotificationLevel tc_stat_notification_pull_fn(void *self, struct JsonVal
     return NOTIF_PULL;
 }
 
-static NotificationLevel modem_stat_notification_pull_fn(void *self, struct JsonValue **msg)
+char *modem_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep)
 {
-    char *iface_name = (char *)self;
+    struct JsonValue *js_csq = json_object_get_object(json, "CSQ");
+    struct JsonValue *rssi = json_object_get_number(js_csq, "rssi");
+    struct JsonValue *ber = json_object_get_number(js_csq, "ber");
+    struct JsonValue *js_cereg = json_object_get_object(json, "CEREG");
+    struct JsonValue *nr = json_object_get_number(js_cereg, "n");
+    struct JsonValue *stat = json_object_get_number(js_cereg, "stat");
+
+    struct JsonValue *servingcell = json_object_get_string(json, "servingcell");
+    struct JsonValue *qcsq = json_object_get_string(json, "qcsq");
+
+    if( (servingcell != NULL) && (qcsq != NULL) )
+        return strdup_printf("CSQ: rssi %.0f%sber %.0f%sCEREG: n %.0f%sstat %.0f%sservingcell %s%sqcsq %s%s",
+                                rssi->v.number, record_sep, ber->v.number, line_sep,
+                                nr->v.number, record_sep, stat->v.number, line_sep,
+                                servingcell->v.string, line_sep,
+                                qcsq->v.string, line_sep);
+    else
+        return strdup_printf("CSQ: rssi %.0f%sber %.0f%sCEREG: n %.0f%sstat %.0f%s",
+                                rssi->v.number, record_sep, ber->v.number, line_sep,
+                                nr->v.number, record_sep, stat->v.number, line_sep);
+}
+
+struct JsonValue *get_modem_state_json(const char *iface_name)
+{
     char command[MAX_LINE],  buffer[MAX_LINE];
 
     struct JsonValue *ret = json_object();
 
     snprintf(command, sizeof(command), "echo AT+CSQ |  socat - /dev/%s,crnl", iface_name);
     FILE *fp = popen(command, "r");
-    if (fp != NULL) {
-        if (fread(buffer, 1, sizeof(buffer)-1, fp) > 3) {
-            int rssi, ber;
-            if (sscanf(buffer, "\n+CSQ: %d,%d", &rssi, &ber) == 2) {
-                struct JsonValue *csq = json_object();
-                json_object_insert(csq, "rssi", json_number(rssi));
-                json_object_insert(csq, "ber", json_number(ber));
-                json_object_insert(ret, "CSQ", csq);
-            }
+    if ((fp != NULL) && (fread(buffer, 1, sizeof(buffer)-1, fp) > 3)) {
+        int rssi, ber;
+        if (sscanf(buffer, "\n+CSQ: %d,%d", &rssi, &ber) == 2) {
+            struct JsonValue *csq = json_object();
+            json_object_insert(csq, "rssi", json_number(rssi));
+            json_object_insert(csq, "ber", json_number(ber));
+            json_object_insert(ret, "CSQ", csq);
         }
+    } else {
+        json_delete(ret);       // Error, probably wrong port name.
+        return NULL;
     }
     snprintf(command, sizeof(command), "echo AT+CEREG? |  socat - /dev/%s,crnl", iface_name);
     fp = popen(command, "r");
@@ -293,12 +317,21 @@ static NotificationLevel modem_stat_notification_pull_fn(void *self, struct Json
 #endif
 
     pclose(fp);
+    return ret;
+}
+
+
+
+static NotificationLevel modem_stat_notification_pull_fn(void *self, struct JsonValue **msg)
+{
+    char *iface_name = (char *)self;
+
+    *msg = get_modem_state_json(iface_name);
 
 /*    unsigned n;
     char *jstr = json_serialize(ret, &n);
     printf("json: %s\n", jstr);
 */
-    *msg = ret;
     return NOTIF_PULL;
 }
 

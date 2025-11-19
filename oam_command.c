@@ -120,6 +120,7 @@ static const char help_str[] =
     "sysmon <command> <type> <target> [period_ms] - add/rem system monitoring. Type: delay, tc, modem. Target: specific\n"
     "notif_pull [enable|disable] - enable or disable the pull notifications\n"
     "mode [mode] - set ping reply printing mode, can be 'dump' or 'json'\n"
+    "ue <tty> - show modem statistics\n"
     "list - list monitoring start points\n"
     "iface [ifname] - print information about interfaces\n"
     "returns - list return interfaces\n"
@@ -537,6 +538,27 @@ static void command_loop(struct CommandConnection *conn)
                 } else {
                    fprintf(cmd_w, "Invalid parameters for 'sysmon' command.\n");
                }
+            }
+            else if (strncmp(oam_command, "ue", 2) == 0) {
+                char ttyname[64];
+                int k = sscanf(oam_command, "ue %s", ttyname);
+                if (k == 0 || k == EOF) {
+                    fprintf(cmd_w, "ue <ttyUSBn>\n");
+                } else {
+                    struct JsonValue *js = get_modem_state_json(ttyname);
+                    if(js != NULL) {
+                        if(conn->mode == TF_JSON){
+                            unsigned len;
+                            char *jstr = json_serialize(js, &len);
+                            fprintf(cmd_w, "%s\n", jstr);
+                            free(jstr);
+                        }else
+                            fprintf(cmd_w, "%s", modem_sprintf_state_json(js, ", ", "\n"));
+                        json_delete(js);
+                    }
+                    else
+                        fprintf(cmd_w, "Error, wrong tty?\n");
+                }
             }
             else if (strncmp(oam_command, "sessions", 8) == 0) {
                 int k=sscanf(oam_command, "sessions %s", streamname);
