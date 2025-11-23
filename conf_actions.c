@@ -158,6 +158,7 @@ struct ConfAction {
         struct {
             struct ReplicateList *pipelines;
             struct PipelineObject *replobj;
+            const enum ProtocolID *protostack;
         } repl;
         struct {
             struct Interface *iface;
@@ -1775,6 +1776,7 @@ static bool process_action(struct StageState *stst)
                 THROW("no pipelines specified");
             }
             REVERSE_LIST(newaction->repl.pipelines);
+            newaction->oam.protostack = check_header_stack_for_oam(stst->headers);
             // we already checked that the branches are correctly writing the fields
             stst->must_write = delete_must_write_list(stst->must_write);
             stst->had_final = true;
@@ -2216,7 +2218,7 @@ struct Pipeline *assemble_actions(const char *stream_name, const struct ConfActi
                     pipes = p;
                 }
                 REVERSE_LIST(pipes);
-                create_action_repl(actions+i, pipes, ca->repl.replobj, ca->text);
+                create_action_repl(actions+i, pipes, ca->repl.replobj, ca->repl.protostack, ca->text);
                 break; }
             case CA_SEND:
                 create_action_send(actions+i, ca->send.iface, ca->text);

@@ -76,6 +76,35 @@ const char *action_name_from_type(enum ActionType type)
         }                                                                       \
     }
 
+static bool packet_is_oam(const struct Packet *p, const enum ProtocolID *protostack,
+        unsigned rtag_index, unsigned last_index, unsigned ethertype_offset)
+{
+    if (protostack == NULL)
+        return false;
+
+    if (protostack[0] == PROTO_ID_ETH) {
+        // we have TSN
+        if (rtag_index) { //TODO must find this with ANALYZE_PROTOSTACK()
+            unsigned char *rtag_hdr = p->buf + p->headers[rtag_index].start;
+            return (rtag_hdr[0] & 0xf0) == 0x10;
+        } else {
+            unsigned char *ethertype = p->buf + p->headers[last_index].start + ethertype_offset;
+            return (ethertype[0] == ((ETH_P_CFM >> 8) & 0xff))
+                            && (ethertype[1] == (ETH_P_CFM & 0xff));
+        }
+    } else if (protostack[0] == PROTO_ID_MPLS) {
+        // we have DetNet PseudoWire
+        unsigned char *oam_hdr = p->buf + p->headers[1].start;
+        return (oam_hdr[0] & 0xf0) == 0x10;
+    } else if (protostack[0] == PROTO_ID_IPv6) {
+        // we have SRv6 (probably)
+        unsigned char *ipv6_detnetsid = p->buf + p->headers[0].start;
+        return (ipv6_detnetsid[36] & 0x01) == 0x01; // OAM bit
+    } else {
+        //TODO unhandled OAM encapsulation type
+        return false;
+    }
+}
 
 /////////////////////////////////////////////////////////////////////
 
@@ -441,31 +470,10 @@ static enum ActionResult action_OAMRECEIVE_execute(struct Action *a, struct Pipe
     struct OamReceiveData *ord = (struct OamReceiveData *)a->action_private;
     struct Packet *p = pi->packet;
 
-    bool packet_is_oam = false;
-    if (ord->protostack[0] == PROTO_ID_ETH) {
-        // we have TSN
-        if (ord->rtag_index) {
-            unsigned char *rtag_hdr = p->buf + p->headers[ord->rtag_index].start;
-            packet_is_oam = (rtag_hdr[0] & 0xf0) == 0x10;
-        } else {
-            unsigned char *ethertype = p->buf + p->headers[ord->last_index].start + ord->ethertype_offset;
-            packet_is_oam = (ethertype[0] == ((ETH_P_CFM >> 8) & 0xff))
-                            && (ethertype[1] == (ETH_P_CFM & 0xff));
-        }
-    } else if (ord->protostack[0] == PROTO_ID_MPLS) {
-        // we have DetNet PseudoWire
-        unsigned char *oam_hdr = p->buf + p->headers[1].start;
-        packet_is_oam = (oam_hdr[0] & 0xf0) == 0x10;
-    } else if (ord->protostack[0] == PROTO_ID_IPv6) {
-        // we have SRv6 (probably)
-        unsigned char *ipv6_detnetsid = p->buf + p->headers[0].start;
-        packet_is_oam = (ipv6_detnetsid[36] & 0x01) == 0x01; // OAM bit
-    } else {
-        //TODO die?
-        return ACR_CONTINUE;
-    }
+    bool is_oam = packet_is_oam(p, ord->protostack,
+            ord->rtag_index, ord->last_index, ord->ethertype_offset);
 
-    if (packet_is_oam) {
+    if (is_oam) {
         oam_receive_inband(ord->mp, pi);
         return ACR_HOLD;
     } else {
@@ -584,6 +592,12 @@ void create_action_readtstamp(struct Action *a, const struct HeaderField *tsfiel
 struct ReplData {
     struct PipelineList *pipes;
     struct PipelineObject *replobj;
+    const enum ProtocolID *protostack;
+
+    // these are for TSN OAM detection
+    unsigned rtag_index;
+    unsigned last_index;
+    unsigned ethertype_offset;
 };
 
 static enum ActionResult action_REPL_execute(struct Action *a, struct PipelineIterator *pi)
@@ -600,22 +614,25 @@ static enum ActionResult action_REPL_execute(struct Action *a, struct PipelineIt
     struct Packet *iterpacket = pi->packet;
     pi->packet = NULL;
 
-    bool packet_is_oam = 0;
-    if(iterpacket->headers[0].type == PROTO_ID_MPLS) {
-        unsigned char* dcw = iterpacket->buf + iterpacket->headers[1].start;
-        if((*dcw & 0xf0) == 0x10 )
-            packet_is_oam = 1;
-    }  // ToDo: make for TSN and SRv6 too
+    int is_oam = -1; // initially undecided
 
     while (list) {
         // do not replicate to masked pipes (member streams)
+        if (list->pipe->mask) {
+            if (is_oam < 0) {
+                is_oam = packet_is_oam(iterpacket, rd->protostack,
+                    rd->rtag_index, rd->last_index, rd->ethertype_offset);
+            }
 
-        if (list->pipe->mask && !packet_is_oam) {
-            if (list->next == NULL)
-                delete_packet(iterpacket);
-            list = list->next;
-            continue;
+            // let OAM through even when masked
+            if (is_oam == 0) {
+                if (list->next == NULL)
+                    delete_packet(iterpacket);
+                list = list->next;
+                continue;
+            }
         }
+
         struct Packet *p;
         if (list->next) {
             p = copy_packet(iterpacket);
@@ -644,7 +661,8 @@ static void action_REPL_del(void *action_private)
         pipeline_object_unref(rd->replobj);
 }
 
-void create_action_repl(struct Action *a, struct PipelineList *list, struct PipelineObject *replobj, const char *text)
+void create_action_repl(struct Action *a, struct PipelineList *list, struct PipelineObject *replobj,
+        const enum ProtocolID *protostack, const char *text)
 {
     INIT_ACTION(REPL);
     a->del = action_REPL_del;
@@ -652,6 +670,10 @@ void create_action_repl(struct Action *a, struct PipelineList *list, struct Pipe
     struct ReplData *rd = calloc_struct(ReplData);
     rd->pipes = list;
     rd->replobj = replobj;
+    rd->protostack = protostack;
+    if (protostack) {
+        ANALYZE_PROTOSTACK(rd);
+    }
     if (replobj) {
         pipeline_object_ref(replobj);
         store_replication_pipelines(replobj, list);
