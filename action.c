@@ -600,9 +600,17 @@ static enum ActionResult action_REPL_execute(struct Action *a, struct PipelineIt
     struct Packet *iterpacket = pi->packet;
     pi->packet = NULL;
 
+    bool packet_is_oam = 0;
+    if(iterpacket->headers[0].type == PROTO_ID_MPLS) {
+        unsigned char* dcw = iterpacket->buf + iterpacket->headers[1].start;
+        if((*dcw & 0xf0) == 0x10 )
+            packet_is_oam = 1;
+    }  // ToDo: make for TSN and SRv6 too
+
     while (list) {
         // do not replicate to masked pipes (member streams)
-        if (list->pipe->mask) {
+
+        if (list->pipe->mask && !packet_is_oam) {
             if (list->next == NULL)
                 delete_packet(iterpacket);
             list = list->next;
