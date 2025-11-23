@@ -144,15 +144,17 @@ configure_networkenv() {
 }
 
 start_r2dtwos() {
-    # For debug! Spawns r2dtwo windows in gdb
+    # For debug, spawns r2dtw windows in gdb
     #nxp1 xterm -T nxp1 -e env -i gdb -nx --args ../../r2dtwo nxp1.ini -v ALL:ALL &
-    #nxp1 ../../r2dtwo -of nxp1.ini -v ALL:ALL &
-    nxp1 ../../r2dtwo -of nxp1.ini -v PACKETTRACE:PACKET &
-
     #nxp2 xterm -T nxp2 -e env -i gdb -nx --args ../../r2dtwo nxp2.ini -v ALL:ALL &
+
+    #nxp1 ../../r2dtwo -of nxp1.ini -v ALL:ALL &
+    #nxp1 ../../r2dtwo -of nxp1.ini -v PACKETTRACE:PACKET &
+    nxp1 ../../r2dtwo nxp1.ini -v ALL:NONE &
+
     #nxp2 ../../r2dtwo -of nxp2.ini -v ALL:ALL &
-    nxp2 ../../r2dtwo -of nxp2.ini -v PACKETTRACE:PACKET &
-    #nxp2 ../../r2dtwo -of nxp2.ini -vALL:NONE &
+    #nxp2 ../../r2dtwo -of nxp2.ini -v PACKETTRACE:PACKET &
+    nxp2 ../../r2dtwo nxp2.ini -v ALL:NONE  &
 }
 
 # This is totally unsafe
@@ -216,10 +218,13 @@ oam xterm -T "JsonReceiver" -hold -e python3 ../../json_receiver/multipart_json_
 # Format: d1 l1 d2 l2 d3 l3
 table=(
   "0 0 0 0 0 0"
-  "40 20 20 10 0 0"
-  "40 20 40 10 0 10"
-  "20 20 40 10 40 10"
-  "0 20 0 10 40 10"
+  "20 0 0 0 0 0"
+  "40 0 20 0 0 0"
+  "20 0 40 0 0 0"
+  "0 0 40 0 20 0"
+  "0 0 20 0 40 0"
+  "0 0 0 0 40 0"
+  "0 0 0 0 20 0"
 )
 
 #function called by trap
@@ -235,6 +240,10 @@ rows=${#table[@]}
 
 echo "Starting traffic loop"
 
+nxp1 tc qdisc add dev swp1 root netem loss 0% delay 0ms
+nxp1 tc qdisc add dev swp2 root netem loss 0% delay 0ms
+nxp1 tc qdisc add dev swp3 root netem loss 0% delay 0ms
+
 # --- Main loop ---
 while [ $brk -eq 0 ]; do
     # pick line from table
@@ -246,18 +255,13 @@ while [ $brk -eq 0 ]; do
     echo "  swp2: loss $X2% delay ${Y2}ms"
     echo "  swp3: loss $X3% delay ${Y3}ms"
 
-    # delete old qdiscs
-    nxp1 tc qdisc del dev swp1 root netem 2>/dev/null
-    nxp1 tc qdisc del dev swp2 root netem 2>/dev/null
-    nxp1 tc qdisc del dev swp3 root netem 2>/dev/null
-
-    # add new ones
-    nxp1 tc qdisc add dev swp1 root netem loss ${X1}% delay ${Y1}ms
-    nxp1 tc qdisc add dev swp2 root netem loss ${X2}% delay ${Y2}ms
-    nxp1 tc qdisc add dev swp3 root netem loss ${X3}% delay ${Y3}ms
+    # modify netem parameters
+    nxp1 tc qdisc change dev swp1 root netem loss ${X1}% delay ${Y1}ms
+    nxp1 tc qdisc change dev swp2 root netem loss ${X2}% delay ${Y2}ms
+    nxp1 tc qdisc change dev swp3 root netem loss ${X3}% delay ${Y3}ms
 
     x=$((x+1))
-    # wait 4 second, interruptible by Ctrl-C
+    # wait N second, interruptible by Ctrl-C
     read -t 6 dummy
 done
 
@@ -267,6 +271,7 @@ nxp1 tc qdisc del dev swp1 root netem 2>/dev/null
 nxp1 tc qdisc del dev swp2 root netem 2>/dev/null
 nxp1 tc qdisc del dev swp3 root netem 2>/dev/null
 
+#kill the ping to avoid interference
 talker pkill -9 ping #2>/dev/null
 
 /bin/bash --init-file <(echo "PS1='(ip over detnet) \u:\W# '")
