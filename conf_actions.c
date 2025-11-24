@@ -1776,7 +1776,7 @@ static bool process_action(struct StageState *stst)
                 THROW("no pipelines specified");
             }
             REVERSE_LIST(newaction->repl.pipelines);
-            newaction->oam.protostack = check_header_stack_for_oam(stst->headers);
+            newaction->repl.protostack = check_header_stack_for_oam(stst->headers);
             // we already checked that the branches are correctly writing the fields
             stst->must_write = delete_must_write_list(stst->must_write);
             stst->had_final = true;
