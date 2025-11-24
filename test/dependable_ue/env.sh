@@ -217,14 +217,16 @@ oam xterm -T "JsonReceiver" -hold -e python3 ../../json_receiver/multipart_json_
 # --- Table of loss/delay values (5 lines) ---
 # Format: d1 l1 d2 l2 d3 l3
 table=(
-  "0 0 0 0 0 0"
-  "20 0 0 0 0 0"
-  "40 0 20 0 0 0"
-  "20 0 40 0 0 0"
-  "0 0 40 0 20 0"
-  "0 0 20 0 40 0"
-  "0 0 0 0 40 0"
-  "0 0 0 0 20 0"
+  "10 0  0 0  0 0"
+  "20 0  0 0  0 0"
+  "40 0 10 0  0 0"
+  "50 0 20 0 10 0"
+  "40 0 40 0 20 0"
+  "20 0 50 0 40 0"
+  "10 0 40 0 50 0"
+  " 0 0 20 0 40 0"
+  " 0 0 10 0 20 0"
+  " 0 0  0 0 10 0"  
 )
 
 #function called by trap
@@ -262,7 +264,7 @@ while [ $brk -eq 0 ]; do
 
     x=$((x+1))
     # wait N second, interruptible by Ctrl-C
-    read -t 6 dummy
+    read -t 8 dummy
 done
 
 echo "Loop done."
