@@ -29,6 +29,7 @@
 #include <sys/eventfd.h>
 
 #define QUECTEL             // define it if Quectel modem is used
+#define MODEM_TIMEOUT       1500    // timeout when reading modem response
 
 DEFAULT_LOGGING_MODULE(SYSMON, INFO);
 
@@ -259,68 +260,149 @@ char *modem_sprintf_state_json(struct JsonValue *json, const char *record_sep, c
                                 nr->v.number, record_sep, stat->v.number, line_sep);
 }
 
+static int readline_with_timeout(int fd, char *buf, size_t maxlen, int timeout_ms)
+{
+    size_t n = 0;
+    buf[0] = 0;
+
+    while (n < maxlen - 1) {
+        struct timeval tv = {
+            .tv_sec  = timeout_ms / 1000,
+            .tv_usec = (timeout_ms % 1000) * 1000
+        };
+        fd_set rfds;
+        FD_ZERO(&rfds);
+        FD_SET(fd, &rfds);
+
+        int rv = select(fd + 1, &rfds, NULL, NULL, &tv);
+        if (rv == 0)  return 0;     // timeout
+        if (rv < 0)   return -1;    // error
+
+        char c;
+        int r = read(fd, &c, 1);
+        if (r <= 0) return -1;
+
+        if (c == '\r' || c == '\n') {
+            if(n == 0) continue;
+            else break;
+         }
+
+         buf[n++] = c;
+    }
+
+    buf[n] = 0;
+    return n;
+}
+
+static int at_read_response(FILE *mdm, char *resp, size_t maxlen, int timeout_ms)
+{
+    int fd = fileno(mdm);
+    char line[256];
+
+    // Read actual response line, skip whitespaces
+    int n = readline_with_timeout(fd, resp, maxlen, timeout_ms);
+    if (n <= 0)
+        return 0;
+
+    log_error("tty Resp1  %s\n", resp);
+
+    // Read OK
+    if (readline_with_timeout(fd, line, sizeof(line), timeout_ms) <= 0)
+        return 0;
+
+    log_error("tty Resp2  %s\n", line);
+
+    if (strncmp(line, "OK", 2) != 0)
+        return 0;
+
+    return n;
+}
+
 struct JsonValue *get_modem_state_json(const char *iface_name)
 {
-    char command[MAX_LINE],  buffer[MAX_LINE];
+    char devname[64];
+    snprintf(devname, sizeof(devname), "/dev/%s", iface_name);
+
+    FILE *mdm = fopen(devname, "r+");
+    if (!mdm) {
+        log_error("Cannot open modem device %s", devname);
+        return NULL;
+    }
+
+    // Flush any old data
+    tcflush(fileno(mdm), TCIOFLUSH);
 
     struct JsonValue *ret = json_object();
+    char buffer[MAX_LINE];
 
-    snprintf(command, sizeof(command), "echo AT+CSQ |  socat - /dev/%s,crnl", iface_name);
-    FILE *fp = popen(command, "r");
-    if ((fp != NULL) && (fread(buffer, 1, sizeof(buffer)-1, fp) > 3)) {
+    /*********************  AT+CSQ  ************************/
+    fwrite("AT+CSQ\r\n", 1, 8, mdm);
+    fflush(mdm);
+
+    if (at_read_response(mdm, buffer, sizeof(buffer), MODEM_TIMEOUT) > 0) {
         int rssi, ber;
-        if (sscanf(buffer, "\n+CSQ: %d,%d", &rssi, &ber) == 2) {
+        if (sscanf(buffer, " +CSQ: %d,%d", &rssi, &ber) == 2) {
             struct JsonValue *csq = json_object();
             json_object_insert(csq, "rssi", json_number(rssi));
             json_object_insert(csq, "ber", json_number(ber));
             json_object_insert(ret, "CSQ", csq);
         }
-    } else {
-        json_delete(ret);       // Error, probably wrong port name.
-        return NULL;
     }
-    snprintf(command, sizeof(command), "echo AT+CEREG? |  socat - /dev/%s,crnl", iface_name);
-    fp = popen(command, "r");
-    if (fp != NULL) {
-        if (fread(buffer, 1, sizeof(buffer)-1, fp) > 3) {
-            int n, stat;
-            if (sscanf(buffer, "\n+CEREG: %d,%d", &n, &stat) == 2) {
-                struct JsonValue *cereg = json_object();
-                json_object_insert(cereg, "n", json_number(n));
-                json_object_insert(cereg, "stat", json_number(stat));
-                json_object_insert(ret, "CEREG", cereg);
-            }
+    else goto error;
+
+    /*********************  AT+CEREG?  ************************/
+    fwrite("AT+CEREG?\r\n", 1, 11, mdm);
+    fflush(mdm);
+
+    if (at_read_response(mdm, buffer, sizeof(buffer), MODEM_TIMEOUT) > 0) {
+        log_error("tty Resp2.2  %s", buffer);
+        int n, stat;
+        if (sscanf(buffer, " +CEREG: %d,%d", &n, &stat) == 2) {
+            struct JsonValue *cereg = json_object();
+            json_object_insert(cereg, "n", json_number(n));
+            json_object_insert(cereg, "stat", json_number(stat));
+            json_object_insert(ret, "CEREG", cereg);
         }
     }
+    else goto error;
+
 #ifdef QUECTEL
-    snprintf(command, sizeof(command), "echo 'AT+QENG=\"servingcell\"' |  socat - /dev/%s,crnl", iface_name);
-    fp = popen(command, "r");
-    if (fp != NULL) {
-        if (fread(buffer, 1, sizeof(buffer)-1, fp) > 3) {
-            char servingcell[MAX_LINE];
-            if (sscanf(buffer, "\n+QENG: %s", servingcell) == 1) {
-                json_object_insert(ret, "servingcell", json_string(servingcell));
-            }
-            else log_error("qeng: %s\n %s",command, buffer);
+    /*********************  AT+QENG="servingcell"  ************************/
+    fwrite("AT+QENG=\"servingcell\"\r\n", 1, 23, mdm);
+    fflush(mdm);
+
+    if (at_read_response(mdm, buffer, sizeof(buffer), MODEM_TIMEOUT) > 0) {
+        log_error("tty Resp3  %s", buffer);
+        char servingcell[MAX_LINE];
+        if (sscanf(buffer, " +QENG: %[^\r\n]", servingcell) == 1) {
+            json_object_insert(ret, "servingcell", json_string(servingcell));
         }
     }
-    snprintf(command, sizeof(command), "echo AT+QCSQ |  socat - /dev/%s,crnl", iface_name);
-    fp = popen(command, "r");
-    if (fp != NULL) {
-        if (fread(buffer, 1, sizeof(buffer)-1, fp) > 3) {
-            char qcsq[MAX_LINE];
-            if (sscanf(buffer, "\n+QCSQ: %s", qcsq) == 1) {
-                json_object_insert(ret, "qcsq", json_string(qcsq));
-            }
+    else goto error;
+
+    /*********************  AT+QCSQ  ************************/
+    fwrite("AT+QCSQ\r\n", 1, 9, mdm);
+    fflush(mdm);
+
+    if (at_read_response(mdm, buffer, sizeof(buffer), MODEM_TIMEOUT) > 0) {
+        log_error("tty Resp4  %s", buffer);
+        char qcsq[MAX_LINE];
+        if (sscanf(buffer, " +QCSQ: %[^\r\n]", qcsq) == 1) {
+            json_object_insert(ret, "qcsq", json_string(qcsq));
         }
     }
+    else goto error;
 #endif
 
-    pclose(fp);
+    fclose(mdm);
     return ret;
+
+error:
+    log_error("Error communicating device %s", devname);
+    fclose(mdm);
+    json_delete(ret);
+    return NULL;
 }
-
-
 
 static NotificationLevel modem_stat_notification_pull_fn(void *self, struct JsonValue **msg)
 {
@@ -386,22 +468,32 @@ bool register_modem_notification(bool add, char *target, unsigned period_ms)
     snprintf(notif_name, 32, "modem_%s", target);
     char *pname = strdup(target);
 
-    char command[MAX_LINE],  buffer[MAX_LINE], result[16];
+    char devname[64];
+    snprintf(devname, sizeof(devname), "/dev/%s", target);
 
     // check if device is actually a modem AT interface
-    snprintf(command, sizeof(command), "echo AT |  socat - /dev/%s,crnl", target);
     bool success = false;
-    FILE *fp = popen(command, "r");
-    if (fp != NULL) {
-        if (fread(buffer, 1, sizeof(buffer)-1, fp) > 3) {
-            if (sscanf(buffer, "%15s\n", result) == 1) {
-                if(strcmp(result, "OK") == 0) {
-                    success = true;
-                }
-            }
+    FILE *mdm = fopen(devname, "r+");
+    if (mdm) {
+        // Flush any old data
+        tcflush(fileno(mdm), TCIOFLUSH);
+
+        /*********************  AT  ************************/
+        fwrite("AT\r\n", 1, 4, mdm);
+        fflush(mdm);
+
+        // Read actual response line, skip whitespaces
+        char buffer[MAX_LINE];
+        int n = readline_with_timeout(fileno(mdm), buffer, sizeof(buffer), MODEM_TIMEOUT);
+        if (n > 0) {
+            if (strncmp(buffer, "OK", 2) == 0)
+                success = true;
         }
+
+        fclose(mdm);
     }
-    if (!success) {
+
+    if(!success) {
         log_error("Could not open modem or not AT command port: /dev/%s.\n", target);
         return false;
     }
