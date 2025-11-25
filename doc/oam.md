@@ -99,7 +99,7 @@ The available commands are:
     * `<level>` is the OAM level of the session, can be 0..7
     * `-r` ask for route record
     * `-o` ask for object information
-    * `-i` interval in ms (default: 1000)
+    * `-i` interval in seconds (default: 1.0, minimum 0.002)
     * `-n` number of requests to send (default: 1)
     * `-t` ttl (default: 64)
 * `rping[@if] <remote stream:mep-stop/mip> <stream:mep-start> <mep-stop/mip/any> <level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]` sends a remote ping request: instruct a remote OAM start point to send a ping request
