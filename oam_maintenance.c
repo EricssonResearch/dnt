@@ -199,10 +199,10 @@ static struct JsonValue *unpack_srv6_message(const struct Packet *p)
         return NULL;
     }
 
-    unsigned char *icmp6 = p->buf + p->headers[2].start;
+    unsigned char *icmp6 = p->buf + p->headers[1].start + protocol_from_id(PROTO_ID_IPv6)->bytelength;
 
     // json is after the ICMPv6 header in payload
-    char *json_str = (char*)(p->buf + p->headers[2].start + protocol_from_id(PROTO_ID_ICMPv6)->bytelength);
+    char *json_str = (char*)(p->buf + p->headers[1].start + protocol_from_id(PROTO_ID_IPv6)->bytelength + protocol_from_id(PROTO_ID_ICMPv6)->bytelength);
     unsigned json_len = plen - header_len;
 
     char *jerror;
