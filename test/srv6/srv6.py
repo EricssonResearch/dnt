@@ -73,11 +73,11 @@ def setup_network():
 
     # add dummy loopback interfaces for local SIDs (loopback interfaces do not work with SRv6)
     r2.cmd("ip link add name sr0 type dummy")
-    r2.cmd("ip a a fd12:fade::0/64 dev sr0")
+    r2.cmd("ip a a fd12:fade::2/64 dev sr0")
     r3.cmd("ip link add name sr0 type dummy")
-    r3.cmd("ip a a fd13:fade::0/64 dev sr0")
+    r3.cmd("ip a a fd13:fade::3/64 dev sr0")
     r4.cmd("ip link add name sr0 type dummy")
-    r4.cmd("ip a a fd14:fade::0/64 dev sr0")
+    r4.cmd("ip a a fd14:fade::4/64 dev sr0")
 
     # add veth interfaces (not needed for TSN over SRv6)
     r2.cmd("ip link add veth0 type veth peer name veth1")
@@ -144,7 +144,7 @@ def setup_network():
     r2.cmd("tc filter add dev eth_r2t1 parent ffff: protocol ip flower dst_ip 10.0.5.1 action mirred egress redirect dev veth0")
 
     r2.cmd("ip -6 route add fd00:a2d2:0:4:1::/80 encap seg6 mode encap segs fd14:fade:0:0:1:: dev eth_r2r4")
-    r2.cmd("ip -6 route add fd00:a2d2:0:4:2::/80 encap seg6 mode encap segs fd13:fade::0,fd14:fade:0:0:1:: dev eth_r2r3")
+    r2.cmd("ip -6 route add fd00:a2d2:0:4:2::/80 encap seg6 mode encap segs fd13:fade::3,fd14:fade:0:0:1:: dev eth_r2r3")
 
     r4.cmd("ip -6 neigh add fd00:a2d2:0:0:0:2::99 lladdr 04:01:02:03:04:05 dev ve1")
     r4.cmd("ip -6 route add fd00:a2d2:0:4::/64 via fd00:a2d2:0:0:0:2::99 table 254 dev ve1")
@@ -157,7 +157,7 @@ def setup_network():
     r4.cmd("tc filter add dev eth_r4l5 parent ffff: protocol ip flower dst_ip 10.0.1.1 action mirred egress redirect dev veth0")
 
     r4.cmd("ip -6 route add fd00:a2d2:0:2:1::/80 encap seg6 mode encap segs fd12:fade:0:0:1:: dev eth_r4r2")
-    r4.cmd("ip -6 route add fd00:a2d2:0:2:2::/80 encap seg6 mode encap segs fd13:fade::0,fd12:fade:0:0:1:: dev eth_r4r3")
+    r4.cmd("ip -6 route add fd00:a2d2:0:2:2::/80 encap seg6 mode encap segs fd13:fade::3,fd12:fade:0:0:1:: dev eth_r4r3")
 
     r2.cmd("ip -6 neigh add fd00:a2d2:0:0:0:2::99 lladdr 02:01:02:03:04:05 dev ve1")
     r2.cmd("ip -6 route add fd00:a2d2:0:2::/64 via fd00:a2d2:0:0:0:2::99 table 254 dev ve1")
@@ -211,45 +211,34 @@ def check_log(logfile, pattern, size):
     return n
 
 oam_testcases = [
-    ('r2', 'ping s1r2-det s1r4-det2 4',
+    ('r2', 'ping s2r2-det s2r4-det2 4',
 """
-OAM request ping session 1 seq 0, s1r2-det -> s1r4-det2 level 4 count 1 interval 1000, rr: no os: no	[reply to ip fd12:fade::0 port 6634]
-  oam_r s2:1 seq 0 lvl 4 R - ping on stream s2 target s1r4-det2; reply from s1r4-det2
+OAM request ping session 1 seq 0, s2r2-det -> s2r4-det2 level 4 count 1 interval 1000, rr: no os: no	[reply to ip fd12:fade::2 port 6634]
+  oam_r s2:1 seq 0 lvl 4 R - ping on stream s2 target s2r4-det2; reply from s2r4-det2
 """
      ),
 
-    ('r2', 'ping s1r2-det s1r4-det2 4 -n 3 -i 0.001',
+    ('r2', 'ping s2r2-det s2r4-det2 4 -n 3 -i 0.001',
 """
-OAM request ping session 2 seq 0, s1r2-det -> s1r4-det2 level 4 count 3 interval 2, rr: no os: no	[reply to ip fd12:fade::0 port 6634]
-  oam_r s2:2 seq 0 lvl 4 R - ping on stream s2 target s1r4-det2; reply from s1r4-det2
-  oam_r s2:2 seq 1 lvl 4 R - ping on stream s2 target s1r4-det2; reply from s1r4-det2
-  oam_r s2:2 seq 2 lvl 4 R - ping on stream s2 target s1r4-det2; reply from s1r4-det2
+OAM request ping session 2 seq 0, s2r2-det -> s2r4-det2 level 4 count 3 interval 2, rr: no os: no	[reply to ip fd12:fade::2 port 6634]
+  oam_r s2:2 seq 0 lvl 4 R - ping on stream s2 target s2r4-det2; reply from s2r4-det2
+  oam_r s2:2 seq 1 lvl 4 R - ping on stream s2 target s2r4-det2; reply from s2r4-det2
+  oam_r s2:2 seq 2 lvl 4 R - ping on stream s2 target s2r4-det2; reply from s2r4-det2
 """
     ),
 ]
 
-def test_oam():
 
-    pids={}
+def test_oam(port):
+
     retval=1
-    try:
-        print("Test SRv6 OAM:")
-        # start r2DTWOs
-        for n in ['r2', 'r4']:
-            node = net.get(n)
-            p=node.popen(f"../r2dtwo -of srv6/{n}-ipv6.cfg -v PACKETTRACE:PACKET")    # in general this is enough for debug
-            pids[n]=f"r2dtwo-{n}-ipv6-{p.pid}.log"
-    except Exception as e:
-            print(e)
-            stop_r2dtwos()
-            return 0
+    print(" OAM...")
 
-    time.sleep(2)
     success = 0
     for node, msg, expected_reply in oam_testcases:
         switch_netns(node)
 
-        with Telnet("0", 8000) as cli:
+        with Telnet("0", port) as cli:
             _ = cli.recv() # OAM ready
             cli.send(msg)
             print(f"    Node: {node}, command: {msg}", end=" ")
@@ -270,13 +259,6 @@ def test_oam():
             else:
                 print("✘ FAILED: OAM reply different")
                 print(f"Actual reply:\n{reply}\nExpected reply:\n{expected_reply}\n")
-
-#    switch_netns()
-    #clean up r2dtwos, logfiles
-    stop_r2dtwos()
-    time.sleep(2)
-    for n in ['r2', 'r4']:
-        os.remove(pids[n])
 
     print(f"Successful OAM tests: {success}/{len(oam_testcases)}", end=" ")
     if success == len(oam_testcases):
@@ -314,24 +296,25 @@ def test_ipv6():
             stop_r2dtwos()
             return 0
 
-    stop_r2dtwos()
-
-    print(" packet sizes...", end=" ")
-    #input("Press Enter to continue...")
-    r=check_log(pids['r2'], r'if4\s+(\d+)\s+s3\s+\|ipv6\|ipv6\|payload\|', 144)
-    if r!=PING_NUM:
-        print(f"found {r} log lines instead of {PING_NUM}")
-        retval=0
-    r=check_log(pids['r4'], r'if4\s+(\d+)\s+s5\s+\|ipv6\|ipv6\|payload\|', 144)
-    if r!=PING_NUM:
-        print(f"found {r} log lines instead of {PING_NUM}")
-        retval=0
-
     switch_netns("r4")
     print(" stats...", end=" ")
     statcmd = exec_fg(f"ip -6 -s route show dev ve1")
     if statcmd.stdout and f"packets {num_pings*4}" not in statcmd.stdout:
-        print(statcmd.stdout)   # should be 2x (bkg+prio) + 2x (2 paths)
+        print("\nStats mismatch."+statcmd.stdout)   # should be 2x (bkg+prio) + 2x (2 paths)
+        retval=0
+
+    retval = retval & test_oam(8000)
+
+    stop_r2dtwos()
+
+    print(" packet sizes...", end=" ")
+    r=check_log(pids['r2'], r'if4\s+(\d+)\s+s3\s+\|ipv6\|ipv6\|payload\|', 144)
+    if r!=PING_NUM:
+        print(f"found {r} log lines instead of {PING_NUM}")
+        retval=0
+    r=check_log(pids['r4'], r'if4\s+(\d+)\s+s5\s+\|ipv6\|ipv6\|payload\|.*Eliminate', 144)
+    if r!=PING_NUM:
+        print(f"found {r} log lines instead of {PING_NUM}")
         retval=0
 
     #clean up logfiles
@@ -382,6 +365,15 @@ def test_ipv4():
             stop_r2dtwos()
             return 0
 
+    switch_netns("r4")
+    print(" stats...", end=" ")
+    statcmd = exec_fg(f"ip -6 -s route show dev ve1")
+    if statcmd.stdout and f"packets {stat_packets+num_pings*4}" not in statcmd.stdout:
+        print(statcmd.stdout)
+        retval=0
+
+    retval = retval & test_oam(8001)
+
     stop_r2dtwos()
 
     print(" packet sizes...", end=" ")
@@ -390,16 +382,9 @@ def test_ipv4():
     if r!=PING_NUM:
         print(f"found {r} log lines instead of {PING_NUM}")
         retval=0
-    r=check_log(pids['r4'], r'if4\s+(\d+)\s+s5\s+\|ipv6\|ipv4\|payload\|', 124)
+    r=check_log(pids['r4'], r'if4\s+(\d+)\s+s5\s+\|ipv6\|ipv4\|payload\|.*Eliminate', 124)
     if r!=PING_NUM:
         print(f"found {r} log lines instead of {PING_NUM}")
-        retval=0
-
-    switch_netns("r4")
-    print(" stats...", end=" ")
-    statcmd = exec_fg(f"ip -6 -s route show dev ve1")
-    if statcmd.stdout and f"packets {stat_packets+num_pings*4}" not in statcmd.stdout:
-        print(statcmd.stdout)
         retval=0
 
     #clean up logfiles
@@ -449,19 +434,6 @@ def test_tsn():
             stop_r2dtwos()
             return 0
 
-    stop_r2dtwos()
-
-    print(" packet sizes...", end=" ")
-    #input("Press Enter to continue...")
-    r=check_log(pids['r2'], r'if4\s+(\d+)\s+s3\s+\|ipv6\|eth\|payload\|', 142)
-    if r!=PING_NUM:
-        print(f"found {r} log lines instead of {PING_NUM}")
-        retval=0
-    r=check_log(pids['r4'], r'if4\s+(\d+)\s+s5\s+\|ipv6\|eth\|payload\|', 142)
-    if r!=PING_NUM:
-        print(f"found {r} log lines instead of {PING_NUM}")
-        retval=0
-
     switch_netns("r4")
     print(" stats...", end=" ")
     statcmd = exec_fg(f"ip -6 -s route show dev ve1")
@@ -474,6 +446,21 @@ def test_tsn():
         else:
             print(statcmd.stdout)
             retval=0
+
+    retval = retval & test_oam(8002)
+
+    stop_r2dtwos()
+
+    print(" packet sizes...", end=" ")
+    #input("Press Enter to continue...")
+    r=check_log(pids['r2'], r'if4\s+(\d+)\s+s3\s+\|ipv6\|eth\|payload\|', 142)
+    if r!=PING_NUM:
+        print(f"found {r} log lines instead of {PING_NUM}")
+        retval=0
+    r=check_log(pids['r4'], r'if4\s+(\d+)\s+s5\s+\|ipv6\|eth\|payload\|.*Eliminate', 142)
+    if r!=PING_NUM:
+        print(f"found {r} log lines instead of {PING_NUM}")
+        retval=0
 
     #clean up logfiles
     for n in ['r2', 'r4']:
@@ -497,15 +484,15 @@ if __name__ == '__main__':
     if debug:
         print("R2DTWO SRv6 debug")
         info(f"*** Starting R2DTWOs, scenario {scenario}\n")
-        #sstart_r2dtwos(net, debug)
-        start_r2dtwos(net, scenario, False)
+        start_r2dtwos(net, scenario, debug)
+        #start_r2dtwos(net, scenario, False)
         CLI(net)
         print("Cleanup...")
         exec_fg("killall r2dtwo")
         tests = []
     else:
         print("R2DTWO SRv6 test")
-        tests = [test_ipv6, test_ipv4, test_tsn, test_oam]
+        tests = [test_ipv6, test_ipv4, test_tsn]
         for test in tests:
             result = test()
             ret += result
