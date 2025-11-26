@@ -269,6 +269,15 @@ mask state for Replicate 'R2'
   pipeline 'M4' is not masked
   pipeline 'M5' is masked, o_M5_L3_post-R2 sending mask signal
 """),
+            # OAM ping should go through on masked branches
+            ("ping o_M1_L3_post-R1 o_M5_L3_pre-E1 3", """
+OAM request ping session 1 seq 0, o_M1_L3_post-R1 -> o_M5_L3_pre-E1 level 3 count 1 interval 1000, rr: no os: no	[reply to ip 127.0.0.1 port 6666]
+  oam_r M1:1 seq 0 lvl 3 R - ping on stream M1 target o_M5_L3_pre-E1; reply from o_M5_L3_pre-E1
+"""),
+            ("ping o_M1_L3_post-R1 o_M6_L3_pre-E2 3", """
+OAM request ping session 2 seq 0, o_M1_L3_post-R1 -> o_M6_L3_pre-E2 level 3 count 1 interval 1000, rr: no os: no	[reply to ip 127.0.0.1 port 6666]
+  oam_r M1:2 seq 0 lvl 3 R - ping on stream M1 target o_M6_L3_pre-E2; reply from o_M6_L3_pre-E2
+"""),
             ("unmask M5", """
 Pipeline 'M5' in Replicate R2 now unmasked
 Stopped mask signalling from MIP 'o_M5_L3_post-R2'
