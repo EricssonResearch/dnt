@@ -200,6 +200,54 @@ s3:match = ipv6_outer flowid=0x15555        ; match Locator 64 bit, both functio
 s3:actions = readseq ipv6_outer, del ipv6_outer, pef1 send_uni1
 ```
 
+## OAM
+
+SRv6 implementation also supports the same OAM functionalities as described in [OAM](oam.md). Just like for TSN and Detnet OAM, there is a protocol-specific header for OAM messages, while the payload is JSON. The OAM replies are sent out-of-band, as UDP messages containing the JSON payload to the return interface specified. The same ping, rping, rlist,... commands are supported.
+
+### OAM message format
+
+SRv6 OAM uses an ICMPv6 Echo-like message format, but with a specific experimental type (200). It is always IPv6, IPv4 OAM messages are not supported (i.e. ICMPv4 not supported).
+
+OAM messages use the DetNet sequence field similar to the TSN or DetNet sequence field, but it's only 28 bits. Since the 4 bit OAM nibble is not included, the 4th flag bit is used to indicate the OAM message type. Thus the sequence number field in the DetNet SID is defined as:
+
+
+```
+┌─┬─┬─┬─┬──────────────────┬────────────────────────────────────────┐
+│ | | |o│  8 bit reserved  │           16 bit sequence number       │
+└─┴─┴─┴─┴──────────────────┴────────────────────────────────────────┘
+```
+
+Where `o` is  the OAM flag, indicating OAM message.
+
+The message itself is an ICMPv6 Echo extended with a 32 bit Node ID extension:
+
+```
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|     Type      |     Code      |          Checksum             |       ICMPv6, Type = Echo or 200 (Experimental)
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|   Reserved (0)  | Lvl |Session|        Sequence Number        |       Echo
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|     JSON Data ...
++-+-+-+-+-+-+-+-+-+-
+```
+
+Where Data is the JSON payload.
+The `Identifier` and `Sequence Number` are similar to the ICMPv6 Echo request, and the next 32 bit is the Node ID extension.
+The `Identifier` consists of 9 reserved bits of 0, the level and the session ID.
+The (NodeID, Level, Sequence) triplet uniquely identifies an OAM session. The *Node ID* is the source IP address of the ICMPv6 message.  
+(Normally the default OAM interface address is used as *Node ID*.)
+
+### Configuration of SRv6 OAM
+
+For SRv6 OAM MPs can be added to the action pipeline similarly to TSN/DetNet. However, there are some SRv6 specific requirements.
+
+* `match`: the requirement for SRv6 matching is at least (ipv6_outer, ip*) headers on SRv6 interfaces.
+* Write `loc`: the pipeline SHOULD write the "loc" field of the outer IPv6 header in order to satisfy the MP addressing.
+* After an MP injection point, `WriteSeq` must be added to write the sequence number to the IPv6 SID.
+
+The oam_srv6 test in the `test` directory gives an example for SRv6 OAM usage and configuration.
+
+
 ## Examples
 
 An SRv6 test script is available in the 'test' directory. The associated configuration files are in the `test/srv6` directory. There is a Readme too explaining the test scenario and srv6 script usage.

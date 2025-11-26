@@ -73,6 +73,7 @@ static bool ethertype_from_id(uint16_t *nexthdr, enum ProtocolID id)
         case PROTO_ID_UDP:
         case PROTO_ID_TCP:
         case PROTO_ID_OAM:
+        case PROTO_ID_ICMPv6:
             return false;
     }
     return false;
@@ -116,6 +117,8 @@ static bool ipproto_from_id(uint16_t *proto, enum ProtocolID id)
             SET_PROTO(IPPROTO_TCP);
         case PROTO_ID_MPLS:
             SET_PROTO(IPPROTO_MPLS);
+        case PROTO_ID_ICMPv6:
+            SET_PROTO(IPPROTO_ICMPV6);
         case PROTO_ID_PAYLOAD:
         case PROTO_ID_CVLAN:
         case PROTO_ID_SVLAN:
@@ -316,6 +319,20 @@ static const struct ProtocolField cfm_fields[] = {
     {"tlvoffset", 24,  8, FT_NUMBER}, // length of a fixed header after CFM
 };
 
+// ICMPv6 protocol fields, including type specific fields
+static const struct ProtocolField icmpv6_fields[] = {
+    {"type",       0,  8, FT_NUMBER},     // type, 128 = echo req
+    {"code",       8,  8, FT_NUMBER},
+    {"checksum",  16,  16, FT_CHECKSUM},  // needs to be calculated
+
+    // These are type-specific fields
+    {"identifier",32,  16, FT_NUMBER},    // ICMPv6 Echo fields
+    {"sequence",  48,  16, FT_NUMBER},
+    {"mtu",       32,  32, FT_NUMBER},    // Packet Too Big error
+    {"pointer",   32,  32, FT_NUMBER},    // Parameter problem
+    {"reserved",  32,  32, FT_NUMBER},    // Unused
+};
+
 // the internal id of the protocols is their index in this array
 //TODO autogenerate this list
 const struct Protocol protocol_list[] = {
@@ -338,6 +355,7 @@ const struct Protocol protocol_list[] = {
     {"oam", oam_fields, ARRAY_SIZE(oam_fields), 8, NULL, NULL, NULL, 0},
     {"oamrtag", oamrtag_fields, ARRAY_SIZE(oamrtag_fields), 4, NULL, NULL, NULL, 0},
     {"cfm", cfm_fields, ARRAY_SIZE(cfm_fields), 4, NULL, NULL, NULL, 0},
+    {"icmpv6", icmpv6_fields, ARRAY_SIZE(icmpv6_fields), 8, NULL, NULL, NULL, 0},
 };
 
 static const unsigned protocol_count = ARRAY_SIZE(protocol_list);

@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include <arpa/inet.h> /* htonl() */
 #include <linux/if_ether.h> /* ETH_P_* */
+#include <netinet/icmp6.h>    // ICMP6_ECHO_REQUEST
 
 DEFAULT_LOGGING_MODULE(PIPELINE, WARNING);
 
@@ -75,6 +76,35 @@ const char *action_name_from_type(enum ActionType type)
         }                                                                       \
     }
 
+static bool packet_is_oam(const struct Packet *p, const enum ProtocolID *protostack,
+        unsigned rtag_index, unsigned last_index, unsigned ethertype_offset)
+{
+    if (protostack == NULL)
+        return false;
+
+    if (protostack[0] == PROTO_ID_ETH) {
+        // we have TSN
+        if (rtag_index) { //TODO must find this with ANALYZE_PROTOSTACK()
+            unsigned char *rtag_hdr = p->buf + p->headers[rtag_index].start;
+            return (rtag_hdr[0] & 0xf0) == 0x10;
+        } else {
+            unsigned char *ethertype = p->buf + p->headers[last_index].start + ethertype_offset;
+            return (ethertype[0] == ((ETH_P_CFM >> 8) & 0xff))
+                            && (ethertype[1] == (ETH_P_CFM & 0xff));
+        }
+    } else if (protostack[0] == PROTO_ID_MPLS) {
+        // we have DetNet PseudoWire
+        unsigned char *oam_hdr = p->buf + p->headers[1].start;
+        return (oam_hdr[0] & 0xf0) == 0x10;
+    } else if (protostack[0] == PROTO_ID_IPv6) {
+        // we have SRv6 (probably)
+        unsigned char *ipv6_detnetsid = p->buf + p->headers[0].start;
+        return (ipv6_detnetsid[36] & 0x01) == 0x01; // OAM bit
+    } else {
+        //TODO unhandled OAM encapsulation type
+        return false;
+    }
+}
 
 /////////////////////////////////////////////////////////////////////
 
@@ -283,12 +313,33 @@ static enum ActionResult action_ELIM_execute(struct Action *a, struct PipelineIt
                 }
 
                 INTERPRET_DACH(p->buf + p->headers[1].start);
-                char nodeid_str[10];
-                snprintf(nodeid_str, sizeof(nodeid_str), "%u", dach.nodeid);
-                char *session = strdup_printf("%s:%hhu:%hhu", nodeid_str, dach.session, dach.level);
+                char *session = strdup_printf("%u:%hhu:%hhu", dach.nodeid, dach.session, dach.level);
                 log_debug("PW session %s", session);
 
                 enum ActionResult ret = oam_recovery(ed->rcvy, pi->packet, session, dach.seq);
+                free(session);
+                return ret;
+            }
+        } else if (ed->protostack[0] == PROTO_ID_IPv6) {
+            // we have SRv6
+            if (ntohl(p->sequence) & 0x01000000u) { // for SRv6 the OAM bit is at the flags
+                if (!packet_is_linear(p)) {
+                    log_error("OAM packet is not continuous in memory");
+                    return ACR_CONTINUE; //TODO ACR_DONE ?
+                }
+
+                unsigned char *ipv6_hdr = p->buf + p->headers[1].start;
+                unsigned node_id = (ipv6_hdr[23] << 8) | ipv6_hdr[22];   // last 2 bytes of IPv6 source addr.
+
+                unsigned char *icmp6 = p->buf + p->headers[1].start + protocol_from_id(PROTO_ID_IPv6)->bytelength;
+                unsigned char sessionid = icmp6[5] & 0x0f;
+                unsigned char level = (icmp6[5] >> 4) & 0x07;
+                unsigned char seq = icmp6[7];
+
+                char *session = strdup_printf("%u:%hhu:%hhu", node_id, sessionid, level);
+                log_debug("SRv6 session %s", session);
+
+                enum ActionResult ret = oam_recovery(ed->rcvy, pi->packet, session, seq);
                 free(session);
                 return ret;
             }
@@ -419,30 +470,14 @@ static enum ActionResult action_OAMRECEIVE_execute(struct Action *a, struct Pipe
     struct OamReceiveData *ord = (struct OamReceiveData *)a->action_private;
     struct Packet *p = pi->packet;
 
-    bool packet_is_oam = false;
-    if (ord->protostack[0] == PROTO_ID_ETH) {
-        // we have TSN
-        if (ord->rtag_index) {
-            unsigned char *rtag_hdr = p->buf + p->headers[ord->rtag_index].start;
-            packet_is_oam = (rtag_hdr[0] & 0xf0) == 0x10;
-        } else {
-            unsigned char *ethertype = p->buf + p->headers[ord->last_index].start + ord->ethertype_offset;
-            packet_is_oam = (ethertype[0] == ((ETH_P_CFM >> 8) & 0xff))
-                            && (ethertype[1] == (ETH_P_CFM & 0xff));
-        }
-    } else if (ord->protostack[0] == PROTO_ID_MPLS) {
-        // we have DetNet PseudoWire
-        unsigned char *oam_hdr = p->buf + p->headers[1].start;
-        packet_is_oam = (oam_hdr[0] & 0xf0) == 0x10;
-    } else {
-        //TODO die?
-        return ACR_CONTINUE;
-    }
+    bool is_oam = packet_is_oam(p, ord->protostack,
+            ord->rtag_index, ord->last_index, ord->ethertype_offset);
 
-    if (packet_is_oam) {
+    if (is_oam) {
         oam_receive_inband(ord->mp, pi);
         return ACR_HOLD;
     } else {
+        oam_mp_count_data_packet(ord->mp, packet_length(p));
         return ACR_CONTINUE;
     }
 }
@@ -514,7 +549,7 @@ static enum ActionResult action_READSEQ_execute(struct Action *a, struct Pipelin
     if(p->headers[md->field.header_idx].type == PROTO_ID_IPv6) {
         // this is an SRv6 sequence number, which is only 28 bit
         uint8_t *dst = (uint8_t *)&p->sequence;
-        dst[0] = src[0] & 0x0f;      // write indcator bits
+        dst[0] = (src[0] & 0x0f);    // write indcator bits, clear OAM bit
         dst[1] = src[1];             // read reserved
         dst[2] = src[2];             // read seqnum 2 bytes
         dst[3] = src[3];
@@ -557,6 +592,12 @@ void create_action_readtstamp(struct Action *a, const struct HeaderField *tsfiel
 struct ReplData {
     struct PipelineList *pipes;
     struct PipelineObject *replobj;
+    const enum ProtocolID *protostack;
+
+    // these are for TSN OAM detection
+    unsigned rtag_index;
+    unsigned last_index;
+    unsigned ethertype_offset;
 };
 
 static enum ActionResult action_REPL_execute(struct Action *a, struct PipelineIterator *pi)
@@ -573,14 +614,25 @@ static enum ActionResult action_REPL_execute(struct Action *a, struct PipelineIt
     struct Packet *iterpacket = pi->packet;
     pi->packet = NULL;
 
+    int is_oam = -1; // initially undecided
+
     while (list) {
         // do not replicate to masked pipes (member streams)
         if (list->pipe->mask) {
-            if (list->next == NULL)
-                delete_packet(iterpacket);
-            list = list->next;
-            continue;
+            if (is_oam < 0) {
+                is_oam = packet_is_oam(iterpacket, rd->protostack,
+                    rd->rtag_index, rd->last_index, rd->ethertype_offset);
+            }
+
+            // let OAM through even when masked
+            if (is_oam == 0) {
+                if (list->next == NULL)
+                    delete_packet(iterpacket);
+                list = list->next;
+                continue;
+            }
         }
+
         struct Packet *p;
         if (list->next) {
             p = copy_packet(iterpacket);
@@ -609,7 +661,8 @@ static void action_REPL_del(void *action_private)
         pipeline_object_unref(rd->replobj);
 }
 
-void create_action_repl(struct Action *a, struct PipelineList *list, struct PipelineObject *replobj, const char *text)
+void create_action_repl(struct Action *a, struct PipelineList *list, struct PipelineObject *replobj,
+        const enum ProtocolID *protostack, const char *text)
 {
     INIT_ACTION(REPL);
     a->del = action_REPL_del;
@@ -617,6 +670,10 @@ void create_action_repl(struct Action *a, struct PipelineList *list, struct Pipe
     struct ReplData *rd = calloc_struct(ReplData);
     rd->pipes = list;
     rd->replobj = replobj;
+    rd->protostack = protostack;
+    if (protostack) {
+        ANALYZE_PROTOSTACK(rd);
+    }
     if (replobj) {
         pipeline_object_ref(replobj);
         store_replication_pipelines(replobj, list);
@@ -748,7 +805,7 @@ static enum ActionResult action_WRITESEQ_execute(struct Action *a, struct Pipeli
         // this is an SRv6 sequence number, which is only 28 bit
         uint8_t *src = (uint8_t *)&p->sequence;
         uint8_t *dst = p->buf + p->headers[md->field.header_idx].start + (md->field.bitoffset>>3);
-        dst[0] = (dst[0] & 0xf0) + (src[0] & 0x0f);  // write indcator bits, keep the first 4 bits
+        dst[0] = (dst[0] & 0xf1) | (src[0] & 0x0f);  // write indcator bits, keep the first 4 bits+OAM bit
         dst[1] = src[1];         // write reserved 1 byte
         dst[2] = src[2];         // write seqnum 2 bytes
         dst[3] = src[3];

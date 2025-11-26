@@ -126,7 +126,7 @@ def send_cli_commands():
 
     cli.send("mask to_nni0") # send mask command
     msg = cli.recv()
-    if "Pipeline 'to_nni0' masked" not in msg:
+    if "Pipeline 'to_nni0' in Replicate prf now masked" not in msg:
         print("Error: ", msg)
         ret = False
 
@@ -356,38 +356,38 @@ def test_notifications():
 
     print("\nTest post-SeqRec MIP report...", end=" ")
     checks = [ "o_common_actions_L5_post-srcvy1", "No post-SeqRec MIP statistic received.",
-                  "mask_signal_state", "unmasked", "Mask state {} - should be {}",
-                  "packets_passed", NUM_PACKETS_S3, "Passed {} packets - should be {}" ]
+                  "mask_signal_state", None, "Mask state {} - should be {}",
+                  "data_packets", NUM_PACKETS_S3, "Passed {} packets - should be {}" ]
     failed = failed + validate_json(post_seqrec_msg, checks)
 
     print("\nTest pre-SeqRec nni0 MIP report...", end=" ")
     checks = [ "o_to_nni0_L5_pre-srcvy1", "No post-SeqRec MIP statistic received.",
-                  "mask_signal_state", "unmasked", "Mask state {} - should be {}",
-                  "packets_passed", 0, "Passed {} packets - should be {}" ]
+                  "mask_signal_state", "receiving", "Mask state {} - should be {}",
+                  "data_packets", 0, "Passed {} packets - should be {}" ]
     failed = failed + validate_json(pre_seqrec_nni0_msg, checks)
 
     print("\nTest pre-SeqRec nni1 MIP report...", end=" ")
     checks = [ "o_to_nni1_L5_pre-srcvy1", "No post-SeqRec MIP statistic received.",
-                  "mask_signal_state", "unmasked", "Mask state {} - should be {}",
-                  "packets_passed", NUM_PACKETS_S3, "Passed {} packets - should be {}" ]
+                  "mask_signal_state", None, "Mask state {} - should be {}",
+                  "data_packets", NUM_PACKETS_S3, "Passed {} packets - should be {}" ]
     failed = failed + validate_json(pre_seqrec_nni1_msg, checks)
 
     print("\nTest pre-Replication MIP report...", end=" ")
     checks = [ "o_s2_L5_pre-prf", "No pre-Replication MIP statistic received.",
-                  "mask_signal_state", "unmasked", "Mask state {} - should be {}",
-                  "packets_passed", NUM_PACKETS_S3, "Passed {} packets - should be {}" ]
+                  "mask_signal_state", None, "Mask state {} - should be {}",
+                  "data_packets", NUM_PACKETS_S3, "Passed {} packets - should be {}" ]
     failed = failed + validate_json(pre_prf_msg, checks)
 
     print("\nTest post-Replication nni0 MIP report...", end=" ")
     checks = [ "o_to_nni0_L5_post-prf", "No post-Replication nni0 statistic received.",
-                  "mask_signal_state", "unmasked", "Mask state {} - should be {}",
-                  "packets_passed", 0, "Passed {} packets - should be {}" ]
+                  "mask_signal_state", "sending", "Mask state {} - should be {}",
+                  "data_packets", 0, "Passed {} packets - should be {}" ]
     failed = failed + validate_json(post_prf_nni0_msg, checks)
 
     print("\nTest post-Replication nni1 MIP report...", end=" ")
     checks = [ "o_to_nni1_L5_post-prf", "No post-Replication nni1 statistic received.",
-                  "mask_signal_state", "unmasked", "Mask state {} - should be {}",
-                  "packets_passed", NUM_PACKETS_S3, "Passed {} packets - should be {}" ]
+                  "mask_signal_state", None, "Mask state {} - should be {}",
+                  "data_packets", NUM_PACKETS_S3, "Passed {} packets - should be {}" ]
     failed = failed + validate_json(post_prf_nni1_msg, checks)
 
     print()

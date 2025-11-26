@@ -73,7 +73,6 @@ struct EditAssign {
 // this is the state of the Replicate action
 struct PipelineList {
     struct Pipeline *pipe;
-    const char *text;
     struct PipelineList *next;
 };
 
@@ -116,7 +115,8 @@ void create_action_readseq(struct Action *a, const struct HeaderField *seqfield,
 
 void create_action_readtstamp(struct Action *a, const struct HeaderField *tsfield, const char *text);
 
-void create_action_repl(struct Action *a, struct PipelineList *list, struct PipelineObject *replobj, const char *text);
+void create_action_repl(struct Action *a, struct PipelineList *list, struct PipelineObject *replobj,
+        const enum ProtocolID *protostack, const char *text);
 
 void create_action_send(struct Action *a, struct Interface *iface, const char *text);
 

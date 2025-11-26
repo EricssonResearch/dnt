@@ -6,6 +6,7 @@
 
 #include "oam_maintenance.h"
 #include "oam_request.h"
+#include "oam_core.h"
 
 #include "hashmap.h"
 #include "log.h"
@@ -14,15 +15,23 @@
 #include "seq_recov.h"
 #include "thread_utils.h"
 #include "utils.h"
+#include "if_oam.h"
+#include "interface.h"
 
 #include <stdlib.h>
-#include <string.h>
-
-#include <arpa/inet.h>
+#include <arpa/inet.h>        // inet_pton()
+#include <netinet/icmp6.h>    // ICMP6_ECHO_REQUEST
 
 DEFAULT_LOGGING_MODULE(OAM, INFO);
 
 #define OAM_CHANNEL 0x7fff /* Experimental channel type, we are not compatible with anything */
+
+#define ICMP6_PRIVATE_EXP 200 /* Private experimentation, as defined in RFC 4443  */
+
+struct MP_SRv6_Address {
+    unsigned char loc[8];
+    enum OAM_MP_Addr_Source loc_source;
+};
 
 struct MP_MPLS_Address {
     unsigned char label[4];
@@ -50,6 +59,7 @@ struct OAM_MaintenancePoint {
 
     const enum ProtocolID *protostack;
     union {
+        struct MP_SRv6_Address sid_address;
         struct MP_MPLS_Address pw_address;
         struct MP_TSN_Address tsn_address;
     };
@@ -59,6 +69,8 @@ struct OAM_MaintenancePoint {
 
     unsigned oam_send;
     unsigned oam_recv;
+    unsigned long long data_packets;
+    unsigned long long data_octets;
 
     struct MessageQueue *mask_queue;
     struct Thread *mask_send; // periodic sending of mask signal
@@ -102,6 +114,273 @@ static NotificationLevel mp_notification_pull_fn(void *self, struct JsonValue **
     struct JsonValue *state = mp_get_state_json(mp, true);
     *msg = state;
     return NOTIF_PULL;
+}
+
+/* Internet checksum (RFC 1071) */
+static uint32_t checksum16_partial(const void * buf, size_t len, uint32_t sum) {
+    const uint16_t *data = (const uint16_t* ) buf;
+
+    while (len > 1) {
+        sum += *data++;
+        len -= 2;
+    }
+
+    if (len) {  // odd byte
+        sum += *((const uint8_t *)data);
+    }
+
+    return sum;
+}
+
+/* Compute ICMPv6 checksum without copying */
+static uint16_t icmp6_checksum(unsigned char *src,
+                        unsigned char *dst,
+                        const void *icmp_pkt,
+                        size_t icmp_len) {
+    uint32_t sum = 0;
+
+    // Source and destination addresses
+    sum = checksum16_partial(src, 16, sum);
+    sum = checksum16_partial(dst, 16, sum);
+
+    // Upper-layer packet length (32-bit)
+    uint8_t l[4];
+    l[0] = (icmp_len >> 24) & 0xFF;
+    l[1] = (icmp_len >> 16) & 0xFF;
+    l[2] = (icmp_len >> 8)  & 0xFF;
+    l[3] = (icmp_len)       & 0xFF;
+    sum = checksum16_partial(l, sizeof(l), sum);
+
+    // 3 bytes zero + next header
+    uint8_t nh_field[4] = {0,0,0,IPPROTO_ICMPV6};
+    sum = checksum16_partial(nh_field, sizeof(nh_field), sum);
+
+    // ICMPv6 header + payload
+    sum = checksum16_partial(icmp_pkt, icmp_len, sum);
+
+    // finalize checksum
+    sum = (sum>>16)+(sum & 0xffff);
+    sum = sum + (sum>>16);
+    return (uint16_t)(~sum);
+}
+
+
+static struct JsonValue *unpack_srv6_message(const struct Packet *p)
+{
+    if (p->header_count < 3) {
+        log_error("OAM packet doesn't have 2 identified headers (ipv6, ipv6/ipv4/tsn, payload), how was this matched??");
+        return NULL;
+    }
+
+    if (!packet_is_linear(p)) {
+        log_error("OAM packet is not continuous in memory");
+        return NULL;
+    }
+
+    // OAM nibble is already checked here, so check next headers (ipv6, icmpv6)
+    unsigned char *ipv6_hdr  = p->buf + p->headers[0].start;
+    if(ipv6_hdr[6] != IPPROTO_IPV6) {
+        log_error("Not IPv6 OAM packet, can not unpack");
+        return NULL;
+    }
+    ipv6_hdr  = p->buf + p->headers[1].start;
+    if(ipv6_hdr[6] != IPPROTO_ICMPV6) {
+        log_error("Not ICMPv6 OAM packet, can not unpack");
+        return NULL;
+    }
+
+    unsigned plen = packet_length(p);
+    unsigned header_len = protocol_from_id(PROTO_ID_IPv6)->bytelength +
+                          protocol_from_id(PROTO_ID_IPv6)->bytelength +
+                          protocol_from_id(PROTO_ID_ICMPv6)->bytelength;
+
+    if (plen < header_len) {
+        log_error("SRv6 OAM packet is too short");
+        return NULL;
+    }
+
+    unsigned char *icmp6 = p->buf + p->headers[1].start + protocol_from_id(PROTO_ID_IPv6)->bytelength;
+
+    // json is after the ICMPv6 header in payload
+    char *json_str = (char*)(p->buf + p->headers[1].start + protocol_from_id(PROTO_ID_IPv6)->bytelength + protocol_from_id(PROTO_ID_ICMPv6)->bytelength);
+    unsigned json_len = plen - header_len;
+
+    char *jerror;
+    struct JsonValue *js = json_parse(json_str, json_len, &jerror);
+    if (js == NULL || js->type != JSON_OBJECT) {
+        log_error("Received SRv6 OAM packet contains invalid JSON string: %s", jerror);
+        free(jerror);
+        return NULL;
+    }
+
+    json_object_insert(js, "session", json_number(icmp6[5] & 0x0f));
+    json_object_insert(js, "seq", json_number(icmp6[7]));
+    json_object_insert(js, "level", json_number((icmp6[5] >> 4) & 0x07));
+    json_object_insert(js, "nodeid", json_number((ipv6_hdr[23] << 8) | ipv6_hdr[22]));  // last 2 bytes of IPv6 source addr.
+
+    return js;
+}
+
+static struct JsonValue *pack_srv6_message_header(const struct OAM_MaintenancePoint *mp, struct Packet *p,
+        const struct OamRequest *req)
+{
+    unsigned nodeid;
+    unsigned char level;
+    unsigned char session;
+    unsigned char seq;
+    unsigned char ttl;
+
+    request_get_identification_data(req, &nodeid, &level, &session, &seq, &ttl);
+
+    packet_clear_headers(p);
+    packet_enlarge_scratch(p);
+    packet_add_header(p, 0, PROTO_ID_IPv6, protocol_from_id(PROTO_ID_IPv6)->bytelength);
+    packet_add_header(p, 1, PROTO_ID_IPv6, protocol_from_id(PROTO_ID_IPv6)->bytelength);
+    packet_add_header(p, 2, PROTO_ID_ICMPv6, protocol_from_id(PROTO_ID_ICMPv6)->bytelength);
+    packet_add_header(p, 3, PROTO_ID_PAYLOAD, 0);
+
+    unsigned char *ipv6_detnetsid  = p->buf + p->headers[0].start;
+    ipv6_detnetsid[0]=0x60;
+    ipv6_detnetsid[1]=0; ipv6_detnetsid[2]=0; ipv6_detnetsid[3]=0;  // flow label
+    //ipv6_detnetsid[4-5] is length
+    ipv6_detnetsid[6] = IPPROTO_IPV6; // next header
+    ipv6_detnetsid[7] = ttl;  // hop count
+    memset(&ipv6_detnetsid[8], 0, 16);  // if saddr is zero, the interface send will fill
+    memcpy(&ipv6_detnetsid[24], mp->sid_address.loc, 16);
+    ipv6_detnetsid[39] = seq;   // fill in seqnum in SID
+
+    // Indicate OAM by setting the `o` bit in sequence number field
+    ipv6_detnetsid[36] |= 0x01;
+
+    unsigned char *ipv6 = p->buf + p->headers[1].start;
+    ipv6[0]=0x60;
+    ipv6[1]=0; ipv6[2]=0; ipv6[3]=0;  // flow label
+    //ipv6[4..5] is length
+    ipv6[6] = IPPROTO_ICMPV6; // next header
+    ipv6[7] = ttl;   // hop count
+
+    struct sockaddr_in6 sa6;
+    if(inet_pton(AF_INET6, oamif_get_ip(get_default_oam_ip_interface()), &(sa6.sin6_addr)) <= 0) {
+        log_warning_once("OAM interface '%s' does not have IPv6 address.", get_default_oam_ip_interface()->name);
+        memset(&ipv6[8], 0, 16);    // source addr ::0 (unknown addr)
+    } else
+        memcpy(&ipv6[8], &sa6.sin6_addr, 16);
+    memset(&ipv6[24], 0, 16); ipv6[39]=1;       // ::1
+
+    unsigned char *icmpv6  = p->buf + p->headers[2].start;
+    icmpv6[0] = ICMP6_ECHO_REQUEST;     // type
+    //icmpv6[0] = ICMP6_PRIVATE_EXP;        // type 200  Private experimentation
+    icmpv6[1] = 0;                        // code
+    //icmpv6[2] = 0; icmpv6[3] = 0;       // checksum will be calculated later
+
+    // Type specific ICMPv6 fields
+    icmpv6[5] = ((level & 0x07) << 4) | (session & 0x0f);  // Identifier
+    icmpv6[4] = 0;              // Network byte order is Big Endian
+    icmpv6[7] = seq;            // Sequence
+    icmpv6[6] = 0;              // Network byte order is Big Endian
+                                // (must be in line with elimination action!)
+
+    p->ttl = ttl;
+    p->sequence = htonl(seq);
+
+    struct JsonValue *js = json_object();
+    json_object_insert(js, "type", json_string(request_get_type(req)));
+    json_object_insert(js, "code", json_string("request"));
+
+    struct timespec sendtime;
+    clock_gettime(CLOCK_REALTIME, &sendtime);
+    p->recv_time = sendtime;
+    timespec_to_tsntstamp(p->timestamp, &sendtime);
+
+    json_object_insert(js, "send_s", json_number(sendtime.tv_sec));
+    json_object_insert(js, "send_ns", json_number(sendtime.tv_nsec));
+
+    return js;
+}
+
+static bool pack_srv6_payload(struct Packet *p, const struct JsonValue *msg)
+{
+    if (!packet_is_linear(p)) {
+        log_error("can't update message in packet that is not continuous in memory");
+        return false;
+    }
+
+    unsigned js_length;
+    char *js_string = json_serialize(msg, &js_length);
+    if (js_string == NULL) {
+        log_error("could not serialize the updated message");
+        return false;
+    }
+
+    // here we may have only 3 headers identified if packet is forwareded in-band
+    unsigned header_len = protocol_from_id(PROTO_ID_ICMPv6)->bytelength;
+
+    // write the new json string into p
+    char *payload = (char *)(p->buf + p->headers[2].start + header_len);
+    memcpy(payload, js_string, js_length);
+    free(js_string);
+    unsigned new_len = header_len + js_length;
+
+    // update packet len in inner header
+    unsigned char *ipv6  = p->buf + p->headers[1].start;
+    ipv6[4] = (new_len >> 8) & 0xff;
+    ipv6[5] = new_len & 0xff;
+
+    // calc ICMPv6 checksum
+    unsigned char *icmpv6  = p->buf + p->headers[2].start;
+    icmpv6[2] = 0; icmpv6[3] = 0;   // clear old checksum
+    uint16_t sum = icmp6_checksum(&ipv6[8], &ipv6[24], icmpv6, new_len);
+    icmpv6[3] = (sum >> 8) & 0xff;
+    icmpv6[2] = sum & 0xff;
+
+    // add first 2 header lens
+    new_len += p->headers[0].len+p->headers[1].len;
+
+    // note: we don't know how many and what type of headers there are in @p
+    //       we only know that the packet is linear in memory
+    if (p->headers[0].start < p->start) {
+        // data is on the scratch
+        p->headers[p->header_count-1].len += new_len - p->scratch_len;
+        p->scratch_len = new_len;
+    } else {
+        // data is in the receive area
+        p->headers[p->header_count-1].len += new_len - p->len;
+        p->len = new_len;
+    }
+    return true;
+}
+
+static int compare_srv6_level(const struct OAM_MaintenancePoint *mp, const struct Packet *p)
+{
+    if (p->header_count < 2) {
+        log_error("SRv6 OAM packet doesn't have 2 identified headers (ipv6, ipv6), how was this matched??");
+        return -1;
+    }
+
+    if (!packet_is_linear(p)) {
+        log_error("OAM packet is not continuous in memory");
+        return -1;
+    }
+
+    // here we either have IP6+IP6+payload or IP6+IP6+ICMPv6+payload
+    unsigned header_len = protocol_from_id(PROTO_ID_IPv6)->bytelength;
+
+    unsigned char *p_level_session = p->buf + p->headers[1].start + header_len + 5;     // level|session is in the 5th byte of ICMPv6
+    unsigned char level = ((*p_level_session) >> 4) & 0x07;
+
+    return (int)level - (int)mp->level;
+}
+
+static unsigned char get_srv6_ttl(const struct Packet *p)
+{
+    if (p->header_count < 2) {
+        log_error("SRv6 OAM packet doesn't have 2 identified headers (ipv6, ipv6), how was this matched??");
+        return -1;
+    }
+
+    // get it from DetNet SID header
+    unsigned char *ipv6_start = p->buf + p->headers[0].start;
+    return ipv6_start[7];
 }
 
 static struct JsonValue *unpack_pw_message(const struct Packet *p)
@@ -325,16 +604,16 @@ static struct JsonValue *unpack_tsn_message(const struct Packet *p)
     unsigned header_len = protocol_from_id(PROTO_ID_ETH)->bytelength +
         protocol_from_id(PROTO_ID_CVLAN)->bytelength;
 
-    if (plen < header_len) {
-        log_error("TSN OAM packet is too short");
-        return NULL;
-    }
-
     unsigned char *eth = p->buf + p->headers[0].start;
     unsigned char *vlan = eth + protocol_from_id(PROTO_ID_ETH)->bytelength;
 
     unsigned char *cfm = vlan + protocol_from_id(PROTO_ID_CVLAN)->bytelength;
     header_len += protocol_from_id(PROTO_ID_CFM)->bytelength + 3; // added the tlv header
+
+    if (plen < header_len) {
+        log_error("TSN OAM packet is too short");
+        return NULL;
+    }
 
     unsigned char *rtag = NULL;
     if (vlan[2] == 0xf1 && vlan[3] == 0xc1) {
@@ -495,14 +774,13 @@ static struct JsonValue *pack_tsn_message_header(const struct OAM_MaintenancePoi
     return js;
 }
 
-static bool pack_tsn_payload(struct Packet *p, const struct JsonValue *msg)
+static bool pack_tsn_payload(const struct OAM_MaintenancePoint *mp, struct Packet *p, const struct JsonValue *msg)
 {
     if (!packet_is_linear(p)) {
         log_error("can't update message in packet that is not continuous in memory");
         return false;
     }
 
-    //TODO adapt this to TSN
     struct JsonValue *out = json_duplicate(msg);
     const char *ach_keys[] = { "version", "seq", "channel", "nodeid", "level", "flags", "session" };
     for (unsigned i=0; i<ARRAY_SIZE(ach_keys); i++) {
@@ -521,11 +799,10 @@ static bool pack_tsn_payload(struct Packet *p, const struct JsonValue *msg)
     // write the new json string into p
     // TODO this packet manipulation is extremely ugly
     unsigned header_len = 0;
-    for (unsigned i=0; p->headers[i].type != PROTO_ID_PAYLOAD; i++) {
-        header_len += p->headers[i].len;
+    for (unsigned i=0; mp->protostack[i] != PROTO_ID_PAYLOAD; i++) {
+        header_len += protocol_from_id(mp->protostack[i])->bytelength;
     }
-    unsigned char *payload = p->buf + p->headers[0].start + header_len;
-    unsigned char *cfm = payload;
+    unsigned char *cfm = p->buf + p->headers[0].start + header_len;
     unsigned char *tlv = cfm + 4;
     tlv[1] = (js_length >> 8) & 0xff;
     tlv[2] = js_length & 0xff;
@@ -591,7 +868,13 @@ static void set_mp_address(struct OAM_MaintenancePoint *mp, struct OAM_MP_Addres
 {
     //TODO is it possible that we overwrite a valid address with OAM_FROM_Unknown?
     for (struct OAM_MP_Address *ad=addr; ad; ad=ad->next) {
-        if (mp->encap == OAM_PW) {
+        if (mp->encap == OAM_SRv6) {
+            if (strcmp(ad->field, "loc") == 0) {
+                mp->sid_address.loc_source = ad->source;
+                if (ad->source == OAM_FROM_Edit || ad->source == OAM_FROM_Match)
+                    memcpy(mp->sid_address.loc, ad->val.value, 8);
+            }
+        } else if (mp->encap == OAM_PW) {
             if (strcmp(ad->field, "label") == 0) {
                 mp->pw_address.label_source = ad->source;
                 if (ad->source == OAM_FROM_Edit || ad->source == OAM_FROM_Match)
@@ -616,7 +899,9 @@ static void set_mp_address(struct OAM_MaintenancePoint *mp, struct OAM_MP_Addres
             }
         }
     }
-    if (mp->encap == OAM_PW) {
+    if (mp->encap == OAM_SRv6) {
+        mp->address_ok = mp->sid_address.loc_source != OAM_FROM_Unknown;
+    } else if (mp->encap == OAM_PW) {
         mp->address_ok = mp->pw_address.label_source != OAM_FROM_Unknown;
     } else if (mp->encap == OAM_TSN) {
         mp->address_ok = mp->tsn_address.dmac_source != OAM_FROM_Unknown
@@ -678,6 +963,15 @@ struct OAM_MaintenancePoint *oam_new_maintenance_point(const char *stream_name, 
 
         set_mp_address(mp, addr);
 
+        if (mp->object && mp->object->type == PO_REPL) {
+            if (oam_is_automip_name(mp_name, 1)) {
+                if (mp->pipe && mp->pipe->mask) {
+                    mp_initiate_mask_signalling(mp, NULL);
+                    log_debug("%s started mask signal on refcount increase", mp->name);
+                }
+            }
+        }
+
         int refcount = __atomic_add_fetch(&mp->reference_count, 1, __ATOMIC_RELAXED);
         log_debug("%s ref refcount %d", mp_name, refcount);
         return mp;
@@ -696,7 +990,15 @@ struct OAM_MaintenancePoint *oam_new_maintenance_point(const char *stream_name, 
     mp->name = strdup(mp_name);
     mp->stream_name = strdup(stream_name);
     mp->type = type;
-    mp->encap = protostack[0] == PROTO_ID_ETH ? OAM_TSN : OAM_PW;
+    switch(protostack[0]) {
+        case PROTO_ID_ETH: mp->encap = OAM_TSN; break;
+        case PROTO_ID_MPLS: mp->encap = OAM_PW; break;
+        case PROTO_ID_IPv6: mp->encap = OAM_SRv6; break;
+        default:
+            log_error("%s '%s' unknown OAM protocol type",
+                    oam_mp_type_to_str(type), mp_name);
+            return NULL;
+    }
     mp->level = level;
     mp->protostack = protostack;
 
@@ -704,6 +1006,8 @@ struct OAM_MaintenancePoint *oam_new_maintenance_point(const char *stream_name, 
 
     mp->pipe = pipe;
     mp->pipe_pos_idx = idx;
+
+    set_mp_address(mp, addr);
 
     mp->object = obj;
     if (obj) {
@@ -714,13 +1018,20 @@ struct OAM_MaintenancePoint *oam_new_maintenance_point(const char *stream_name, 
             } else if (oam_is_automip_name(mp_name, -1)) {
                 seq_rec_register_preAutoMIP(obj, mp_name);
             }
+        } else if (obj->type == PO_REPL) {
+            if (oam_is_automip_name(mp_name, 1)) {
+                // we never get here, because first the reception point is created without pipe...
+                if (pipe && pipe->mask) {
+                    mp_initiate_mask_signalling(mp, NULL);
+                    log_debug("%s started mask signal on creation", mp->name);
+                }
+            }
         }
     }
 
-    set_mp_address(mp, addr);
-
     hashmap_insert(mp_hash, mp->name, mp);
     notification_register_source(mp_name, mp_notification_pull_fn, mp, 2000);
+
 
     log_debug("%s create refcount 1", mp_name);
 
@@ -739,6 +1050,12 @@ void oam_unref_maintenance_point(struct OAM_MaintenancePoint *mp)
     if (hashmap_count(mp_hash) == 0) {
         mp_hash = delete_hashmap(mp_hash);
     }
+}
+
+void oam_mp_count_data_packet(struct OAM_MaintenancePoint *mp, unsigned len)
+{
+    __atomic_add_fetch(&mp->data_packets, 1, __ATOMIC_RELAXED);
+    __atomic_add_fetch(&mp->data_octets, len, __ATOMIC_RELAXED);
 }
 
 struct OAM_MaintenancePoint *find_maintenance_point(const char *name)
@@ -773,7 +1090,7 @@ bool oam_is_automip_name(const char *name, int position)
             return pre != NULL;
         }
     }
-    return is_automip;
+    return false;
 }
 
 const char *oam_mp_type_to_str(enum OAM_MP_Type type)
@@ -851,8 +1168,10 @@ struct JsonValue *mp_get_state_json(const struct OAM_MaintenancePoint *mp, bool 
     json_object_insert(ret, "stream_name", json_string(mp->stream_name));
     json_object_insert(ret, "type", json_string(oam_mp_type_to_str(mp->type)));
     json_object_insert(ret, "level", json_number(mp->level));
-    json_object_insert(ret, "send", json_number(mp->oam_send));
-    json_object_insert(ret, "recv", json_number(mp->oam_recv));
+    json_object_insert(ret, "oam_send", json_number(mp->oam_send));
+    json_object_insert(ret, "oam_recv", json_number(mp->oam_recv));
+    json_object_insert(ret, "data_packets", json_number(mp->data_packets));
+    json_object_insert(ret, "data_octets", json_number(mp->data_octets));
 
     if (mp->object) {
         if (object_info) {
@@ -863,14 +1182,18 @@ struct JsonValue *mp_get_state_json(const struct OAM_MaintenancePoint *mp, bool 
         }
     }
 
-    //TODO add mask state
+    if (mp->mask_recv) {
+         json_object_insert(ret, "mask_signal_state", json_string("receiving"));
+    } else if (mp->mask_send) {
+         json_object_insert(ret, "mask_signal_state", json_string("sending"));
+    }
 
     return ret;
 }
 
 struct AddMPState {
     struct JsonValue *jlist;
-    struct PipelineObject *object;
+    const struct OAM_MaintenancePoint *mp;
 };
 static int add_mp_cb(const char *key, void *value, void *userdata)
 {
@@ -878,7 +1201,7 @@ static int add_mp_cb(const char *key, void *value, void *userdata)
     struct AddMPState *st = (struct AddMPState *)userdata;
     struct OAM_MaintenancePoint *mp = (struct OAM_MaintenancePoint *)value;
 
-    if (mp->object == st->object) {
+    if (mp != st->mp && mp->object == st->mp->object) {
         json_array_push(st->jlist, mp_get_state_json(mp, false));
     }
     return 1;
@@ -887,11 +1210,10 @@ static int add_mp_cb(const char *key, void *value, void *userdata)
 struct JsonValue *mp_get_state_json_by_object(const struct OAM_MaintenancePoint *mp)
 {
     struct JsonValue *jlist = json_array();
+    json_array_push(jlist, mp_get_state_json(mp, false));
 
     if (mp->object) {
-        json_array_push(jlist, mp_get_state_json(mp, false));
-    } else {
-        struct AddMPState st = { jlist, mp->object };
+        struct AddMPState st = { jlist, mp };
         foreach_mp(false, add_mp_cb, &st);
     }
 
@@ -935,6 +1257,9 @@ void mp_count_received_message(struct OAM_MaintenancePoint *mp, const struct Pac
 
 struct JsonValue *mp_unpack_message(const struct OAM_MaintenancePoint *mp, const struct Packet *p)
 {
+    if (mp->encap == OAM_SRv6) {
+        return unpack_srv6_message(p);
+    }
     if (mp->encap == OAM_PW) {
         return unpack_pw_message(p);
     }
@@ -947,6 +1272,9 @@ struct JsonValue *mp_unpack_message(const struct OAM_MaintenancePoint *mp, const
 
 struct JsonValue *mp_pack_message_header(const struct OAM_MaintenancePoint *mp, struct Packet *p, const struct OamRequest *req)
 {
+    if (mp->encap == OAM_SRv6) {
+        return pack_srv6_message_header(mp, p, req);
+    }
     if (mp->encap == OAM_PW) {
         return pack_pw_message_header(mp, p, req);
     }
@@ -959,11 +1287,14 @@ struct JsonValue *mp_pack_message_header(const struct OAM_MaintenancePoint *mp, 
 
 bool mp_pack_message_payload(const struct OAM_MaintenancePoint *mp, struct Packet *p, const struct JsonValue *msg)
 {
+    if (mp->encap == OAM_SRv6) {
+        return pack_srv6_payload(p, msg);
+    }
     if (mp->encap == OAM_PW) {
         return pack_pw_payload(p, msg);
     }
     else if (mp->encap == OAM_TSN) {
-        return pack_tsn_payload(p, msg);
+        return pack_tsn_payload(mp, p, msg);
     }
 
     return false;
@@ -971,6 +1302,9 @@ bool mp_pack_message_payload(const struct OAM_MaintenancePoint *mp, struct Packe
 
 int mp_compare_level(const struct OAM_MaintenancePoint *mp, const struct Packet *p)
 {
+    if (mp->encap == OAM_SRv6) {
+        return compare_srv6_level(mp, p);
+    }
     if (mp->encap == OAM_PW) {
         return compare_pw_level(mp, p);
     }
@@ -983,6 +1317,9 @@ int mp_compare_level(const struct OAM_MaintenancePoint *mp, const struct Packet 
 
 unsigned char mp_get_ttl(const struct OAM_MaintenancePoint *mp, const struct Packet *p)
 {
+    if (mp->encap == OAM_SRv6) {
+        return get_srv6_ttl(p);
+    }
     if (mp->encap == OAM_PW) {
         return get_pw_ttl(p);
     }

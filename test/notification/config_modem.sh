@@ -27,5 +27,7 @@ elif [ ! -c "$DEVICE_PATH" ]; then
   exit 1
 fi
 
+sudo systemctl stop ModemManager.service
+
 # do the configuration
 cat telekom.cmd | socat - "$DEVICE_PATH,crnl"

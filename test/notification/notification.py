@@ -125,7 +125,7 @@ def send_cli_commands():
 
     cli.send("mask to_nni0") # send mask command
     msg = cli.recv()
-    if "Pipeline 'to_nni0' masked" not in msg:
+    if "Pipeline 'to_nni0' in Replicate rep now masked" not in msg:
         print("Error: ", msg)
         ret = False
 

@@ -15,7 +15,7 @@ struct Pipeline {
     struct Action *actions; // array of actions
     unsigned action_count;
     int reference_count;
-    bool mask;
+    bool mask; // only for replication branches
     char *name;
 };
 

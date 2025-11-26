@@ -158,6 +158,7 @@ struct ConfAction {
         struct {
             struct ReplicateList *pipelines;
             struct PipelineObject *replobj;
+            const enum ProtocolID *protostack;
         } repl;
         struct {
             struct Interface *iface;
@@ -193,6 +194,7 @@ struct StageState {
     struct MustWriteField *must_write;
     struct HashMap *stream_names;
     unsigned depth; // limit recursion depth with JUMP and REPLICATE
+    struct StageState *parent; // after recursion in JUMP and REPLICATE
 };
 
 
@@ -655,6 +657,8 @@ static bool process_token(char *token, void *userdata)
                         case PO_REPL:
                             newaction->type = CA_REPL;
                             newaction->repl.replobj = obj;
+                            if (obj->auto_mip_level > 0 && !oam_mip_autoconfig(stst, NULL))
+                                log_warning("cannot generate pre-AutoMIP for '%s'", obj->name);
                             break;
                     }
                 } else {
@@ -890,6 +894,9 @@ static bool process_token(char *token, void *userdata)
             if (pstring && pstring_masked) {
                 THROW("pipeline '%s' is defined both as normal and masked", token);
             } else if (pstring_masked != NULL) {
+                if (newaction->repl.replobj == NULL) {
+                    THROW("pipeline '%s' is masked but replicate has no state object", token);
+                }
                 pstring = pstring_masked;
                 masked = true;
             }
@@ -902,6 +909,8 @@ static bool process_token(char *token, void *userdata)
                     if (obj) {
                         if (obj->type == PO_REPL) {
                             newaction->repl.replobj = obj;
+                            if (obj->auto_mip_level > 0 && !oam_mip_autoconfig(stst, NULL))
+                                log_warning("cannot generate pre-AutoMIP for '%s'", obj->name);
                         } else {
                             THROW("state of replicate action must be a Replicate object");
                         }
@@ -923,9 +932,15 @@ static bool process_token(char *token, void *userdata)
                 pstst.actions = NULL;
                 pstst.must_write = copy_mustwrite_list(stst, pstst.headers);
                 pstst.depth += 1;
+                pstst.parent = stst;
                 if (stst->must_write && !pstst.must_write) {
                     CLEANUP_PSTST(pstst);
                     THROW("failed to copy the must_write list?!?");
+                }
+                if (newaction->repl.replobj && newaction->repl.replobj->auto_mip_level > 0
+                        && oam_mip_autoconfig(stst, &pstst) == false) {
+                    CLEANUP_PSTST(pstst);
+                    THROW("AutoMIP configuration for replication pipeline '%s' failed", token);
                 }
                 if (!foreach_stages(pstring, process_stage, &pstst)) {
                     CLEANUP_PSTST(pstst);
@@ -944,11 +959,6 @@ static bool process_token(char *token, void *userdata)
                     }
                 }
                 REVERSE_LIST(pstst.actions);
-                if (newaction->repl.replobj && newaction->repl.replobj->auto_mip_level > 0
-                        && oam_mip_autoconfig(stst, &pstst) == false) {
-                    CLEANUP_PSTST(pstst);
-                    THROW("AutoMIP configuration for replication pipeline '%s' failed", token);
-                }
                 CLEANUP_PSTST(pstst);
                 replicatelist_push(&newaction->repl.pipelines, strdup(token), pstst.actions, masked);
                 hashmap_insert(stst->stream_names, strdup(token), NULL);
@@ -1108,6 +1118,7 @@ static struct ConfAction *new_confaction(struct StageState *stst, enum ConfActio
 
 // possible protocol stacks in the pipeline, where OAM maintenance points are allowed
 // they are zero-terminated, assuming PROTO_ID_PAYLOAD=0
+static const enum ProtocolID oam_protostack_srv6[] = {PROTO_ID_IPv6, PROTO_ID_PAYLOAD};
 static const enum ProtocolID oam_protostack_mplspw[] = {PROTO_ID_MPLS, PROTO_ID_DCW, PROTO_ID_PAYLOAD};
 static const enum ProtocolID oam_protostack_ethcvlan[] = {PROTO_ID_ETH, PROTO_ID_CVLAN, PROTO_ID_PAYLOAD};
 static const enum ProtocolID oam_protostack_ethsvlan[] = {PROTO_ID_ETH, PROTO_ID_SVLAN, PROTO_ID_PAYLOAD};
@@ -1115,6 +1126,7 @@ static const enum ProtocolID oam_protostack_ethcvlanrtag[] = {PROTO_ID_ETH, PROT
 static const enum ProtocolID oam_protostack_ethsvlanrtag[] = {PROTO_ID_ETH, PROTO_ID_SVLAN, PROTO_ID_RTAG, PROTO_ID_PAYLOAD};
 
 static const enum ProtocolID *oam_possible_protostacks[] = {
+    oam_protostack_srv6,
     oam_protostack_mplspw,
     oam_protostack_ethcvlanrtag, oam_protostack_ethsvlanrtag,
     oam_protostack_ethcvlan, oam_protostack_ethsvlan,
@@ -1150,6 +1162,8 @@ static const enum ProtocolID *check_header_stack_for_oam(const struct HeaderDesc
 static const char *header_field_thats_address_for_oam(enum ProtocolID proto)
 {
     switch (proto) {
+        case PROTO_ID_IPv6:
+            return "loc";
         case PROTO_ID_MPLS:
             return "label";
         case PROTO_ID_ETH:
@@ -1168,6 +1182,11 @@ static struct Value *address_for_oam_in_assignment(struct ConfAssignment *ass)
     //TODO can we support CVT_FIELD or CVT_IFACE somehow?
     if (ass->rhs.type != CVT_CONST)
         return NULL;
+
+    if (ass->lhs_protoid == PROTO_ID_IPv6) {
+        if (strcmp(ass->lhs.v.header.field_name, "loc") == 0)
+            return &ass->rhs.value;
+    }
 
     if (ass->lhs_protoid == PROTO_ID_MPLS) {
         if (strcmp(ass->lhs.v.header.field_name, "label") == 0)
@@ -1191,6 +1210,12 @@ static struct Value *address_for_oam_in_assignment(struct ConfAssignment *ass)
 static struct Value *address_for_oam_in_matches(struct HeaderDescriptor *h)
 {
     for (struct HeaderMatch *m=h->matches; m; m=m->next) {
+        if (h->id == PROTO_ID_IPv6) {
+            const struct ProtocolField *label = protocol_get_field_by_name(PROTO_ID_IPv6, "loc");
+            if (m->field.bitoffset == label->bitoffset && m->field.bitcount == label->bitcount) {
+                return &m->value;
+            }
+        }
         if (h->id == PROTO_ID_MPLS) {
             const struct ProtocolField *label = protocol_get_field_by_name(PROTO_ID_MPLS, "label");
             if (m->field.bitoffset == label->bitoffset && m->field.bitcount == label->bitcount) {
@@ -1223,6 +1248,8 @@ static struct MustWriteField *must_write_for_oam_in_header(struct HeaderDescript
 {
     struct MustWriteField *mw = calloc_struct(MustWriteField);
     mw->header = h;
+    if (h->id == PROTO_ID_IPv6)
+        mw->field = protocol_get_field_by_name(PROTO_ID_IPv6, "loc");
     if (h->id == PROTO_ID_MPLS)
         mw->field = protocol_get_field_by_name(PROTO_ID_MPLS, "label");
     else if (h->id == PROTO_ID_ETH)
@@ -1240,13 +1267,16 @@ static void find_addressing_for_mp(struct StageState *stst)
     log_debug("find addressing for MP %s", mpaction->oam.name);
     struct HeaderDescriptor *h = stst->headers;
     for (unsigned p=0; mpaction->oam.protostack[p]; p++) {
-        if (header_field_thats_address_for_oam(h->id) == NULL) // same as mpaction->oam.protostack[p]
+        if (header_field_thats_address_for_oam(h->id) == NULL) {// same as mpaction->oam.protostack[p]
+            h = h->next;
             continue;
+        }
 
         log_debug("  checking for proto %s", protocol_type_from_id(h->id));
         bool header_was_added = false;
         struct Value *val = NULL;
-        for (struct ConfAction *a=stst->actions; a; a=a->next) {
+        struct StageState *pstst = stst;
+        for (struct ConfAction *a=pstst->actions; a; ) {
             log_debug("  checking action %s '%s'", confaction_name_from_type(a->type), a->text);
             if (a->type == CA_ADD && strcmp(a->add.newname, h->name) == 0) {
                 // the header was added by this action, and we haven't had a write since then
@@ -1266,6 +1296,16 @@ static void find_addressing_for_mp(struct StageState *stst)
                 if (val) {
                     log_debug("    found assignment for the address field");
                     break;
+                }
+            }
+            a = a->next;
+            if (a == NULL) {
+                // continue with the parent action chain
+                // before JUMP or REPLICATE
+                if (pstst->parent) {
+                    log_debug("  stepping to parent action chain");
+                    pstst = pstst->parent;
+                    a = pstst->actions;
                 }
             }
         }
@@ -1525,10 +1565,26 @@ static bool process_action(struct StageState *stst)
                 // also cancel the TTLReduce action? no, OAM might need it
             }
 
-            for (struct MustWriteField *mw=stst->must_write; mw; mw=mw->next) {
+            struct MustWriteField *mw_last = NULL;
+            for (struct MustWriteField *mw=stst->must_write; mw;) {
                 if (mw->header == delh) {
-                    log_warning("deleting header %s that is on the must_write list (field %s)",
-                            delh->name, mw->field->name);
+                    //TODO what if requester is not an oam action?
+                    log_warning("deleting header %s that is on the must_write list (field: %s), MP %s won't be able to inject",
+                            delh->name, mw->field->name, mw->requester->oam.name);
+
+                    // remove it from mw
+                    if (mw_last) {
+                        mw_last->next = mw->next;
+                        free(mw);
+                        mw = mw_last->next;
+                    } else {
+                        stst->must_write = mw->next;
+                        free(mw);
+                        mw = stst->must_write;
+                    }
+                } else {
+                    mw_last = mw;
+                    mw = mw->next;
                 }
             }
 
@@ -1637,6 +1693,7 @@ static bool process_action(struct StageState *stst)
                 jstst.stream = jumpname;
                 jstst.actions = NULL;
                 jstst.depth += 1;
+                jstst.parent = stst;
                 // not copying header and must_write lists, because we don't branch (unlike REPLICATE)
 
                 if (!foreach_stages(pipestring, process_stage, &jstst)) {
@@ -1718,9 +1775,8 @@ static bool process_action(struct StageState *stst)
             if (newaction->repl.pipelines == NULL) {
                 THROW("no pipelines specified");
             }
-            if (newaction->repl.replobj && newaction->repl.replobj->auto_mip_level > 0 && !oam_mip_autoconfig(stst, NULL))
-                log_warning("cannot generate MIP for '%s'", newaction->repl.replobj->name);
             REVERSE_LIST(newaction->repl.pipelines);
+            newaction->repl.protostack = check_header_stack_for_oam(stst->headers);
             // we already checked that the branches are correctly writing the fields
             stst->must_write = delete_must_write_list(stst->must_write);
             stst->had_final = true;
@@ -1825,6 +1881,7 @@ struct ConfAction *parse_actions_line(const char *stream, const char *line,
         .must_write = NULL,
         .stream_names = new_hashmap(11, NULL, NULL),
         .depth = 0,
+        .parent = NULL,
     };
 
     // automatically reduce TTL & schedule a check, if the very first header has such a field
@@ -2043,7 +2100,7 @@ static struct EditAssign *assemble_fieldassigns(struct ConfAssignment *list, uns
 }
 
 
-struct Pipeline *assemble_actions(const char *stream_name, const struct ConfAction *ca_list)
+struct Pipeline *assemble_actions(const char *stream_name, const struct ConfAction *ca_list, bool masked)
 {
 #define THROW(msg, ...)                                         \
     do {                                                        \
@@ -2074,6 +2131,7 @@ struct Pipeline *assemble_actions(const char *stream_name, const struct ConfActi
     ret->actions = actions;
     ret->action_count = count;
     ret->name = strdup(stream_name);
+    ret->mask = masked;
     ret->reference_count = 1; // the initial owner is the caller of assemble_actions()
 
     unsigned i = 0;
@@ -2147,7 +2205,7 @@ struct Pipeline *assemble_actions(const char *stream_name, const struct ConfActi
             case CA_REPL: {
                 struct PipelineList *pipes = NULL;
                 for (struct ReplicateList *r=ca->repl.pipelines; r; r=r->next) {
-                    struct Pipeline *r_pipe = assemble_actions(r->name, r->actions);
+                    struct Pipeline *r_pipe = assemble_actions(r->name, r->actions, r->masked);
                     if (r_pipe == NULL) {
                         //TODO need more cleanup on error?
                         THROW("failed to assemble actions for branch %s of replicate in stream %s",
@@ -2156,13 +2214,11 @@ struct Pipeline *assemble_actions(const char *stream_name, const struct ConfActi
 
                     struct PipelineList *p = calloc_struct(PipelineList);
                     p->pipe = r_pipe;
-                    p->text = r->name;
                     p->next = pipes;
-                    p->pipe->mask = r->masked;
                     pipes = p;
                 }
                 REVERSE_LIST(pipes);
-                create_action_repl(actions+i, pipes, ca->repl.replobj, ca->text);
+                create_action_repl(actions+i, pipes, ca->repl.replobj, ca->repl.protostack, ca->text);
                 break; }
             case CA_SEND:
                 create_action_send(actions+i, ca->send.iface, ca->text);
