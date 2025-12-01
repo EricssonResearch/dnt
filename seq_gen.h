@@ -18,7 +18,8 @@
 // always @returns 1
 int reset_seq_generator(struct PipelineObject *obj, void *userdata);
 
-
+// the generator implements the reset mechanism described in
+//  https://www.ieee802.org/1/files/public/docs2020/new-varga-FRER-seamless-reset-0320-v02.pdf
 struct PipelineObject *new_seq_gen(const char *name, bool use_reset_flag, bool use_init_flag, unsigned init_seq);
 
 #ifdef OBJECT_INTERNAL

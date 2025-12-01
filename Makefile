@@ -47,12 +47,16 @@ __rel:
 
 release: __rel $(EXE)
 
-#support both gdb and uftrace
 __deb:
-	$(eval CFLAGS += -O0 -pg -ggdb)
+	$(eval CFLAGS += -O0)
 
 debug: __deb $(EXE)
 
+__prof:
+	$(eval CFLAGS += -O2 -pg)
+	$(eval LFLAGS += -pg)
+
+profiling: __prof $(EXE)
 
 lib/parsers/%.o : lib/parsers//%.c $(HEADERS) Makefile
 	cd lib/parsers && $(CC) $(CFLAGS) -c $(<F)
