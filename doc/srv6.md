@@ -245,6 +245,24 @@ For SRv6 OAM MPs can be added to the action pipeline similarly to TSN/DetNet. Ho
 * Write `loc`: the pipeline SHOULD write the "loc" field of the outer IPv6 header in order to satisfy the MP addressing.
 * After an MP injection point, `WriteSeq` must be added to write the sequence number to the IPv6 SID.
 
+The R2DTWO SRv6 support uses VRF interface to send IP packets to NNI interfaces. The VRF type interface behaves as an IP interface, meaning that it decrements the IPv4 TTL and IPv6 Hop Limit. However, by design R2DTWO also acts as an IP layer forwarder, thus also decrements TTL/Hop limit. This results that packets forwarded by the R2DTWO SRv6 will have Hop Limit decremented twice at each R2DTWO instance.
+
+To counter this effect, we can use the ip6tables hop limit field manipulation. This means that ip6tables with HL support (xt_HL or ip6t_HL kernel module loaded).
+
+This module allowsto inspect and set the Hop Limit value in an IPv6 packet, similar to how the TTL module works for IPv4. For example, to set the Hop Limit to 64 for outgoing traffic on a specific chain, the command would look something like this:
+
+```
+    ip6tables -t mangle -A POSTROUTING -j HL --hl-set 64  
+```
+
+In our case the source address of such packets is given, it is the address of the VRF interface, thus the command needed to reverse the double Hop Limit decrement is the following:
+
+```
+ip6tables -t mangle -A OUTPUT -s fd00:a2d2:0:0:0:1::1/96 -j HL --hl-inc 1"
+```
+
+where fd00:a2d2:0:0:0:1::1 is the IP address of the VRF interface. This increments the Hop Limit by 1 for all packets coming from the VRF interface, and the result is that the Hop Limit will only decrease by 1 on each R2DTWO hop as it should.
+
 The oam_srv6 test in the `test` directory gives an example for SRv6 OAM usage and configuration.
 
 
