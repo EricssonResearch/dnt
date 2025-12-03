@@ -498,7 +498,7 @@ int main(void) {
                    mask ? "mask" : "unmask");
 
             // After this PW, check failure threshold
-            if ((1.0 - p_combined_drop) > 0.98) {
+            if ( (i >= 0) && (1.0 - p_combined_drop) > 0.98) {     // i>=0: 1 path, i>=1: 2 paths active
                 mask = true;
             }
         }

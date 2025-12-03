@@ -145,16 +145,16 @@ configure_networkenv() {
 
 start_r2dtwos() {
     # For debug, spawns r2dtw windows in gdb
-    #nxp1 xterm -T nxp1 -e env -i gdb -nx --args ../../r2dtwo nxp1.ini -v ALL:ALL &
-    #nxp2 xterm -T nxp2 -e env -i gdb -nx --args ../../r2dtwo nxp2.ini -v ALL:ALL &
+    #nxp1 xterm -T nxp1 -e env -i gdb -nx --args ../../r2dtwo -h nxp1 nxp1.ini -v ALL:ALL &
+    #nxp2 xterm -T nxp2 -e env -i gdb -nx --args ../../r2dtwo -h nxp2 nxp2.ini -v ALL:ALL &
 
-    #nxp1 ../../r2dtwo -of nxp1.ini -v ALL:ALL &
-    #nxp1 ../../r2dtwo -of nxp1.ini -v PACKETTRACE:PACKET &
-    nxp1 ../../r2dtwo nxp1.ini -v ALL:NONE &
+    #nxp1 ../../r2dtwo -of -h nxp1 nxp1.ini -v ALL:ALL &
+    #nxp1 ../../r2dtwo -of -h nxp1 nxp1.ini -v PACKETTRACE:PACKET &
+    nxp1 ../../r2dtwo -h nxp1 nxp1.ini -v ALL:NONE &
 
-    #nxp2 ../../r2dtwo -of nxp2.ini -v ALL:ALL &
-    #nxp2 ../../r2dtwo -of nxp2.ini -v PACKETTRACE:PACKET &
-    nxp2 ../../r2dtwo nxp2.ini -v ALL:NONE  &
+    #nxp2 ../../r2dtwo -of -h nxp2 nxp2.ini -v ALL:ALL &
+    #nxp2 ../../r2dtwo -of -h nxp2 nxp2.ini -v PACKETTRACE:PACKET &
+    nxp2 ../../r2dtwo -h nxp2 nxp2.ini -v ALL:NONE  &
 }
 
 # This is totally unsafe
@@ -206,17 +206,23 @@ TELNET_RESPONSE=$(send_telnet_command "127.0.0.1" "8000" "notif_pull enable" "nx
 echo "nxp2: '$TELNET_RESPONSE'"
 
 # start some background traffic
-talker ping -i .2 10.0.200.22 > /dev/null 2 &
+talker ping -i .02 10.0.200.22 > /dev/null 2 &
 
 # Start xterm in background and record its PID
 nxp1 xterm -T "TelnetControl" -hold -e ./telnet_control &
-#nxp1 "xterm -T 'Telnet Control' -hold -e ./telnet_control &"
 
-oam xterm -T "JsonReceiver" -hold -e python3 ../../json_receiver/multipart_json_udp_receiver.py 192.168.111.3 9000  &
+oam xterm -T "JsonReceiver" -hold -e python3 ../../json_receiver/multipart_json_udp_receiver.py 192.168.111.3 9000 &
+#oam xterm -T "JsonReceiver" &
 
 # --- Table of loss/delay values (5 lines) ---
 # Format: d1 l1 d2 l2 d3 l3
 table=(
+  " 0 0  0 0  0 0"
+  " 0 0  0 0  0 0"
+  " 0 0  0 0  0 0"
+  " 0 0  0 0  0 0"
+  " 0 0  0 0  0 0"
+  " 0 0  0 0  0 0"
   "10 0  0 0  0 0"
   "20 0  0 0  0 0"
   "40 0 10 0  0 0"
@@ -226,7 +232,7 @@ table=(
   "10 0 40 0 50 0"
   " 0 0 20 0 40 0"
   " 0 0 10 0 20 0"
-  " 0 0  0 0 10 0"  
+  " 0 0  0 0 10 0"
 )
 
 #function called by trap
@@ -264,7 +270,7 @@ while [ $brk -eq 0 ]; do
 
     x=$((x+1))
     # wait N second, interruptible by Ctrl-C
-    read -t 8 dummy
+    read -t 10 dummy
 done
 
 echo "Loop done."
