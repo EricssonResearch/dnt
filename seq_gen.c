@@ -21,8 +21,6 @@
 
 #include <arpa/inet.h> /* htonl() */
 
-#define FRER_SEQ_GEN_RESET_FLAG_COUNT 3
-
 LOGGING_MODULE(PACKETTRACE, WARNING);
 
 struct SequenceGenerator {
@@ -107,8 +105,6 @@ static unsigned sequence_generation(struct SequenceGenerator *gen)
     pthread_mutex_lock(&gen->mutex);
     if (gen->use_init_seq_space) {
         unsigned seq = gen->init_gen_seq_num & 0xffff;
-        seq |= (FRER_RESET_FLAG * gen->reset_flag);
-        seq |= (FRER_INIT_FLAG * gen->use_init_seq_space);
         if(gen->init_gen_seq_num > (FRER_RCVY_SEQ_SPACE - 1)) {
             gen->gen_seq_num = 1;
             gen->use_init_seq_space = false;
@@ -118,6 +114,8 @@ static unsigned sequence_generation(struct SequenceGenerator *gen)
             if (gen->init_gen_seq_num > gen->init_seq_start + FRER_SEQ_GEN_RESET_FLAG_COUNT)
                 gen->reset_flag = false;
         }
+        seq |= (FRER_RESET_FLAG * gen->reset_flag);
+        seq |= (FRER_INIT_FLAG * gen->use_init_seq_space);
         pthread_mutex_unlock(&gen->mutex);
         return seq;
     }

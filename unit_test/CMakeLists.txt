@@ -21,6 +21,15 @@ endfunction()
 add_test_seqrcvy(test_seq_rcvy_match)
 add_test_seqrcvy(test_seq_rcvy_oam)
 add_test_seqrcvy(test_seq_rcvy_vector)
+
+function(add_test_seqgen name)
+    add_executable(${name} ../seq_gen.c ../lib/parsers/json.c ../log.c ../object.c ../packet.c ../pipeline.c ../utils.c ../lib/parsers/hashmap.c ${name}.c)
+    target_include_directories(${name} PUBLIC ../lib/parsers)
+    #target_link_libraries(${name} pthread)
+    target_compile_definitions(${name} PUBLIC TESTING)
+endfunction()
+
+add_test_seqgen(test_seq_gen)
 #TODO seamless
 
 function(add_test_conf name)

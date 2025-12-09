@@ -10,6 +10,8 @@
 
 #include <stdbool.h>
 
+#define FRER_SEQ_GEN_RESET_FLAG_COUNT 3
+
 // Helper function to reset all sequence generators in the system
 // Triggered by manual reset signal (no timer expiration)
 // this is intended to be a callback for state_foreach_objects()
