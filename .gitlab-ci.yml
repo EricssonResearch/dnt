@@ -262,6 +262,11 @@ unit_test.packet:
   variables:
     TESTNAME: test_packet
 
+unit_test.seq_gen:
+  extends: .unit_test.common
+  variables:
+    TESTNAME: test_seq_gen
+
 unit_test.seq_rcvy_match:
   extends: .unit_test.common
   variables:
