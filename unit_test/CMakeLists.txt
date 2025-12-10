@@ -20,6 +20,7 @@ endfunction()
 
 add_test_seqrcvy(test_seq_rcvy_match)
 add_test_seqrcvy(test_seq_rcvy_oam)
+add_test_seqrcvy(test_seq_rcvy_seamless)
 add_test_seqrcvy(test_seq_rcvy_vector)
 
 function(add_test_seqgen name)
@@ -30,7 +31,6 @@ function(add_test_seqgen name)
 endfunction()
 
 add_test_seqgen(test_seq_gen)
-#TODO seamless
 
 function(add_test_conf name)
     add_executable(${name} ../conf_utils.c ../inet_utils.c ../log.c ../protocol.c ../utils.c ../lib/parsers/hashmap.c ${name}.c)

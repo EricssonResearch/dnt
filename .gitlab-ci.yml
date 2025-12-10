@@ -277,6 +277,11 @@ unit_test.seq_rcvy_oam:
   variables:
     TESTNAME: test_seq_rcvy_oam
 
+unit_test.seq_rcvy_seamless:
+  extends: .unit_test.common
+  variables:
+    TESTNAME: test_seq_rcvy_seamless
+
 unit_test.seq_rcvy_vector:
   extends: .unit_test.common
   variables:

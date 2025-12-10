@@ -158,11 +158,13 @@ static struct JsonValue *srec_get_state_json(const struct PipelineObject *obj)
     json_object_insert(js, "passed_packets", json_number((double) rec->passed_packets));
     json_object_insert(js, "discarded_packets", json_number((double) rec->discarded_packets));
     json_object_insert(js, "out_of_order_packets", json_number((double) rec->out_of_order_packets));
+    json_object_insert(js, "rogue_packets", json_number((double) rec->rogue_packets));
     json_object_insert(js, "seq_recovery_resets", json_number((double) rec->seq_recovery_resets));
 
     if (rec->algorithm != RCVY_Match) { //only for vector & seamless
         json_object_insert(js, "use_init_flag", rec->use_init_flag ? json_true() : json_false());
         json_object_insert(js, "use_reset_flag", rec->use_reset_flag ? json_true() : json_false());
+        json_object_insert(js, "recovery_init_seq_num", json_number((double) rec->init_recv_seq));
         json_object_insert(js, "history_length", json_number((double) rec->history_length));
         json_object_insert(js, "latent_error_paths", json_number((double) rec->latent_error_paths));
         json_object_insert(js, "latent_error_resets", json_number((double) rec->latent_error_resets));
