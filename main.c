@@ -401,6 +401,7 @@ int main(int argc, char **argv)
     }
 
     init_notification(tr->streams);
+    init_oam();
 
     bool commit_success = state_commit_transaction(tr);
     delete_transaction(tr);
@@ -416,10 +417,6 @@ int main(int argc, char **argv)
         if (!init_delay()) {
             return EXIT_FAILURE;
         }
-    }
-
-    if(!init_oam()) {
-        return EXIT_FAILURE;
     }
 
     struct JsonValue *msg = json_object();

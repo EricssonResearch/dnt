@@ -35,6 +35,7 @@ bool set_oam_cmd_if(struct Interface *iface)
 {
     if (oam_cmd_iface == NULL) {
         oam_cmd_iface = iface;
+        log_info("OAM telnet interface %s", iface->name);
         return true;
     } else {
         log_error("only one OAM command interface is supported, config has '%s' and '%s'",
@@ -66,6 +67,7 @@ void add_oam_if(struct Interface *iface)
             if (strcmp(iface->name, oam_default_ip_iface->name) < 0)
                 oam_default_ip_iface = iface;
         }
+        log_info("new return interface %s (default %s)", iface->name, oam_default_ip_iface->name);
     } else if(iface->type == IF_OAM_ETH) {
         if (oam_default_eth_iface == NULL) {
             oam_default_eth_iface = iface;
@@ -73,6 +75,7 @@ void add_oam_if(struct Interface *iface)
             if (strcmp(iface->name, oam_default_eth_iface->name) < 0)
                 oam_default_eth_iface = iface;
         }
+        log_info("new eth return interface %s (default %s)", iface->name, oam_default_eth_iface->name);
     }
 }
 
@@ -118,10 +121,6 @@ unsigned short get_default_node_id(void)
 
 bool oam_start_background_ping(const char *name, const char *command)
 {
-    if (oam_initialized == false) {
-        init_oam();
-    }
-
     log_info("starting background ping command '%s'", name);
 
     if (strncmp(command, "ping", 4) != 0) {
@@ -147,30 +146,22 @@ bool oam_start_background_ping(const char *name, const char *command)
     return initiate_request(ping_req, NULL);
 }
 
-bool init_oam(void)
+void init_oam(void)
 {
-    if (oam_initialized) return true;
+    if (oam_initialized)
+        return;
 
     init_session_module();
     init_message_module();
+    init_cmd_module();
 
+    log_info("Init OAM fuctionality");
+
+    //TODO better node id mechanism
     if(get_default_node_id()==0)
         log_warning("OAM nodeid is zero. OAM interface IP's last bytes should be non-zero.");
 
-    if (oam_default_ip_iface || oam_default_eth_iface || oam_cmd_iface) {
-        log_info("Init OAM fuctionality nodeid %d :%s%s%s", get_default_node_id(),
-                oam_cmd_iface?" telnet interface":"",
-                oam_default_ip_iface?" reply interface":"",
-                oam_default_eth_iface?" reply interface":"");
-    } else {
-        oam_initialized = true;
-        return true;
-    }
-
-    init_cmd_module();
-
     oam_initialized = true;
-    return true;
 }
 
 void finish_oam(void)

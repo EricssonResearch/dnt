@@ -43,8 +43,7 @@ const char *oam_mp_encap_to_str(enum OAM_MP_Encap encap);
 const char *oam_mp_addr_source_to_str(enum OAM_MP_Addr_Source src);
 
 // initialize the OAM module
-// @returns true on success
-bool init_oam(void);
+void init_oam(void);
 
 // stops the OAM module and cleans up its resources
 void finish_oam(void);
