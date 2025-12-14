@@ -1,0 +1,24 @@
+#!/bin/sh
+
+# ln -s ./rebuild .git/hooks/pre-commit
+
+# for these: .gitlab-ci/cppize.pl Makefile > Makefile-cpp
+if [ -f Makefile-cpp ] ; then
+    if [ Makefile -nt Makefile-cpp ] ; then
+        echo "\033[1;31mMakefile-cpp is out of date\033[0m"
+        exit 1
+    fi
+    make clean && make -f Makefile-cpp release -j || exit 1
+    make clean && make -f Makefile-cpp debug -j || exit 1
+fi
+
+make clean && CC=clang make release -j || exit 1
+make clean && CC=clang make debug -j || exit 1
+make clean && make release -j || exit 1
+make clean && make debug -j || exit 1
+
+if [ -d unit_test/build ] ; then
+    cd unit_test/build && make -j || exit 1
+fi
+
+echo "\033[1;32mSuccess\033[0m"
