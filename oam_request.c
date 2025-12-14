@@ -52,7 +52,7 @@ struct OamRequest {
     bool record_route;
     bool object_state;
     bool measure_delay;
-    unsigned count;
+    unsigned count; // 0 means infinite
     unsigned interval_ms;
     struct Thread *multireq_thread;
 
@@ -164,18 +164,29 @@ static bool parse_ping_options(struct OamRequest *ping_req, const char *options_
             }
         } else if (c=='n') {
             if(!allow_num){
-                ping_req->error = strdup("ping count is not allwed in config");
+                ping_req->error = strdup("ping count is not allowed");
                 opt_err = true;
                 break;
             }
             k = sscanf(po, " %d%n", &val, &l);
             if (k == 1) {
+                if (val <= 0) {
+                    ping_req->error = strdup("ping count must be positive");
+                    opt_err = true;
+                    break;
+                }
                 po += l;
                 ping_req->count = val;
             } else {
-                ping_req->error = strdup("ping count is invalid");
-                opt_err = true;
-                break;
+                k = sscanf(po, " in%c%n", &c, &l);
+                if (k == 1 && c == 'f') {
+                    po += l;
+                    ping_req->count = 0;
+                } else {
+                    ping_req->error = strdup("ping count is invalid");
+                    opt_err = true;
+                    break;
+                }
             }
         } else if (c=='t') {
             k = sscanf(po, " %d%n", &val, &l);
@@ -299,7 +310,7 @@ struct OamRequest *parse_rping_command(const char *oam_command)
     return rping_req;
 }
 
-
+//TODO de-duplicate this with parse_ping_options
 static bool parse_trigger_options(struct OamRequest *trig_req, const char *options_str, bool allow_num)
 {
     const char *po = options_str;
@@ -329,18 +340,29 @@ static bool parse_trigger_options(struct OamRequest *trig_req, const char *optio
             }
         } else if (c=='n') {
             if(!allow_num){
-                trig_req->error = strdup("trigger count is not allwed in config");
+                trig_req->error = strdup("trigger count is not allowed");
                 opt_err = true;
                 break;
             }
             k = sscanf(po, " %d%n", &val, &l);
             if (k == 1) {
+                if (val <= 0) {
+                    trig_req->error = strdup("trigger count must be positive");
+                    opt_err = true;
+                    break;
+                }
                 po += l;
                 trig_req->count = val;
             } else {
-                trig_req->error = strdup("trigger count is invalid\n");
-                opt_err = true;
-                break;
+                k = sscanf(po, " in%c%n", &c, &l);
+                if (k == 1 && c == 'f') {
+                    po += l;
+                    trig_req->count = 0;
+                } else {
+                    trig_req->error = strdup("trigger count is invalid\n");
+                    opt_err = true;
+                    break;
+                }
             }
         } else if (c=='t') {
             k = sscanf(po, " %d%n", &val, &l);
@@ -523,6 +545,11 @@ unsigned request_get_session_id(const struct OamRequest *req)
 int request_get_level(const struct OamRequest *req)
 {
     return req->level;
+}
+
+int request_is_infinite(const struct OamRequest *req)
+{
+    return req->count == 0;
 }
 
 char *request_get_return_addr_string(const struct OamRequest *req)

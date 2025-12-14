@@ -527,18 +527,22 @@ static bool process_rping_request(struct OAM_MaintenancePoint *mp, struct JsonVa
     struct OamRequest *ping_req = parse_ping_command(jscommand->v.string, false, true);
     if (request_get_error(ping_req) == NULL) {
         if (!same_compound_stream(request_get_stream_name(ping_req), mp_get_stream_name(mp))) {
-            const char *error = strdup_printf("could not create ping request: streams '%s' and '%s' are not related",
+            char *error = strdup_printf("could not create ping request: streams '%s' and '%s' are not related",
                     request_get_stream_name(ping_req), mp_get_stream_name(mp));
+            delete_oam_request(ping_req);
+            return send_rping_error(mp, js, recv_time, error);
+        }
+        if (request_is_infinite(ping_req)) {
+            char *error = strdup_printf("infinite ping count is not allowed");
             delete_oam_request(ping_req);
             return send_rping_error(mp, js, recv_time, error);
         }
 
         request_set_return_addr(ping_req, json_duplicate(jsreturn));
-
         request_set_originator(ping_req, jsstream->v.string, jssession->v.number);
 
         if (!initiate_request(ping_req, NULL)) {
-            const char *error = strdup_printf("could not send ping request: %s", request_get_error(ping_req));
+            char *error = strdup_printf("could not send ping request: %s", request_get_error(ping_req));
             delete_oam_request(ping_req);
             return send_rping_error(mp, js, recv_time, error);
         }

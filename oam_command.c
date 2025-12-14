@@ -371,9 +371,8 @@ static void handle_telnet_command(unsigned char *oam_command, int *n, FILE *cmd_
 
 static void command_loop(struct CommandConnection *conn)
 {
-#define ERROR(msg, ...)                             \
-    fprintf(cmd_w, "Error: " msg "\n",              \
-            ##__VA_ARGS__);                         \
+#define ERROR(msg, ...)                                 \
+    fprintf(cmd_w, "Error: " msg "\n", ##__VA_ARGS__);  \
     continue
 
 #define CHECK_REQUEST(req)                                      \
