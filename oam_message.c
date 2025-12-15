@@ -113,6 +113,8 @@ static int process_reply(const char *msg)
     if (conn)
         cmd_w = command_connection_get_w(conn);
 
+    session_recv(jstream->v.string, jsession->v.number);
+
     if (strcmp(jtype->v.string, "rlist") == 0) {
         JS_OBJECT_GET(j, code, string);
         if (strcmp(jcode->v.string, "reply") != 0) {

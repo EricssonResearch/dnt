@@ -462,9 +462,9 @@ Rping error from s1n3-i4-13 : could not create ping request: ping start 'nonexis
         'n1', 'sessions', # note: exiting telnet clears the associated sessions
 """
 Stream s1 sessions:
-    1 ping s1n1-e4-01 -> s1n4-e3-24 level 3 connection <background>
+    1 ping s1n1-e4-01 -> s1n4-e3-24 level 3 connection <background> sent 0 recv 0
 Stream s3 sessions:
-    1 ping s3n1-e4-01 -> s3n4-e4-40 level 4 connection <background>
+    1 ping s3n1-e4-01 -> s3n4-e4-40 level 4 connection <background> sent 0 recv 0
 """
     ),
 
@@ -472,13 +472,13 @@ Stream s3 sessions:
         'n1', 'sessions s3', # note: exiting telnet clears the associated sessions
 """
 Stream s3 sessions:
-    1 ping s3n1-e4-01 -> s3n4-e4-40 level 4 connection <background>
+    1 ping s3n1-e4-01 -> s3n4-e4-40 level 4 connection <background> sent 0 recv 0
 """
     ),
 ]
 
 def auto_mip_test():
-    print("Test OAM automatic MIP configuration", end=" ")
+    print("Test SRv6 OAM automatic MIP configuration", end=" ")
     exec_bg("../r2dtwo oam_srv6/autconfig/auto.ini -v ALL:NONE")
     time.sleep(1)
     expected_reply = """Available MEP Start points:
@@ -546,6 +546,9 @@ def run_tests(net, test):
             reply = re.sub(r'delay \d+\.\d+',
                    r'delay 0',
                    reply)
+            reply = re.sub(r'sent \d+ recv \d+',
+                    r'sent 0 recv 0',
+                    reply)
             if reply.strip() == expected_reply.strip():
                 success += 1
                 print("✔")
@@ -568,9 +571,9 @@ def main():
         if len(sys.argv) >= 2 and sys.argv[1] == "debug":
             debug = True
         if debug:
-            print("R2DTWO OAM SRv6 debug")
+            print("R2DTWO SRv6 OAM debug")
         else:
-            print("R2DTWO OAM SRv6 test")
+            print("R2DTWO SRv6 OAM test")
         net = create_net()
         #setLogLevel('debug')
         config_net(net)

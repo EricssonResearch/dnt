@@ -60,7 +60,7 @@ def create_net():
         net.build()
 
     except Exception as ex:
-        print(type(ex), ex)
+        print('Create net', type(ex), ex)
     return net
 
 def config_net(net):
@@ -96,6 +96,7 @@ def config_net(net):
 
 def start_r2dtwos(net, debug):
     # start R2DTWOs
+    r2 = []
     for n in ['n1', 'n2', 'n3', 'n4']:
         node = net.get(n)
         if debug:
@@ -103,7 +104,8 @@ def start_r2dtwos(net, debug):
             node.popen(f"xterm -T {n} -e env -i gdb -nx --args ../r2dtwo oam_tsn/singlestage/{n}.cfg")
         else:
             # node.popen(f"xterm -T {n} -e env -i gdb -nx -ex=r --args ../r2dtwo oam/singlestage/{n}.cfg -vALL:NONE")
-            node.popen(f"../r2dtwo oam_tsn/singlestage/{n}.cfg -vALL:NONE")
+            r2.append(node.popen(f"../r2dtwo oam_tsn/singlestage/{n}.cfg -vALL:NONE"))
+    return r2
 
 # list of (sender, message, [expected JSON replies])
 # The sender 'node' sending 'message' from telnet and expect the list of replies
@@ -376,6 +378,24 @@ OAM request rping session <session> seq 0, s1n1-e4-01 -> s1n3-i4-13 level 4 coun
 Rping error from s1n3-i4-13 : could not create ping request: ping start 'nonexistentmp' invalid
 """
     ),
+
+    (
+        'n1', 'sessions', 0, # note: exiting telnet clears the associated sessions
+"""
+Stream s1 sessions:
+    1 ping s1n1-e4-01 -> s1n4-e3-24 level 3 connection <background> sent 0 recv 0
+Stream s3 sessions:
+    1 ping s3n1-e4-01 -> s3n4-e4-40 level 4 connection <background> sent 0 recv 0
+"""
+    ),
+
+    (
+        'n1', 'sessions s3', 0, # note: exiting telnet clears the associated sessions
+"""
+Stream s3 sessions:
+    1 ping s3n1-e4-01 -> s3n4-e4-40 level 4 connection <background> sent 0 recv 0
+"""
+    ),
 ]
 
 #TODO also check that they have the correct address
@@ -635,7 +655,7 @@ def run_tests(net, test):
     exec_fg("killall xterm")
     exec_fg("killall r2dtwo")
     time.sleep(0.3)
-    start_r2dtwos(net, False)
+    r2dtwos = start_r2dtwos(net, False)
     time.sleep(1.5)
     success = 0
     for node, msg, session, expected_reply in test:
@@ -660,6 +680,9 @@ def run_tests(net, test):
             reply = re.sub(r'data packets \d+ octets \d+',
                     r'data packets 0 octets 0',
                     reply)
+            reply = re.sub(r'sent \d+ recv \d+',
+                    r'sent 0 recv 0',
+                    reply)
             # sometimes the reset counter is 0 (TODO when is the reset supposed to happen?)
             reply = re.sub(r'number_of_resets \d', r'number_of_resets 1', reply)
             # mac addresses are random
@@ -672,6 +695,10 @@ def run_tests(net, test):
             else:
                 print("✘ FAILED: OAM reply different")
                 print(f"Actual reply:\n{reply}\nExpected reply:\n{expected_reply}\n")
+                for rr in r2dtwos:
+                    if rr.poll() == None:
+                        print(f"r2dtwo '{rr.args}' has died\n")
+                return False
 
     switch_netns()
     if auto_mip_test():
@@ -688,9 +715,9 @@ def main():
         if len(sys.argv) >= 2 and sys.argv[1] == "debug":
             debug = True
         if debug:
-            print("R2DTWO OAM debug")
+            print("R2DTWO TSN OAM debug")
         else:
-            print("R2DTWO OAM test")
+            print("R2DTWO TSN OAM test")
         net = create_net()
         config_net(net)
         if debug:

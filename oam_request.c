@@ -33,7 +33,7 @@
 #include <arpa/inet.h>
 
 #define OAM_PING_TTL 64
-#define OAM_CHANNEL 0x7fff /* Experimental channel type, we are not compatible with anything */
+#define OAM_CHANNEL 0x7fff /* Experimental PseudoWire channel type, we are not compatible with anything */
 
 struct OamRequest {
     const char *type;
@@ -43,10 +43,10 @@ struct OamRequest {
     unsigned char session_id;
     unsigned char seq;
     unsigned char level;
-    unsigned node_id; // 20 bit
+    unsigned node_id; //TODO use the full 32 bits
 
     struct OAM_MaintenancePoint *mp_start;
-    char mep_stop[32]; //TODO target (or destination?)
+    char mep_stop[32]; //TODO target
 
     // ping options
     bool record_route;
@@ -696,7 +696,7 @@ static void *send_periodic_request_thread(void *arg)
     while (1) {
         req->seq = seq & 0xFF;
         send_request(req);
-        session_touch(stream, req->session_id);
+        session_sent(stream, req->session_id);
         seq++;
         if((req->count != 0) && (seq >= req->count)) break;
         usleep(req->interval_ms * 1000);
@@ -720,8 +720,7 @@ bool initiate_request(struct OamRequest *req, const char *conn_name)
         return false;
     }
 
-    struct StreamSessions *stream = get_stream_sessions(mp_get_stream_name(req->mp_start));
-    int session_id = alloc_session_id(stream, req, conn_name, req->interval_ms);
+    int session_id = alloc_session_id(req, conn_name, req->interval_ms);
     if (session_id < 0) {
         req->error = strdup_printf("stream %s has no free session id", mp_get_stream_name(req->mp_start));
         return false;
@@ -750,6 +749,8 @@ bool initiate_request(struct OamRequest *req, const char *conn_name)
     if (req->count == 1) {
         req->multireq_thread = NULL;
         send_request(req);
+        struct StreamSessions *stream = get_stream_sessions(mp_get_stream_name(req->mp_start));
+        session_sent(stream, req->session_id);
     } else {
         struct Thread *th = thread_launch(send_periodic_request_thread, req, "oam req %d", session_id);
         req->multireq_thread = th;

@@ -24,6 +24,8 @@ struct SessionTracker {
     time_t access_time;
     unsigned interval_ms;
     struct OamRequest *req;
+    unsigned long long sent;
+    unsigned long long recv;
 };
 
 struct StreamSessions {
@@ -76,21 +78,26 @@ static int stop_session_locked(struct SessionTracker *s)
     return 0;
 }
 
+static bool session_timeouted(const struct SessionTracker *session, struct timespec now)
+{
+    unsigned timeout = MAX(ceil(1.0 + 0.001*session->interval_ms), 2);
+    return now.tv_sec > session->access_time + timeout;
+}
 
-int alloc_session_id(struct StreamSessions *stream, struct OamRequest *req,
+
+int alloc_session_id(struct OamRequest *req,
         const char *conn_name, unsigned interval_ms)
 {
-    pthread_mutex_lock(&session_lock);
+    struct StreamSessions *stream = get_stream_sessions(request_get_stream_name(req));
 
+    pthread_mutex_lock(&session_lock);
     unsigned next_id = (stream->last_session + 1) % 16;
     unsigned id = next_id;
     struct timespec now;
     clock_gettime(CLOCK_REALTIME, &now);
 
     while (stream->sessions[id].req) {
-        unsigned timeout = MAX(ceil(1.0 + 0.001*stream->sessions[id].interval_ms), 2);
-        bool timeout_exceeded = now.tv_sec > stream->sessions[id].access_time + timeout;
-        if (timeout_exceeded) {
+        if (session_timeouted(&stream->sessions[id], now)) {
             //log_info("session %u timeouted", id);
             stop_session_locked(&stream->sessions[id]);
             break;
@@ -115,19 +122,25 @@ int alloc_session_id(struct StreamSessions *stream, struct OamRequest *req,
 
 int stream_live_session_count(const struct StreamSessions *stream)
 {
-    pthread_mutex_lock(&session_lock);
     int live_session_count = 0;
-    for (int i=0; i<16; i++) if (stream->sessions[i].req) live_session_count++;
+    struct timespec now;
+
+    pthread_mutex_lock(&session_lock);
+    clock_gettime(CLOCK_REALTIME, &now);
+    for (int i=0; i<16; i++)
+        if (stream->sessions[i].req && !session_timeouted(&stream->sessions[i], now))
+            live_session_count++;
     pthread_mutex_unlock(&session_lock);
+
     return live_session_count;
 }
 
-int stop_session(const char *stream_name, int session)
+int stop_session(const char *stream_name, unsigned session)
 {
     struct StreamSessions *stream = get_stream_sessions(stream_name);
     if (stream == NULL)
         return -1;
-    if (session < 0 || session > 15)
+    if (session > 15)
         return 0;
     pthread_mutex_lock(&session_lock);
     int res = stop_session_locked(&stream->sessions[session]);
@@ -175,10 +188,11 @@ int list_sessions_of_stream(struct StreamSessions *stream, const char *name, FIL
     for (int i=0; i<16; i++) {
         struct OamRequest *req = stream->sessions[i].req;
         if (req) {
-            fprintf(cmd_w,"    %d %s %s -> %s level %d connection %s\n",
+            fprintf(cmd_w,"    %d %s %s -> %s level %d connection %s sent %llu recv %llu\n",
                     i, request_get_type(req), request_get_start_name(req),
                     request_get_stop_name(req), request_get_level(req),
-                    stream->sessions[i].conn_name ? stream->sessions[i].conn_name : "<background>");
+                    stream->sessions[i].conn_name ? stream->sessions[i].conn_name : "<background>",
+                    stream->sessions[i].sent, stream->sessions[i].recv);
         }
     }
     return 1;
@@ -200,11 +214,24 @@ int list_sessions_of_all_streams(FILE *cmd_w)
     return ret;
 }
 
-void session_touch(struct StreamSessions *stream, int session)
+void session_recv(const char *stream_name, unsigned session)
+{
+    struct StreamSessions *stream = get_stream_sessions(stream_name);
+    if (stream == NULL)
+        return;
+
+    struct timespec now;
+    clock_gettime(CLOCK_REALTIME, &now);
+    stream->sessions[session].access_time = now.tv_sec + 1;
+    stream->sessions[session].recv += 1;
+}
+
+void session_sent(struct StreamSessions *stream, unsigned session)
 {
     struct timespec now;
     clock_gettime(CLOCK_REALTIME, &now);
     stream->sessions[session].access_time = now.tv_sec + 1;
+    stream->sessions[session].sent += 1;
 }
 
 void init_session_module(void)
