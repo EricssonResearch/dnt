@@ -53,6 +53,7 @@ struct OamRequest {
     bool object_state;
     bool measure_delay;
     unsigned count; // 0 means infinite
+    bool background;
     unsigned interval_ms;
     struct Thread *multireq_thread;
 
@@ -151,6 +152,8 @@ static bool parse_ping_options(struct OamRequest *ping_req, const char *options_
             ping_req->object_state = true;
         } else if (c=='d') {
             ping_req->measure_delay = true;
+        } else if (c=='b') {
+            ping_req->background = true;
         } else if (c=='i') {
             k = sscanf(po, " %f%n", &fval, &l);
             if (k == 1) {
@@ -547,9 +550,14 @@ int request_get_level(const struct OamRequest *req)
     return req->level;
 }
 
-int request_is_infinite(const struct OamRequest *req)
+bool request_is_infinite(const struct OamRequest *req)
 {
     return req->count == 0;
+}
+
+bool request_is_background(const struct OamRequest *req)
+{
+    return req->background;
 }
 
 char *request_get_return_addr_string(const struct OamRequest *req)

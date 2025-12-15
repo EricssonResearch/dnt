@@ -99,6 +99,7 @@ The available commands are:
     * `<level>` is the OAM level of the session, can be 0..7
     * `-r` ask for route record
     * `-o` ask for object information
+    * `-b` run it in the background (forces infinite count)
     * `-i` interval in seconds (default: 1.0, minimum 0.002)
     * `-n` number of requests to send (default: 1, inf means infinite)
     * `-t` ttl (default: 64)

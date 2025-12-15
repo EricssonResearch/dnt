@@ -644,7 +644,7 @@ static void command_loop(struct CommandConnection *conn)
                     fprintf(cmd_w, "Stopping stream:session %s:%d - %s\n",
                             streamname, session,
                             res > 0 ? "stopped" : "not running");
-                    if (strcmp(streamname, last_stream) == 0 && session == last_session) {
+                    if (last_stream && strcmp(streamname, last_stream) == 0 && session == last_session) {
                         free(last_stream);
                         last_stream = 0;
                     }
@@ -659,7 +659,12 @@ static void command_loop(struct CommandConnection *conn)
             else if (strncmp(oam_command, "ping", 4) == 0) {
                 struct OamRequest *ping_req = parse_ping_command(oam_command+4, true, true);
                 CHECK_REQUEST(ping_req);
-                if (!initiate_request(ping_req, conn->name)) {
+                const char *conn_name = conn->name;
+                if (request_is_background(ping_req)) {
+                    conn_name = NULL;
+                    request_set_infinite_count(ping_req);
+                }
+                if (!initiate_request(ping_req, conn_name)) {
                     ERROR("sending ping command failed: %s", request_get_error(ping_req));
                     delete_oam_request(ping_req);
                 }

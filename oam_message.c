@@ -214,6 +214,7 @@ static int process_reply(const char *msg)
         // Logging
         log_info("%s %s %s %s", reply_str, rr_str, stat_str_log, obj_str_log);
         free(obj_str_log);
+        free(stat_str_log);
 
         j = json_delete(j);
 
@@ -534,6 +535,11 @@ static bool process_rping_request(struct OAM_MaintenancePoint *mp, struct JsonVa
         }
         if (request_is_infinite(ping_req)) {
             char *error = strdup_printf("infinite ping count is not allowed");
+            delete_oam_request(ping_req);
+            return send_rping_error(mp, js, recv_time, error);
+        }
+        if (request_is_background(ping_req)) {
+            char *error = strdup_printf("background ping is not allowed");
             delete_oam_request(ping_req);
             return send_rping_error(mp, js, recv_time, error);
         }

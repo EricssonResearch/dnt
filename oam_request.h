@@ -51,7 +51,9 @@ unsigned request_get_session_id(const struct OamRequest *req);
 
 int request_get_level(const struct OamRequest *req);
 
-int request_is_infinite(const struct OamRequest *req);
+bool request_is_infinite(const struct OamRequest *req);
+
+bool request_is_background(const struct OamRequest *req);
 
 // @returns a newly allocated string formatted like
 //      "[reply to ip %s port %u]"
