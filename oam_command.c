@@ -113,26 +113,26 @@ enum TerminalFormat command_connection_get_format(const struct CommandConnection
 
 static const char help_str[] =
     "Available commands:\n"
-    "help, ? - get help\n"
     "exit, quit, CTRL+D - exit OAM\n"
-    "log [module newlevel] - get current log levels or set it for the given module\n"
-    "notify [{LOG|SUBMIT} newlevel] - get current notification levels or set them\n"
-    "sysmon <command> <type> <target> [period_ms] - add/rem system monitoring. Type: delay, tc, modem. Target: specific\n"
-    "notif_pull [enable|disable] - enable or disable the pull notifications\n"
-    "mode [mode] - set ping reply printing mode, can be 'dump' or 'json'\n"
-    "ue <tty> - show modem statistics\n"
-    "list - list monitoring start points\n"
+    "help, ? - get help\n"
     "iface [ifname] - print information about interfaces\n"
-    "mp [mpname] - print information about maintenance points\n"
-    "object [objname] - print information about pipeline objects\n"
-    "returns - list return interfaces\n"
-    "sessions [stream] - list active sessions for stream, lists all sessions if no 'stream' is specified\n"
+    "list - list monitoring start points\n"
+    "log [module newlevel] - get current log levels or set it for the given module\n"
     "[un]mask <replication pipeline> - mask/unmask a replication pipeline\n"
-    "rlist[@if] <mep-start/mip> <mep-stop/mip/any> <level> - list monitoring start points of the remote node\n"
-    "ping[@if] <mep-start/mip> <mep-stop/mip/any> <level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]\n"
-    "rping[@if] <mep-start/mip> <mep-stop/mip> <level> <remote mep-start/mip> <remote mep-stop/mip/any> <remote level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]\n"
+    "mode [mode] - set ping reply printing mode, can be 'dump' or 'json'\n"
+    "mp [mpname] - print information about maintenance points\n"
+    "notif_pull [enable|disable] - enable or disable the pull notifications\n"
     "notif_trigger <mep-start> <mep-stop/mip/any> <level> [-i <interval>] [-n <count>] [-t <ttl>]\n"
+    "notify [{LOG|SUBMIT} newlevel] - get current notification levels or set them\n"
+    "object [objname] - print information about pipeline objects\n"
+    "ping[@if] <mep-start/mip> <mep-stop/mip/any> <level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]\n"
+    "returns - list return interfaces\n"
+    "rlist[@if] <mep-start/mip> <mep-stop/mip/any> <level> - list monitoring start points of the remote node\n"
+    "rping[@if] <mep-start/mip> <mep-stop/mip> <level> <remote mep-start/mip> <remote mep-stop/mip/any> <remote level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]\n"
+    "sessions [stream] - list active sessions for stream, lists all sessions if no 'stream' is specified\n"
     "stop [stream session_id] - stop a running OAM session identified by 'stream:session_id', without parameter it stops the last session\n"
+    "sysmon <command> <type> <target> [period_ms] - add/rem system monitoring. Type: delay, tc, modem. Target: specific\n"
+    "ue <tty> - show modem statistics\n"
     ;
 
 static int list_startpoints_cb(const char *key, void *value, void *userdata)
@@ -659,12 +659,10 @@ static void command_loop(struct CommandConnection *conn)
             else if (strncmp(oam_command, "ping", 4) == 0) {
                 struct OamRequest *ping_req = parse_ping_command(oam_command+4, true, true);
                 CHECK_REQUEST(ping_req);
-                const char *conn_name = conn->name;
                 if (request_is_background(ping_req)) {
-                    conn_name = NULL;
                     request_set_infinite_count(ping_req);
                 }
-                if (!initiate_request(ping_req, conn_name)) {
+                if (!initiate_request(ping_req, conn->name)) {
                     ERROR("sending ping command failed: %s", request_get_error(ping_req));
                     delete_oam_request(ping_req);
                 }

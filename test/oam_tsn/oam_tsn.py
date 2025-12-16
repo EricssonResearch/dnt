@@ -107,46 +107,87 @@ def start_r2dtwos(net, debug):
             r2.append(node.popen(f"../r2dtwo oam_tsn/singlestage/{n}.cfg -vALL:NONE"))
     return r2
 
-# list of (sender, message, [expected JSON replies])
-# The sender 'node' sending 'message' from telnet and expect the list of replies
+# list of (sender node, telnet command, session id,  expected reply)
 testcases = [
+    ('n1', 'list', 0,
+"""
+Available MEP Start points:
+s1n1-e3-12 in tx112 type MEP-Start level 3 TSN (pipe tx112 idx 0)
+s1n1-e4-01 in s1 type MEP-Start level 4 TSN (pipe s1 idx 5)
+s2n1-i5-21 in s2_m1 type MIP level 5 TSN (pipe s2_m1 idx 1)
+s2n1-i5-31 in s2_m2 type MIP level 5 TSN (pipe s2_m2 idx 1)
+s3n1-e4-01 in s3 type MEP-Start level 4 TSN (pipe s3 idx 6)
+"""),
+    ('n2', 'list', 0,
+"""
+Available MEP Start points:
+s1n2-i3-12 in s1_rx12 type MIP level 3 TSN (pipe s1_rx12 idx 1)
+s2n2-i5-21 in s2_rx42 type MIP level 5 TSN (pipe s2_rx42 idx 1)
+"""),
+    ('n3', 'list', 0,
+"""
+Available MEP Start points:
+s1n3-i4-13 in rx113 type MIP level 4 TSN (pipe rx113 idx 1)
+s1n3-i4-23 in rx123 type MIP level 4 TSN (pipe rx123 idx 2)
+s1n3-i4-34 in s1rx_cont type MIP level 4 TSN (pipe rx113 idx 5)
+s2n3-i5-31 in rx243 type MIP level 5 TSN (pipe rx243 idx 1)
+s3n3-e1-32 in tx332 type MEP-Start level 1 TSN (pipe tx332 idx 0)
+s3n3-i4-13 in rx313 type MIP level 4 TSN (pipe rx313 idx 1)
+"""),
+    ('n4', 'list', 0,
+"""
+Available MEP Start points:
+s1n4-i4-24 in rx124 type MIP level 4 TSN (pipe rx124 idx 2)
+s1n4-i4-34 in rx134 type MIP level 4 TSN (pipe rx134 idx 1)
+s2n4-e5-04 in s2 type MEP-Start level 5 TSN (pipe s2 idx 5)
+s3n4-i4-24 in rx324 type MIP level 4 TSN (pipe rx324 idx 2)
+s3n4-i4-34 in rx334 type MIP level 4 TSN (pipe rx334 idx 1)
+"""),
+    ('n1', 'returns', 0,
+"""
+Available OAM return interfaces:
+  oam1 mac 00:00:00:00:00:00 (default for ETH, node id RANDOM)
+"""),
+    ('n2', 'returns', 0,
+"""
+Available OAM return interfaces:
+  oam1 mac 00:00:00:00:00:00 (default for ETH, node id RANDOM)
+"""),
+    ('n3', 'returns', 0,
+"""
+Available OAM return interfaces:
+  oam1 mac 00:00:00:00:00:00 (default for ETH, node id RANDOM)
+"""),
+    ('n4', 'returns', 0,
+"""
+Available OAM return interfaces:
+  oam1 mac 00:00:00:00:00:00 (default for ETH, node id RANDOM)
+"""),
     ('n1', 'ping s1n1-e4-01 s1n2-i3-12 3', 2,
 """
 OAM request ping session <session> seq 0, s1n1-e4-01 -> s1n2-i3-12 level 3 count 1 interval 1000, rr: no os: no	[reply to mac 00:00:00:00:00:00]
   oam_r s1:<session> seq 0 lvl 3 R - ping on stream s1 target s1n2-i3-12; reply from s1n2-i3-12
-"""
-     ),
-
+"""),
     ('n1', 'ping@oam1 s1n1-e4-01 s1n2-i3-12 3', 3,
 """
 OAM request ping session <session> seq 0, s1n1-e4-01 -> s1n2-i3-12 level 3 count 1 interval 1000, rr: no os: no	[reply to mac 00:00:00:00:00:00]
   oam_r s1:<session> seq 0 lvl 3 R - ping on stream s1 target s1n2-i3-12; reply from s1n2-i3-12
-"""
-     ),
-
-
+"""),
     ('n1', 'ping s1n1-e4-01 s1n2-i3-12 3 -n 3', 4,
 """
 OAM request ping session <session> seq 0, s1n1-e4-01 -> s1n2-i3-12 level 3 count 3 interval 1000, rr: no os: no	[reply to mac 00:00:00:00:00:00]
   oam_r s1:<session> seq 0 lvl 3 R - ping on stream s1 target s1n2-i3-12; reply from s1n2-i3-12
-"""
-     ),
-
-
+"""),
     ('n1', 'ping s1n1-e4-01 s1n3-i4-23 4', 5,
 """
 OAM request ping session <session> seq 0, s1n1-e4-01 -> s1n3-i4-23 level 4 count 1 interval 1000, rr: no os: no	[reply to mac 00:00:00:00:00:00]
   oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target s1n3-i4-23; reply from s1n3-i4-23
-"""
-     ),
-
+"""),
     ('n1', 'ping s1n1-e4-01 s1n4-i4-34 4', 6,
 """
 OAM request ping session <session> seq 0, s1n1-e4-01 -> s1n4-i4-34 level 4 count 1 interval 1000, rr: no os: no	[reply to mac 00:00:00:00:00:00]
   oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target s1n4-i4-34; reply from s1n4-i4-34
-"""
-     ),
-
+"""),
     ('n1', 'ping s1n1-e4-01 s1n4-e4-40 4 -o', 7,
 """
 OAM request ping session <session> seq 0, s1n1-e4-01 -> s1n4-e4-40 level 4 count 1 interval 1000, rr: no os: yes	[reply to mac 00:00:00:00:00:00]
@@ -159,16 +200,12 @@ OAM request ping session <session> seq 0, s1n1-e4-01 -> s1n4-e4-40 level 4 count
 		latent_error_paths 2, latent_error_resets 0, latent_errors 0
 		latest_valid_sequence_number 0, passed 0, discarded 0
 		number_of_resets 1
-"""
-     ),
-
+"""),
     ('n1', 'ping s1n1-e4-01 s1n4-e4-40 4 -d', 8,
 """
 OAM request ping session <session> seq 0, s1n1-e4-01 -> s1n4-e4-40 level 4 count 1 interval 1000, rr: no os: no	[reply to mac 00:00:00:00:00:00]
   oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target s1n4-e4-40; reply from s1n4-e4-40 delay 0
-"""
-     ),
-
+"""),
     ('n1', 'ping s1n1-e4-01 any 4', 9,
 """
 OAM request ping session <session> seq 0, s1n1-e4-01 -> any level 4 count 1 interval 1000, rr: no os: no	[reply to mac 00:00:00:00:00:00]
@@ -178,33 +215,25 @@ OAM request ping session <session> seq 0, s1n1-e4-01 -> any level 4 count 1 inte
   oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n4-e4-40
   oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n3-i4-13
   oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n4-i4-24
-"""
-     ),
-
+"""),
     ('n1', 'ping s1n1-e4-01 s1n4-i4-24 4 -r', 10,
 """
 OAM request ping session <session> seq 0, s1n1-e4-01 -> s1n4-i4-24 level 4 count 1 interval 1000, rr: yes os: no	[reply to mac 00:00:00:00:00:00]
   oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target s1n4-i4-24; reply from s1n4-i4-24
 	Record Route: [ s1n1-e4-01 s1n4-i4-24 ]
-"""
-     ),
-
+"""),
     ('n1', 'ping s1n1-e4-01 s1n4-e4-40 4 -r', 11,
 """
 OAM request ping session <session> seq 0, s1n1-e4-01 -> s1n4-e4-40 level 4 count 1 interval 1000, rr: yes os: no	[reply to mac 00:00:00:00:00:00]
   oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target s1n4-e4-40; reply from s1n4-e4-40
 	Record Route: [ s1n1-e4-01 s1n3-i4-23 s1n3-i4-34 s1n4-i4-34 s1n4-e4-40 ]
-"""
-    ),
-
+"""),
     ('n1', 'ping@oam1 s1n1-e4-01 s1n4-e4-40 4 -r', 12,
 """
 OAM request ping session <session> seq 0, s1n1-e4-01 -> s1n4-e4-40 level 4 count 1 interval 1000, rr: yes os: no	[reply to mac 00:00:00:00:00:00]
   oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target s1n4-e4-40; reply from s1n4-e4-40
 	Record Route: [ s1n1-e4-01 s1n3-i4-23 s1n3-i4-34 s1n4-i4-34 s1n4-e4-40 ]
-"""
-    ),
-
+"""),
     ('n1', 'ping s1n1-e4-01 any 4 -r', 13,
 """
 OAM request ping session 13 seq 0, s1n1-e4-01 -> any level 4 count 1 interval 1000, rr: yes os: no	[reply to mac 00:00:00:00:00:00]
@@ -221,9 +250,7 @@ OAM request ping session 13 seq 0, s1n1-e4-01 -> any level 4 count 1 interval 10
   oam_r s1:13 seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n4-i4-24
 	Record Route: [ s1n1-e4-01 s1n4-i4-24 ]
 """),
-
-    (
-        'n1', 'rlist s1n1-e4-01 any 4', 14,
+    ('n1', 'rlist s1n1-e4-01 any 4', 14,
 """
 OAM request rlist session <session> seq 0, s1n1-e4-01 -> any level 4 count 1 interval 1000, rr: no os: no	[reply to mac 00:00:00:00:00:00]
 Rlist result from s1n3-i4-23:
@@ -252,11 +279,8 @@ s1n3-i4-34
 Rlist result from s1n4-i4-24:
 s1n4-i4-24
 s1n4-i4-34
-"""
-    ),
-
-    (
-        'n1', 'rlist s1n1-e4-01 any 3', 15,
+"""),
+    ('n1', 'rlist s1n1-e4-01 any 3', 15,
 """
 OAM request rlist session <session> seq 0, s1n1-e4-01 -> any level 3 count 1 interval 1000, rr: no os: no	[reply to mac 00:00:00:00:00:00]
 Rlist result from s1n2-i3-12:
@@ -270,132 +294,100 @@ s1n3-i4-34
 Rlist result from s1n4-e3-24:
 s1n4-i4-24
 s1n4-i4-34
-"""
-    ),
-    (
-        'n1', 'rping s1n1-e4-01 s1n3-i4-13 4 s1n3-i4-13 any 4', 0,
+"""),
+    ('n1', 'rping s1n1-e4-01 s1n3-i4-13 4 s1n3-i4-13 any 4', 0,
 """
 OAM request rping session <session> seq 0, s1n1-e4-01 -> s1n3-i4-13 level 4 count 1 interval 1000, rr: no os: no	[reply to mac 00:00:00:00:00:00]
   oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n3-i4-34
   oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n4-i4-34
   oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n4-e4-40
-"""
-    ),
-
-    (
-        'n1', 'rping s1n1-e4-01 s1n3-i4-13 4 s1n3-i4-34 any 4', 2,
+"""),
+    ('n1', 'rping s1n1-e4-01 s1n3-i4-13 4 s1n3-i4-34 any 4', 2,
 """
 OAM request rping session <session> seq 0, s1n1-e4-01 -> s1n3-i4-13 level 4 count 1 interval 1000, rr: no os: no	[reply to mac 00:00:00:00:00:00]
   oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n4-i4-34
   oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n4-e4-40
-"""
-    ),
-
-    (
-        'n1', 'rping s1n1-e4-01 s1n3-i4-34 4 s1n3-i4-13 any 4', 3,
+"""),
+    ('n1', 'rping s1n1-e4-01 s1n3-i4-34 4 s1n3-i4-13 any 4', 3,
 """
 OAM request rping session <session> seq 0, s1n1-e4-01 -> s1n3-i4-34 level 4 count 1 interval 1000, rr: no os: no	[reply to mac 00:00:00:00:00:00]
   oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n3-i4-34
   oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n4-i4-34
   oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n4-e4-40
-"""
-    ),
-
-    (
-        'n1', 'rping s1n1-e4-01 s1n3-i4-34 4 s1n3-i4-34 any 4', 4,
+"""),
+    ('n1', 'rping s1n1-e4-01 s1n3-i4-34 4 s1n3-i4-34 any 4', 4,
 """
 OAM request rping session <session> seq 0, s1n1-e4-01 -> s1n3-i4-34 level 4 count 1 interval 1000, rr: no os: no	[reply to mac 00:00:00:00:00:00]
   oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n4-i4-34
   oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n4-e4-40
-"""
-    ),
-
-    (
-        'n1', 'rping nonexistentmp s1n3-i4-13 4 s1n3-i4-34 any 4', 0,
+"""),
+    ('n1', 'rping nonexistentmp s1n3-i4-13 4 s1n3-i4-34 any 4', 0,
 """
 Error: rping command is invalid: rping start 'nonexistentmp' invalid
-"""
-    ),
-
-    (
-        'n4', 'ping s2n4-e5-04 s2n1-i5-21 5', 2,
+"""),
+    ('n4', 'ping s2n4-e5-04 s2n1-i5-21 5', 2,
 """
 OAM request ping session <session> seq 0, s2n4-e5-04 -> s2n1-i5-21 level 5 count 1 interval 1000, rr: no os: no	[reply to mac 00:00:00:00:00:00]
   oam_r s2:<session> seq 0 lvl 5 R - ping on stream s2 target s2n1-i5-21; reply from s2n1-i5-21
-"""
-    ),
-    (
-        'n4', 'ping s2n4-e5-04 s2n1-i5-31 5', 3,
+"""),
+    ('n4', 'ping s2n4-e5-04 s2n1-i5-31 5', 3,
 """
 OAM request ping session <session> seq 0, s2n4-e5-04 -> s2n1-i5-31 level 5 count 1 interval 1000, rr: no os: no	[reply to mac 00:00:00:00:00:00]
   oam_r s2:<session> seq 0 lvl 5 R - ping on stream s2 target s2n1-i5-31; reply from s2n1-i5-31
-"""
-    ),
-    (
-        'n4', 'ping s2n4-e5-04 s2n1-e5-10 5', 4,
+"""),
+    ('n4', 'ping s2n4-e5-04 s2n1-e5-10 5', 4,
 """
 OAM request ping session <session> seq 0, s2n4-e5-04 -> s2n1-e5-10 level 5 count 1 interval 1000, rr: no os: no	[reply to mac 00:00:00:00:00:00]
   oam_r s2:<session> seq 0 lvl 5 R - ping on stream s2 target s2n1-e5-10; reply from s2n1-e5-10
-"""
-    ),
-
-    (
-        'n1', 'ping s3n1-e4-01 any 4', 2,
+"""),
+    ('n1', 'ping s3n1-e4-01 any 4', 2,
 """
 OAM request ping session <session> seq 0, s3n1-e4-01 -> any level 4 count 1 interval 1000, rr: no os: no	[reply to mac 00:00:00:00:00:00]
   oam_r s3:<session> seq 0 lvl 4 R - ping on stream s3 target any; reply from s3n3-i4-13
   oam_r s3:<session> seq 0 lvl 4 R - ping on stream s3 target any; reply from s3n4-i4-34
   oam_r s3:<session> seq 0 lvl 4 R - ping on stream s3 target any; reply from s3n4-e4-40
   oam_r s3:<session> seq 0 lvl 4 R - ping on stream s3 target any; reply from s3n4-i4-24
-"""
-    ),
-    (
-        'n3', 'ping s3n3-e1-32 any 1', 1,
+"""),
+    ('n3', 'ping s3n3-e1-32 any 1', 1,
 """
 OAM request ping session <session> seq 0, s3n3-e1-32 -> any level 1 count 1 interval 1000, rr: no os: no	[reply to mac 00:00:00:00:00:00]
   oam_r tx332:<session> seq 0 lvl 1 R - ping on stream tx332 target any; reply from s3n4-e1-24
-"""
-    ),
-
-    (
-        'n1', 'rping s1n1-e4-01 nonexistentmp 4 s1n3-i4-34 any 4', 5,
+"""),
+    ('n1', 'rping s1n1-e4-01 nonexistentmp 4 s1n3-i4-34 any 4', 5,
 """
 OAM request rping session <session> seq 0, s1n1-e4-01 -> nonexistentmp level 4 count 1 interval 1000, rr: no os: no	[reply to mac 00:00:00:00:00:00]
-"""
-    ),
-
-    (
-        'n1', 'rping s1n1-e4-01 s1n3-i4-13 4 s1n3-i4-34 nonexistentmp 4', 6,
+"""),
+    ('n1', 'rping s1n1-e4-01 s1n3-i4-13 4 s1n3-i4-34 nonexistentmp 4', 6,
 """
 OAM request rping session <session> seq 0, s1n1-e4-01 -> s1n3-i4-13 level 4 count 1 interval 1000, rr: no os: no	[reply to mac 00:00:00:00:00:00]
-"""
-    ),
-
-    (
-        'n1', 'rping s1n1-e4-01 s1n3-i4-13 4 nonexistentmp any 4', 7,
+"""),
+    ('n1', 'rping s1n1-e4-01 s1n3-i4-13 4 nonexistentmp any 4', 7,
 """
 OAM request rping session <session> seq 0, s1n1-e4-01 -> s1n3-i4-13 level 4 count 1 interval 1000, rr: no os: no	[reply to mac 00:00:00:00:00:00]
 Rping error from s1n3-i4-13 : could not create ping request: ping start 'nonexistentmp' invalid
-"""
-    ),
-
-    (
-        'n1', 'sessions', 0, # note: exiting telnet clears the associated sessions
+"""),
+    ('n1', 'sessions', 0, # note: exiting telnet clears the associated sessions
 """
 Stream s1 sessions:
     1 ping s1n1-e4-01 -> s1n4-e3-24 level 3 connection <background> sent 0 recv 0
 Stream s3 sessions:
     1 ping s3n1-e4-01 -> s3n4-e4-40 level 4 connection <background> sent 0 recv 0
-"""
-    ),
-
-    (
-        'n1', 'sessions s3', 0, # note: exiting telnet clears the associated sessions
+"""),
+    ('n1', 'sessions s3', 0, # note: exiting telnet clears the associated sessions
 """
 Stream s3 sessions:
     1 ping s3n1-e4-01 -> s3n4-e4-40 level 4 connection <background> sent 0 recv 0
+"""),
+    ('n1', 'ping s3n1-e4-01 s3n4-i4-34 4 -b', 3,
 """
-    ),
+OAM request ping session <session> seq 0, s3n1-e4-01 -> s3n4-i4-34 level 4 count 0 interval 1000, rr: no os: no background	[reply to mac 00:00:00:00:00:00]
+"""),
+    ('n1', 'sessions s3', 0, # note: exiting telnet clears the associated sessions
+"""
+Stream s3 sessions:
+    1 ping s3n1-e4-01 -> s3n4-e4-40 level 4 connection <background> sent 0 recv 0
+    3 ping s3n1-e4-01 -> s3n4-i4-34 level 4 connection <background> sent 0 recv 0
+"""),
 ]
 
 #TODO also check that they have the correct address
@@ -683,22 +675,28 @@ def run_tests(net, test):
             reply = re.sub(r'sent \d+ recv \d+',
                     r'sent 0 recv 0',
                     reply)
-            # sometimes the reset counter is 0 (TODO when is the reset supposed to happen?)
+            # the reset counter can be 0 or 1 depending on startup speed
             reply = re.sub(r'number_of_resets \d', r'number_of_resets 1', reply)
             # mac addresses are random
-            reply = re.sub(r'reply to mac ([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}',
-                   r'reply to mac 00:00:00:00:00:00',
-                   reply)
+            reply = re.sub(r'mac ([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}',
+                    r'mac 00:00:00:00:00:00',
+                    reply)
+            reply = re.sub(r'node id \d+',
+                    r'node id RANDOM',
+                    reply)
             if reply.strip() == expected_reply.strip():
                 success += 1
                 print("✔")
             else:
                 print("✘ FAILED: OAM reply different")
                 print(f"Actual reply:\n{reply}\nExpected reply:\n{expected_reply}\n")
+                dead_count = 0
                 for rr in r2dtwos:
-                    if rr.poll() == None:
+                    if rr.poll() != None:
                         print(f"r2dtwo '{rr.args}' has died\n")
-                return False
+                        dead_count += 1
+                if dead_count > 0:
+                    return False
 
     switch_netns()
     if auto_mip_test():
