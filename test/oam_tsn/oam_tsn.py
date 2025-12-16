@@ -75,13 +75,13 @@ def config_net(net):
     l.cmd("ethtool -K eth0 tx off rx off")
 
     # delay
-    n1.cmd("tc qdisc add dev eth13 root netem delay 20ms")
-    n1.cmd("tc qdisc add dev eth12 root netem delay 1ms")
-    n2.cmd("tc qdisc add dev eth24 root netem delay 20ms")
-    n2.cmd("tc qdisc add dev eth23 root netem delay 2ms")
-    n2.cmd("tc qdisc add dev eth21 root netem delay 2ms")
-    n3.cmd("tc qdisc add dev eth31 root netem delay 3ms")
-    n4.cmd("tc qdisc add dev eth43 root netem delay 4ms")
+    n1.cmd("tc qdisc add dev eth13 root netem delay 30ms")
+    n1.cmd("tc qdisc add dev eth12 root netem delay 5ms")
+    n2.cmd("tc qdisc add dev eth24 root netem delay 30ms")
+    n2.cmd("tc qdisc add dev eth23 root netem delay 5ms")
+    n2.cmd("tc qdisc add dev eth21 root netem delay 5ms")
+    n3.cmd("tc qdisc add dev eth31 root netem delay 10ms")
+    n4.cmd("tc qdisc add dev eth43 root netem delay 15ms")
     # n3.cmd("tc qdisc add dev eth34 root netem delay 10ms")
 
     # Create the Linux bridge
