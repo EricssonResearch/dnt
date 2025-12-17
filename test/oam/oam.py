@@ -131,7 +131,7 @@ s1n2-i3-12 in rx12 type MIP level 3 PseudoWire (pipe rx12 idx 2)
 Available MEP Start points:
 s1n3-i4-13 in rx113 type MIP level 4 PseudoWire (pipe rx113 idx 2)
 s1n3-i4-23 in rx123 type MIP level 4 PseudoWire (pipe rx123 idx 3)
-s1n3-i4-34 in s1rx_cont type MIP level 4 PseudoWire (pipe rx113 idx 6)
+s1n3-i4-34 in s1rx_cont type MIP level 4 PseudoWire (pipe rx123 idx 7)
 s3n3-e1-32 in tx332 type MEP-Start level 1 PseudoWire (pipe tx332 idx 0)
 s3n3-i4-13 in rx313 type MIP level 4 PseudoWire (pipe rx313 idx 2)
 """),
@@ -416,16 +416,16 @@ def auto_mip_test():
     expected_list = """Available MEP Start points:
 o_Eeditafter2_L5_pre-EforEditAfter in Eeditafter2 type MIP level 5 PseudoWire (pipe Eeditafter2 idx 3)
 o_Eeditafter3_L5_pre-EforEditAfter in Eeditafter3 type MIP level 5 PseudoWire (pipe Eeditafter3 idx 3)
-o_Eeditafter_L5_post-EforEditAfter in Eeditafter type MIP level 5 PseudoWire (pipe Eeditafter2 idx 6)
+o_Eeditafter_L5_post-EforEditAfter in Eeditafter type MIP level 5 PseudoWire (pipe Eeditafter3 idx 6)
 o_Eeditbefore2_L4_pre-EforEditBefore in Eeditbefore2 type MIP level 4 PseudoWire (pipe Eeditbefore2 idx 4)
 o_Eeditbefore3_L4_pre-EforEditBefore in Eeditbefore3 type MIP level 4 PseudoWire (pipe Eeditbefore3 idx 4)
-o_Eeditbefore_L4_post-EforEditBefore in Eeditbefore type MIP level 4 PseudoWire (pipe Eeditbefore2 idx 7)
+o_Eeditbefore_L4_post-EforEditBefore in Eeditbefore type MIP level 4 PseudoWire (pipe Eeditbefore3 idx 7)
 o_Ematch2_L3_pre-EforMatch in Ematch2 type MIP level 3 PseudoWire (pipe Ematch2 idx 4)
 o_Ematch3_L3_pre-EforMatch in Ematch3 type MIP level 3 PseudoWire (pipe Ematch3 idx 4)
-o_Ematch_L3_post-EforMatch in Ematch type MIP level 3 PseudoWire (pipe Ematch2 idx 7)
+o_Ematch_L3_post-EforMatch in Ematch type MIP level 3 PseudoWire (pipe Ematch3 idx 7)
 o_Enoaddr2_L6_pre-EforNoAddr in Enoaddr2 type MIP level 6 PseudoWire (pipe Enoaddr2 idx 3) CAN'T SEND
 o_Enoaddr3_L6_pre-EforNoAddr in Enoaddr3 type MIP level 6 PseudoWire (pipe Enoaddr3 idx 3) CAN'T SEND
-o_Enoaddr_L6_post-EforNoAddr in Enoaddr type MIP level 6 PseudoWire (pipe Enoaddr2 idx 6) CAN'T SEND
+o_Enoaddr_L6_post-EforNoAddr in Enoaddr type MIP level 6 PseudoWire (pipe Enoaddr3 idx 6) CAN'T SEND
 o_Reditafter1_L5_post-RforEditAfter in Reditafter1 type MIP level 5 PseudoWire (pipe Reditafter1 idx 1)
 o_Reditafter2_L5_post-RforEditAfter in Reditafter2 type MIP level 5 PseudoWire (pipe Reditafter2 idx 1)
 o_Reditafter_L5_pre-RforEditAfter in Reditafter type MIP level 5 PseudoWire (pipe Reditafter idx 4)

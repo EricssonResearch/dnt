@@ -82,6 +82,10 @@ struct OAM_MaintenancePoint *oam_new_maintenance_point(const char *stream_name, 
 // @mp is deleted when its reference count reaches zero
 void oam_unref_maintenance_point(struct OAM_MaintenancePoint *mp);
 
+// notify OAM about the deletion of @pipe so MPs don't want to inject into it
+// note: it might happen that some MPs won't be able to send after this
+void oam_pipeline_deleted(struct Pipeline *pipe);
+
 // MP has counter for non-OAM packets
 void oam_mp_count_data_packet(struct OAM_MaintenancePoint *mp, unsigned len);
 

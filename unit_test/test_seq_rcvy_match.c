@@ -53,6 +53,8 @@ void oam_automip_start_mask_session(const char *mip_name);
 void oam_automip_start_mask_session(const char *mip_name) { (void)mip_name; }
 void oam_automip_stop_mask_session(const char *mip_name);
 void oam_automip_stop_mask_session(const char *mip_name) { (void)mip_name; }
+void oam_pipeline_deleted(struct Pipeline *pipe);
+void oam_pipeline_deleted(struct Pipeline *pipe) { (void)pipe; }
 // XXX end stubs
 
 static const unsigned history_length = 64; // must be 2^n

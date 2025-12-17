@@ -129,7 +129,7 @@ s2n2-i5-21 in s2_rx42 type MIP level 5 TSN (pipe s2_rx42 idx 1)
 Available MEP Start points:
 s1n3-i4-13 in rx113 type MIP level 4 TSN (pipe rx113 idx 1)
 s1n3-i4-23 in rx123 type MIP level 4 TSN (pipe rx123 idx 2)
-s1n3-i4-34 in s1rx_cont type MIP level 4 TSN (pipe rx113 idx 5)
+s1n3-i4-34 in s1rx_cont type MIP level 4 TSN (pipe rx123 idx 6)
 s2n3-i5-31 in rx243 type MIP level 5 TSN (pipe rx243 idx 1)
 s3n3-e1-32 in tx332 type MEP-Start level 1 TSN (pipe tx332 idx 0)
 s3n3-i4-13 in rx313 type MIP level 4 TSN (pipe rx313 idx 1)
@@ -399,52 +399,52 @@ def auto_mip_test():
     expected_list = """Available MEP Start points:
 o_Eafter_after2_L4_pre-Eaa in Eafter_after2 type MIP level 4 TSN (pipe Eafter_after2 idx 2)
 o_Eafter_after3_L4_pre-Eaa in Eafter_after3 type MIP level 4 TSN (pipe Eafter_after3 idx 2)
-o_Eafter_after_L4_post-Eaa in Eafter_after type MIP level 4 TSN (pipe Eafter_after2 idx 5)
+o_Eafter_after_L4_post-Eaa in Eafter_after type MIP level 4 TSN (pipe Eafter_after3 idx 5)
 o_Eafter_before2_L4_pre-Eab in Eafter_before2 type MIP level 4 TSN (pipe Eafter_before2 idx 3)
 o_Eafter_before3_L4_pre-Eab in Eafter_before3 type MIP level 4 TSN (pipe Eafter_before3 idx 3)
-o_Eafter_before_L4_post-Eab in Eafter_before type MIP level 4 TSN (pipe Eafter_before2 idx 6)
+o_Eafter_before_L4_post-Eab in Eafter_before type MIP level 4 TSN (pipe Eafter_before3 idx 6)
 o_Eafter_match2_L4_pre-Eam in Eafter_match2 type MIP level 4 TSN (pipe Eafter_match2 idx 2)
 o_Eafter_match3_L4_pre-Eam in Eafter_match3 type MIP level 4 TSN (pipe Eafter_match3 idx 2)
-o_Eafter_match_L4_post-Eam in Eafter_match type MIP level 4 TSN (pipe Eafter_match2 idx 5)
+o_Eafter_match_L4_post-Eam in Eafter_match type MIP level 4 TSN (pipe Eafter_match3 idx 5)
 o_Eafter_missing2_L4_pre-Eax in Eafter_missing2 type MIP level 4 TSN (pipe Eafter_missing2 idx 2) CAN'T SEND
 o_Eafter_missing3_L4_pre-Eax in Eafter_missing3 type MIP level 4 TSN (pipe Eafter_missing3 idx 2) CAN'T SEND
-o_Eafter_missing_L4_post-Eax in Eafter_missing type MIP level 4 TSN (pipe Eafter_missing2 idx 5) CAN'T SEND
+o_Eafter_missing_L4_post-Eax in Eafter_missing type MIP level 4 TSN (pipe Eafter_missing3 idx 5) CAN'T SEND
 o_Ebefore_after2_L4_pre-Eba in Ebefore_after2 type MIP level 4 TSN (pipe Ebefore_after2 idx 3)
 o_Ebefore_after3_L4_pre-Eba in Ebefore_after3 type MIP level 4 TSN (pipe Ebefore_after3 idx 3)
-o_Ebefore_after_L4_post-Eba in Ebefore_after type MIP level 4 TSN (pipe Ebefore_after2 idx 6)
+o_Ebefore_after_L4_post-Eba in Ebefore_after type MIP level 4 TSN (pipe Ebefore_after3 idx 6)
 o_Ebefore_before2_L4_pre-Ebb in Ebefore_before2 type MIP level 4 TSN (pipe Ebefore_before2 idx 3)
 o_Ebefore_before3_L4_pre-Ebb in Ebefore_before3 type MIP level 4 TSN (pipe Ebefore_before3 idx 3)
-o_Ebefore_before_L4_post-Ebb in Ebefore_before type MIP level 4 TSN (pipe Ebefore_before2 idx 6)
+o_Ebefore_before_L4_post-Ebb in Ebefore_before type MIP level 4 TSN (pipe Ebefore_before3 idx 6)
 o_Ebefore_match2_L4_pre-Ebm in Ebefore_match2 type MIP level 4 TSN (pipe Ebefore_match2 idx 3)
 o_Ebefore_match3_L4_pre-Ebm in Ebefore_match3 type MIP level 4 TSN (pipe Ebefore_match3 idx 3)
-o_Ebefore_match_L4_post-Ebm in Ebefore_match type MIP level 4 TSN (pipe Ebefore_match2 idx 6)
+o_Ebefore_match_L4_post-Ebm in Ebefore_match type MIP level 4 TSN (pipe Ebefore_match3 idx 6)
 o_Ebefore_missing2_L4_pre-Ebx in Ebefore_missing2 type MIP level 4 TSN (pipe Ebefore_missing2 idx 3) CAN'T SEND
 o_Ebefore_missing3_L4_pre-Ebx in Ebefore_missing3 type MIP level 4 TSN (pipe Ebefore_missing3 idx 3) CAN'T SEND
-o_Ebefore_missing_L4_post-Ebx in Ebefore_missing type MIP level 4 TSN (pipe Ebefore_missing2 idx 6) CAN'T SEND
+o_Ebefore_missing_L4_post-Ebx in Ebefore_missing type MIP level 4 TSN (pipe Ebefore_missing3 idx 6) CAN'T SEND
 o_Ematch_after2_L4_pre-Ema in Ematch_after2 type MIP level 4 TSN (pipe Ematch_after2 idx 2)
 o_Ematch_after3_L4_pre-Ema in Ematch_after3 type MIP level 4 TSN (pipe Ematch_after3 idx 2)
-o_Ematch_after_L4_post-Ema in Ematch_after type MIP level 4 TSN (pipe Ematch_after2 idx 5)
+o_Ematch_after_L4_post-Ema in Ematch_after type MIP level 4 TSN (pipe Ematch_after3 idx 5)
 o_Ematch_before2_L4_pre-Emb in Ematch_before2 type MIP level 4 TSN (pipe Ematch_before2 idx 3)
 o_Ematch_before3_L4_pre-Emb in Ematch_before3 type MIP level 4 TSN (pipe Ematch_before3 idx 3)
-o_Ematch_before_L4_post-Emb in Ematch_before type MIP level 4 TSN (pipe Ematch_before2 idx 6)
+o_Ematch_before_L4_post-Emb in Ematch_before type MIP level 4 TSN (pipe Ematch_before3 idx 6)
 o_Ematch_match2_L4_pre-Emm in Ematch_match2 type MIP level 4 TSN (pipe Ematch_match2 idx 2)
 o_Ematch_match3_L4_pre-Emm in Ematch_match3 type MIP level 4 TSN (pipe Ematch_match3 idx 2)
-o_Ematch_match_L4_post-Emm in Ematch_match type MIP level 4 TSN (pipe Ematch_match2 idx 5)
+o_Ematch_match_L4_post-Emm in Ematch_match type MIP level 4 TSN (pipe Ematch_match3 idx 5)
 o_Ematch_missing2_L4_pre-Ema in Ematch_missing2 type MIP level 4 TSN (pipe Ematch_missing2 idx 2) CAN'T SEND
 o_Ematch_missing3_L4_pre-Ema in Ematch_missing3 type MIP level 4 TSN (pipe Ematch_missing3 idx 2) CAN'T SEND
-o_Ematch_missing_L4_post-Ema in Ematch_missing type MIP level 4 TSN (pipe Ematch_missing2 idx 5) CAN'T SEND
+o_Ematch_missing_L4_post-Ema in Ematch_missing type MIP level 4 TSN (pipe Ematch_missing3 idx 5) CAN'T SEND
 o_Emissing_after2_L4_pre-Exa in Emissing_after2 type MIP level 4 TSN (pipe Emissing_after2 idx 2)
 o_Emissing_after3_L4_pre-Exa in Emissing_after3 type MIP level 4 TSN (pipe Emissing_after3 idx 2)
-o_Emissing_after_L4_post-Exa in Emissing_after type MIP level 4 TSN (pipe Emissing_after2 idx 5)
+o_Emissing_after_L4_post-Exa in Emissing_after type MIP level 4 TSN (pipe Emissing_after3 idx 5)
 o_Emissing_before2_L4_pre-Exb in Emissing_before2 type MIP level 4 TSN (pipe Emissing_before2 idx 3)
 o_Emissing_before3_L4_pre-Exb in Emissing_before3 type MIP level 4 TSN (pipe Emissing_before3 idx 3)
-o_Emissing_before_L4_post-Exb in Emissing_before type MIP level 4 TSN (pipe Emissing_before2 idx 6)
+o_Emissing_before_L4_post-Exb in Emissing_before type MIP level 4 TSN (pipe Emissing_before3 idx 6)
 o_Emissing_match2_L4_pre-Exm in Emissing_match2 type MIP level 4 TSN (pipe Emissing_match2 idx 2)
 o_Emissing_match3_L4_pre-Exm in Emissing_match3 type MIP level 4 TSN (pipe Emissing_match3 idx 2)
-o_Emissing_match_L4_post-Exm in Emissing_match type MIP level 4 TSN (pipe Emissing_match2 idx 5)
+o_Emissing_match_L4_post-Exm in Emissing_match type MIP level 4 TSN (pipe Emissing_match3 idx 5)
 o_Emissing_missing2_L4_pre-Exx in Emissing_missing2 type MIP level 4 TSN (pipe Emissing_missing2 idx 2) CAN'T SEND
 o_Emissing_missing3_L4_pre-Exx in Emissing_missing3 type MIP level 4 TSN (pipe Emissing_missing3 idx 2) CAN'T SEND
-o_Emissing_missing_L4_post-Exx in Emissing_missing type MIP level 4 TSN (pipe Emissing_missing2 idx 5) CAN'T SEND
+o_Emissing_missing_L4_post-Exx in Emissing_missing type MIP level 4 TSN (pipe Emissing_missing3 idx 5) CAN'T SEND
 o_Rafter_after_L3_pre-Raa in Rafter_after type MIP level 3 TSN (pipe Rafter_after idx 2)
 o_Rafter_before_L3_pre-Rab in Rafter_before type MIP level 3 TSN (pipe Rafter_before idx 3)
 o_Rafter_match_L3_pre-Ram in Rafter_match type MIP level 3 TSN (pipe Rafter_match idx 2)

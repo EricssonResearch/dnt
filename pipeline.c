@@ -8,6 +8,7 @@
 #include "json.h"
 #include "log.h"
 #include "notification.h"
+#include "oam.h"
 #include "utils.h"
 
 #include <stdlib.h>
@@ -50,6 +51,7 @@ void pipeline_unref(struct Pipeline *pipe)
     int refcount = __atomic_sub_fetch(&pipe->reference_count, 1, __ATOMIC_RELAXED);
 
     if (refcount == 0) {
+        oam_pipeline_deleted(pipe);
         unref_send_interfaces(pipe);
         for (unsigned i=0; i<pipe->action_count; i++) {
             delete_action(pipe->actions+i);

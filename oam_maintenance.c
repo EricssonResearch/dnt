@@ -18,6 +18,8 @@
 #include "if_oam.h"
 #include "interface.h"
 
+#include <pthread.h>
+
 #include <stdlib.h>
 #include <arpa/inet.h>        // inet_pton()
 #include <netinet/icmp6.h>    // ICMP6_ECHO_REQUEST
@@ -45,6 +47,12 @@ struct MP_TSN_Address {
     enum OAM_MP_Addr_Source vlan_source;
 };
 
+struct InjectionPoint {
+    struct Pipeline *pipe;
+    int pipe_pos_idx;
+    struct InjectionPoint *next;
+};
+
 struct OAM_MaintenancePoint {
     char *name;
     char *stream_name;
@@ -54,8 +62,7 @@ struct OAM_MaintenancePoint {
 
     int reference_count;
 
-    struct Pipeline *pipe;
-    int pipe_pos_idx;
+    struct InjectionPoint *injections;
 
     const enum ProtocolID *protostack;
     union {
@@ -79,6 +86,7 @@ struct OAM_MaintenancePoint {
 
 // note: this hash doesn't hold reference to the MPs in it
 static struct HashMap *mp_hash = NULL; // name -> struct OAM_MaintenancePoint
+static pthread_mutex_t mp_hash_lock = PTHREAD_MUTEX_INITIALIZER;
 
 
 static int mp_delete_cb(const char *key, void *value, void *userdata)
@@ -917,6 +925,8 @@ struct OAM_MaintenancePoint *oam_new_maintenance_point(const char *stream_name, 
         struct OAM_MP_Address *addr)
 {
     struct OAM_MaintenancePoint *mp = NULL;
+
+    pthread_mutex_lock(&mp_hash_lock);
     if (mp_hash == NULL) {
         mp_hash = new_hashmap(13, mp_delete_cb, NULL);
     } else {
@@ -928,12 +938,14 @@ struct OAM_MaintenancePoint *oam_new_maintenance_point(const char *stream_name, 
             if (level != mp->level) {
                 log_error("Redefined MP '%s' with level %u previous level %u",
                         mp_name, level, mp->level);
+                pthread_mutex_unlock(&mp_hash_lock);
                 return NULL;
             }
 
             if (type != mp->type) {
                 log_error("Redefined MP '%s' with type %s previous type %s",
                         mp_name, oam_mp_type_to_str(type), oam_mp_type_to_str(mp->type));
+                pthread_mutex_unlock(&mp_hash_lock);
                 return NULL;
             }
 
@@ -947,25 +959,39 @@ struct OAM_MaintenancePoint *oam_new_maintenance_point(const char *stream_name, 
                 log_error("Redefined MP '%s' with object '%s' previous object '%s'",
                         mp_name, pipelineobject_get_name(obj), pipelineobject_get_name(mp->object));
             }
+            pthread_mutex_unlock(&mp_hash_lock);
             return NULL;
         }
 
         if (strcmp(stream_name, mp->stream_name) != 0) {
             log_error("MP '%s' defined twice, in streams '%s' and '%s'",
                     mp_name, mp->stream_name, stream_name);
+            pthread_mutex_unlock(&mp_hash_lock);
             return NULL;
         }
 
-        if (pipe != NULL && mp->pipe == NULL) {
-            mp->pipe = pipe;
-            mp->pipe_pos_idx = idx;
+        // note it's impossible to be in the same pipe with multiple indices
+        if (pipe) {
+            struct InjectionPoint *point = mp->injections;
+            while (point) {
+                if (point->pipe == pipe)
+                    break;
+                point = point->next;
+            }
+            if (point == NULL) {
+                point = calloc_struct(InjectionPoint);
+                point->pipe = pipe;
+                point->pipe_pos_idx = idx;
+                point->next = mp->injections;
+                mp->injections = point;
+            }
         }
 
         set_mp_address(mp, addr);
 
         if (mp->object && mp->object->type == PO_REPL) {
             if (oam_is_automip_name(mp_name, 1)) {
-                if (mp->pipe && mp->pipe->mask) {
+                if (mp->injections && mp->injections->pipe->mask) {
                     mp_initiate_mask_signalling(mp, NULL);
                     log_debug("%s started mask signal on refcount increase", mp->name);
                 }
@@ -974,6 +1000,7 @@ struct OAM_MaintenancePoint *oam_new_maintenance_point(const char *stream_name, 
 
         int refcount = __atomic_add_fetch(&mp->reference_count, 1, __ATOMIC_RELAXED);
         log_debug("%s ref refcount %d", mp_name, refcount);
+        pthread_mutex_unlock(&mp_hash_lock);
         return mp;
     }
 
@@ -997,6 +1024,7 @@ struct OAM_MaintenancePoint *oam_new_maintenance_point(const char *stream_name, 
         default:
             log_error("%s '%s' unknown OAM protocol type",
                     oam_mp_type_to_str(type), mp_name);
+            pthread_mutex_unlock(&mp_hash_lock);
             return NULL;
     }
     mp->level = level;
@@ -1004,8 +1032,22 @@ struct OAM_MaintenancePoint *oam_new_maintenance_point(const char *stream_name, 
 
     mp->reference_count = 1;
 
-    mp->pipe = pipe;
-    mp->pipe_pos_idx = idx;
+    // note it's impossible to be in the same pipe with multiple indices
+    if (pipe) {
+        struct InjectionPoint *point = mp->injections;
+        while (point) {
+            if (point->pipe == pipe)
+                break;
+            point = point->next;
+        }
+        if (point == NULL) {
+            point = calloc_struct(InjectionPoint);
+            point->pipe = pipe;
+            point->pipe_pos_idx = idx;
+            point->next = mp->injections;
+            mp->injections = point;
+        }
+    }
 
     set_mp_address(mp, addr);
 
@@ -1032,9 +1074,8 @@ struct OAM_MaintenancePoint *oam_new_maintenance_point(const char *stream_name, 
     hashmap_insert(mp_hash, mp->name, mp);
     notification_register_source(mp_name, mp_notification_pull_fn, mp, 2000);
 
-
     log_debug("%s create refcount 1", mp_name);
-
+    pthread_mutex_unlock(&mp_hash_lock);
     return mp;
 }
 
@@ -1043,6 +1084,7 @@ void oam_unref_maintenance_point(struct OAM_MaintenancePoint *mp)
     int refcount = __atomic_sub_fetch(&mp->reference_count, 1, __ATOMIC_RELAXED);
     log_debug("%s unref refcount %d", mp->name, refcount);
 
+    pthread_mutex_lock(&mp_hash_lock);
     if (refcount == 0) {
         hashmap_remove(mp_hash, mp->name);
     }
@@ -1050,6 +1092,40 @@ void oam_unref_maintenance_point(struct OAM_MaintenancePoint *mp)
     if (hashmap_count(mp_hash) == 0) {
         mp_hash = delete_hashmap(mp_hash);
     }
+    pthread_mutex_unlock(&mp_hash_lock);
+}
+
+void oam_pipeline_deleted(struct Pipeline *pipe)
+{
+    pthread_mutex_lock(&mp_hash_lock);
+    if (mp_hash == NULL) {
+        pthread_mutex_unlock(&mp_hash_lock);
+        return;
+    }
+
+    HASHMAP_ITERATE(mp_hash, it) {
+        struct OAM_MaintenancePoint *mp = (struct OAM_MaintenancePoint *)hash_iterator_value(&it);
+
+        struct InjectionPoint *point = mp->injections;
+        struct InjectionPoint *point_prev = NULL;
+        while (point) {
+            if (point->pipe == pipe) {
+                if (point_prev) {
+                    point_prev->next = point->next;
+                    free(point);
+                    point = point_prev->next;
+                } else {
+                    mp->injections = point->next;
+                    free(point);
+                    point = mp->injections;
+                }
+            } else {
+                point_prev = point;
+                point = point->next;
+            }
+        }
+    }
+    pthread_mutex_unlock(&mp_hash_lock);
 }
 
 void oam_mp_count_data_packet(struct OAM_MaintenancePoint *mp, unsigned len)
@@ -1060,14 +1136,17 @@ void oam_mp_count_data_packet(struct OAM_MaintenancePoint *mp, unsigned len)
 
 struct OAM_MaintenancePoint *find_maintenance_point(const char *name)
 {
+    pthread_mutex_lock(&mp_hash_lock);
     if (mp_hash) {
         struct OAM_MaintenancePoint *mp = (struct OAM_MaintenancePoint *)hashmap_find(mp_hash, name);
         if (mp) {
             int refcount = __atomic_add_fetch(&mp->reference_count, 1, __ATOMIC_RELAXED);
             log_debug("%s ref refcount %d", name, refcount);
         }
+        pthread_mutex_unlock(&mp_hash_lock);
         return mp;
     } else {
+        pthread_mutex_unlock(&mp_hash_lock);
         return NULL;
     }
 }
@@ -1158,7 +1237,7 @@ enum OAM_MP_Type mp_get_type(const struct OAM_MaintenancePoint *mp)
 
 bool mp_can_send(const struct OAM_MaintenancePoint *mp)
 {
-    return mp->type != OAM_Stop && mp->pipe != NULL && mp->address_ok;
+    return mp->type != OAM_Stop && mp->injections && mp->address_ok;
 }
 
 struct JsonValue *mp_get_state_json(const struct OAM_MaintenancePoint *mp, bool object_info)
@@ -1224,8 +1303,9 @@ void mp_print_info(const struct OAM_MaintenancePoint *mp, FILE *out, bool detail
 {
     fprintf(out, "%s in %s type %s level %u %s",
             mp->name, mp->stream_name, oam_mp_type_to_str(mp->type), mp->level, oam_mp_encap_to_str(mp->encap));
-    if (mp->pipe)
-        fprintf(out, " (pipe %s idx %u)%s", mp->pipe->name, mp->pipe_pos_idx, mp_can_send(mp) ? "" : " CAN'T SEND");
+    if (mp->injections)
+        fprintf(out, " (pipe %s idx %u)%s", mp->injections->pipe->name,
+                mp->injections->pipe_pos_idx, mp_can_send(mp) ? "" : " CAN'T SEND");
 
     if (details) {
         if (mp->object)
@@ -1332,14 +1412,17 @@ unsigned char mp_get_ttl(const struct OAM_MaintenancePoint *mp, const struct Pac
 
 void mp_inject_packet(struct OAM_MaintenancePoint *mp, struct Packet *p)
 {
-    if (mp->pipe == NULL) {
+    pthread_mutex_lock(&mp_hash_lock);
+    if (mp->injections == NULL) {
         log_error("mp %s can't send without a pipe", mp->name);
+        pthread_mutex_unlock(&mp_hash_lock);
         return;
     }
     __atomic_fetch_add(&mp->oam_send, 1, __ATOMIC_RELAXED);
-    struct PipelineIterator *pi = new_pipe_iterator(mp->pipe, p);
-    //TODO pipe_iterator_inject_at(pi, mp->pipe_pos_idx);
-    pi->pos = mp->pipe_pos_idx;
+    struct PipelineIterator *pi = new_pipe_iterator(mp->injections->pipe, p);
+    //TODO pipe_iterator_inject_at(pi, mp->injections->pipe_pos_idx);
+    pi->pos = mp->injections->pipe_pos_idx;
+    pthread_mutex_unlock(&mp_hash_lock);
     pipe_iterator_run(pi);
 }
 

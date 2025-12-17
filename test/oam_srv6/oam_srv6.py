@@ -482,11 +482,11 @@ def auto_mip_test():
     exec_bg("../r2dtwo oam_srv6/autconfig/auto.ini -v ALL:NONE")
     time.sleep(1)
     expected_reply = """Available MEP Start points:
-o_C1_L2_post-E1 in C1 type MIP level 2 SRv6 (pipe M1 idx 6) CAN'T SEND
-o_C1_L3_pre-E2 in C1 type MIP level 3 SRv6 (pipe M1 idx 8) CAN'T SEND
+o_C1_L2_post-E1 in C1 type MIP level 2 SRv6 (pipe M2 idx 6) CAN'T SEND
+o_C1_L3_pre-E2 in C1 type MIP level 3 SRv6 (pipe M2 idx 8) CAN'T SEND
 o_C2_L3_pre-E2 in C2 type MIP level 3 SRv6 (pipe C2 idx 3) CAN'T SEND
-o_C_L3_post-E2 in C type MIP level 3 SRv6 (pipe M1 idx 11) CAN'T SEND
-o_C_L4_pre-R1 in C type MIP level 4 SRv6 (pipe M1 idx 13) CAN'T SEND
+o_C_L3_post-E2 in C type MIP level 3 SRv6 (pipe C2 idx 6) CAN'T SEND
+o_C_L4_pre-R1 in C type MIP level 4 SRv6 (pipe C2 idx 8) CAN'T SEND
 o_M1_L2_pre-E1 in M1 type MIP level 2 SRv6 (pipe M1 idx 3) CAN'T SEND
 o_M2_L2_pre-E1 in M2 type MIP level 2 SRv6 (pipe M2 idx 3) CAN'T SEND
 o_M5_L4_post-R1 in M5 type MIP level 4 SRv6 (pipe M5 idx 1) CAN'T SEND
