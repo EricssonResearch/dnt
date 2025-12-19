@@ -383,6 +383,11 @@ OAM request rping session <session> seq 0, s1n1-e4-01 -> s1n3-i4-13 level 4 coun
 OAM request rping session <session> seq 0, s1n1-e4-01 -> s1n3-i4-13 level 4 count 1 interval 1000, rr: no os: no	[reply to ip 10.0.0.1 port 6634]
 Rping error from s1n3-i4-13 : could not create ping request: ping start 'nonexistentmp' invalid
 """),
+    ('n1', 'rping s1n1-e4-01 s1n3-i4-13 4 s1n3-i4-34 any 4 -b', 10,
+"""
+OAM request rping session <session> seq 0, s1n1-e4-01 -> s1n3-i4-13 level 4 count 1 interval 1000, rr: no os: no	[reply to ip 10.0.0.1 port 6634]
+Rping error from s1n3-i4-13 : infinite ping count is not allowed
+"""),
     ('n1', 'sessions', 0, # note: exiting telnet clears the associated sessions
 """
 Stream s1 sessions:

@@ -53,8 +53,6 @@ int request_get_level(const struct OamRequest *req);
 
 bool request_is_infinite(const struct OamRequest *req);
 
-bool request_is_background(const struct OamRequest *req);
-
 // @returns a newly allocated string formatted like
 //      "[reply to ip %s port %u]"
 //      "[reply to mac %s vlan %u]"
@@ -70,7 +68,7 @@ void request_get_identification_data(const struct OamRequest *req, unsigned *nod
 // @error will be owned by the request
 void request_set_error(struct OamRequest *req, char *error);
 
-void request_set_infinite_count(struct OamRequest *req);
+void request_set_background(struct OamRequest *req);
 
 void request_set_return_addr(struct OamRequest *req, struct JsonValue *addr);
 

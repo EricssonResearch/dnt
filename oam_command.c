@@ -659,9 +659,6 @@ static void command_loop(struct CommandConnection *conn)
             else if (strncmp(oam_command, "ping", 4) == 0) {
                 struct OamRequest *ping_req = parse_ping_command(oam_command+4, true, true);
                 CHECK_REQUEST(ping_req);
-                if (request_is_background(ping_req)) {
-                    request_set_infinite_count(ping_req);
-                }
                 if (!initiate_request(ping_req, conn->name)) {
                     ERROR("sending ping command failed: %s", request_get_error(ping_req));
                     delete_oam_request(ping_req);

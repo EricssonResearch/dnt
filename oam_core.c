@@ -135,7 +135,7 @@ bool oam_start_background_ping(const char *name, const char *command)
         return false;
     }
 
-    request_set_infinite_count(ping_req);
+    request_set_background(ping_req);
 
     struct StreamSessions *stream = get_stream_sessions(request_get_stream_name(ping_req));
     if (stream_live_session_count(stream) >= 14) {

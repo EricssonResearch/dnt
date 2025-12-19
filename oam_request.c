@@ -264,6 +264,9 @@ struct OamRequest *parse_ping_command(const char *oam_command, bool allow_return
         //TODO add something to the error?
     }
 
+    if (ping_req->background)
+        ping_req->count = 0; // means infinite
+
     return ping_req;
 }
 
@@ -555,11 +558,6 @@ bool request_is_infinite(const struct OamRequest *req)
     return req->count == 0;
 }
 
-bool request_is_background(const struct OamRequest *req)
-{
-    return req->background;
-}
-
 char *request_get_return_addr_string(const struct OamRequest *req)
 {
     struct JsonValue *ip = json_object_get_string(req->return_addr, "ip");
@@ -594,8 +592,9 @@ void request_set_error(struct OamRequest *req, char *error)
     req->error = error;
 }
 
-void request_set_infinite_count(struct OamRequest *req)
+void request_set_background(struct OamRequest *req)
 {
+    req->background = true;
     req->count = 0;
 }
 

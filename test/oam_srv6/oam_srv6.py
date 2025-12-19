@@ -458,6 +458,12 @@ Rping error from s1n3-i4-13 : could not create ping request: ping start 'nonexis
 """
     ),
 
+    ('n1', 'rping s1n1-e4-01 s1n3-i4-13 4 s1n3-i4-34 any 4 -b',
+"""
+OAM request rping session 9 seq 0, s1n1-e4-01 -> s1n3-i4-13 level 4 count 1 interval 1000, rr: no os: no	[reply to ip fd11:fade::1 port 6634]
+Rping error from s1n3-i4-13 : infinite ping count is not allowed
+"""),
+
     (
         'n1', 'sessions', # note: exiting telnet clears the associated sessions
 """
