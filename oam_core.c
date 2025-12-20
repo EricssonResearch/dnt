@@ -81,7 +81,7 @@ void add_oam_if(struct Interface *iface)
 
 struct Interface *get_oam_interface(const char *ifname)
 {
-    return ifname[0] ? (struct Interface *)hashmap_find(oam_ifaces, ifname) : (have_default_ip_iface()? oam_default_ip_iface : oam_default_eth_iface);
+    return (struct Interface *)hashmap_find(oam_ifaces, ifname);
 }
 
 struct Interface *get_default_oam_ip_interface(void)

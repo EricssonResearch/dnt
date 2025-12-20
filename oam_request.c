@@ -83,7 +83,21 @@ static struct OamRequest *new_oam_request(const char *type)
 
 static bool parse_returnif(struct OamRequest *req, const char *ifname)
 {
-    struct Interface *iface = get_oam_interface(ifname);
+    struct Interface *iface;
+
+    if (ifname[0]) {
+        iface = get_oam_interface(ifname);
+    } else {
+        iface = get_default_oam_ip_interface();
+        if (iface == NULL) {
+            iface = get_default_oam_eth_interface();
+            if (iface == NULL) {
+                req->error = strdup("ping didn't specify return address and config has no return interface");
+                return req;
+            }
+        }
+    }
+
     if (iface == NULL) {
         // not an interface name, try interpreting as ip:port
         char *ip = NULL;

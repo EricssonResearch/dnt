@@ -173,10 +173,12 @@ OAM request ping session <session> seq 0, s1n1-e4-01 -> s1n2-i3-12 level 3 count
 OAM request ping session <session> seq 0, s1n1-e4-01 -> s1n2-i3-12 level 3 count 1 interval 1000, rr: no os: no	[reply to mac 00:00:00:00:00:00]
   oam_r s1:<session> seq 0 lvl 3 R - ping on stream s1 target s1n2-i3-12; reply from s1n2-i3-12
 """),
-    ('n1', 'ping s1n1-e4-01 s1n2-i3-12 3 -n 3', 4,
+    ('n1', 'ping s1n1-e4-01 s1n2-i3-12 3 -n 3 -i 0.001', 4,
 """
-OAM request ping session <session> seq 0, s1n1-e4-01 -> s1n2-i3-12 level 3 count 3 interval 1000, rr: no os: no	[reply to mac 00:00:00:00:00:00]
+OAM request ping session <session> seq 0, s1n1-e4-01 -> s1n2-i3-12 level 3 count 3 interval 2, rr: no os: no	[reply to mac 00:00:00:00:00:00]
   oam_r s1:<session> seq 0 lvl 3 R - ping on stream s1 target s1n2-i3-12; reply from s1n2-i3-12
+  oam_r s1:<session> seq 1 lvl 3 R - ping on stream s1 target s1n2-i3-12; reply from s1n2-i3-12
+  oam_r s1:<session> seq 2 lvl 3 R - ping on stream s1 target s1n2-i3-12; reply from s1n2-i3-12
 """),
     ('n1', 'ping s1n1-e4-01 s1n3-i4-23 4', 5,
 """
