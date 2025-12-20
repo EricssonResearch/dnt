@@ -101,10 +101,10 @@ def start_r2dtwos(net, debug):
         node = net.get(n)
         if debug:
             # For debug! Spawns 4 r2dtwo windows in gdb
-            node.popen(f"xterm -T {n} -e env -i gdb -nx --args ../r2dtwo oam_tsn/singlestage/{n}.cfg")
+            node.popen(f"xterm -T {n} -e env -i gdb -nx --args ../r2dtwo oam_tsn/singlestage/{n}.cfg -h {n}")
         else:
             # node.popen(f"xterm -T {n} -e env -i gdb -nx -ex=r --args ../r2dtwo oam/singlestage/{n}.cfg -vALL:NONE")
-            r2.append(node.popen(f"../r2dtwo oam_tsn/singlestage/{n}.cfg -vALL:NONE"))
+            r2.append(node.popen(f"../r2dtwo oam_tsn/singlestage/{n}.cfg -vALL:NONE -h {n}"))
     return r2
 
 # list of (sender node, telnet command, session id,  expected reply)
@@ -146,22 +146,22 @@ s3n4-i4-34 in rx334 type MIP level 4 TSN (pipe rx334 idx 1)
     ('n1', 'returns', 0,
 """
 Available OAM return interfaces:
-  oam1 mac 00:00:00:00:00:00 (default for ETH, node id RANDOM)
+  oam1 mac 00:00:00:00:00:00 (default for ETH)
 """),
     ('n2', 'returns', 0,
 """
 Available OAM return interfaces:
-  oam1 mac 00:00:00:00:00:00 (default for ETH, node id RANDOM)
+  oam1 mac 00:00:00:00:00:00 (default for ETH)
 """),
     ('n3', 'returns', 0,
 """
 Available OAM return interfaces:
-  oam1 mac 00:00:00:00:00:00 (default for ETH, node id RANDOM)
+  oam1 mac 00:00:00:00:00:00 (default for ETH)
 """),
     ('n4', 'returns', 0,
 """
 Available OAM return interfaces:
-  oam1 mac 00:00:00:00:00:00 (default for ETH, node id RANDOM)
+  oam1 mac 00:00:00:00:00:00 (default for ETH)
 """),
     ('n1', 'ping s1n1-e4-01 s1n2-i3-12 3', 2,
 """

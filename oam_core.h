@@ -21,10 +21,6 @@ struct Interface *get_default_oam_eth_interface(void);
 
 int foreach_oam_ifaces(hashmap_cb *cb, void *userdata);
 
-bool have_default_ip_iface(void);
-
-bool have_default_eth_iface(void);
-
-unsigned short get_default_node_id(void);
+unsigned get_node_id(void);
 
 #endif // R2_OAM_CORE_H

@@ -21,6 +21,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <limits.h>
+#include <unistd.h>
+
 DEFAULT_LOGGING_MODULE(OAM, INFO);
 
 
@@ -30,6 +33,18 @@ static struct Interface *oam_default_eth_iface = NULL;
 static struct Interface *oam_cmd_iface = NULL;
 
 static bool oam_initialized = false;
+static unsigned nodeid = 0;
+
+static unsigned nodeid_hash(const char *string)
+{
+    // use the same djb2 hash as HashMap
+    unsigned hash = 5381;
+    int c;
+    while ((c = *string++)) {
+        hash = ((hash << 5) + hash) + c; // hash*33 + c
+    }
+    return hash;
+}
 
 bool set_oam_cmd_if(struct Interface *iface)
 {
@@ -99,24 +114,9 @@ int foreach_oam_ifaces(hashmap_cb *cb, void *userdata)
     return hashmap_foreach_sorted(oam_ifaces, cb, userdata);
 }
 
-bool have_default_ip_iface(void)
+unsigned get_node_id(void)
 {
-    return oam_default_ip_iface != NULL;
-}
-
-bool have_default_eth_iface(void)
-{
-    return oam_default_eth_iface != NULL;
-}
-
-unsigned short get_default_node_id(void)
-{
-    if(oam_default_ip_iface != NULL)
-        return oamif_get_uid(oam_default_ip_iface);
-    else if(oam_default_eth_iface != NULL)
-        return oam_eth_if_get_uid(oam_default_eth_iface);
-    else
-        return 0;
+    return nodeid;
 }
 
 bool oam_start_background_ping(const char *name, const char *command)
@@ -146,20 +146,24 @@ bool oam_start_background_ping(const char *name, const char *command)
     return initiate_request(ping_req, NULL);
 }
 
-void init_oam(void)
+void init_oam(const char *override_hostname)
 {
     if (oam_initialized)
         return;
+
+    if (override_hostname) {
+        nodeid = nodeid_hash(override_hostname);
+    } else {
+        char hostname[HOST_NAME_MAX+1];
+        gethostname(hostname, HOST_NAME_MAX+1);
+        nodeid = nodeid_hash(hostname);
+    }
 
     init_session_module();
     init_message_module();
     init_cmd_module();
 
     log_info("Init OAM fuctionality");
-
-    //TODO better node id mechanism
-    if(get_default_node_id()==0)
-        log_warning("OAM nodeid is zero. OAM interface IP's last bytes should be non-zero.");
 
     oam_initialized = true;
 }

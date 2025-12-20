@@ -25,7 +25,6 @@ DEFAULT_LOGGING_MODULE(INTERFACE, INFO);
 struct OamIfData {
     unsigned port;
     char *oam_ip_str;  // hold IP address in text format
-    unsigned short uid; // unique id of this iface
 };
 
 const char *oamif_get_ip(const struct Interface *iface)
@@ -38,12 +37,6 @@ unsigned oamif_get_port(const struct Interface *iface)
 {
     struct OamIfData *oid = (struct OamIfData *)iface->iface_private;
     return oid->port;
-}
-
-unsigned short oamif_get_uid(const struct Interface *iface)
-{
-    struct OamIfData *oid = (struct OamIfData *)iface->iface_private;
-    return oid->uid;
 }
 
 static bool oam_recv(struct Interface *iface)
@@ -100,7 +93,6 @@ static bool oam_open(struct Interface *iface)
         addr6.sin6_family = AF_INET6;
         addr6.sin6_addr = ip6;
         addr6.sin6_port = htons(oid->port);
-        oid->uid = ntohs(ip6.s6_addr16[7]);
     } else {
         sa = (struct sockaddr*)&addr4;
         sa_len = sizeof(addr4);
@@ -108,7 +100,6 @@ static bool oam_open(struct Interface *iface)
         addr4.sin_family = AF_INET;
         addr4.sin_addr = ip4;
         addr4.sin_port = htons(oid->port);
-        oid->uid = ntohl(ip4.s_addr) & 0xffff;
     }
 
     int sock = socket(family, SOCK_DGRAM, 0);
@@ -130,7 +121,7 @@ static bool oam_open(struct Interface *iface)
         return false;
     }
 
-    log_info("OAM return interface %s %s port %u uid 0x%.4x", iface->name, oid->oam_ip_str, oid->port, oid->uid);
+    log_info("OAM return interface %s %s port %u", iface->name, oid->oam_ip_str, oid->port);
     iface->recvfd = sock;
     iface->state = IFS_OPEN;
     add_oam_if(iface);

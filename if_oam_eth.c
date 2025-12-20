@@ -36,14 +36,7 @@ struct OamIfData {
     int vlan;
     struct ether_addr mac;
     char oam_eth_str[ETHER_ADDSTRLEN];  // hold eth address in text format
-    unsigned short uid; // unique id of this iface
 };
-
-unsigned short oam_eth_if_get_uid(const struct Interface *iface)
-{
-    struct OamIfData *oid = (struct OamIfData *)iface->iface_private;
-    return oid->uid;
-}
 
 char *oam_eth_if_get_mac(const struct Interface *iface)
 {
@@ -127,10 +120,6 @@ static bool oam_eth_open(struct Interface *iface)
     oid->ifindex = if_idx.ifr_ifindex;
     oid->mac = *((struct ether_addr *)&if_mac.ifr_hwaddr.sa_data);
     ether_ntop(&oid->mac, oid->oam_eth_str, sizeof(oid->oam_eth_str));
-    oid->uid = oid->mac.ether_addr_octet[5]+(oid->mac.ether_addr_octet[4]<<8);  // TODO: is this OK??
-    //oid->uid = djb2_hash(oid->oam_eth_str);                                   // maybe hash?
-
-    //      store this in an interface property
 
     struct vlan_ioctl_args vlan_args;
     memset(&vlan_args, 0, sizeof(vlan_args));
@@ -180,7 +169,7 @@ static bool oam_eth_open(struct Interface *iface)
         return false;
     }
 
-    log_info("OAM_ETH return interface %s %s (idx: %d) uid 0x%.4x", iface->name, iface->ifname, oid->ifindex, oid->uid);
+    log_info("OAM_ETH return interface %s %s (idx: %d)", iface->name, iface->ifname, oid->ifindex);
     iface->recvfd = sock;
     iface->state = IFS_OPEN;
     add_oam_if(iface);

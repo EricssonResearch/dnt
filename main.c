@@ -401,7 +401,7 @@ int main(int argc, char **argv)
     }
 
     init_notification(tr->streams);
-    init_oam();
+    init_oam(arguments.hostname);
 
     bool commit_success = state_commit_transaction(tr);
     delete_transaction(tr);
