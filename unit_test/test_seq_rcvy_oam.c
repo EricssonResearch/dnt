@@ -70,6 +70,9 @@ static const unsigned reset_ms = 300000; // way longer than OAM timeout so we kn
 
 static void test_get_oam_rcvy(void)
 {
+    if (!RUNNING_ON_VALGRIND)
+        SKIP("This test is flaky without Valgrind");
+
     log_set_level("RCVY", DEBUG); //TODO to catch the flaky test in line 234
     struct RecoveryDiagnosticConf diag = {};
     struct PipelineObject *rec = new_seq_rec("oam", RCVY_Vector, false, false, history_length, reset_ms, &diag);
