@@ -168,13 +168,13 @@ static int list_oam_ifaces_cb(const char *ifname, void *value, void *userdata)
         fprintf(cmd_w, "  %s ip %s port %u",
                 ifname, return_ip, return_port);
         if (iface == get_default_oam_ip_interface())
-            fprintf(cmd_w, " (default for UDP, node id %u)", oamif_get_uid(iface));
+            fprintf(cmd_w, " (default for UDP)");
     } else if (iface->type == IF_OAM_ETH) {
         const char *return_mac = oam_eth_if_get_mac(iface);
         fprintf(cmd_w, "  %s mac %s",
                 ifname, return_mac);
         if (iface == get_default_oam_eth_interface())
-            fprintf(cmd_w, " (default for ETH, node id %u)", oam_eth_if_get_uid(iface));
+            fprintf(cmd_w, " (default for ETH)");
     }
     fprintf(cmd_w, "\n");
 
@@ -396,8 +396,10 @@ static void command_loop(struct CommandConnection *conn)
 
     while (conn->name == NULL) usleep(1000); // this is generated after the thread has been launched
 
-    fprintf(cmd_w, "\033[32mOAM '%s' ready\033[0m%s\n", conn->name,
-            (have_default_ip_iface() || have_default_eth_iface())?"":", but has no configured return interface");
+    fprintf(cmd_w, "\033[32mOAM '%s' ready\033[0m node id \033[35m%u \033[34m0x%4x\033[0m%s\n",
+            conn->name, get_node_id(), get_node_id(),
+            (get_default_oam_ip_interface() || get_default_oam_eth_interface())
+            ? "" : ", but has \033[31mno return interface\033[0m");
 
     log_info("Telnet connection '%s' from %s %u", conn->name, conn->remote_ip, conn->remote_port);
     struct JsonValue *msg = json_object();

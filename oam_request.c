@@ -76,7 +76,7 @@ static struct OamRequest *new_oam_request(const char *type)
     req->count = 1;
     req->interval_ms = 1000;
     req->return_addr = json_object();
-    req->node_id = get_default_node_id();
+    req->node_id = get_node_id();
 
     return req;
 }
@@ -122,7 +122,8 @@ static bool parse_returnif(struct OamRequest *req, const char *ifname)
             }
         }
 
-        if (have_default_ip_iface() || have_default_eth_iface()) {
+        if (get_default_oam_ip_interface() || get_default_oam_eth_interface()) {
+            // we have interfaces but @ifname is not one of them
             req->error = strdup_printf("invalid return interface name: %s", ifname);
         } else {
             req->error = strdup("config has no return interface, need to specify a return DMAC/IP to send requests");
@@ -138,7 +139,7 @@ static bool parse_returnif(struct OamRequest *req, const char *ifname)
             //json_object_insert(req->return_addr, "vlan", json_number(oam_eth_if_get_vlan(iface)));
             return true;
         } else {
-            log_error("Invalid interface specified for ping return: %s", ifname);
+            req->error = strdup_printf("unknown return interface type %d", iface->type);
             return false;
         }
     }
@@ -436,8 +437,6 @@ struct OamRequest *parse_trigger_command(const char *oam_command, bool allow_num
     if (!parse_trigger_options(trig_req, oam_command+l, allow_num)) {
         //TODO add something to the error?
     }
-
-    trig_req->node_id = get_default_node_id();
 
     return trig_req;
 }

@@ -105,10 +105,10 @@ def start_r2dtwos(net, debug):
         node = net.get(n)
         if debug:
             # For debug! Spawns 4 r2dtwo windows in gdb
-            node.popen(f"xterm -T {n} -e env -i gdb -nx --args ../r2dtwo oam/singlestage/{n}.cfg")
+            node.popen(f"xterm -T {n} -e env -i gdb -nx --args ../r2dtwo oam/singlestage/{n}.cfg -h {n}")
         else:
             # node.popen(f"xterm -T {n} -e env -i gdb -nx -ex=r --args ../r2dtwo oam/singlestage/{n}.cfg -vALL:NONE")
-            node.popen(f"../r2dtwo oam/singlestage/{n}.cfg -vALL:NONE")
+            node.popen(f"../r2dtwo oam/singlestage/{n}.cfg -vALL:NONE -h {n}")
 
 # list of (sender node, telnet command, session id,  expected reply)
 testcases = [
@@ -147,22 +147,22 @@ s3n4-i4-34 in rx334 type MIP level 4 PseudoWire (pipe rx334 idx 2)
     ('n1', 'returns', 0,
 """
 Available OAM return interfaces:
-  oam0 ip 10.0.0.1 port 6634 (default for UDP, node id 1)
+  oam0 ip 10.0.0.1 port 6634 (default for UDP)
 """),
     ('n2', 'returns', 0,
 """
 Available OAM return interfaces:
-  oam0 ip 10.0.0.2 port 6634 (default for UDP, node id 2)
+  oam0 ip 10.0.0.2 port 6634 (default for UDP)
 """),
     ('n3', 'returns', 0,
 """
 Available OAM return interfaces:
-  oam0 ip 10.0.0.3 port 6634 (default for UDP, node id 3)
+  oam0 ip 10.0.0.3 port 6634 (default for UDP)
 """),
     ('n4', 'returns', 0,
 """
 Available OAM return interfaces:
-  oam0 ip 10.0.0.4 port 6634 (default for UDP, node id 4)
+  oam0 ip 10.0.0.4 port 6634 (default for UDP)
 """),
     ('n1', 'ping s1n1-e4-01 s1n2-i3-12 3', 2,
 """

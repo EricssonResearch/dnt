@@ -43,7 +43,10 @@ const char *oam_mp_encap_to_str(enum OAM_MP_Encap encap);
 const char *oam_mp_addr_source_to_str(enum OAM_MP_Addr_Source src);
 
 // initialize the OAM module
-void init_oam(void);
+// the node id in the generated OAM messages is a hash of the hostname
+// use a non-NULL @override_hostname to set a different name
+// useful in mininet, where all nodes have the same hostname (no UTS namespace isolation)
+void init_oam(const char *override_hostname);
 
 // stops the OAM module and cleans up its resources
 void finish_oam(void);

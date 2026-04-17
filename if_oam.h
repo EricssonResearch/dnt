@@ -13,8 +13,7 @@ struct Interface *new_oam_interface(const char *name,
         const char *oam_ip, unsigned port);
 
 const char *oamif_get_ip(const struct Interface *iface);
+
 unsigned oamif_get_port(const struct Interface *iface);
-// @returns a number in host byte order
-unsigned short oamif_get_uid(const struct Interface *iface);
 
 #endif // R2_IF_OAM_H
