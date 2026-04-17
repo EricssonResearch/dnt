@@ -187,8 +187,6 @@ void create_action_delay(struct Action *a, const struct timespec delay, bool off
     dd->delay = delay;
     dd->offload = offload;
     a->action_private = dd;
-
-    delay_actions++;
 }
 
 /////////////////////////////////////////////////////////////////////

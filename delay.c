@@ -23,8 +23,6 @@
 
 DEFAULT_LOGGING_MODULE(DELAY, WARNING);
 
-int delay_actions = 0;
-
 struct DelayStat {
     unsigned long long delayed_packets;
     unsigned long long delay_exceeded_packets;
@@ -169,7 +167,7 @@ bool init_delay(void)
     return true;
 }
 
-void fini_delay(void)
+void finish_delay(void)
 {
     thread_stop(thread);
     sem_destroy(&delay_sem);

@@ -11,7 +11,8 @@
 
 // starts up the notification framework
 // @conf_streams is the streams section read from the config (hash of ConfStream)
-void init_notification(struct HashMap *conf_streams);
+// @returns true on success
+bool init_notification(struct HashMap *conf_streams);
 
 void finish_notification(void);
 

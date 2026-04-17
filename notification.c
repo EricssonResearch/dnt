@@ -299,13 +299,15 @@ static void *notification_thread(void *arg)
     return NULL;
 }
 
-void init_notification(struct HashMap *conf_streams)
+bool init_notification(struct HashMap *conf_streams)
 {
     notif_sessionid = rand();
 
     struct ConfStream *notif_sess = (struct ConfStream *)hashmap_find(conf_streams, "notification_session");
     if (notif_sess) {
         notification_pipe = assemble_actions("notification_session", notif_sess->actions, false);
+        if (notification_pipe == NULL)
+            return false;
         pipeline_ref_send_interfaces(notification_pipe);
     }
     pthread_mutex_lock(&sources_lock);
@@ -314,6 +316,7 @@ void init_notification(struct HashMap *conf_streams)
     notif_q = new_messagequeue();
     pthread_mutex_unlock(&sources_lock);
     notif_thread = thread_launch(notification_thread, NULL, "notification");
+    return notif_thread != NULL;
 }
 
 void finish_notification(void)

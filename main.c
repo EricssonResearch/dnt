@@ -333,24 +333,36 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
-    init_notification(tr->streams);
-    init_oam(arguments.hostname);
+    if (!init_notification(tr->streams)) {
+        log_error("failed to start the notification system");
+        delete_transaction(tr);
+        return EXIT_FAILURE;
+    }
+    if (!init_oam(arguments.hostname)) {
+        log_error("failed to start the oam module");
+        delete_transaction(tr);
+        finish_notification();
+        return EXIT_FAILURE;
+    }
+    if (!init_delay()) {
+        log_error("failed to start the delay module");
+        delete_transaction(tr);
+        finish_notification();
+        finish_oam();
+        return EXIT_FAILURE;
+    }
 
     bool commit_success = state_commit_transaction(tr);
     delete_transaction(tr);
     if (!commit_success) {
         log_error("failed to apply the config");
+        finish_notification();
+        finish_oam();
+        finish_delay();
         return EXIT_FAILURE;
     }
 
     init_monitor();
-
-    // Init delay and monitor only when delay actionsions are present
-    if(delay_actions > 0) {
-        if (!init_delay()) {
-            return EXIT_FAILURE;
-        }
-    }
 
     struct JsonValue *msg = json_object();
     json_object_insert(msg, "status", json_string("startup completed"));
@@ -360,7 +372,7 @@ int main(int argc, char **argv)
     log_info("receive loop ended");
 
     close_interfaces();
-    fini_delay();
+    finish_delay();
     finish_oam();
     finish_monitor();
     finish_notification();

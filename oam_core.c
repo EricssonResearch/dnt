@@ -146,10 +146,10 @@ bool oam_start_background_ping(const char *name, const char *command)
     return initiate_request(ping_req, NULL);
 }
 
-void init_oam(const char *override_hostname)
+bool init_oam(const char *override_hostname)
 {
     if (oam_initialized)
-        return;
+        return true;
 
     if (override_hostname) {
         nodeid = nodeid_hash(override_hostname);
@@ -160,12 +160,14 @@ void init_oam(const char *override_hostname)
     }
 
     init_session_module();
-    init_message_module();
+    if (!init_message_module())
+        return false;
     init_cmd_module();
 
     log_info("Init OAM fuctionality");
 
     oam_initialized = true;
+    return true;
 }
 
 void finish_oam(void)

@@ -5,19 +5,16 @@
 #ifndef R2_DELAY_H
 #define R2_DELAY_H
 
-//#include <stdbool.h>
-
 #include "pipeline.h"
 #include "time_utils.h"
 #include "notification.h"
 
-extern int delay_actions;
-
 // initialize the delay thread
+// @returns true on success
 bool init_delay(void);
 
 // finish with the delay thread
-void fini_delay(void);
+void finish_delay(void);
 
 // inserts the iterator @pi into the queue to be sent later
 // @timestamp is the TSN timestamp for the moment when the packet entered our network

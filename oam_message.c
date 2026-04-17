@@ -830,12 +830,13 @@ void oam_receive_outofband(struct Interface *iface, const char *message)
     messagequeue_push(outofband_q, msg);
 }
 
-void init_message_module(void)
+bool init_message_module(void)
 {
     inband_q = new_messagequeue();
     outofband_q = new_messagequeue();
     inband_receiver_thread = thread_launch(inband_receiver_th, NULL, "oam inband rcv");
     outofband_receiver_thread = thread_launch(outofband_receiver_th, NULL, "oam outband rcv");
+    return inband_receiver_thread != NULL && outofband_receiver_thread != NULL;
 }
 
 void finish_message_module(void)
