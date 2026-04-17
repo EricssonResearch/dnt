@@ -62,3 +62,4 @@ sub verify_unit_tests {
     }
 }
 
+print "YAML looks okay\n"

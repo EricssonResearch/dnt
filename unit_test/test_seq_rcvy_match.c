@@ -17,6 +17,8 @@
 
 #include <arpa/inet.h>
 
+#include <valgrind/valgrind.h>
+
 TEST_INIT("Sequence Recovery: Match");
 
 // XXX stubs for stuff that we transitively depend on but don't need
@@ -207,6 +209,9 @@ static void *multi_thread(void *arg)
 
 static void test_multi(void)
 {
+    if (RUNNING_ON_VALGRIND)
+        SKIP("Valgrind doesn't properly support multithreading");
+
     OK_FATAL(pthread_spin_init(&spinlock, 0) == 0, "create spinlock");
 
     struct RecoveryDiagnosticConf diag = {};
