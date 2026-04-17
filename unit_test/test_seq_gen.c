@@ -42,6 +42,8 @@ struct PipelineObject *delete_seq_rec(struct PipelineObject *rec) { (void)rec; r
 char *seq_rec_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep);
 char *seq_rec_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep)
     { (void)json; (void)record_sep; (void)line_sep; return NULL; }
+void oam_pipeline_deleted(struct Pipeline *pipe);
+void oam_pipeline_deleted(struct Pipeline *pipe) { (void)pipe; }
 // XXX end stubs
 
 static struct Pipeline *new_pipeline(const char *name)
