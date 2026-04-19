@@ -67,12 +67,12 @@ static NotificationLevel delay_notification_pull_fn(void *self, struct JsonValue
     return NOTIF_PULL;
 }
 
-bool register_delay_notification(bool add, char *target, unsigned period_ms)
+bool register_delay_notification(bool add, unsigned period_ms)
 {
     if(add)
-        return notification_register_source("delay", delay_notification_pull_fn, target, period_ms);
+        return notification_register_source("delay", delay_notification_pull_fn, NULL, period_ms);
     else
-        return notification_register_source("delay", NULL, target, period_ms);
+        return notification_register_source("delay", NULL, NULL, period_ms);
 }
 
 static void *delay_thread(void *arg)
@@ -167,6 +167,7 @@ bool init_delay(void)
     return true;
 }
 
+//TODO properly flush the queue
 void finish_delay(void)
 {
     thread_stop(thread);
@@ -175,7 +176,7 @@ void finish_delay(void)
     delete_hashmap(stats);
 }
 
-void delay_insert(struct PipelineIterator *pi, unsigned timestamp, const struct timespec delay)
+void delay_insert(struct PipelineIterator *pi)
 {
     // alloc and fill in the tt_queue entry
     struct DelayQueue* pDelayQueueEntry = calloc_struct(DelayQueue);
@@ -192,6 +193,8 @@ void delay_insert(struct PipelineIterator *pi, unsigned timestamp, const struct 
         hashmap_insert(stats, strdup(pi->pipe->name), stat);
     }
 
+    struct timespec delay = pi->packet->delay;
+
     pDelayQueueEntry->pi = pi;
     pDelayQueueEntry->delay = delay;
     pDelayQueueEntry->stat = stat;
@@ -200,7 +203,7 @@ void delay_insert(struct PipelineIterator *pi, unsigned timestamp, const struct 
     // get current time
     struct timespec now_ts;
     clock_gettime(CLOCK_REALTIME, &now_ts);
-    timespec_from_tsntstamp(&pDelayQueueEntry->due_time, timestamp, &now_ts);
+    timespec_from_tsntstamp(&pDelayQueueEntry->due_time, pi->packet->timestamp, &now_ts);
 
     // Add delay configured in microsec to the received timestamp
     struct timespec result;

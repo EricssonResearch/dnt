@@ -166,17 +166,15 @@ static enum ActionResult action_DELAY_execute(struct Action *a, struct PipelineI
 {
     struct DelayData *dd = (struct DelayData *)a->action_private;
     struct Packet *p = pi->packet;
+    p->delay = dd->delay;
 
-    // put offload and delay information into the packet
     if (dd->offload) {
         p->offload = true;
-        p->delay = dd->delay;
         return ACR_CONTINUE;
+    } else {
+        delay_insert(pi);
+        return ACR_HOLD;
     }
-
-    //TODO we might not need to delay the packet
-    delay_insert(pi, p->timestamp, dd->delay);
-    return ACR_HOLD;
 }
 
 void create_action_delay(struct Action *a, const struct timespec delay, bool offload, const char *text)

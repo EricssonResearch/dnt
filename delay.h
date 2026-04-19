@@ -16,14 +16,15 @@ bool init_delay(void);
 // finish with the delay thread
 void finish_delay(void);
 
-// inserts the iterator @pi into the queue to be sent later
-// @timestamp is the TSN timestamp for the moment when the packet entered our network
-// @delay is the minimum time the packet must spend in the network
+// inserts the iterator @pi into a queue to be sent later
+// @pi->packet->delay is the minimum time the packet must spend in the network
+//  (this metadata is automatically filled by the `delay` action from its configuration)
+// @pi->packet->timestamp should be the TSN timestamp when the packet has entered our network
+//  (this metadata MUST be filled by a `readtstamp` action from the appropriate header)
 // the queue will release the packet when @delay has elapsed since @timestamp
-// TODO return whether it has stored the packet or not (TODO return if no delaying needed)
-void delay_insert(struct PipelineIterator *pi, unsigned timestamp, const struct timespec delay);
+void delay_insert(struct PipelineIterator *pi);
 
 // registers a delay notification
-bool register_delay_notification(bool add, char *target, unsigned period_ms);
+bool register_delay_notification(bool add, unsigned period_ms);
 
 #endif // R2_DELAY_H
