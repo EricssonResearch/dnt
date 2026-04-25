@@ -6,10 +6,19 @@ include_directories(../)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O0 -std=gnu99 -Wall -Wextra -Wstrict-prototypes -Wmissing-declarations -Wwrite-strings -Wshadow -Wvla -Wc++-compat -Werror")
 
-#TODO enable these to compile as C++
-#file(GLOB_RECURSE CFILES "${CMAKE_SOURCE_DIR}/../*.c")
-#SET_SOURCE_FILES_PROPERTIES(${CFILES} PROPERTIES LANGUAGE CXX )
-#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -Og -std=gnu++03 -Wall -Wextra -Wmissing-declarations -Wwrite-strings -Wshadow -Wvla -Werror")
+option(USE_CPP "Compile as C++" "No")
+option(USE_ASAN "Use Address Sanitizer" "No")
+
+if (USE_CPP)
+    file(GLOB_RECURSE CFILES "${CMAKE_SOURCE_DIR}/../*.c")
+    SET_SOURCE_FILES_PROPERTIES(${CFILES} PROPERTIES LANGUAGE CXX )
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0 -std=gnu++03 -Wall -Wextra -Wmissing-declarations -Wwrite-strings -Wshadow -Wvla -Werror")
+endif()
+
+if (USE_ASAN)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address -fno-omit-frame-pointer")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -fno-omit-frame-pointer")
+endif()
 
 function(add_test_seqrcvy name)
     add_executable(${name} ../seq_recov.c ../lib/parsers/json.c ../log.c ../object.c ../packet.c ../pipeline.c ../thread_utils.c ../utils.c ../lib/parsers/hashmap.c ${name}.c)

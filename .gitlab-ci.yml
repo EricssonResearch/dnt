@@ -120,6 +120,21 @@ build-unit_test:
     paths:
       - unit_test/build/test_*
 
+build-unit_test_asan:
+  stage: build
+  image: ${IMAGE_NAME}:${IMAGE_VERSION}
+  tags:
+    - tsn
+  script:
+    - cd unit_test
+    - mkdir build
+    - cd build
+    - cmake .. -DUSE_ASAN=yes
+    - make -j
+  artifacts:
+    paths:
+      - unit_test/build/test_*
+
 
 .pytest.common:
   stage: test
@@ -293,7 +308,7 @@ unit_test.utils:
   tags:
     - tsn
   dependencies:
-    - build-unit_test
+    - build-unit_test_asan
   script:
     - TEST_COLOR=1 unit_test/build/$TESTNAME
 
