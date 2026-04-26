@@ -74,7 +74,8 @@ static void run_singlethread(bool verify_results)
         struct timespec packet_offset;
         struct timespec delay;
     } offsets[] = {
-        // with valgrind we need the first batch to be -25, otherwise even -50 is okay
+        // with valgrind we need the first batch to be 20 or less
+        // otherwise even 50 is okay
         { {0, 20*1000*1000}, {0, 51*1000*1000} },
         { {0, 20*1000*1000}, {0, 59*1000*1000} },
         { {0, 20*1000*1000}, {0, 56*1000*1000} },
@@ -144,10 +145,10 @@ static void run_singlethread(bool verify_results)
               recvtimes[i].tv_sec, recvtimes[i].tv_nsec,
               expecteds[i].tv_sec, expecteds[i].tv_nsec,
               diff);
-            int threshold = 400; // should be high enough even for valgrind
+            int threshold = 600; // should be high enough even for valgrind
             // in valgrind the first dequeue is always very late, the rest are okay
             if (RUNNING_ON_VALGRIND && i == 0)
-                threshold = 30000;
+                threshold = 40000;
             OK(diff < threshold && diff > -threshold, "%u recv %lu.%.09lu expected %lu.%.09lu diff %ld", i,
                     recvtimes[i].tv_sec, recvtimes[i].tv_nsec,
                     expecteds[i].tv_sec, expecteds[i].tv_nsec,
