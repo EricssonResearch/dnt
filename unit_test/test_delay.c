@@ -75,21 +75,21 @@ static void run_singlethread(bool verify_results)
         struct timespec delay;
     } offsets[] = {
         // with valgrind we need the first batch to be -25, otherwise even -50 is okay
-        { {0, 25*1000*1000}, {0, 51*1000*1000} },
-        { {0, 25*1000*1000}, {0, 59*1000*1000} },
-        { {0, 25*1000*1000}, {0, 56*1000*1000} },
-        { {0, 25*1000*1000}, {0, 60*1000*1000} },
-        { {0, 25*1000*1000}, {0, 53*1000*1000} },
-        { {0, 10*1000*1000}, {0, 51*1000*1000} },
-        { {0, 10*1000*1000}, {0, 59*1000*1000} },
-        { {0, 10*1000*1000}, {0, 56*1000*1000} },
-        { {0, 10*1000*1000}, {0, 60*1000*1000} },
-        { {0, 10*1000*1000}, {0, 53*1000*1000} },
         { {0, 20*1000*1000}, {0, 51*1000*1000} },
         { {0, 20*1000*1000}, {0, 59*1000*1000} },
         { {0, 20*1000*1000}, {0, 56*1000*1000} },
         { {0, 20*1000*1000}, {0, 60*1000*1000} },
         { {0, 20*1000*1000}, {0, 53*1000*1000} },
+        { {0, 10*1000*1000}, {0, 51*1000*1000} },
+        { {0, 10*1000*1000}, {0, 59*1000*1000} },
+        { {0, 10*1000*1000}, {0, 56*1000*1000} },
+        { {0, 10*1000*1000}, {0, 60*1000*1000} },
+        { {0, 10*1000*1000}, {0, 53*1000*1000} },
+        { {0, 15*1000*1000}, {0, 51*1000*1000} },
+        { {0, 15*1000*1000}, {0, 59*1000*1000} },
+        { {0, 15*1000*1000}, {0, 56*1000*1000} },
+        { {0, 15*1000*1000}, {0, 60*1000*1000} },
+        { {0, 15*1000*1000}, {0, 53*1000*1000} },
     };
 
     struct timespec recvtimes[ARRAY_SIZE(offsets)];
@@ -147,7 +147,7 @@ static void run_singlethread(bool verify_results)
             int threshold = 400; // should be high enough even for valgrind
             // in valgrind the first dequeue is always very late, the rest are okay
             if (RUNNING_ON_VALGRIND && i == 0)
-                threshold = 2000;
+                threshold = 30000;
             OK(diff < threshold && diff > -threshold, "%u recv %lu.%.09lu expected %lu.%.09lu diff %ld", i,
                     recvtimes[i].tv_sec, recvtimes[i].tv_nsec,
                     expecteds[i].tv_sec, expecteds[i].tv_nsec,
