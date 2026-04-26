@@ -281,13 +281,14 @@ void finish_delay(void)
     struct MessageQueue *m = READ_ONCE(mbox);
     // use the mutex to wait for the thread to flush its queue
     pthread_mutex_lock(&mutex);
-    if (m)
+    if (m) {
         messagequeue_push(m, FLUSH_SIGNAL);
-    pthread_mutex_lock(&mutex);
-    mbox = NULL;
+        pthread_mutex_lock(&mutex);
+        mbox = NULL;
+        pthread_mutex_unlock(&mutex);
+    }
     notification_register_source("delay", NULL, NULL, 2000);
     stats = delete_hashmap(stats);
-    pthread_mutex_unlock(&mutex);
     log_info("delay finished");
 }
 
