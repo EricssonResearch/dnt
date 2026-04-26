@@ -41,6 +41,7 @@ const char *action_name_from_type(enum ActionType type)
         "Replicate",
         "Send",
         "SeqGen",
+        "Setlength",
         "TTLCheck",
         "TTLReduce",
         "WriteSeq",
@@ -748,6 +749,37 @@ void create_action_seqgen(struct Action *a, struct PipelineObject *gen, const ch
     struct SeqgenData *sd = calloc_struct(SeqgenData);
     sd->gen = gen;
     pipeline_object_ref(gen);
+    a->action_private = sd;
+}
+
+/////////////////////////////////////////////////////////////////////
+
+struct SetlenghData {
+    struct HeaderField field;
+    unsigned baselen;
+    unsigned payload_idx;
+};
+
+static enum ActionResult action_SETLENGTH_execute(struct Action *a, struct PipelineIterator *pi)
+{
+    struct SetlenghData *sd = (struct SetlenghData *)a->action_private;
+    struct Packet *p = pi->packet;
+    uint8_t *field = p->buf + p->headers[sd->field.header_idx].start + sd->field.bitoffset/8;
+    uint16_t len = sd->baselen + p->headers[sd->payload_idx].len;
+    field[0] = (len >> 8) & 0xff;
+    field[1] = len & 0xff;
+    return ACR_CONTINUE;
+}
+
+void create_action_setlength(struct Action *a, const struct HeaderField *field,
+        unsigned baselen, unsigned payload_idx, const char *text)
+{
+    INIT_ACTION(SETLENGTH);
+
+    struct SetlenghData *sd = calloc_struct(SetlenghData);
+    sd->field = *field;
+    sd->baselen = baselen;
+    sd->payload_idx = payload_idx;
     a->action_private = sd;
 }
 

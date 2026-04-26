@@ -144,6 +144,7 @@ The available actions are the following:
 * `replicate [object] pipeline1 [pipeline2]` makes copies of the packet and continues processing them on the given pipelines, which have to be defined in the *streams* section; this can create any number of branches; the first argument can optionally be the name of a Replicate object that stores statistics about the replication; no further actions can be in the pipeline
 * `send iface` sends out the packet on the given interface from the *interfaces* list
 * `seqgen generator` uses the given sequence generator object to set the sequence number metadata of the packet
+* `setlength header` sets the length field in that header (supported protocols: IPv4, IPv6, UDP); note that when sending on an `ip` interface Linux sets correct length values for all headers not just the first one
 * `ttlcheck` drops the packet if the metadata TTL is 0; see `ttlreduce` action
 * `ttlreduce header` decreases the TTL in the given header, remembers the resulting value in a packet metadata field; see `ttlcheck` action
 * `writeseq header` writes the sequence number from the packet metadata to the given header, the metadata has to contain a valid sequence number (from `seqgen` or `readseq`)

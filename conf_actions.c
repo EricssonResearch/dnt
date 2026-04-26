@@ -21,8 +21,6 @@
 #include <string.h>
 #include <stdio.h>
 
-#include <arpa/inet.h> /* ntohs() */
-
 DEFAULT_LOGGING_MODULE(CONFIG, WARNING);
 
 #define MAX_DEPTH 10
@@ -47,6 +45,7 @@ enum ConfActionType {
     CA_REPL,
     CA_SEND,
     CA_SEQGEN,
+    CA_SETLENGTH,
     CA_TTLCHECK,
     CA_TTLREDUCE,
     CA_WRITESEQ,
@@ -166,6 +165,12 @@ struct ConfAction {
         struct {
             struct PipelineObject *gen;
         } seq;
+        struct {
+            struct HeaderDescriptor *hdr;
+            struct HeaderField *field;
+            unsigned baselen;
+            unsigned payload_idx;
+        } setlen;
         struct {
             struct HeaderField *field;
         } ttl;
@@ -351,6 +356,8 @@ static const char *confaction_name_from_type(enum ConfActionType type)
             return "Send";
         case CA_SEQGEN:
             return "SeqGen";
+        case CA_SETLENGTH:
+            return "Setlength";
         case CA_TTLCHECK:
             return "TTLCheck";
         case CA_TTLREDUCE:
@@ -629,7 +636,9 @@ static bool process_token(char *token, void *userdata)
             } else if (strcmp(token, "send") == 0) {
                 newaction->type = CA_SEND;
             } else if (strcmp(token, "seqgen") == 0) {
-                newaction->type = CA_SEND;
+                newaction->type = CA_SEQGEN;
+            } else if (strcmp(token, "setlength") == 0) {
+                newaction->type = CA_SETLENGTH;
             } else if (strcmp(token, "ttlcheck") == 0) {
                 newaction->type = CA_TTLCHECK;
             } else if (strcmp(token, "ttlreduce") == 0) {
@@ -991,6 +1000,19 @@ static bool process_token(char *token, void *userdata)
                 THROW("seqgen only takes one argument");
             }
             break;
+        case CA_SETLENGTH: {
+            if (newaction->setlen.hdr) {
+                THROW("setlength only takes one argument");
+            }
+            struct HeaderDescriptor *hdr = header_list_find_by_name(stst->headers, token);
+            if (hdr == NULL) {
+                THROW("no header named '%s' in the packet", token);
+            }
+            if (header_list_find_by_name(hdr->next, token)) {
+                THROW("header name '%s' is ambiguous", token);
+            }
+            newaction->setlen.hdr = hdr;
+            break; }
         case CA_TTLCHECK:
             THROW("ttlcheck action doesn't take parameters");
             break;
@@ -1816,6 +1838,41 @@ static bool process_action(struct StageState *stst)
             }
             stst->seq_set = true;
             break;
+        case CA_SETLENGTH:
+            if (newaction->setlen.hdr == NULL) {
+                THROW("setlength needs a header");
+            }
+            // note all of these count length in octets
+            if (newaction->setlen.hdr->id == PROTO_ID_IPv4) {
+                newaction->setlen.field = new_headerfield(header_index(stst->headers, newaction->setlen.hdr),
+                        protocol_get_field_by_name(PROTO_ID_IPv4, "length"));
+                newaction->setlen.baselen = 20;
+            } else if (newaction->setlen.hdr->id == PROTO_ID_IPv6) {
+                newaction->setlen.field = new_headerfield(header_index(stst->headers, newaction->setlen.hdr),
+                        protocol_get_field_by_name(PROTO_ID_IPv6, "length"));
+                newaction->setlen.baselen = 0;
+            } else if (newaction->setlen.hdr->id == PROTO_ID_UDP) {
+                newaction->setlen.field = new_headerfield(header_index(stst->headers, newaction->setlen.hdr),
+                        protocol_get_field_by_name(PROTO_ID_UDP, "length"));
+                newaction->setlen.baselen = 8;
+            } else {
+                THROW("setlength doesn't know how to handle protocol %s",
+                        protocol_type_from_id(newaction->setlen.hdr->id));
+            }
+            for (struct HeaderDescriptor *h=newaction->setlen.hdr->next; h; h=h->next) {
+                if (h->id != PROTO_ID_PAYLOAD) {
+                    const struct Protocol *proto = protocol_from_id(h->id);
+                    newaction->setlen.baselen += proto->bytelength;
+                }
+            }
+            newaction->setlen.payload_idx = 0;
+            for (struct HeaderDescriptor *h=stst->headers; h; h=h->next) {
+                if (h->id == PROTO_ID_PAYLOAD)
+                    break;
+                else
+                    newaction->setlen.payload_idx++;
+            }
+            break;
         case CA_TTLCHECK:
             if (stst->ttl_set == false) {
                 THROW("can't check undefined TTL, need TTLReduce first");
@@ -2033,6 +2090,9 @@ struct ConfAction *delete_confaction_list(struct ConfAction *ca_list)
                 break;
             case CA_SEQGEN:
                 break;
+            case CA_SETLENGTH:
+                free(del->setlen.field);
+                break;
             case CA_TTLCHECK:
                 break;
             case CA_TTLREDUCE:
@@ -2226,6 +2286,9 @@ struct Pipeline *assemble_actions(const char *stream_name, const struct ConfActi
             case CA_SEQGEN:
                 create_action_seqgen(actions+i, ca->seq.gen, ca->text);
                 break;
+            case CA_SETLENGTH:
+                create_action_setlength(actions+i, ca->setlen.field, ca->setlen.baselen, ca->setlen.payload_idx, ca->text);
+                break;
             case CA_TTLCHECK:
                 create_action_ttlcheck(actions+i, ca->text);
                 break;
@@ -2349,6 +2412,11 @@ void confactions_log(const struct ConfAction *ca_list, unsigned indent)
                 break;
             case CA_SEQGEN:
                 log_debug("%*sobject %s", indent+2, "", ca->seq.gen->name);
+                break;
+            case CA_SETLENGTH:
+                log_debug("%*sfield idx %u bitoffset %u bitcount %u baselength %u payload index %u", indent+2, "",
+                        ca->setlen.field->header_idx, ca->setlen.field->bitoffset, ca->setlen.field->bitcount,
+                        ca->setlen.baselen, ca->setlen.payload_idx);
                 break;
             case CA_TTLCHECK:
                 break;

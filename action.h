@@ -25,6 +25,7 @@ enum ActionType {
     ACT_REPL,
     ACT_SEND,
     ACT_SEQGEN,
+    ACT_SETLENGTH,
     ACT_TTLCHECK,
     ACT_TTLREDUCE,
     ACT_WRITESEQ,
@@ -121,6 +122,9 @@ void create_action_repl(struct Action *a, struct PipelineList *list, struct Pipe
 void create_action_send(struct Action *a, struct Interface *iface, const char *text);
 
 void create_action_seqgen(struct Action *a, struct PipelineObject *gen, const char *text);
+
+void create_action_setlength(struct Action *a, const struct HeaderField *field,
+        unsigned baselen, unsigned payload_idx, const char *text);
 
 void create_action_ttlcheck(struct Action *a, const char *text);
 
