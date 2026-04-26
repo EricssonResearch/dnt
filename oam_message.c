@@ -748,9 +748,7 @@ static void *inband_receiver_th(void *arg)
         }
         if (levelcmp > 0) {
             log_packet("%s forwarding in-band message due to level", mp_get_name(msg->mp));
-            //TODO pipe_iterator_resume(msg->pi);
-            msg->pi->pos += 1;
-            pipe_iterator_run(msg->pi);
+            pipe_iterator_resume(msg->pi);
             free(msg);
             continue;
         }
@@ -777,9 +775,7 @@ static void *inband_receiver_th(void *arg)
             }
 
             log_packet("%s forwarding in-band message", mp_get_name(msg->mp));
-            //TODO pipe_iterator_resume(msg->pi);
-            msg->pi->pos += 1;
-            pipe_iterator_run(msg->pi);
+            pipe_iterator_resume(msg->pi);
         } else {
             log_packet("%s dropping in-band message", mp_get_name(msg->mp));
             pipe_iteraror_cancel(msg->pi);

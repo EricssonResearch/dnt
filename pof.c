@@ -256,9 +256,8 @@ static void pof_forward(struct PofElem *pe)
     struct Pof *pof = pe->pof;
     if (pe->seq > pof->pof_last_sent) //TODO this if is not present in RFC 9550 (but it seems crucial)
         pof->pof_last_sent = pe->seq;
-    pe->pi->pos += 1; // advance in the pipeline
     /* printf("POF: last_sent=%d forward=%d take_any=%d\n", pof->pof_last_sent, pe->seq, pof->take_any); */
-    pipe_iterator_run(pe->pi);
+    pipe_iterator_resume(pe->pi);
 }
 
 static void pof_try_forward(struct Pof *pof, int event)

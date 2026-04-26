@@ -79,8 +79,7 @@ static void send_packet(char *payload, unsigned len)
     unsigned char *p = packet->buf + packet->headers[0].start;
     memcpy(p, payload, len);
     free(payload);
-    struct PipelineIterator *pi = new_pipe_iterator(notification_pipe, packet);
-    pipe_iterator_run(pi);
+    pipeline_process(notification_pipe, 0, packet);
 }
 
 static void send_notification_message(char *msg, unsigned len)

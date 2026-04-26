@@ -636,8 +636,7 @@ static enum ActionResult action_REPL_execute(struct Action *a, struct PipelineIt
             p = iterpacket;
         }
 
-        struct PipelineIterator *newpi = new_pipe_iterator(list->pipe, p);
-        pipe_iterator_run(newpi);
+        pipeline_process(list->pipe, 0, p);
         list = list->next;
     }
     return ACR_DONE;
