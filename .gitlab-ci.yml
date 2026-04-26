@@ -225,6 +225,11 @@ unit_test.conf_utils:
   variables:
     TESTNAME: test_conf_utils
 
+unit_test.delay:
+  extends: .unit_test.common
+  variables:
+    TESTNAME: test_delay
+
 unit_test.header_api:
   extends: .unit_test.common
   variables:
@@ -311,6 +316,11 @@ unit_test.utils:
     - build-unit_test_asan
   script:
     - TEST_COLOR=1 unit_test/build/$TESTNAME
+
+multithread_unit_test.delay:
+  extends: .multithread_unit_test.common
+  variables:
+    TESTNAME: test_delay
 
 multithread_unit_test.seq_rcvy_match:
   extends: .multithread_unit_test.common

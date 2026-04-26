@@ -1,50 +1,126 @@
 // Copyright (c) 2023-2025, Ericsson AB and Ericsson Telecommunication Hungary
 // All rights reserved.
 
-#include "action.h"
 #include "delay.h"
+#include "action.h"
 #include "log.h"
-#include "pipeline.h"
-#include "utils.h"
-#include "thread_utils.h"
 #include "notification.h"
+#include "pipeline.h"
+#include "thread_utils.h"
+#include "utils.h"
 
 #include <stdlib.h>
 #include <stdio.h>
-#include <unistd.h>
-#include <arpa/inet.h>
-#include <errno.h>
-#include <pthread.h>
 #include <string.h>
-#include <semaphore.h>
-#include <sys/eventfd.h>
-#include <sys/select.h>
 
+#include <unistd.h>
+#include <pthread.h>
 
-DEFAULT_LOGGING_MODULE(DELAY, WARNING);
+DEFAULT_LOGGING_MODULE(DELAY, INFO);
 
 struct DelayStat {
-    unsigned long long delayed_packets;
-    unsigned long long delay_exceeded_packets;
+    uint64_t delayed_packets;
+    uint64_t delay_exceeded_packets;
 };
 
 struct DelayQueue {
     struct PipelineIterator *pi;
-    struct timespec delay;
-    struct timespec due_time;
+    struct timespec deadline;
     struct DelayStat *stat;
     struct DelayQueue *next;
 };
 
-static struct HashMap *stats = NULL;
+static struct HashMap *stats = NULL; // pipeline name -> struct DelayStat
 
-static struct DelayQueue *delay_queue = NULL;
-static struct Thread *thread = NULL;
-static sem_t delay_sem;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-struct timespec delay_timer;
-struct timespec last_alert;
 
+struct MessageQueue *mbox = NULL;
+
+#define IDLE_TIMEOUT_US 60*1000*1000
+
+#define ALERT_COOLDOWN 5000000
+
+// this is an unique non-NULL pointer
+#define FLUSH_SIGNAL (struct PipelineIterator*)&mbox
+
+// make sure the read of @x is not optimized away
+// idea stolen from Linux kernel
+#define READ_ONCE(x) (* (const volatile typeof(x) *) &(x))
+
+// @returns the first deadline
+// can be negative if we are late
+static int queue_deadline(struct DelayQueue *q)
+{
+    struct timespec deadline = q->deadline;
+    struct timespec now;
+    clock_gettime(DELAY_CLOCK, &now);
+    return time_diff_us(deadline, now);
+}
+
+// @returns the new deadline
+static int queue_push(struct DelayQueue **q, struct PipelineIterator *pi)
+{
+    struct DelayQueue *n = calloc_struct(DelayQueue);
+    n->pi = pi;
+
+    struct timespec now;
+    clock_gettime(DELAY_CLOCK, &now);
+    struct timespec packet_enter;
+    timespec_from_tsntstamp(&packet_enter, pi->packet->timestamp, &now);
+    timespecadd(&packet_enter, &pi->packet->delay, &n->deadline);
+
+    struct DelayStat *stat = (struct DelayStat *)hashmap_find(stats, pi->pipe->name);
+    if (!stat) {
+        stat = calloc_struct(DelayStat);
+        hashmap_insert(stats, strdup(pi->pipe->name), stat);
+    }
+    n->stat = stat;
+
+    // push in, increasing order of deadlines
+    if (*q) {
+        struct DelayQueue *iter = *q;
+        struct DelayQueue *iter_prev = NULL;
+        while (iter && timespeccmp(&n->deadline, &iter->deadline, >)) {
+            iter_prev = iter;
+            iter = iter->next;
+        }
+        if (iter_prev) {
+            iter_prev->next = n;
+            n->next = iter;
+        } else {
+            n->next = *q;
+            *q = n;
+        }
+    } else {
+        *q = n;
+    }
+
+    struct timespec deadline = (*q)->deadline;
+    int64_t timeout = time_diff_us(deadline, now);
+    if (timeout <= 0) {
+        (*q)->stat->delay_exceeded_packets++;
+    }
+    return timeout;
+}
+
+// @returns true if there was a packet in &q
+static bool queue_send_first(struct DelayQueue **q)
+{
+    if (*q) {
+        struct DelayQueue *f = *q;
+        struct PipelineIterator *pi = f->pi;
+
+        pipe_iterator_resume(pi);
+
+        f->stat->delayed_packets++;
+
+        *q = (*q)->next;
+        free(f);
+        return true;
+    } else {
+        return false;
+    }
+}
 
 static NotificationLevel delay_notification_pull_fn(void *self, struct JsonValue **msg)
 {
@@ -60,219 +136,186 @@ static NotificationLevel delay_notification_pull_fn(void *self, struct JsonValue
         json_object_insert(ret, pipeline_name, js);
     }
 
-/*    unsigned len;
-    log_info("js=%s\n", json_serialize(ret, &len));
-*/
     *msg = ret;
     return NOTIF_PULL;
 }
 
-bool register_delay_notification(bool add, unsigned period_ms)
+static void send_alert(struct PipelineIterator *pi, struct DelayStat *stat)
 {
-    if(add)
-        return notification_register_source("delay", delay_notification_pull_fn, NULL, period_ms);
-    else
-        return notification_register_source("delay", NULL, NULL, period_ms);
+    log_warning("delay exceeded for pipe %s (%lu of %lu)",
+            pi->pipe->name, stat->delay_exceeded_packets, stat->delayed_packets);
+    struct JsonValue *js = json_object();
+    json_object_insert(js, "pipe", json_string(pi->pipe->name));
+    json_object_insert(js, "exceeded", json_number(stat->delay_exceeded_packets));
+    notification_push_event("delay", NOTIF_ERROR, js);
 }
 
+struct ThreadArgs {
+    struct MessageQueue *m;
+    struct Thread *t;
+};
 static void *delay_thread(void *arg)
 {
-    (void)arg;
-    log_info("Delay thread starting");
-
-    struct timespec time_now;
-    int ret;
-
-    // wait for the first packet to be delayed
-    sem_wait(&delay_sem);
+    struct ThreadArgs *targ = (struct ThreadArgs *)arg;
+    int timeout_us = IDLE_TIMEOUT_US;
+    struct DelayQueue *queue = NULL;
+    struct timespec last_alert = {0, 0};
+    log_info("delay queue started");
 
     while (1) {
-        clock_gettime(CLOCK_REALTIME, &time_now);
+        struct PipelineIterator *pi = NULL;
+        log_debug("waiting for %d", timeout_us);
+        // skip mailbox if we are running late
+        if (timeout_us > 0)
+            pi = (struct PipelineIterator *)messagequeue_pop(targ->m, timeout_us);
 
-        // wait until the delay time has elapsed
-        while ((ret = sem_timedwait(&delay_sem, &delay_timer)) == -1 && errno == EINTR)
-            continue;
-
-        if (ret == -1 && errno != ETIMEDOUT)
-            log_perror("sem_timedwait");
-
-        pthread_mutex_lock(&mutex);
-
-        // delay time elapsed, send out
-        struct DelayQueue *pDelayQueueFirst = delay_queue;
-        if (pDelayQueueFirst == NULL) {
-            /* printf("ERROR: Packet delay timer expired but queue empty.\n"); */
-            pthread_mutex_unlock(&mutex);
-            sem_wait(&delay_sem);
-            continue;
-        }
-
-        struct PipelineIterator *pi = pDelayQueueFirst->pi;
-        //struct Action *a = pi->pipe->actions[pi->pos];
-
-        pDelayQueueFirst->stat->delayed_packets++;
-
-        // Move to the next frame in tt queue
-        delay_queue = pDelayQueueFirst->next;
-        free(pDelayQueueFirst);
-
-        // Unlock mutex
-        pthread_mutex_unlock(&mutex);
-
-        // we need to step to the next action before pipe_iterator_run()
-        pi->pos++;
-        pipe_iterator_run(pi);
-
-        // Check if the tt queue is empty
-        if (delay_queue != NULL) { // more packets in queue, prime timer
-            delay_timer.tv_sec = delay_queue->due_time.tv_sec;
-            delay_timer.tv_nsec = delay_queue->due_time.tv_nsec;
-
-            log_debug("* %lu.%09ld  timer %ld.%09ld", time_now.tv_sec,time_now.tv_nsec, delay_queue->due_time.tv_sec, delay_queue->due_time.tv_nsec);
-            // it will sleep
+        if (pi) {
+            if (pi == FLUSH_SIGNAL) {
+                // send everything immediately and exit
+                while (queue) {
+                    queue_send_first(&queue);
+                }
+                log_debug("flushed");
+                pthread_mutex_unlock(&mutex);
+                break;
+            } else {
+                timeout_us = queue_push(&queue, pi);
+                if (timeout_us <= 0) {
+                    struct timespec now;
+                    clock_gettime(DELAY_CLOCK, &now);
+                    if (time_diff_us(now, last_alert) > ALERT_COOLDOWN) {
+                        send_alert(queue->pi, queue->stat);
+                        last_alert = now;
+                    }
+                }
+            }
         } else {
-            // no follow-up packet, just wait for semaphore
-            sem_wait(&delay_sem);
+            // timeout
+            if (queue_send_first(&queue)) {
+                if (queue) {
+                    timeout_us = queue_deadline(queue);
+                } else {
+                    log_debug("going idle");
+                    timeout_us = IDLE_TIMEOUT_US;
+                }
+            } else {
+                // queue is empty so we were in idle timeout
+                pthread_mutex_lock(&mutex);
+                if (mbox == targ->m) {
+                    mbox = NULL;
+                    pthread_mutex_unlock(&mutex);
+
+                    usleep(10*1000);
+                    pi = (struct PipelineIterator *)messagequeue_pop(targ->m, 0);
+                    if (pi) {
+                        // somebody pushed while we were sleeping
+                        // (they still had the mbox pointer)
+                        // extremely unlikely event, but let's not lose the packet
+                        timeout_us = queue_push(&queue, pi);
+                        if (timeout_us <= 0) {
+                            struct timespec now;
+                            clock_gettime(DELAY_CLOCK, &now);
+                            if (time_diff_us(now, last_alert) > ALERT_COOLDOWN) {
+                                send_alert(queue->pi, queue->stat);
+                                last_alert = now;
+                            }
+                        }
+                    } else {
+                        break;
+                    }
+                } else {
+                    // we are not the currently active queue, it's safe to exit
+                    pthread_mutex_unlock(&mutex);
+                    break;
+                }
+            }
         }
     }
 
+    struct Thread *t = targ->t;
+    delete_messagequeue(targ->m);
+    free(arg);
+    log_info("delay queue stopped");
+    thread_exit(t);
     return NULL;
+}
+
+static struct MessageQueue *get_mbox(void)
+{
+    // no mutex in the regular code path
+    struct MessageQueue *m = READ_ONCE(mbox);
+    if (m) {
+        return m;
+    } else {
+        pthread_mutex_lock(&mutex);
+        // must read again because another thread might have created the mbox
+        m = READ_ONCE(mbox);
+        if (m) {
+            pthread_mutex_unlock(&mutex);
+            return m;
+        } else {
+            m = new_messagequeue();
+            struct ThreadArgs *targ = calloc_struct(ThreadArgs);
+            targ->m = m;
+            targ->t = thread_launch_priority(delay_thread, targ, 97, "delay thread");
+            if (targ->t == NULL) {
+                targ->t = thread_launch(delay_thread, targ, "delay thread");
+            }
+            mbox = m;
+            pthread_mutex_unlock(&mutex);
+            return m;
+        }
+    }
 }
 
 bool init_delay(void)
 {
-    if (sem_init(&delay_sem, 0, 0) < 0) {
-        log_perror("init_delay sem_init");
-        return false;
-    }
-
     stats = new_hashmap(13, NULL, NULL);
-
-    //delay_queue = calloc_struct(DelayQueue);
-    thread = thread_launch_priority(delay_thread, NULL, 97, "delay thread");
-    if (thread == NULL) {
-        thread = thread_launch(delay_thread, NULL, "delay thread");
-        if (thread == NULL) {
-            log_error("Could not create delay thread");
-            return false;
-        }
-        log_warning("Could not set priority for delay thread");
-    }
-
-    clock_gettime(CLOCK_REALTIME, &last_alert);
-
-    static char name[] = "delay";  // ToDo: per pipeline delay stat?
-    notification_register_source(name, delay_notification_pull_fn, name, 2000);
-
+    notification_register_source("delay", delay_notification_pull_fn, NULL, 2000);
+    log_info("delay initialized");
     return true;
 }
 
-//TODO properly flush the queue
 void finish_delay(void)
 {
-    thread_stop(thread);
-    sem_destroy(&delay_sem);
-    free(delay_queue);
-    delete_hashmap(stats);
+    struct MessageQueue *m = READ_ONCE(mbox);
+    // use the mutex to wait for the thread to flush its queue
+    pthread_mutex_lock(&mutex);
+    if (m)
+        messagequeue_push(m, FLUSH_SIGNAL);
+    pthread_mutex_lock(&mutex);
+    mbox = NULL;
+    notification_register_source("delay", NULL, NULL, 2000);
+    stats = delete_hashmap(stats);
+    pthread_mutex_unlock(&mutex);
+    log_info("delay finished");
 }
+
 
 void delay_insert(struct PipelineIterator *pi)
 {
-    // alloc and fill in the tt_queue entry
-    struct DelayQueue* pDelayQueueEntry = calloc_struct(DelayQueue);
-    if (pDelayQueueEntry == NULL) {
-        log_warning("Insufficient memory.");
-        // TODO handle error
-        return;
-    }
-
-    // find the stats related to pipe
-    struct DelayStat *stat = (struct DelayStat *)hashmap_find(stats, pi->pipe->name);
-    if (!stat) {
-        stat = calloc_struct(DelayStat);
-        hashmap_insert(stats, strdup(pi->pipe->name), stat);
-    }
-
-    struct timespec delay = pi->packet->delay;
-
-    pDelayQueueEntry->pi = pi;
-    pDelayQueueEntry->delay = delay;
-    pDelayQueueEntry->stat = stat;
-    pDelayQueueEntry->next = NULL;
-
-    // get current time
-    struct timespec now_ts;
-    clock_gettime(CLOCK_REALTIME, &now_ts);
-    timespec_from_tsntstamp(&pDelayQueueEntry->due_time, pi->packet->timestamp, &now_ts);
-
-    // Add delay configured in microsec to the received timestamp
-    struct timespec result;
-    timespecadd(&pDelayQueueEntry->due_time, &delay, &result);
-    pDelayQueueEntry->due_time = result;
-
-    if(time_diff_us(now_ts, pDelayQueueEntry->due_time) > 0){
-        stat->delay_exceeded_packets++;
-        // rate-limit the notification
-        if (time_diff_us(now_ts, last_alert) > 1000*1000*5) {
-            log_warning("delay %s exceeded %llu", pi->pipe->name, stat->delay_exceeded_packets);
-/*          // push notification
-            struct JsonValue *js = json_object();
-            json_object_insert(js, "delay", json_string(pi->pipe->name));
-            json_object_insert(js, "error", json_string("Delay already exceeded"));
-            notification_push_event("delay", NOTIF_ERROR, js);
-            last_alert = now_ts;
-*/
-        }
-    }
-
-    // handling the delay queue should not be interrupted
-    pthread_mutex_lock(&mutex);
-
-    // find the frame in the tt_queue where we have to insert
-    struct DelayQueue *pDelayQueueIterator, *pDelayQueueIteratorPrev;
-    pDelayQueueIterator = (struct DelayQueue *)delay_queue;
-    pDelayQueueIteratorPrev = NULL;
-
-    while (pDelayQueueIterator != NULL) {
-        if (timespeccmp(&pDelayQueueIterator->due_time, &pDelayQueueEntry->due_time, >))
-            break;
-        pDelayQueueIteratorPrev = pDelayQueueIterator;
-        pDelayQueueIterator = pDelayQueueIterator->next;
-    }
-
-    if (pDelayQueueIteratorPrev == NULL) {
-        // if the  queue not empty, set the next
-        // if(tt_queue != NULL)
-        pDelayQueueEntry->next = (struct DelayQueue *)delay_queue;
-
-        // first in the delay queue, set timer for it
-        delay_timer.tv_sec = pDelayQueueEntry->due_time.tv_sec;
-        delay_timer.tv_nsec = pDelayQueueEntry->due_time.tv_nsec;
-
-        delay_queue = pDelayQueueEntry;
-
-        // unlock mutex
-        pthread_mutex_unlock(&mutex);
-
-        if (sem_post(&delay_sem) == -1)
-            log_error("sem_post failed");
-
-    } else { // not first, insert into the queue
-        if (delay_queue == NULL)
-            log_error("Should not happen");
-
-        // put in the queue
-        pDelayQueueEntry->next = pDelayQueueIteratorPrev->next;
-        pDelayQueueIteratorPrev->next = pDelayQueueEntry;
-        // timer must be running, not needed to set...
-        pthread_mutex_unlock(&mutex);
-    }
-
-#if defined (DEBUG_TSTAMP)
-    if(due_time.tv_nsec - t2.tv_nsec < 0)
-        printf(" delay: %ld.%09ld\n", due_time.tv_sec-1-t2.tv_sec, due_time.tv_nsec -t2.tv_nsec + 1000000000);
-    else
-        printf(" delay: %ld.%09ld\n", due_time.tv_sec-t2.tv_sec, due_time.tv_nsec -t2.tv_nsec);
-#endif
-
+    struct MessageQueue *m = get_mbox();
+    messagequeue_push(m, pi);
 }
+
+bool register_delay_notification(bool add, unsigned period_ms)
+{
+    return notification_register_source("delay", add ? delay_notification_pull_fn : NULL, NULL, period_ms);
+}
+
+struct ForeachStatState {
+    int (*cb)(const char *pipe, uint64_t packets, uint64_t delay_exceeded, void *userdata);
+    void *userdata;
+};
+static int foreach_stat_cb(const char *key, void *value, void *userdata)
+{
+    struct ForeachStatState *st = (struct ForeachStatState *)userdata;
+    struct DelayStat *stat = (struct DelayStat *)value;
+    return st->cb(key, stat->delayed_packets, stat->delay_exceeded_packets, st->userdata);
+}
+int foreach_delay_stat(int (*cb)(const char *pipe, uint64_t packets, uint64_t delay_exceeded, void *userdata), void *userdata)
+{
+    struct ForeachStatState st = {cb, userdata};
+    return hashmap_foreach(stats, foreach_stat_cb, &st);
+}
+

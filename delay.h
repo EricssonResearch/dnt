@@ -6,14 +6,15 @@
 #define R2_DELAY_H
 
 #include "pipeline.h"
-#include "time_utils.h"
-#include "notification.h"
 
-// initialize the delay thread
+// this has to be CLOCK_REALTIME because MessageQueue can't use anything else
+#define DELAY_CLOCK CLOCK_REALTIME
+
+// initialize the delay module
 // @returns true on success
 bool init_delay(void);
 
-// finish with the delay thread
+// finish with the delay module
 void finish_delay(void);
 
 // inserts the iterator @pi into a queue to be sent later
@@ -24,7 +25,11 @@ void finish_delay(void);
 // the queue will release the packet when @delay has elapsed since @timestamp
 void delay_insert(struct PipelineIterator *pi);
 
-// registers a delay notification
+// registers a delay notification that reports the per-stream counters
 bool register_delay_notification(bool add, unsigned period_ms);
+
+// calls @cb for each delay stat entry
+// stops iterating if @cb returns 0
+int foreach_delay_stat(int (*cb)(const char *pipe, uint64_t packets, uint64_t delay_exceeded, void *userdata), void *userdata);
 
 #endif // R2_DELAY_H
