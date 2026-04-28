@@ -1500,7 +1500,16 @@ static bool process_action(struct StageState *stst)
             // set the nexthdr field of newheader either by nextheader's type or by copying from prevheader
             if (newproto->get_nexthdr != NULL) {
                 struct ConfAssignment *a = NULL;
-                if (nextheader) {
+                for (struct ConfAssignment *i = newaction->add.assignments; i; i=i->next) {
+                    if (i->lhs.value_type == FT_NEXTHEADER) {
+                        a = i;
+                        break;
+                    }
+                }
+                if (a) {
+                    // the user has set the nexthdr field, no automatic setting needed
+                    a = NULL;
+                } else if (nextheader) {
                     a = assign_nexthdrid_from_header_type("add", newheader, pos_idx, nextheader);
                     if (a == NULL) {
                         THROW("header type %s cannot have type %s as next header",
@@ -1517,8 +1526,10 @@ static bool process_action(struct StageState *stst)
                                 protocol_type_from_id(prevheader->id));
                     }
                 }
-                a->next = edit->edit.assignments;
-                edit->edit.assignments = a;
+                if (a) {
+                    a->next = edit->edit.assignments;
+                    edit->edit.assignments = a;
+                }
             }
 
             // set nexthdr of prevheader with newheader's type
