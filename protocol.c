@@ -73,6 +73,7 @@ static bool ethertype_from_id(uint16_t *nexthdr, enum ProtocolID id)
         case PROTO_ID_UDP:
         case PROTO_ID_TCP:
         case PROTO_ID_OAM:
+        case PROTO_ID_ICMPv4:
         case PROTO_ID_ICMPv6:
             return false;
     }
@@ -96,6 +97,10 @@ static bool id_from_ipproto(enum ProtocolID *id, uint16_t proto)
             SET_ID(PROTO_ID_MPLS);
         case IPPROTO_ETHERNET:
             SET_ID(PROTO_ID_ETH);
+        case IPPROTO_ICMP:
+            SET_ID(PROTO_ID_ICMPv4);
+        case IPPROTO_ICMPV6:
+            SET_ID(PROTO_ID_ICMPv6);
     }
     return false;
 #undef SET_ID
@@ -117,6 +122,8 @@ static bool ipproto_from_id(uint16_t *proto, enum ProtocolID id)
             SET_PROTO(IPPROTO_TCP);
         case PROTO_ID_MPLS:
             SET_PROTO(IPPROTO_MPLS);
+        case PROTO_ID_ICMPv4:
+            SET_PROTO(IPPROTO_ICMP);
         case PROTO_ID_ICMPv6:
             SET_PROTO(IPPROTO_ICMPV6);
         case PROTO_ID_PAYLOAD:
@@ -319,18 +326,53 @@ static const struct ProtocolField cfm_fields[] = {
     {"tlvoffset", 24,  8, FT_NUMBER}, // length of a fixed header after CFM
 };
 
+static const struct ProtocolField icmpv4_fields[] = {
+    {"type",        0,  8, FT_NUMBER}, //TODO FT_ENUM?
+    {"code",        8,  8, FT_NUMBER}, //TODO FT_ENUM?
+    {"checksum",   16, 16, FT_CHECKSUM},
+
+    // Echo Request (type=8)
+    // Echo Reply (type=0)
+    {"identifier", 32, 16, FT_NUMBER},
+    {"sequence",   48, 16, FT_NUMBER},
+
+    //TODO other informational messages?
+    //  Router Discovery RFC 1256
+
+    // Destination Unreachable (type=3)
+    // Time Exceeded (type=11)
+    {"unused",     32, 32, FT_NUMBER},
+
+    // Redirect (type=5)
+    {"gateway",    32, 32, FT_IPV4ADDRESS},
+
+    // Parameter Problem (type=12)
+    {"pointer",    32,  8, FT_NUMBER},
+};
+
 // ICMPv6 protocol fields, including type specific fields
 static const struct ProtocolField icmpv6_fields[] = {
-    {"type",       0,  8, FT_NUMBER},     // type, 128 = echo req
-    {"code",       8,  8, FT_NUMBER},
-    {"checksum",  16,  16, FT_CHECKSUM},  // needs to be calculated
+    {"type",        0,  8, FT_NUMBER}, //TODO FT_ENUM?
+    {"code",        8,  8, FT_NUMBER}, //TODO FT_ENUM?
+    {"checksum",   16, 16, FT_CHECKSUM},
 
-    // These are type-specific fields
-    {"identifier",32,  16, FT_NUMBER},    // ICMPv6 Echo fields
-    {"sequence",  48,  16, FT_NUMBER},
-    {"mtu",       32,  32, FT_NUMBER},    // Packet Too Big error
-    {"pointer",   32,  32, FT_NUMBER},    // Parameter problem
-    {"reserved",  32,  32, FT_NUMBER},    // Unused
+    // Echo Request (type=128)
+    // Echo Reply (type=129)
+    {"identifier", 32, 16, FT_NUMBER},
+    {"sequence",   48, 16, FT_NUMBER},
+
+    //TODO other informational messages?
+    //  Neighbor Discovery, Multicast Listener etc.
+
+    // Destination Unreachable (type=1)
+    // Time Exceeded (type=3)
+    {"unused",     32, 32, FT_NUMBER},
+
+    // Packet Too Big (type=2)
+    {"mtu",        32, 32, FT_NUMBER},
+
+    // Parameter Problem (type=4)
+    {"pointer",    32, 32, FT_NUMBER},
 };
 
 // the internal id of the protocols is their index in this array
@@ -355,6 +397,7 @@ const struct Protocol protocol_list[] = {
     {"oam", oam_fields, ARRAY_SIZE(oam_fields), 8, NULL, NULL, NULL, 0},
     {"oamrtag", oamrtag_fields, ARRAY_SIZE(oamrtag_fields), 4, NULL, NULL, NULL, 0},
     {"cfm", cfm_fields, ARRAY_SIZE(cfm_fields), 4, NULL, NULL, NULL, 0},
+    {"icmpv4", icmpv4_fields, ARRAY_SIZE(icmpv4_fields), 8, NULL, NULL, NULL, 0},
     {"icmpv6", icmpv6_fields, ARRAY_SIZE(icmpv6_fields), 8, NULL, NULL, NULL, 0},
 };
 
