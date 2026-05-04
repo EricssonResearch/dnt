@@ -23,6 +23,7 @@ while (<>) {
             undef $protoname
         } else {
             my ($name) = /"(\w+)"/;
+            next unless defined $name;
             my ($comment) = /\/\/(.*)/;
             $comment = '' unless defined $comment;
             push @{$headers{$protoname}}, "* `$name` $comment\n";
