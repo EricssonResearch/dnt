@@ -77,6 +77,7 @@ struct Interface {
     unsigned long long recv_octets;
     unsigned long long send_packets;
     unsigned long long send_octets;
+    unsigned long long checksum_errors;
 
     struct timespec last_alert;
 

@@ -3,6 +3,7 @@
 
 
 #include "action.h"
+#include "checksum.h"
 #include "delay.h"
 #include "inet_utils.h"
 #include "oam.h"
@@ -24,9 +25,11 @@ DEFAULT_LOGGING_MODULE(PIPELINE, WARNING);
 
 const char *action_name_from_type(enum ActionType type)
 {
+    // these must be in the same order as enum ActionType
     static const char *names[] = {
         "Undef",
         "Add",
+        "Checksum",
         "Del",
         "Delay",
         "Drop",
@@ -44,11 +47,17 @@ const char *action_name_from_type(enum ActionType type)
         "Setlength",
         "TTLCheck",
         "TTLReduce",
+        "Verify",
         "WriteSeq",
         "WriteTstamp",
     };
+    // update this when ACT_WRITETSTAMP is no longer the last item!
+#ifndef __cplusplus
+    _Static_assert(ARRAY_SIZE(names) == ACT_WRITETSTAMP+1, "must update the names array");
+#endif
     return names[type];
 }
+
 
 #define INIT_ACTION(type_)                      \
     bzero(a, sizeof(*a));                       \
@@ -131,6 +140,29 @@ void create_action_add(struct Action *a, unsigned idx, enum ProtocolID type, uns
     ad->type = type;
     ad->len = len;
     a->action_private = ad;
+}
+
+/////////////////////////////////////////////////////////////////////
+
+static enum ActionResult action_CHECKSUM_execute(struct Action *a, struct PipelineIterator *pi)
+{
+    struct ChecksumParameters *cp = (struct ChecksumParameters *)a->action_private;
+    checksum_compute(pi->packet, cp);
+    return ACR_CONTINUE;
+}
+
+void create_action_checksum(struct Action *a,
+        unsigned hdr_idx, enum ProtocolID hdr_proto, unsigned ip_idx, enum ProtocolID ip_version,
+        const char *text)
+{
+    INIT_ACTION(CHECKSUM);
+
+    struct ChecksumParameters *cp = calloc_struct(ChecksumParameters);
+    cp->hdr_idx = hdr_idx;
+    cp->hdr_proto = hdr_proto;
+    cp->ip_idx = ip_idx;
+    cp->ip_version = ip_version;
+    a->action_private = cp;
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -824,6 +856,31 @@ void create_action_ttlreduce(struct Action *a, const struct HeaderField *ttlfiel
     struct TtlData *td = calloc_struct(TtlData);
     td->field = *ttlfield;
     a->action_private = td;
+}
+
+/////////////////////////////////////////////////////////////////////
+
+static enum ActionResult action_VERIFY_execute(struct Action *a, struct PipelineIterator *pi)
+{
+    struct ChecksumParameters *cp = (struct ChecksumParameters *)a->action_private;
+    if (checksum_verify(pi->packet, cp))
+        return ACR_CONTINUE;
+    else
+        return ACR_DONE;
+}
+
+void create_action_verify(struct Action *a,
+        unsigned hdr_idx, enum ProtocolID hdr_proto, unsigned ip_idx, enum ProtocolID ip_version,
+        const char *text)
+{
+    INIT_ACTION(VERIFY);
+
+    struct ChecksumParameters *cp = calloc_struct(ChecksumParameters);
+    cp->hdr_idx = hdr_idx;
+    cp->hdr_proto = hdr_proto;
+    cp->ip_idx = ip_idx;
+    cp->ip_version = ip_version;
+    a->action_private = cp;
 }
 
 /////////////////////////////////////////////////////////////////////

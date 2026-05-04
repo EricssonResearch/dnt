@@ -221,7 +221,7 @@ static const struct ProtocolField ipv4_fields[] = {
     {"fragoffset",     51, 13, FT_NUMBER},
     {"ttl",            64,  8, FT_TTL},
     {"protocol",       72,  8, FT_NEXTHEADER},
-    {"checksum",       80, 16, FT_CHECKSUM}, // TODO support checksum calculation
+    {"checksum",       80, 16, FT_CHECKSUM},
     {"src",            96, 32, FT_IPV4ADDRESS},
     {"dst",           128, 32, FT_IPV4ADDRESS},
 };
@@ -270,7 +270,7 @@ static const struct ProtocolField udp_fields[] = {
     {"srcport",   0, 16, FT_NUMBER},
     {"dstport",  16, 16, FT_NUMBER},
     {"length",   32, 16, FT_NUMBER},
-    {"checksum", 48, 16, FT_CHECKSUM}, // TODO support checksum calculation
+    {"checksum", 48, 16, FT_CHECKSUM},
 };
 
 static const struct ProtocolField tcp_fields[] = {
@@ -290,7 +290,7 @@ static const struct ProtocolField tcp_fields[] = {
     {"syn",        110,  1, FT_NUMBER}, // synchronize
     {"fin",        111,  1, FT_NUMBER}, // finish
     {"windowsize", 112, 16, FT_NUMBER},
-    {"checksum",   128, 16, FT_CHECKSUM}, // TODO support checksum calculation
+    {"checksum",   128, 16, FT_CHECKSUM},
     {"urgentp",    144, 16, FT_NUMBER},
 };
 //TODO TCP options how? we must support variable-length headers somehow

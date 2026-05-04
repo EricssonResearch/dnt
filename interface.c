@@ -106,6 +106,8 @@ void iface_print_info(const struct Interface *iface, FILE *cmd_w, bool stream_in
             iface_type_str(iface->type), state_names[iface->state]);
     fprintf(cmd_w, "    recv %llu packets %llu octets\n    send %llu packets %llu octets\n",
             iface->recv_packets, iface->recv_octets, iface->send_packets, iface->send_octets);
+    if (iface->checksum_errors)
+        fprintf(cmd_w, "    checksum errors %llu\n", iface->checksum_errors);
     if (iface->dropstat_cntr)
         fprintf(cmd_w, "    dropstat %d\n", iface->dropstat_cntr);
     if (iface->print_private_info)

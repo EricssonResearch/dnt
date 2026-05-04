@@ -11,6 +11,7 @@
 
 enum ActionType {
     ACT_ADD = 1,
+    ACT_CHECKSUM,
     ACT_DEL,
     ACT_DELAY,
     ACT_DROP,
@@ -28,6 +29,7 @@ enum ActionType {
     ACT_SETLENGTH,
     ACT_TTLCHECK,
     ACT_TTLREDUCE,
+    ACT_VERIFY,
     ACT_WRITESEQ,
     ACT_WRITETSTAMP,
 };
@@ -83,6 +85,10 @@ const char *action_name_from_type(enum ActionType type);
 // this just adds the header, the fields will be set with an edit action
 void create_action_add(struct Action *a, unsigned idx, enum ProtocolID type, unsigned len, const char *text);
 
+void create_action_checksum(struct Action *a,
+        unsigned hdr_idx, enum ProtocolID hdr_proto, unsigned ip_idx, enum ProtocolID ip_version,
+        const char *text);
+
 void create_action_del(struct Action *a, unsigned idx, const char *text);
 
 void create_action_delay(struct Action *a, const struct timespec delay, bool offload, const char *text);
@@ -98,7 +104,6 @@ void create_action_elim(struct Action *a, struct PipelineObject *rcvy, const enu
 void create_action_filteroam(struct Action *a, const struct HeaderField *seqfield, const char *text);
 
 // @returns false on error
-// TODO also pass addressing of the injected messages
 bool create_action_oam_inject(struct Action *a, const char *name, const char *stream, int level,
                               bool intermediate, struct Pipeline *pipe, unsigned idx,
                               struct OAM_MP_Address *address,
@@ -129,6 +134,10 @@ void create_action_setlength(struct Action *a, const struct HeaderField *field,
 void create_action_ttlcheck(struct Action *a, const char *text);
 
 void create_action_ttlreduce(struct Action *a, const struct HeaderField *ttlfield, const char *text);
+
+void create_action_verify(struct Action *a,
+        unsigned hdr_idx, enum ProtocolID hdr_proto, unsigned ip_idx, enum ProtocolID ip_version,
+        const char *text);
 
 void create_action_writeseq(struct Action *a, const struct HeaderField *seqfield, const char *text);
 
