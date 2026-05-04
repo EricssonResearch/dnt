@@ -8,6 +8,7 @@
 #include <string.h>
 #include <stdlib.h>
 
+#include <byteswap.h>
 #include <arpa/inet.h>
 
 bool parse_ip_port(const char *str, char **ip, unsigned *port)
@@ -152,4 +153,81 @@ bool parse_mac_vlan(const char *str, char **mac, unsigned *vlan)
             return false;
         }
     }
+}
+
+uint16_t csum_fold(uint32_t sum)
+{
+    sum = (sum & 0xffff) + (sum >> 16);
+    sum = (sum & 0xffff) + (sum >> 16);
+    return ntohs((uint16_t)~sum);
+}
+
+#define USE_32BIT
+uint32_t csum_partial(const uint8_t *p, size_t len, uint32_t sum)
+{
+    if (len == 0)
+        return sum;
+
+    if (((long)p & 1) == 1) {
+        sum += htole16(*p); // swap on BE
+        len--;
+        p++;
+
+        // now p is 16-bit aligned
+        const uint16_t *p16 = (const uint16_t*)p;
+#ifdef USE_32BIT
+        if (len >= 2 && (long)p & 3) {
+            sum += bswap_16(*p16++);
+            len -= 2;
+        }
+        // now p is 32-bit aligned
+        const uint32_t *p32 = (const uint32_t *)p16;
+        while (len > 3) {
+            // we have to add the carry bit
+            if (__builtin_uadd_overflow(sum, bswap_32(*p32), &sum))
+                sum++;
+            p32++;
+            len -= 4;
+        }
+        p16 = (const uint16_t*)p32;
+#endif
+        while (len > 1) {
+            // swap the bytes to maintain the even-odd assignment
+            sum += bswap_16(*p16++);
+            len -= 2;
+        }
+
+        if (len == 1) {
+            p = (const uint8_t*)p16;
+            sum += ntohs(*p);
+        }
+    } else {
+        const uint16_t *p16 = (const uint16_t*)p;
+#ifdef USE_32BIT
+        if (len >= 2 && (long)p & 3) {
+            sum += *p16++;
+            len -= 2;
+        }
+        // now p is 32-bit aligned
+        const uint32_t *p32 = (const uint32_t *)p16;
+        while (len > 3) {
+            // we have to add the carry bit
+            if (__builtin_uadd_overflow(sum, *p32, &sum))
+                sum++;
+            p32++;
+            len -= 4;
+        }
+        p16 = (const uint16_t*)p32;
+#endif
+        while (len > 1) {
+            sum += *p16++;
+            len -= 2;
+        }
+
+        if (len == 1) {
+            p = (const uint8_t*)p16;
+            sum += htole16(*p); // swap on BE
+        }
+    }
+    return sum;
 }

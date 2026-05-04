@@ -6,6 +6,8 @@
 #define R2_INET_UTILS_H
 
 #include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 
 #define ETHER_ADDSTRLEN 18
 
@@ -38,5 +40,16 @@ const char *ether_ntop(const void *src, char *dst, unsigned dstsize);
 // only sets @vlan if @str specifies it
 // @returns true on success, otherwise doesn't touch the output parameters
 bool parse_mac_vlan(const char *str, char **mac, unsigned *vlan);
+
+// @returns the 16bit result of the checksum calculation in host-native byte-order
+// use this after collecting the sum with @csum_partial
+// see RFC 1071
+uint16_t csum_fold(uint32_t sum);
+
+// @returns the partial checksum with the initial value @sum
+// @p can be a pointer with any alignment, @len can be odd
+// use @csum_fold on the result
+// see RFC 1071
+uint32_t csum_partial(const uint8_t *p, size_t len, uint32_t sum);
 
 #endif // R2_INET_UTILS_H
