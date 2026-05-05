@@ -133,7 +133,8 @@ void create_action_setlength(struct Action *a, const struct HeaderField *field,
 
 void create_action_ttlcheck(struct Action *a, const char *text);
 
-void create_action_ttlreduce(struct Action *a, const struct HeaderField *ttlfield, const char *text);
+void create_action_ttlreduce(struct Action *a, const struct HeaderField *ttlfield,
+        const struct HeaderField *csumfield, const char *text);
 
 void create_action_verify(struct Action *a,
         unsigned hdr_idx, enum ProtocolID hdr_proto, unsigned ip_idx, enum ProtocolID ip_version,

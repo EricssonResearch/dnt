@@ -148,7 +148,7 @@ The available actions are the following:
 * `seqgen generator` uses the given sequence generator object to set the sequence number metadata of the packet
 * `setlength header` sets the length field in that header (supported protocols: ipv4, ipv6, udp); note that when sending on an `ip` interface Linux sets correct length values for all headers not just the first one
 * `ttlcheck` drops the packet if the metadata TTL is 0; see `ttlreduce` action
-* `ttlreduce header` decreases the TTL in the given header, remembers the resulting value in a packet metadata field; see `ttlcheck` action
+* `ttlreduce header` decreases the TTL in the given header, remembers the resulting value in a packet metadata field; see `ttlcheck` action; if `header` also has a checksum this adjusts it to the change (only relevant for ipv4)
 * `verify header` verifies the Internet checksum field in `header` (supported protocols: ipv4, udp, tcp, icmpv4, icmpv6) and drops the packet if it's incorrect
 * `writeseq header` writes the sequence number from the packet metadata to the given header, the metadata has to contain a valid sequence number (from `seqgen` or `readseq`)
 * `writetstamp header` writes the timestamp from the packet metadata to the given header

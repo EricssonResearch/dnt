@@ -181,6 +181,7 @@ struct ConfAction {
         } setlen;
         struct {
             struct HeaderField *field;
+            struct HeaderField *csum; // adjust this checksum
         } ttl;
     } ; // anonymous union needs gnu99 or c11
 };
@@ -1108,6 +1109,10 @@ static bool process_token(char *token, void *userdata)
                         THROW("header '%s' doesn't have a TTL field", hdr->name);
                     }
                     newaction->ttl.field = field;
+                    // header may also have a checksum (ipv4)
+                    field = header_get_field_of_type(hdr,
+                            header_index(stst->headers, hdr), FT_CHECKSUM);
+                    newaction->ttl.csum = field;
                 } else {
                     THROW("invalid header '%s'", token);
                 }
@@ -1975,6 +1980,9 @@ static bool process_action(struct StageState *stst)
             }
             break;
         case CA_TTLREDUCE:
+            if (newaction->ttl.field == NULL) {
+                THROW("ttlreduce needs a header");
+            }
             stst->ttl_set = true;
             break;
     }
@@ -2197,6 +2205,7 @@ struct ConfAction *delete_confaction_list(struct ConfAction *ca_list)
                 break;
             case CA_TTLREDUCE:
                 free(del->ttl.field);
+                free(del->ttl.csum);
                 break;
         }
         free(del);
@@ -2397,7 +2406,7 @@ struct Pipeline *assemble_actions(const char *stream_name, const struct ConfActi
                 create_action_ttlcheck(actions+i, ca->text);
                 break;
             case CA_TTLREDUCE:
-                create_action_ttlreduce(actions+i, ca->ttl.field, ca->text);
+                create_action_ttlreduce(actions+i, ca->ttl.field, ca->ttl.csum, ca->text);
                 break;
             case CA_WRITESEQ:
                 create_action_writeseq(actions+i, ca->meta.field, ca->text);
@@ -2539,8 +2548,9 @@ void confactions_log(const struct ConfAction *ca_list, unsigned indent)
             case CA_TTLCHECK:
                 break;
             case CA_TTLREDUCE:
-                log_debug("%*sfield idx %u bitoffset %u bitcount %u", indent+2, "",
-                        ca->ttl.field->header_idx, ca->ttl.field->bitoffset, ca->ttl.field->bitcount);
+                log_debug("%*sfield idx %u bitoffset %u bitcount %u%s", indent+2, "",
+                        ca->ttl.field->header_idx, ca->ttl.field->bitoffset, ca->ttl.field->bitcount,
+                        ca->ttl.csum ? " and adjusting checksum" : "");
                 break;
         }
     }

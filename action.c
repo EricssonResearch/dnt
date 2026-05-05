@@ -834,6 +834,8 @@ void create_action_ttlcheck(struct Action *a, const char *text)
 
 struct TtlData {
     struct HeaderField field;
+    struct HeaderField csum;
+    uint16_t decrement;
 };
 
 static enum ActionResult action_TTLREDUCE_execute(struct Action *a, struct PipelineIterator *pi)
@@ -846,15 +848,33 @@ static enum ActionResult action_TTLREDUCE_execute(struct Action *a, struct Pipel
     if (*ttl > 0) *ttl -= 1;
     p->ttl = *ttl;
 
+    if (td->csum.header_idx == td->field.header_idx) {
+        // here we assume that csum is a 16-bit Internet checksum
+        // note that the optimizations in RFC 1141 are wrong, as pointed out by RFC 1624
+        uint8_t *csum = p->buf + p->headers[td->csum.header_idx].start + td->csum.bitoffset/8;
+        uint16_t csum16 = ~((csum[0] << 8) + csum[1]);
+        csum16 = ~(csum16 - td->decrement);
+        csum[0] = (csum16 >> 8) & 0xff;
+        csum[1] = (csum16 >> 0) & 0xff;
+    }
+
     return ACR_CONTINUE;
 }
 
-void create_action_ttlreduce(struct Action *a, const struct HeaderField *ttlfield, const char *text)
+void create_action_ttlreduce(struct Action *a, const struct HeaderField *ttlfield,
+        const struct HeaderField *csumfield, const char *text)
 {
     INIT_ACTION(TTLREDUCE);
 
     struct TtlData *td = calloc_struct(TtlData);
     td->field = *ttlfield;
+    if (csumfield) {
+        td->csum = *csumfield;
+        // is TTL an even or odd octet
+        td->decrement = (td->field.bitoffset/8) & 1 ? 1 : 256;
+    } else {
+        td->csum = (struct HeaderField){UINT32_MAX, 0, 0};
+    }
     a->action_private = td;
 }
 
