@@ -254,6 +254,7 @@ static const char *const ipv6_default =
 
 //TODO IPv6 extension headers? most of them are variable-length...
 
+//TODO theoretically this is variable-length, but in practice it's not
 static const struct ProtocolField arp_fields[] = {
     {"hwtype",   0, 16, FT_NUMBER}, // should be 1 (Eth)
     {"prtype",  16, 16, FT_NUMBER}, // should be 0x0800 (IPv4)
@@ -265,6 +266,10 @@ static const struct ProtocolField arp_fields[] = {
     {"dstmac", 144, 48, FT_MACADDRESS},
     {"dstip",  192, 32, FT_IPV4ADDRESS},
 };
+
+static const char *const arp_default =
+    "\x00\x01\x08\x00"  // Ethernet, IPv4
+    "\x06\x04\x00\x01"; // request by default
 
 static const struct ProtocolField udp_fields[] = {
     {"srcport",   0, 16, FT_NUMBER},
@@ -375,6 +380,7 @@ static const struct ProtocolField icmpv6_fields[] = {
     {"pointer",    32, 32, FT_NUMBER},
 };
 
+
 // the internal id of the protocols is their index in this array
 //TODO autogenerate this list
 const struct Protocol protocol_list[] = {
@@ -391,7 +397,7 @@ const struct Protocol protocol_list[] = {
     {"tcw", tcw_fields, ARRAY_SIZE(tcw_fields), 4, NULL, NULL, NULL, 0},
     {"ipv4", ipv4_fields, ARRAY_SIZE(ipv4_fields), 20, id_from_ipproto, ipproto_from_id, ipv4_default, 12},
     {"ipv6", ipv6_fields, ARRAY_SIZE(ipv6_fields), 40, id_from_ipproto, ipproto_from_id, ipv6_default, 8},
-    {"arp", arp_fields, ARRAY_SIZE(arp_fields), 28, NULL, NULL, NULL, 0}, //TODO this is variable-length
+    {"arp", arp_fields, ARRAY_SIZE(arp_fields), 28, NULL, NULL, arp_default, 8},
     {"udp", udp_fields, ARRAY_SIZE(udp_fields), 8, NULL, NULL, NULL, 0},
     {"tcp", tcp_fields, ARRAY_SIZE(tcp_fields), 20, NULL, NULL, NULL, 0},
     {"oam", oam_fields, ARRAY_SIZE(oam_fields), 8, NULL, NULL, NULL, 0},
