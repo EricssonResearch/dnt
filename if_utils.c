@@ -130,7 +130,6 @@ static void get_rx_tstamp(struct msghdr *msg, struct Packet *p, void *userdata)
 {
     (void)userdata;
 
-    // process the cmsg to get the timestamp
     for (struct cmsghdr *cmsg=CMSG_FIRSTHDR(msg); cmsg; cmsg=CMSG_NXTHDR(msg, cmsg)) {
         switch (cmsg->cmsg_level) {
             case SOL_SOCKET:
@@ -145,11 +144,8 @@ static void get_rx_tstamp(struct msghdr *msg, struct Packet *p, void *userdata)
                         log_debug("RX SW %ld.%09ld HW %ld.%09ld",
                                 tstamp[0].tv_sec, tstamp[0].tv_nsec,
                                 tstamp[2].tv_sec, tstamp[2].tv_nsec);
-                        if (tstamp[2].tv_sec == 0)
-                            p->recv_time = tstamp[0]; // use SW timestamp
-                        else
-                            p->recv_time = tstamp[2]; // use HW timestamp
-                        //TODO also set p->timestamp
+                        p->recv_time = tstamp[0]; // use SW timestamp
+                        // HW timestamp is dangerous, we don't know if PHC is synchronized
                     }
                 }
                 break;
