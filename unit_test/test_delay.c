@@ -17,8 +17,6 @@
 TEST_INIT("Delay");
 
 // XXX stubs for stuff that we transitively depend on but don't need
-const char *ether_ntop(const void *src, char *dst, unsigned dstsize);
-const char *ether_ntop(const void *src, char *dst, unsigned dstsize) { (void)src; (void)dst; (void)dstsize; return NULL; }
 void iface_add_sender(struct Interface *iface) { (void)iface; }
 void iface_del_sender(struct Interface *iface) { (void)iface; }
 bool notification_register_source(const char *name, notification_pull_fn *callback, void *self, unsigned period_ms);

@@ -138,7 +138,7 @@ endfunction()
 add_test_util(test_utils)
 
 function(add_test_delay name)
-    add_executable(${name} ../delay.c ../action.c ../log.c ../packet.c ../pipeline.c ../thread_utils.c ../utils.c ../lib/parsers/hashmap.c ../lib/parsers/json.c ${name}.c)
+    add_executable(${name} ../delay.c ../action.c ../checksum.c ../inet_utils.c ../log.c ../packet.c ../pipeline.c ../thread_utils.c ../utils.c ../lib/parsers/hashmap.c ../lib/parsers/json.c ${name}.c)
     target_include_directories(${name} PUBLIC ../lib/parsers)
     target_compile_definitions(${name} PUBLIC TESTING)
 endfunction()
