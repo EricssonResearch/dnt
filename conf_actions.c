@@ -21,8 +21,6 @@
 #include <string.h>
 #include <stdio.h>
 
-#include <arpa/inet.h> /* ntohs() */
-
 DEFAULT_LOGGING_MODULE(CONFIG, WARNING);
 
 #define MAX_DEPTH 10
@@ -31,6 +29,7 @@ DEFAULT_LOGGING_MODULE(CONFIG, WARNING);
 enum ConfActionType {
     CA_UNDEF,
     CA_ADD,
+    CA_CHECKSUM,
     CA_DEL,
     CA_DELAY,
     CA_DROP,
@@ -47,8 +46,10 @@ enum ConfActionType {
     CA_REPL,
     CA_SEND,
     CA_SEQGEN,
+    CA_SETLENGTH,
     CA_TTLCHECK,
     CA_TTLREDUCE,
+    CA_VERIFY,
     CA_WRITESEQ,
     CA_WRITETSTAMP,
 };
@@ -119,6 +120,12 @@ struct ConfAction {
             bool was_add; // we have seen the ADD keyword
         } add;
         struct {
+            struct HeaderField *field;
+            enum ProtocolID hdr_proto;
+            unsigned ip_idx;
+            enum ProtocolID ip_version;
+        } checksum;
+        struct {
             struct HeaderDescriptor *hdr;
             unsigned idx;
         } del;
@@ -167,7 +174,14 @@ struct ConfAction {
             struct PipelineObject *gen;
         } seq;
         struct {
+            struct HeaderDescriptor *hdr;
             struct HeaderField *field;
+            unsigned baselen;
+            unsigned payload_idx;
+        } setlen;
+        struct {
+            struct HeaderField *field;
+            struct HeaderField *csum; // adjust this checksum
         } ttl;
     } ; // anonymous union needs gnu99 or c11
 };
@@ -319,6 +333,8 @@ static const char *confaction_name_from_type(enum ConfActionType type)
             return "Undefined";
         case CA_ADD:
             return "Add";
+        case CA_CHECKSUM:
+            return "Checksum";
         case CA_DEL:
             return "Del";
         case CA_DELAY:
@@ -351,10 +367,14 @@ static const char *confaction_name_from_type(enum ConfActionType type)
             return "Send";
         case CA_SEQGEN:
             return "SeqGen";
+        case CA_SETLENGTH:
+            return "Setlength";
         case CA_TTLCHECK:
             return "TTLCheck";
         case CA_TTLREDUCE:
             return "TTLReduce";
+        case CA_VERIFY:
+            return "Verify";
         case CA_WRITESEQ:
             return "WriteSeq";
         case CA_WRITETSTAMP:
@@ -597,6 +617,8 @@ static bool process_token(char *token, void *userdata)
             } else if (strcmp(token, "before") == 0) {
                 newaction->type = CA_ADD;
                 newaction->add.beforeafter = ADD_BEFORE;
+            } else if (strcmp(token, "checksum") == 0) {
+                newaction->type = CA_CHECKSUM;
             } else if (strcmp(token, "del") == 0) {
                 newaction->type = CA_DEL;
             } else if (strcmp(token, "delay") == 0) {
@@ -629,11 +651,15 @@ static bool process_token(char *token, void *userdata)
             } else if (strcmp(token, "send") == 0) {
                 newaction->type = CA_SEND;
             } else if (strcmp(token, "seqgen") == 0) {
-                newaction->type = CA_SEND;
+                newaction->type = CA_SEQGEN;
+            } else if (strcmp(token, "setlength") == 0) {
+                newaction->type = CA_SETLENGTH;
             } else if (strcmp(token, "ttlcheck") == 0) {
                 newaction->type = CA_TTLCHECK;
             } else if (strcmp(token, "ttlreduce") == 0) {
                 newaction->type = CA_TTLREDUCE;
+            } else if (strcmp(token, "verify") == 0) {
+                newaction->type = CA_VERIFY;
             } else if (strcmp(token, "writeseq") == 0) {
                 newaction->type = CA_WRITESEQ;
             } else if (strcmp(token, "writetstamp") == 0) {
@@ -723,6 +749,69 @@ static bool process_token(char *token, void *userdata)
                 } else {
                     THROW("invalid field assignment '%s'", token);
                 }
+            }
+            break;
+        case CA_CHECKSUM:
+        case CA_VERIFY:
+            if (newaction->checksum.field == NULL) {
+                //TODO this field extraction code seems common -> helper function?
+                struct HeaderDescriptor *hdr = header_list_find_by_name(stst->headers, token);
+                if (hdr) {
+                    if (header_list_find_by_name(hdr->next, token)) {
+                        THROW("header name '%s' is ambiguous", token);
+                    }
+                    struct HeaderField *field = header_get_field_of_type(hdr,
+                            header_index(stst->headers, hdr), FT_CHECKSUM);
+                    if (field == NULL) {
+                        THROW("header '%s' doesn't have a checksum field", hdr->name);
+                    }
+                    newaction->checksum.field = field;
+                } else {
+                    THROW("invalid header '%s'", token);
+                }
+
+                if (hdr->id == PROTO_ID_IPv4) {
+                    newaction->checksum.hdr_proto = PROTO_ID_IPv4;
+                } else if (hdr->id == PROTO_ID_UDP
+                        || hdr->id == PROTO_ID_TCP
+                        || hdr->id == PROTO_ID_ICMPv4
+                        || hdr->id == PROTO_ID_ICMPv6) {
+                    // find the last IP header before our header
+                    // (there might be other headers between our header and IP e.g. IPv6 extensions)
+                    unsigned hdr_idx = newaction->checksum.field->header_idx;
+                    unsigned ip_idx = hdr_idx, h_idx = 0;
+                    enum ProtocolID ip_version = PROTO_ID_IPv6;
+                    for (const struct HeaderDescriptor *h=stst->headers; h!=hdr; h=h->next) {
+                        if (h->id == PROTO_ID_IPv4) {
+                            ip_idx = h_idx;
+                            ip_version = PROTO_ID_IPv4;
+                        }
+                        if (h->id == PROTO_ID_IPv6) {
+                            ip_idx = h_idx;
+                            ip_version = PROTO_ID_IPv6;
+                        }
+                        h_idx++;
+                    }
+
+                    if (ip_idx == hdr_idx) {
+                        THROW("did not find IP header for %s checksum", protocol_type_from_id(hdr->id));
+                    }
+
+                    newaction->checksum.hdr_proto = hdr->id;
+                    newaction->checksum.ip_idx = ip_idx;
+                    newaction->checksum.ip_version = ip_version;
+
+                    if (hdr->id == PROTO_ID_ICMPv6 && ip_version == PROTO_ID_IPv4) {
+                        log_warning("using IPv4 for transporting ICMPv6 is questionable");
+                    }
+                    if (hdr->id == PROTO_ID_ICMPv4 && ip_version == PROTO_ID_IPv6) {
+                        log_warning("using IPv6 for transporting ICMPv4 is questionable");
+                    }
+                } else {
+                    THROW("don't know how to checksum protocol %s", protocol_type_from_id(hdr->id));
+                }
+            } else {
+                THROW("this action only takes one argument");
             }
             break;
         case CA_DEL:
@@ -991,6 +1080,19 @@ static bool process_token(char *token, void *userdata)
                 THROW("seqgen only takes one argument");
             }
             break;
+        case CA_SETLENGTH: {
+            if (newaction->setlen.hdr) {
+                THROW("setlength only takes one argument");
+            }
+            struct HeaderDescriptor *hdr = header_list_find_by_name(stst->headers, token);
+            if (hdr == NULL) {
+                THROW("no header named '%s' in the packet", token);
+            }
+            if (header_list_find_by_name(hdr->next, token)) {
+                THROW("header name '%s' is ambiguous", token);
+            }
+            newaction->setlen.hdr = hdr;
+            break; }
         case CA_TTLCHECK:
             THROW("ttlcheck action doesn't take parameters");
             break;
@@ -1007,6 +1109,10 @@ static bool process_token(char *token, void *userdata)
                         THROW("header '%s' doesn't have a TTL field", hdr->name);
                     }
                     newaction->ttl.field = field;
+                    // header may also have a checksum (ipv4)
+                    field = header_get_field_of_type(hdr,
+                            header_index(stst->headers, hdr), FT_CHECKSUM);
+                    newaction->ttl.csum = field;
                 } else {
                     THROW("invalid header '%s'", token);
                 }
@@ -1478,7 +1584,16 @@ static bool process_action(struct StageState *stst)
             // set the nexthdr field of newheader either by nextheader's type or by copying from prevheader
             if (newproto->get_nexthdr != NULL) {
                 struct ConfAssignment *a = NULL;
-                if (nextheader) {
+                for (struct ConfAssignment *i = newaction->add.assignments; i; i=i->next) {
+                    if (i->lhs.value_type == FT_NEXTHEADER) {
+                        a = i;
+                        break;
+                    }
+                }
+                if (a) {
+                    // the user has set the nexthdr field, no automatic setting needed
+                    a = NULL;
+                } else if (nextheader) {
                     a = assign_nexthdrid_from_header_type("add", newheader, pos_idx, nextheader);
                     if (a == NULL) {
                         THROW("header type %s cannot have type %s as next header",
@@ -1495,8 +1610,10 @@ static bool process_action(struct StageState *stst)
                                 protocol_type_from_id(prevheader->id));
                     }
                 }
-                a->next = edit->edit.assignments;
-                edit->edit.assignments = a;
+                if (a) {
+                    a->next = edit->edit.assignments;
+                    edit->edit.assignments = a;
+                }
             }
 
             // set nexthdr of prevheader with newheader's type
@@ -1529,6 +1646,12 @@ static bool process_action(struct StageState *stst)
                     return false;
             }
             break; }
+        case CA_CHECKSUM:
+        case CA_VERIFY:
+            if (newaction->checksum.field == NULL) {
+                THROW("no header specified for checksumming");
+            }
+            break;
         case CA_DEL: {
             if (newaction->del.hdr == NULL) {
                 THROW("no header to delete");
@@ -1816,12 +1939,50 @@ static bool process_action(struct StageState *stst)
             }
             stst->seq_set = true;
             break;
+        case CA_SETLENGTH:
+            if (newaction->setlen.hdr == NULL) {
+                THROW("setlength needs a header");
+            }
+            // note all of these count length in octets
+            if (newaction->setlen.hdr->id == PROTO_ID_IPv4) {
+                newaction->setlen.field = new_headerfield(header_index(stst->headers, newaction->setlen.hdr),
+                        protocol_get_field_by_name(PROTO_ID_IPv4, "length"));
+                newaction->setlen.baselen = 20;
+            } else if (newaction->setlen.hdr->id == PROTO_ID_IPv6) {
+                newaction->setlen.field = new_headerfield(header_index(stst->headers, newaction->setlen.hdr),
+                        protocol_get_field_by_name(PROTO_ID_IPv6, "length"));
+                newaction->setlen.baselen = 0;
+            } else if (newaction->setlen.hdr->id == PROTO_ID_UDP) {
+                newaction->setlen.field = new_headerfield(header_index(stst->headers, newaction->setlen.hdr),
+                        protocol_get_field_by_name(PROTO_ID_UDP, "length"));
+                newaction->setlen.baselen = 8;
+            } else {
+                THROW("setlength doesn't know how to handle protocol %s",
+                        protocol_type_from_id(newaction->setlen.hdr->id));
+            }
+            for (struct HeaderDescriptor *h=newaction->setlen.hdr->next; h; h=h->next) {
+                if (h->id != PROTO_ID_PAYLOAD) {
+                    const struct Protocol *proto = protocol_from_id(h->id);
+                    newaction->setlen.baselen += proto->bytelength;
+                }
+            }
+            newaction->setlen.payload_idx = 0;
+            for (struct HeaderDescriptor *h=stst->headers; h; h=h->next) {
+                if (h->id == PROTO_ID_PAYLOAD)
+                    break;
+                else
+                    newaction->setlen.payload_idx++;
+            }
+            break;
         case CA_TTLCHECK:
             if (stst->ttl_set == false) {
                 THROW("can't check undefined TTL, need TTLReduce first");
             }
             break;
         case CA_TTLREDUCE:
+            if (newaction->ttl.field == NULL) {
+                THROW("ttlreduce needs a header");
+            }
             stst->ttl_set = true;
             break;
     }
@@ -1985,6 +2146,10 @@ struct ConfAction *delete_confaction_list(struct ConfAction *ca_list)
                 free(del->add.newname);
                 delete_confassignments(del->add.assignments);
                 break;
+            case CA_CHECKSUM:
+            case CA_VERIFY:
+                free(del->checksum.field);
+                break;
             case CA_DEL:
                 delete_header_list(del->del.hdr);
                 break;
@@ -2033,10 +2198,14 @@ struct ConfAction *delete_confaction_list(struct ConfAction *ca_list)
                 break;
             case CA_SEQGEN:
                 break;
+            case CA_SETLENGTH:
+                free(del->setlen.field);
+                break;
             case CA_TTLCHECK:
                 break;
             case CA_TTLREDUCE:
                 free(del->ttl.field);
+                free(del->ttl.csum);
                 break;
         }
         free(del);
@@ -2143,6 +2312,10 @@ struct Pipeline *assemble_actions(const char *stream_name, const struct ConfActi
             case CA_ADD:
                 create_action_add(actions+i, ca->add.pos_idx, ca->add.id, ca->add.len, ca->text);
                 break;
+            case CA_CHECKSUM:
+                create_action_checksum(actions+i, ca->checksum.field->header_idx, ca->checksum.hdr_proto,
+                        ca->checksum.ip_idx, ca->checksum.ip_version, ca->text);
+                break;
             case CA_DEL:
                 create_action_del(actions+i, ca->del.idx, ca->text);
                 break;
@@ -2226,17 +2399,24 @@ struct Pipeline *assemble_actions(const char *stream_name, const struct ConfActi
             case CA_SEQGEN:
                 create_action_seqgen(actions+i, ca->seq.gen, ca->text);
                 break;
+            case CA_SETLENGTH:
+                create_action_setlength(actions+i, ca->setlen.field, ca->setlen.baselen, ca->setlen.payload_idx, ca->text);
+                break;
             case CA_TTLCHECK:
                 create_action_ttlcheck(actions+i, ca->text);
                 break;
             case CA_TTLREDUCE:
-                create_action_ttlreduce(actions+i, ca->ttl.field, ca->text);
+                create_action_ttlreduce(actions+i, ca->ttl.field, ca->ttl.csum, ca->text);
                 break;
             case CA_WRITESEQ:
                 create_action_writeseq(actions+i, ca->meta.field, ca->text);
                 break;
             case CA_WRITETSTAMP:
                 create_action_writetstamp(actions+i, ca->meta.field, ca->text);
+                break;
+            case CA_VERIFY:
+                create_action_verify(actions+i, ca->checksum.field->header_idx, ca->checksum.hdr_proto,
+                        ca->checksum.ip_idx, ca->checksum.ip_version, ca->text);
                 break;
         }
         i++;
@@ -2259,6 +2439,16 @@ void confactions_log(const struct ConfAction *ca_list, unsigned indent)
                         ca->add.newname, ca->add.id,
                         protocol_type_from_id(ca->add.id),
                         ca->add.len, ca->add.pos_idx);
+                break;
+            case CA_CHECKSUM:
+            case CA_VERIFY:
+                if (ca->checksum.hdr_proto == PROTO_ID_IPv4) {
+                    log_debug("%*sipv4 at %u", indent+2, "", ca->checksum.field->header_idx);
+                } else {
+                    log_debug("%*s%s at %u %s at %u", indent+2, "",
+                            protocol_from_id(ca->checksum.hdr_proto)->name, ca->checksum.field->header_idx,
+                            protocol_from_id(ca->checksum.ip_version)->name, ca->checksum.ip_idx);
+                }
                 break;
             case CA_DEL:
                 log_debug("%*sname %s index %u", indent+2, "", ca->del.hdr->name, ca->del.idx);
@@ -2350,11 +2540,17 @@ void confactions_log(const struct ConfAction *ca_list, unsigned indent)
             case CA_SEQGEN:
                 log_debug("%*sobject %s", indent+2, "", ca->seq.gen->name);
                 break;
+            case CA_SETLENGTH:
+                log_debug("%*sfield idx %u bitoffset %u bitcount %u baselength %u payload index %u", indent+2, "",
+                        ca->setlen.field->header_idx, ca->setlen.field->bitoffset, ca->setlen.field->bitcount,
+                        ca->setlen.baselen, ca->setlen.payload_idx);
+                break;
             case CA_TTLCHECK:
                 break;
             case CA_TTLREDUCE:
-                log_debug("%*sfield idx %u bitoffset %u bitcount %u", indent+2, "",
-                        ca->ttl.field->header_idx, ca->ttl.field->bitoffset, ca->ttl.field->bitcount);
+                log_debug("%*sfield idx %u bitoffset %u bitcount %u%s", indent+2, "",
+                        ca->ttl.field->header_idx, ca->ttl.field->bitoffset, ca->ttl.field->bitcount,
+                        ca->ttl.csum ? " and adjusting checksum" : "");
                 break;
         }
     }

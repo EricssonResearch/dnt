@@ -2,9 +2,11 @@
 #include "testing.h"
 
 #include "inet_utils.h"
+#include "utils.h"
 
 #include <stdlib.h>
 #include <string.h>
+#include <endian.h>
 
 TEST_INIT("Inet Utils");
 
@@ -202,10 +204,104 @@ static void test_mac_vlan(void)
     free(mac);
 }
 
+// how to run this on big-endian without access to such hardware:
+// (MIPS is BE and doesn't like unaligned memory access)
+//  apt install gcc-mips-linux-gnu g++-mips-linux-gnu qemu-user
+//  mips-linux-gnu-gcc -static -I.. -DTESTING test_inet_utils.c ../inet_utils.c -o test_inet_utils_mips
+//  qemu-mips ./test_inet_utils_mips
+
+static void test_checksum(void)
+{
+    struct {
+        const char *buf;
+        unsigned len;
+        uint32_t sum32_le;
+        uint32_t sum32_be;
+        uint16_t sum16; // after the 1's complement, in host order
+    } data[] = {
+        // test short buffer (corner case, and also easy to compute by hand)
+        { "a",    1, 0x0061, 0x6100, 0x9eff }, // [a 0]
+        { "ab",   2, 0x6261, 0x6162, 0x9e9d },
+        { "abc",  3, 0x62c4, 0xc462, 0x3b9d }, // [a b] [c 0]
+        { "abcd", 4, 0xc6c4, 0xc4c6, 0x3b39 },
+
+        // numerical example from RFC 1071
+        { "\x00\x01\xf2\x03\xf4\xf5\xf6\xf7", 8, 0x1f2dc, 0x2ddf0, 0x220d },
+        // the order of the words should not matter
+        { "\xf2\x03\x00\x01\xf4\xf5\xf6\xf7", 8, 0x1f2dc, 0x2ddf0, 0x220d },
+        { "\xf4\xf5\xf6\xf7\xf2\x03\x00\x01", 8, 0x1f2dc, 0x2ddf0, 0x220d },
+
+        { "very long input string to test overflowing the accumulator with"
+            " more data than it can handle and then maybe we'll see a new error"
+            " that we haven't encountered in the previous test cases?", 185, 0x00211308, 0x002328f0, 0xd6ec },
+    };
+
+    //printf(" strlen %zu ", strlen(data[7].buf));
+
+// sum32 is not reliable if we do the 32bit optimization
+//#define TEST_SUM32
+
+    if (__BYTE_ORDER == __LITTLE_ENDIAN)
+        printf("running on little-endian");
+    else if (__BYTE_ORDER == __BIG_ENDIAN)
+        printf("running on big-endian");
+    else
+        printf("running on unknown endian");
+
+    OK(csum_partial(0, 0, 0) == 0, "null buffer shouldn't crash");
+    OK(csum_partial((const uint8_t*)1, 0, 0) == 0, "unaligned buffer shouldn't crash");
+    OK(csum_partial((const uint8_t*)42, 0, 123450) == 123450, "sum should be unchanged");
+
+    for (unsigned i=0; i<ARRAY_SIZE(data); i++) {
+        // malloc returns pointers aligned at 8 byte
+        uint8_t *buf = (uint8_t*)malloc((data[i].len+1)*sizeof(uint8_t));
+        memcpy(buf, data[i].buf, data[i].len);
+        uint32_t sum32 = csum_partial(buf, data[i].len, 0);
+        uint16_t sum16 = csum_fold(sum32);
+#ifdef TEST_SUM32
+        if (__BYTE_ORDER == __LITTLE_ENDIAN)
+            OK(sum32 == data[i].sum32_le, "%u sum32LE 0x%.08x vs 0x%.08x", i, sum32, data[i].sum32_le);
+        else if (__BYTE_ORDER == __BIG_ENDIAN)
+            OK(sum32 == data[i].sum32_be, "%u sum32BE 0x%.08x vs 0x%.08x", i, sum32, data[i].sum32_be);
+#endif
+        OK(sum16 == data[i].sum16, "%u sum16 0x%.04x vs 0x%.04x", i, sum16, data[i].sum16);
+
+        // now our data starts at odd offset, but we should get the same result
+        memcpy(buf+1, data[i].buf, data[i].len);
+        sum32 = csum_partial(buf+1, data[i].len, 0);
+        sum16 = csum_fold(sum32);
+#ifdef TEST_SUM32
+        if (__BYTE_ORDER == __LITTLE_ENDIAN)
+            OK(sum32 == data[i].sum32_le, "%u sum32LE 0x%.08x vs 0x%.08x", i, sum32, data[i].sum32_le);
+        else if (__BYTE_ORDER == __BIG_ENDIAN)
+            OK(sum32 == data[i].sum32_be, "%u sum32BE 0x%.08x vs 0x%.08x", i, sum32, data[i].sum32_be);
+#endif
+        OK(sum16 == data[i].sum16, "%u sum16 0x%.04x vs 0x%.04x", i, sum16, data[i].sum16);
+
+        // compute sum in two parts, total sum must be the same
+        // (we can only split at even positions)
+        memcpy(buf, data[i].buf, data[i].len);
+        for (unsigned j=0; j<data[i].len; j+=2) {
+            sum32 = csum_partial(buf, j, 0);
+            sum32 = csum_partial(buf+j, data[i].len-j, sum32);
+            sum16 = csum_fold(sum32);
+#ifdef TEST_SUM32
+            if (__BYTE_ORDER == __LITTLE_ENDIAN)
+                OK(sum32 == data[i].sum32_le, "%u %u sum32LE 0x%.08x vs 0x%.08x", i, j, sum32, data[i].sum32_le);
+            else if (__BYTE_ORDER == __BIG_ENDIAN)
+                OK(sum32 == data[i].sum32_be, "%u %u sum32BE 0x%.08x vs 0x%.08x", i, j, sum32, data[i].sum32_be);
+#endif
+            OK(sum16 == data[i].sum16, "%u %u sum16 0x%.04x vs 0x%.04x", i, j, sum16, data[i].sum16);
+        }
+        free(buf);
+    }
+}
+
 TEST_CASES = {
     {"parse_ip_port", test_ip_port},
     {"ether_pton", test_ether_pton},
     {"ether_ntop", test_ether_ntop},
     {"parse_mac_vlan", test_mac_vlan},
+    {"checksum", test_checksum},
     {NULL, NULL}
 };

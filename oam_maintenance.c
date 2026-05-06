@@ -8,6 +8,7 @@
 #include "oam_request.h"
 #include "oam_core.h"
 
+#include "checksum.h"
 #include "hashmap.h"
 #include "log.h"
 #include "notification.h"
@@ -122,54 +123,6 @@ static NotificationLevel mp_notification_pull_fn(void *self, struct JsonValue **
     struct JsonValue *state = mp_get_state_json(mp, true);
     *msg = state;
     return NOTIF_PULL;
-}
-
-/* Internet checksum (RFC 1071) */
-static uint32_t checksum16_partial(const void * buf, size_t len, uint32_t sum) {
-    const uint16_t *data = (const uint16_t* ) buf;
-
-    while (len > 1) {
-        sum += *data++;
-        len -= 2;
-    }
-
-    if (len) {  // odd byte
-        sum += *((const uint8_t *)data);
-    }
-
-    return sum;
-}
-
-/* Compute ICMPv6 checksum without copying */
-static uint16_t icmp6_checksum(unsigned char *src,
-                        unsigned char *dst,
-                        const void *icmp_pkt,
-                        size_t icmp_len) {
-    uint32_t sum = 0;
-
-    // Source and destination addresses
-    sum = checksum16_partial(src, 16, sum);
-    sum = checksum16_partial(dst, 16, sum);
-
-    // Upper-layer packet length (32-bit)
-    uint8_t l[4];
-    l[0] = (icmp_len >> 24) & 0xFF;
-    l[1] = (icmp_len >> 16) & 0xFF;
-    l[2] = (icmp_len >> 8)  & 0xFF;
-    l[3] = (icmp_len)       & 0xFF;
-    sum = checksum16_partial(l, sizeof(l), sum);
-
-    // 3 bytes zero + next header
-    uint8_t nh_field[4] = {0,0,0,IPPROTO_ICMPV6};
-    sum = checksum16_partial(nh_field, sizeof(nh_field), sum);
-
-    // ICMPv6 header + payload
-    sum = checksum16_partial(icmp_pkt, icmp_len, sum);
-
-    // finalize checksum
-    sum = (sum>>16)+(sum & 0xffff);
-    sum = sum + (sum>>16);
-    return (uint16_t)(~sum);
 }
 
 
@@ -334,12 +287,11 @@ static bool pack_srv6_payload(struct Packet *p, const struct JsonValue *msg)
     ipv6[4] = (new_len >> 8) & 0xff;
     ipv6[5] = new_len & 0xff;
 
-    // calc ICMPv6 checksum
-    unsigned char *icmpv6  = p->buf + p->headers[2].start;
-    icmpv6[2] = 0; icmpv6[3] = 0;   // clear old checksum
-    uint16_t sum = icmp6_checksum(&ipv6[8], &ipv6[24], icmpv6, new_len);
-    icmpv6[3] = (sum >> 8) & 0xff;
-    icmpv6[2] = sum & 0xff;
+    // set ICMP checksum
+    struct ChecksumParameters cp = {
+        2, PROTO_ID_ICMPv6, 1, PROTO_ID_IPv6
+    };
+    checksum_compute(p, &cp);
 
     // add first 2 header lens
     new_len += p->headers[0].len+p->headers[1].len;

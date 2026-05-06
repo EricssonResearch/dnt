@@ -73,6 +73,7 @@ static bool ethertype_from_id(uint16_t *nexthdr, enum ProtocolID id)
         case PROTO_ID_UDP:
         case PROTO_ID_TCP:
         case PROTO_ID_OAM:
+        case PROTO_ID_ICMPv4:
         case PROTO_ID_ICMPv6:
             return false;
     }
@@ -96,6 +97,10 @@ static bool id_from_ipproto(enum ProtocolID *id, uint16_t proto)
             SET_ID(PROTO_ID_MPLS);
         case IPPROTO_ETHERNET:
             SET_ID(PROTO_ID_ETH);
+        case IPPROTO_ICMP:
+            SET_ID(PROTO_ID_ICMPv4);
+        case IPPROTO_ICMPV6:
+            SET_ID(PROTO_ID_ICMPv6);
     }
     return false;
 #undef SET_ID
@@ -117,6 +122,8 @@ static bool ipproto_from_id(uint16_t *proto, enum ProtocolID id)
             SET_PROTO(IPPROTO_TCP);
         case PROTO_ID_MPLS:
             SET_PROTO(IPPROTO_MPLS);
+        case PROTO_ID_ICMPv4:
+            SET_PROTO(IPPROTO_ICMP);
         case PROTO_ID_ICMPv6:
             SET_PROTO(IPPROTO_ICMPV6);
         case PROTO_ID_PAYLOAD:
@@ -214,7 +221,7 @@ static const struct ProtocolField ipv4_fields[] = {
     {"fragoffset",     51, 13, FT_NUMBER},
     {"ttl",            64,  8, FT_TTL},
     {"protocol",       72,  8, FT_NEXTHEADER},
-    {"checksum",       80, 16, FT_CHECKSUM}, // TODO support checksum calculation
+    {"checksum",       80, 16, FT_CHECKSUM},
     {"src",            96, 32, FT_IPV4ADDRESS},
     {"dst",           128, 32, FT_IPV4ADDRESS},
 };
@@ -247,6 +254,7 @@ static const char *const ipv6_default =
 
 //TODO IPv6 extension headers? most of them are variable-length...
 
+//TODO theoretically this is variable-length, but in practice it's not
 static const struct ProtocolField arp_fields[] = {
     {"hwtype",   0, 16, FT_NUMBER}, // should be 1 (Eth)
     {"prtype",  16, 16, FT_NUMBER}, // should be 0x0800 (IPv4)
@@ -259,11 +267,15 @@ static const struct ProtocolField arp_fields[] = {
     {"dstip",  192, 32, FT_IPV4ADDRESS},
 };
 
+static const char *const arp_default =
+    "\x00\x01\x08\x00"  // Ethernet, IPv4
+    "\x06\x04\x00\x01"; // request by default
+
 static const struct ProtocolField udp_fields[] = {
     {"srcport",   0, 16, FT_NUMBER},
     {"dstport",  16, 16, FT_NUMBER},
     {"length",   32, 16, FT_NUMBER},
-    {"checksum", 48, 16, FT_CHECKSUM}, // TODO support checksum calculation
+    {"checksum", 48, 16, FT_CHECKSUM},
 };
 
 static const struct ProtocolField tcp_fields[] = {
@@ -283,7 +295,7 @@ static const struct ProtocolField tcp_fields[] = {
     {"syn",        110,  1, FT_NUMBER}, // synchronize
     {"fin",        111,  1, FT_NUMBER}, // finish
     {"windowsize", 112, 16, FT_NUMBER},
-    {"checksum",   128, 16, FT_CHECKSUM}, // TODO support checksum calculation
+    {"checksum",   128, 16, FT_CHECKSUM},
     {"urgentp",    144, 16, FT_NUMBER},
 };
 //TODO TCP options how? we must support variable-length headers somehow
@@ -319,19 +331,55 @@ static const struct ProtocolField cfm_fields[] = {
     {"tlvoffset", 24,  8, FT_NUMBER}, // length of a fixed header after CFM
 };
 
+static const struct ProtocolField icmpv4_fields[] = {
+    {"type",        0,  8, FT_NUMBER}, //TODO FT_ENUM?
+    {"code",        8,  8, FT_NUMBER}, //TODO FT_ENUM?
+    {"checksum",   16, 16, FT_CHECKSUM},
+
+    // Echo Request (type=8)
+    // Echo Reply (type=0)
+    {"identifier", 32, 16, FT_NUMBER},
+    {"sequence",   48, 16, FT_NUMBER},
+
+    //TODO other informational messages?
+    //  Router Discovery RFC 1256
+
+    // Destination Unreachable (type=3)
+    // Time Exceeded (type=11)
+    {"unused",     32, 32, FT_NUMBER},
+
+    // Redirect (type=5)
+    {"gateway",    32, 32, FT_IPV4ADDRESS},
+
+    // Parameter Problem (type=12)
+    {"pointer",    32,  8, FT_NUMBER},
+};
+
 // ICMPv6 protocol fields, including type specific fields
 static const struct ProtocolField icmpv6_fields[] = {
-    {"type",       0,  8, FT_NUMBER},     // type, 128 = echo req
-    {"code",       8,  8, FT_NUMBER},
-    {"checksum",  16,  16, FT_CHECKSUM},  // needs to be calculated
+    {"type",        0,  8, FT_NUMBER}, //TODO FT_ENUM?
+    {"code",        8,  8, FT_NUMBER}, //TODO FT_ENUM?
+    {"checksum",   16, 16, FT_CHECKSUM},
 
-    // These are type-specific fields
-    {"identifier",32,  16, FT_NUMBER},    // ICMPv6 Echo fields
-    {"sequence",  48,  16, FT_NUMBER},
-    {"mtu",       32,  32, FT_NUMBER},    // Packet Too Big error
-    {"pointer",   32,  32, FT_NUMBER},    // Parameter problem
-    {"reserved",  32,  32, FT_NUMBER},    // Unused
+    // Echo Request (type=128)
+    // Echo Reply (type=129)
+    {"identifier", 32, 16, FT_NUMBER},
+    {"sequence",   48, 16, FT_NUMBER},
+
+    //TODO other informational messages?
+    //  Neighbor Discovery, Multicast Listener etc.
+
+    // Destination Unreachable (type=1)
+    // Time Exceeded (type=3)
+    {"unused",     32, 32, FT_NUMBER},
+
+    // Packet Too Big (type=2)
+    {"mtu",        32, 32, FT_NUMBER},
+
+    // Parameter Problem (type=4)
+    {"pointer",    32, 32, FT_NUMBER},
 };
+
 
 // the internal id of the protocols is their index in this array
 //TODO autogenerate this list
@@ -349,12 +397,13 @@ const struct Protocol protocol_list[] = {
     {"tcw", tcw_fields, ARRAY_SIZE(tcw_fields), 4, NULL, NULL, NULL, 0},
     {"ipv4", ipv4_fields, ARRAY_SIZE(ipv4_fields), 20, id_from_ipproto, ipproto_from_id, ipv4_default, 12},
     {"ipv6", ipv6_fields, ARRAY_SIZE(ipv6_fields), 40, id_from_ipproto, ipproto_from_id, ipv6_default, 8},
-    {"arp", arp_fields, ARRAY_SIZE(arp_fields), 28, NULL, NULL, NULL, 0}, //TODO this is variable-length
+    {"arp", arp_fields, ARRAY_SIZE(arp_fields), 28, NULL, NULL, arp_default, 8},
     {"udp", udp_fields, ARRAY_SIZE(udp_fields), 8, NULL, NULL, NULL, 0},
     {"tcp", tcp_fields, ARRAY_SIZE(tcp_fields), 20, NULL, NULL, NULL, 0},
     {"oam", oam_fields, ARRAY_SIZE(oam_fields), 8, NULL, NULL, NULL, 0},
     {"oamrtag", oamrtag_fields, ARRAY_SIZE(oamrtag_fields), 4, NULL, NULL, NULL, 0},
     {"cfm", cfm_fields, ARRAY_SIZE(cfm_fields), 4, NULL, NULL, NULL, 0},
+    {"icmpv4", icmpv4_fields, ARRAY_SIZE(icmpv4_fields), 8, NULL, NULL, NULL, 0},
     {"icmpv6", icmpv6_fields, ARRAY_SIZE(icmpv6_fields), 8, NULL, NULL, NULL, 0},
 };
 

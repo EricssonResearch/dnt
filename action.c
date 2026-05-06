@@ -3,6 +3,7 @@
 
 
 #include "action.h"
+#include "checksum.h"
 #include "delay.h"
 #include "inet_utils.h"
 #include "oam.h"
@@ -24,9 +25,11 @@ DEFAULT_LOGGING_MODULE(PIPELINE, WARNING);
 
 const char *action_name_from_type(enum ActionType type)
 {
+    // these must be in the same order as enum ActionType
     static const char *names[] = {
         "Undef",
         "Add",
+        "Checksum",
         "Del",
         "Delay",
         "Drop",
@@ -41,13 +44,20 @@ const char *action_name_from_type(enum ActionType type)
         "Replicate",
         "Send",
         "SeqGen",
+        "Setlength",
         "TTLCheck",
         "TTLReduce",
+        "Verify",
         "WriteSeq",
         "WriteTstamp",
     };
+    // update this when ACT_WRITETSTAMP is no longer the last item!
+#ifndef __cplusplus
+    _Static_assert(ARRAY_SIZE(names) == ACT_WRITETSTAMP+1, "must update the names array");
+#endif
     return names[type];
 }
+
 
 #define INIT_ACTION(type_)                      \
     bzero(a, sizeof(*a));                       \
@@ -130,6 +140,29 @@ void create_action_add(struct Action *a, unsigned idx, enum ProtocolID type, uns
     ad->type = type;
     ad->len = len;
     a->action_private = ad;
+}
+
+/////////////////////////////////////////////////////////////////////
+
+static enum ActionResult action_CHECKSUM_execute(struct Action *a, struct PipelineIterator *pi)
+{
+    struct ChecksumParameters *cp = (struct ChecksumParameters *)a->action_private;
+    checksum_compute(pi->packet, cp);
+    return ACR_CONTINUE;
+}
+
+void create_action_checksum(struct Action *a,
+        unsigned hdr_idx, enum ProtocolID hdr_proto, unsigned ip_idx, enum ProtocolID ip_version,
+        const char *text)
+{
+    INIT_ACTION(CHECKSUM);
+
+    struct ChecksumParameters *cp = calloc_struct(ChecksumParameters);
+    cp->hdr_idx = hdr_idx;
+    cp->hdr_proto = hdr_proto;
+    cp->ip_idx = ip_idx;
+    cp->ip_version = ip_version;
+    a->action_private = cp;
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -748,6 +781,37 @@ void create_action_seqgen(struct Action *a, struct PipelineObject *gen, const ch
 
 /////////////////////////////////////////////////////////////////////
 
+struct SetlenghData {
+    struct HeaderField field;
+    unsigned baselen;
+    unsigned payload_idx;
+};
+
+static enum ActionResult action_SETLENGTH_execute(struct Action *a, struct PipelineIterator *pi)
+{
+    struct SetlenghData *sd = (struct SetlenghData *)a->action_private;
+    struct Packet *p = pi->packet;
+    uint8_t *field = p->buf + p->headers[sd->field.header_idx].start + sd->field.bitoffset/8;
+    uint16_t len = sd->baselen + p->headers[sd->payload_idx].len;
+    field[0] = (len >> 8) & 0xff;
+    field[1] = len & 0xff;
+    return ACR_CONTINUE;
+}
+
+void create_action_setlength(struct Action *a, const struct HeaderField *field,
+        unsigned baselen, unsigned payload_idx, const char *text)
+{
+    INIT_ACTION(SETLENGTH);
+
+    struct SetlenghData *sd = calloc_struct(SetlenghData);
+    sd->field = *field;
+    sd->baselen = baselen;
+    sd->payload_idx = payload_idx;
+    a->action_private = sd;
+}
+
+/////////////////////////////////////////////////////////////////////
+
 static enum ActionResult action_TTLCHECK_execute(struct Action *a, struct PipelineIterator *pi)
 {
     (void)a;
@@ -765,6 +829,8 @@ void create_action_ttlcheck(struct Action *a, const char *text)
 
 struct TtlData {
     struct HeaderField field;
+    struct HeaderField csum;
+    uint16_t decrement;
 };
 
 static enum ActionResult action_TTLREDUCE_execute(struct Action *a, struct PipelineIterator *pi)
@@ -777,16 +843,59 @@ static enum ActionResult action_TTLREDUCE_execute(struct Action *a, struct Pipel
     if (*ttl > 0) *ttl -= 1;
     p->ttl = *ttl;
 
+    if (td->csum.header_idx == td->field.header_idx) {
+        // here we assume that csum is a 16-bit Internet checksum
+        // note that the optimizations in RFC 1141 are wrong, as pointed out by RFC 1624
+        uint8_t *csum = p->buf + p->headers[td->csum.header_idx].start + td->csum.bitoffset/8;
+        uint16_t csum16 = ~((csum[0] << 8) + csum[1]);
+        csum16 = ~(csum16 - td->decrement);
+        csum[0] = (csum16 >> 8) & 0xff;
+        csum[1] = (csum16 >> 0) & 0xff;
+    }
+
     return ACR_CONTINUE;
 }
 
-void create_action_ttlreduce(struct Action *a, const struct HeaderField *ttlfield, const char *text)
+void create_action_ttlreduce(struct Action *a, const struct HeaderField *ttlfield,
+        const struct HeaderField *csumfield, const char *text)
 {
     INIT_ACTION(TTLREDUCE);
 
     struct TtlData *td = calloc_struct(TtlData);
     td->field = *ttlfield;
+    if (csumfield) {
+        td->csum = *csumfield;
+        // is TTL an even or odd octet
+        td->decrement = (td->field.bitoffset/8) & 1 ? 1 : 256;
+    } else {
+        td->csum = (struct HeaderField){UINT32_MAX, 0, 0};
+    }
     a->action_private = td;
+}
+
+/////////////////////////////////////////////////////////////////////
+
+static enum ActionResult action_VERIFY_execute(struct Action *a, struct PipelineIterator *pi)
+{
+    struct ChecksumParameters *cp = (struct ChecksumParameters *)a->action_private;
+    if (checksum_verify(pi->packet, cp))
+        return ACR_CONTINUE;
+    else
+        return ACR_DONE;
+}
+
+void create_action_verify(struct Action *a,
+        unsigned hdr_idx, enum ProtocolID hdr_proto, unsigned ip_idx, enum ProtocolID ip_version,
+        const char *text)
+{
+    INIT_ACTION(VERIFY);
+
+    struct ChecksumParameters *cp = calloc_struct(ChecksumParameters);
+    cp->hdr_idx = hdr_idx;
+    cp->hdr_proto = hdr_proto;
+    cp->ip_idx = ip_idx;
+    cp->ip_version = ip_version;
+    a->action_private = cp;
 }
 
 /////////////////////////////////////////////////////////////////////

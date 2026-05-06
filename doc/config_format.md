@@ -118,9 +118,11 @@ This line specifies the processing actions that must be run on the received pack
 The available actions are the following:
 
 * `{before|after} header add newheader fieldname=fieldvalue` adds a new header of type `newheader` with the given field values at the given position relative to `header`
-    * if `newheader` has a nextheader field, it will be filled with the correct type code automatically
+    * if `newheader` has a nextheader field, it will be filled with the correct type code automatically (manually setting that field disables this automation)
     * if `newheader` has a sequence number field, a `writeseq` action is automatically inserted after the `add` action
     * if `newheader` has a timestamp field, a `writetstamp` action is automatically inserted after the `add` action
+    * the `fieldname=fieldvalue` assignments have the same rules as the `edit` action, but note that the header is not specified here because it's implicitly `newheader`
+* `checksum header` calculates the Internet checksum field in `header` (supported protocols: ipv4, udp, tcp, icmpv4, icmpv6)
 * `del header` removes the given header from the packet
 * `delay delay [offload]` puts the packet in a delay buffer, where it will be kept until the specified *delay* milliseconds have passed since the timestamp value of the packet; the *delay* should be between 0 and 2000 ms and it can be a float value as well; there is an optional `offload` parameter; when `offload` is set, it will use an external delay mechanism provided by the OS, for example ETF qdisc; however if `offload` is set and ETF is not configured, no packets will be delayed; we assume that ETF qdisc is configured on the interface; the delay is influenced by the ETF's delta; the ETF qdisc will schedule its next wake-up time for the next packet's txtime minus the delta value; precision of the actual delay depends on the software configuration and the ETF hardware `offload` support; in hardware `offload` case the system clock and the network interface's clock must be synchronized
 * `drop` unconditionally drops the packet; no further actions can be in the pipeline
@@ -131,7 +133,7 @@ The available actions are the following:
         * IP/MAC addresses use their standard formatting (e.g. `ipv6.dst=fd00::1`, `ipv4.dst=1.2.3.4`, `eth.dmac=a:b:c:d:e:f`)
         * nextheader accepts numeric value or protocol name (the `add` action sets this field type automatically)
         * all the other types (ttl, tsnseq etc.) are considered to be numbers
-    * another header field (can be in the same or in a different header)
+    * another header field with compatible size (can be in the same or in a different header)
     * an interface property (e.g. `ipv6.src=uniOut.srcip`)
 * `eliminate seq_rec pipeline` conditional drop, uses the given sequence recovery object and the packet's sequence number metadata (see `readseq` action); after elimination the processing jumps to the given pipeline; no further actions can be in the pipeline
 * `jump pipeline` continues the processing on the named pipeline, which has to be defined in the *streams* section, it does not return to the current pipeline; useful for breaking up long pipelines or reuse operations for multiple streams; no further actions can be in the pipeline; see the [naming convention](#naming-convention) guidelines
@@ -144,8 +146,10 @@ The available actions are the following:
 * `replicate [object] pipeline1 [pipeline2]` makes copies of the packet and continues processing them on the given pipelines, which have to be defined in the *streams* section; this can create any number of branches; the first argument can optionally be the name of a Replicate object that stores statistics about the replication; no further actions can be in the pipeline
 * `send iface` sends out the packet on the given interface from the *interfaces* list
 * `seqgen generator` uses the given sequence generator object to set the sequence number metadata of the packet
+* `setlength header` sets the length field in that header (supported protocols: ipv4, ipv6, udp); note that when sending on an `ip` interface Linux sets correct length values for all headers not just the first one
 * `ttlcheck` drops the packet if the metadata TTL is 0; see `ttlreduce` action
-* `ttlreduce header` decreases the TTL in the given header, remembers the resulting value in a packet metadata field; see `ttlcheck` action
+* `ttlreduce header` decreases the TTL in the given header, remembers the resulting value in a packet metadata field; see `ttlcheck` action; if `header` also has a checksum this adjusts it to the change (only relevant for ipv4)
+* `verify header` verifies the Internet checksum field in `header` (supported protocols: ipv4, udp, tcp, icmpv4, icmpv6) and drops the packet if it's incorrect
 * `writeseq header` writes the sequence number from the packet metadata to the given header, the metadata has to contain a valid sequence number (from `seqgen` or `readseq`)
 * `writetstamp header` writes the timestamp from the packet metadata to the given header
 
