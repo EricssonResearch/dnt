@@ -24,7 +24,7 @@ struct Pipeline {
 struct PipelineIterator {
     struct Packet *packet;
     struct Pipeline *pipe;
-    unsigned pos; // index of current action
+    unsigned pos_; // index of current action
 };
 
 // note: create pipeline with assemble_actions()
@@ -39,9 +39,12 @@ void pipeline_unref(struct Pipeline *pipe);
 // add reference to the interfaces this @pipe is sending on
 void pipeline_ref_send_interfaces(struct Pipeline *pipe);
 
+// run @pipe on @packet starting with the action at @index
+// @returns false if @index is invalid
+bool pipeline_process(struct Pipeline *pipe, unsigned index, struct Packet *packet);
 
 // the iterator will own the packet
-struct PipelineIterator *new_pipe_iterator(struct Pipeline *pipe, struct Packet *p);
+struct PipelineIterator *new_pipe_iterator(struct Pipeline *pipe, struct Packet *packet);
 
 // process the pipeline
 // the iterator will delete itself and the associated packet when it's done
@@ -50,6 +53,9 @@ void pipe_iterator_run(struct PipelineIterator *pi);
 // drop the iterator and the associated packet
 // only needed in very specific cases
 void pipe_iteraror_cancel(struct PipelineIterator *pi);
+
+// continue processing with the next action
+#define pipe_iterator_resume(pi) do { pi->pos_++; pipe_iterator_run(pi); } while (0)
 
 // pipeline mask setter
 // @returns: true if the mask changed (new_mask != pipe->mask)

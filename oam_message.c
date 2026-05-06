@@ -748,9 +748,7 @@ static void *inband_receiver_th(void *arg)
         }
         if (levelcmp > 0) {
             log_packet("%s forwarding in-band message due to level", mp_get_name(msg->mp));
-            //TODO pipe_iterator_resume(msg->pi);
-            msg->pi->pos += 1;
-            pipe_iterator_run(msg->pi);
+            pipe_iterator_resume(msg->pi);
             free(msg);
             continue;
         }
@@ -777,9 +775,7 @@ static void *inband_receiver_th(void *arg)
             }
 
             log_packet("%s forwarding in-band message", mp_get_name(msg->mp));
-            //TODO pipe_iterator_resume(msg->pi);
-            msg->pi->pos += 1;
-            pipe_iterator_run(msg->pi);
+            pipe_iterator_resume(msg->pi);
         } else {
             log_packet("%s dropping in-band message", mp_get_name(msg->mp));
             pipe_iteraror_cancel(msg->pi);
@@ -830,12 +826,13 @@ void oam_receive_outofband(struct Interface *iface, const char *message)
     messagequeue_push(outofband_q, msg);
 }
 
-void init_message_module(void)
+bool init_message_module(void)
 {
     inband_q = new_messagequeue();
     outofband_q = new_messagequeue();
     inband_receiver_thread = thread_launch(inband_receiver_th, NULL, "oam inband rcv");
     outofband_receiver_thread = thread_launch(outofband_receiver_th, NULL, "oam outband rcv");
+    return inband_receiver_thread != NULL && outofband_receiver_thread != NULL;
 }
 
 void finish_message_module(void)

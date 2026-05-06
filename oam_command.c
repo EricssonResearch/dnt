@@ -571,7 +571,7 @@ static void command_loop(struct CommandConnection *conn)
                         if (strcmp(type, "tc") == 0) {
                             ret = register_tc_notification(add, target, period_ms);
                         } else if (strcmp(type, "delay") == 0) {
-                            ret =register_delay_notification(add, target, period_ms);
+                            ret =register_delay_notification(add, period_ms);
                         } else if (strcmp(type, "modem") == 0) {
                             ret = register_modem_notification(add, target, period_ms);
                         } else {

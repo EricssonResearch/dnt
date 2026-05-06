@@ -8,6 +8,8 @@
 #include <stdint.h>
 #include <time.h>
 
+#include <arpa/inet.h> /* htonl, ntohl */
+
 /* Operations on timespecs */
 /* stolen from https://github.com/freebsd/freebsd-src/blob/main/sys/sys/time.h */
 /* License: BSD-3-Clause */

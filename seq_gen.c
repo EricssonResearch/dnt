@@ -17,9 +17,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <arpa/inet.h> /* htonl() */
+#include <pthread.h>
 
-#define FRER_SEQ_GEN_RESET_FLAG_COUNT 3
+#include <arpa/inet.h> /* htonl() */
 
 LOGGING_MODULE(PACKETTRACE, WARNING);
 
@@ -35,6 +35,8 @@ struct SequenceGenerator {
     bool reset_flag;
     bool use_init_seq_space;
 
+    pthread_mutex_t mutex;
+
     unsigned resets;
 };
 
@@ -46,7 +48,9 @@ static struct JsonValue *sgen_get_state_json(const struct PipelineObject *obj)
     json_object_insert(js, "name", json_string(obj->name));
     json_object_insert(js, "use_init_flag", gen->use_init_flag ? json_true() : json_false());
     json_object_insert(js, "use_reset_flag", gen->use_reset_flag ? json_true() : json_false());
-    //TODO report more state
+    json_object_insert(js, "seq", json_number(gen->gen_seq_num));
+    if (gen->use_reset_flag)
+        json_object_insert(js, "resets", json_number(gen->resets));
     return js;
 }
 
@@ -73,12 +77,14 @@ static void sgen_print_info(const struct PipelineObject *self, FILE *cmd_w)
 
 static void sequence_generation_reset(struct SequenceGenerator *gen)
 {
+    pthread_mutex_lock(&gen->mutex);
     gen->reset_flag = gen->use_reset_flag;
     gen->use_init_seq_space = gen->use_init_flag;
 
     gen->gen_seq_num = 0;
     gen->init_gen_seq_num = gen->init_seq_start;
     gen->resets += 1;
+    pthread_mutex_unlock(&gen->mutex);
 }
 
 int reset_seq_generator(struct PipelineObject *obj, void *userdata)
@@ -96,10 +102,9 @@ int reset_seq_generator(struct PipelineObject *obj, void *userdata)
 
 static unsigned sequence_generation(struct SequenceGenerator *gen)
 {
+    pthread_mutex_lock(&gen->mutex);
     if (gen->use_init_seq_space) {
         unsigned seq = gen->init_gen_seq_num & 0xffff;
-        seq |= (FRER_RESET_FLAG * gen->reset_flag);
-        seq |= (FRER_INIT_FLAG * gen->use_init_seq_space);
         if(gen->init_gen_seq_num > (FRER_RCVY_SEQ_SPACE - 1)) {
             gen->gen_seq_num = 1;
             gen->use_init_seq_space = false;
@@ -109,6 +114,9 @@ static unsigned sequence_generation(struct SequenceGenerator *gen)
             if (gen->init_gen_seq_num > gen->init_seq_start + FRER_SEQ_GEN_RESET_FLAG_COUNT)
                 gen->reset_flag = false;
         }
+        seq |= (FRER_RESET_FLAG * gen->reset_flag);
+        seq |= (FRER_INIT_FLAG * gen->use_init_seq_space);
+        pthread_mutex_unlock(&gen->mutex);
         return seq;
     }
     //regular seq generator
@@ -122,6 +130,7 @@ static unsigned sequence_generation(struct SequenceGenerator *gen)
     }
     seq |= (FRER_RESET_FLAG * gen->reset_flag);
     seq |= (FRER_INIT_FLAG * gen->use_init_seq_space);
+    pthread_mutex_unlock(&gen->mutex);
     return seq;
 }
 
@@ -153,6 +162,8 @@ struct PipelineObject *new_seq_gen(const char *name, bool use_reset_flag, bool u
     ret->reset_flag = use_reset_flag;
     ret->use_init_seq_space = use_init_flag;
 
+    pthread_mutex_init(&ret->mutex, NULL);
+
     notification_register_source(name, seq_gen_notification_pull_fn, ret, 2000);
 
     return (struct PipelineObject *)ret;
@@ -162,6 +173,8 @@ struct PipelineObject *delete_seq_gen(struct PipelineObject *gen)
 {
     notification_register_source(gen->name, NULL, NULL, 2000);
     //TODO throw if gen->type is not PO_SEQGEN
+    struct SequenceGenerator *g = (struct SequenceGenerator *)gen;
+    pthread_mutex_destroy(&g->mutex);
     free(gen->name);
     free(gen);
     return NULL;

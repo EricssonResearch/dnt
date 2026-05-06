@@ -9,6 +9,9 @@
 
 #include <stdbool.h>
 
+// this module implements RFC 9550
+// it's also compatible with TSN scenarios
+
 // Create new POF object
 struct PipelineObject *new_pof(const char *name, unsigned pof_max_delay, unsigned pof_take_any_time, unsigned queue_max_len);
 

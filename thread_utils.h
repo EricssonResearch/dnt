@@ -84,6 +84,7 @@ void messagequeue_push(struct MessageQueue *q, void *message);
 // if there are multiple items in @q, the one pushed first is returned
 // negative @usec means no timeout (waits indefinitely)
 // zero @usec means return immediately even if @q is empty
+// the timeout is measured with CLOCK_REALTIME
 void *messagequeue_pop(struct MessageQueue *q, int usec);
 
 // calls @cb for each item in the queue, @userdata is passed to @cb

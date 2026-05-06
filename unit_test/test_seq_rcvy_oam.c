@@ -2,10 +2,12 @@
 #include "testing.h"
 
 #include "action.h"
+#include "json.h"
 #include "notification.h"
 #include "packet.h"
 #include "pipeline.h"
 #include "seq_recov.h"
+#include "thread_utils.h"
 #include "utils.h"
 
 #include "log.h"
@@ -13,7 +15,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <pthread.h>
+
 #include <arpa/inet.h>
+
+#include <valgrind/valgrind.h>
 
 TEST_INIT("Sequence Recovery: OAM");
 
@@ -64,6 +70,9 @@ static const unsigned reset_ms = 300000; // way longer than OAM timeout so we kn
 
 static void test_get_oam_rcvy(void)
 {
+    if (!RUNNING_ON_VALGRIND)
+        SKIP("This test is flaky without Valgrind");
+
     log_set_level("RCVY", DEBUG); //TODO to catch the flaky test in line 234
     struct RecoveryDiagnosticConf diag = {};
     struct PipelineObject *rec = new_seq_rec("oam", RCVY_Vector, false, false, history_length, reset_ms, &diag);
@@ -172,9 +181,10 @@ static void test_timeout(void)
 
 static void test_objects(void)
 {
+    // each object must have its own separate oam recovery instance
     struct RecoveryDiagnosticConf diag = {};
     struct PipelineObject *rec1 = new_seq_rec("oam 1", RCVY_Vector, false, false, history_length, reset_ms, &diag);
-    struct PipelineObject *rec2 = new_seq_rec("oam 1", RCVY_Vector, false, false, history_length, reset_ms, &diag);
+    struct PipelineObject *rec2 = new_seq_rec("oam 2", RCVY_Vector, false, false, history_length, reset_ms, &diag);
     OK_FATAL(rec1, "have object");
     OK_FATAL(rec2, "have object");
 
@@ -196,11 +206,85 @@ static void test_objects(void)
     OK(delete_packet(p) == NULL, "delete packet");
 }
 
+#define ITERATIONS 300
+static pthread_spinlock_t spinlock;
+static unsigned seq = 0;
+static unsigned results[ITERATIONS*2+1] = {};
+
+static void *multi_thread(void *arg)
+{
+    // note: testing.h is not thread-safe, we can't use OK() here
+
+    //pthread_t tid = pthread_self();
+    struct PipelineObject *rec = (struct PipelineObject *)arg;
+
+    struct Packet *p = new_packet(NULL);
+
+    for (unsigned i=0; i<ITERATIONS; i++) {
+        pthread_spin_lock(&spinlock);
+
+        enum ActionResult result = oam_recovery(rec, p, "oamsession", seq);
+        if (result == ACR_CONTINUE)
+            __atomic_add_fetch(&results[seq], 1, __ATOMIC_RELAXED);
+
+        //usleep(10*1000);
+        volatile int k = 0;
+        for (unsigned a=0; a<10000000;a++) {
+            k += a;
+        }
+        seq++;
+
+        pthread_spin_unlock(&spinlock);
+
+        p->sequence = htonl(seq);
+        result = oam_recovery(rec, p, "oamsession", seq);
+        if (result == ACR_CONTINUE)
+            __atomic_add_fetch(&results[seq], 1, __ATOMIC_RELAXED);
+
+        //printf("\n%lu %u", tid, i);
+    }
+
+    delete_packet(p);
+    return NULL;
+}
+
+static void test_threads(void)
+{
+    if (RUNNING_ON_VALGRIND)
+        SKIP("Valgrind doesn't properly support multithreading");
+
+    OK_FATAL(pthread_spin_init(&spinlock, 0) == 0, "create spinlock");
+
+    struct RecoveryDiagnosticConf diag = {};
+    struct PipelineObject *rec = new_seq_rec("vector", RCVY_Vector, false, false, history_length, reset_ms, &diag);
+    OK_FATAL(rec, "have object");
+
+    struct Thread *t[2];
+    for (unsigned i=0; i<2; i++) {
+        t[i] = thread_launch(multi_thread, rec, "rcvy %u", i);
+        //printf("\nlaunched %p", t[i]);
+    }
+
+    for (unsigned i=0; i<2; i++) {
+        thread_join(t[i]);
+    }
+
+    //TODO verify counters
+
+    pipeline_object_unref(rec);
+    pthread_spin_destroy(&spinlock);
+
+    for (unsigned i=0; i<ARRAY_SIZE(results); i++) {
+        OK(results[i] == 1, "seq %u is %u", i, results[i]);
+    }
+}
+
 TEST_CASES = {
     {"get oam rcvy", test_get_oam_rcvy},
     {"single session", test_single},
     {"multiple sessions", test_multi},
     {"timeout", test_timeout},
     {"multiple objects", test_objects},
+    {"stress multi-thread", test_threads},
     {NULL, NULL}
 };

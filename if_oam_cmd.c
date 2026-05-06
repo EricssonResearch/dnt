@@ -8,6 +8,7 @@
 #include "log.h"
 #include "oam.h"
 #include "packet.h"
+#include "thread_utils.h"
 #include "utils.h"
 
 #include <stdlib.h>
@@ -54,7 +55,12 @@ static bool oam_cmd_recv(struct Interface *iface)
     struct sockaddr_storage their_addr; // remote's address information
     sin_size = sizeof their_addr;
     int new_fd = accept(iface->recvfd, (struct sockaddr *)&their_addr, &sin_size);
-    if (new_fd == -1) {
+    if (iface->state == IFS_SHUTDOWN) {
+        if (new_fd > 0)
+            close(new_fd);
+        return false;
+    }
+    if (new_fd < 0) {
         log_perror("oam cmd accept");
         return false;
     }
@@ -66,6 +72,16 @@ static bool oam_cmd_recv(struct Interface *iface)
 
     oam_start_command_connection(new_fd, s, ntohs(sa4->sin_port));
     return true;
+}
+
+static void *oam_cmd_recv_loop(void *arg)
+{
+    struct Interface *iface = (struct Interface *)arg;
+
+    while (iface->state != IFS_SHUTDOWN)
+        oam_cmd_recv(iface);
+
+    return NULL;
 }
 
 static bool oam_cmd_send(struct Interface *iface, struct Packet *p)
@@ -138,6 +154,7 @@ static bool oam_cmd_open(struct Interface *iface)
     if (set_oam_cmd_if(iface)) {
         log_info("OAM Command interface on IPv%d port %u", oid->family==AF_INET6?6:4, oid->port);
         iface->state = IFS_OPEN;
+        iface->recv_th_ = thread_launch(oam_cmd_recv_loop, iface, "cmd %s", iface->name);
         return true;
     } else {
         close(sock);
@@ -189,7 +206,6 @@ struct Interface *new_oam_cmd_interface(const char *name, const char *ifname,
     } else {
         iface->ifname = NULL;
     }
-    iface->recv = oam_cmd_recv;
     iface->send = oam_cmd_send;
     iface->open = oam_cmd_open;
     iface->close_ = oam_cmd_close;

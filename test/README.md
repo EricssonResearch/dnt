@@ -45,21 +45,3 @@ It is recommended to start `xterm` terminals from mininet on the virtual nodes, 
 `stress/stress_iperf.py` - environment for high-throughput (iperf) tests exercising the POF and delay functionalities
 `dynip` - environment to experiment with dynamic IP configuration (IPv4 and v6)
 
-
-## Unit tests
-
-These are in the `unit_test` directory. They need `cmake` to build, and it's recommended to build them in a separate directory. For example:
-
-```
-cd unit_test
-mkdir build
-cd build
-cmake ..
-make
-./test_seq_rcvy_vector
-```
-
-The unit tests use the same infrastructure as the unit tests that come with the INI parser library used by R2DTWO (see inifile/test).
-The exit code of the tests is 0 if all the test cases passed.
-
-

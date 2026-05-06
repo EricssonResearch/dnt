@@ -5,27 +5,22 @@
 #include "delay.h"
 #include "hashmap.h"
 #include "interface.h"
+#include "log.h"
 #include "notification.h"
-#include "sysmon.h"
+#include "oam.h"
 #include "packet.h"
 #include "parsetree.h"
 #include "seq_gen.h"
-#include "time_utils.h"
-#include "oam.h"
-#include "log.h"
+#include "sysmon.h"
 #include "version.h"
 
 #include <argp.h>
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
-#include <sys/types.h>
+
 #include <unistd.h>
-
 #include <signal.h>
-#include <sys/epoll.h>
-
-#define MAX_EVENTS 10
 
 DEFAULT_LOGGING_MODULE(MAIN, INFO);
 
@@ -57,26 +52,9 @@ static void sigusr2_handler(int sig, siginfo_t *si, void *uc)
     (void)uc;
 }
 
-static int add_iface_to_epollfd(struct Interface *iface, void *userdata) {
-    int *epollfd = (int *)userdata;
-    if (iface->recvfd == 0) return 1;
-
-    log_debug("adding interface %s to epoll", iface->name);
-
-    struct epoll_event ev;
-    ev.events = EPOLLIN;
-    ev.data.ptr = iface;
-    if (epoll_ctl(*epollfd, EPOLL_CTL_ADD, iface->recvfd, &ev) < 0) {
-        log_perror("add interface %s to epoll", iface->name);
-        return 0;
-    }
-    return 1;
-}
-
-static void recv_loop(void)
+static void main_loop(void)
 {
     struct sigaction sa;
-    //struct sigevent sev;
     sa.sa_flags = SA_SIGINFO;
     sa.sa_sigaction = sigint_handler;
     sigemptyset(&sa.sa_mask);
@@ -102,46 +80,9 @@ static void recv_loop(void)
         return;
     }
 
-    int epollfd = epoll_create1(0);
-    if (epollfd < 0) {
-        log_perror("epoll_create1 failed");
-        return;
-    }
-
-    if (state_foreach_interfaces(add_iface_to_epollfd, &epollfd) == 0) {
-        return;
-    }
-
-    struct timespec last_perfcheck_time;
-    clock_gettime(CLOCK_REALTIME, &last_perfcheck_time);
-    struct epoll_event events[MAX_EVENTS];
     while (sigint_count == 0) {
-        int nfds = epoll_wait(epollfd, events, MAX_EVENTS, -1);
-        if (nfds == -1) {
-            // a signal, keep receiving
-            if (errno == EINTR) {
-                continue;
-            }
-            log_perror("epoll_wait");
-            return;
-        }
-
-        for (int n=0; n<nfds; n++) {
-            struct Interface *recvif = (struct Interface *)events[n].data.ptr;
-            if (!recvif->recv(recvif)) {
-                //TODO log_error?
-            }
-        }
-
-        struct timespec now, diff;
-        clock_gettime(CLOCK_REALTIME, &now);
-        timespecsub(&now, &last_perfcheck_time, &diff);
-        unsigned diff_msec;
-        timespec_to_msec(diff_msec, &diff);
-        if (diff_msec > 2000) {
-            packets_check_performance();
-            last_perfcheck_time = now;
-        }
+        sleep(2);
+        packets_check_performance();
     }
 }
 
@@ -385,14 +326,6 @@ int main(int argc, char **argv)
 
     log_info("R2DTWO - Reliable & Robust Deterministic Tool for netWOrking %d.%d", VERSION_MAJOR, VERSION_MINOR);
 
-    //TODO test log levels
-    /*log_set_level("MAIN", ALL);
-    log_error("error");
-    log_warning("warning");
-    log_info("info");
-    log_packet("packet");
-    log_debug("debug");*/
-
     log_info("Reading config '%s'", arguments.configfile);
     struct StateTransaction *tr = read_config_file(arguments.configfile);
     if (tr == NULL) {
@@ -400,42 +333,49 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
-    init_notification(tr->streams);
-    init_oam(arguments.hostname);
+    if (!init_notification(tr->streams)) {
+        log_error("failed to start the notification system");
+        delete_transaction(tr);
+        return EXIT_FAILURE;
+    }
+    if (!init_oam(arguments.hostname)) {
+        log_error("failed to start the oam module");
+        delete_transaction(tr);
+        finish_notification();
+        return EXIT_FAILURE;
+    }
+    if (!init_delay()) {
+        log_error("failed to start the delay module");
+        delete_transaction(tr);
+        finish_notification();
+        finish_oam();
+        return EXIT_FAILURE;
+    }
 
     bool commit_success = state_commit_transaction(tr);
     delete_transaction(tr);
     if (!commit_success) {
         log_error("failed to apply the config");
+        finish_notification();
+        finish_oam();
+        finish_delay();
         return EXIT_FAILURE;
     }
 
     init_monitor();
 
-    // Init delay and monitor only when delay actionsions are present
-    if(delay_actions > 0) {
-        if (!init_delay()) {
-            return EXIT_FAILURE;
-        }
-    }
-
     struct JsonValue *msg = json_object();
     json_object_insert(msg, "status", json_string("startup completed"));
     notification_push_event("r2dtwo", NOTIF_INFO, msg);
 
-    recv_loop();
+    main_loop();
     log_info("receive loop ended");
 
     close_interfaces();
-
-    fini_delay();
-
+    finish_delay();
     finish_oam();
-
     finish_monitor();
-
     finish_notification();
-
     close_log();
 
     return EXIT_SUCCESS;

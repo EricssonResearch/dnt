@@ -39,6 +39,8 @@ struct RecoveryDiagnosticConf {
     int outage_threshold;
 };
 
+// SeamlessVector implements this:
+//  https://www.ieee802.org/1/files/public/docs2020/new-varga-FRER-seamless-reset-0320-v02.pdf
 enum SequenceRecoveryAlgorithm {
     RCVY_Match = 1,
     RCVY_Vector,

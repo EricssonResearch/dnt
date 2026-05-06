@@ -62,6 +62,17 @@ void pipeline_unref(struct Pipeline *pipe)
     }
 }
 
+bool pipeline_process(struct Pipeline *pipe, unsigned index, struct Packet *packet)
+{
+    if (index >= pipe->action_count)
+        return false;
+
+    struct PipelineIterator *pi = new_pipe_iterator(pipe, packet);
+    pi->pos_ = index;
+    pipe_iterator_run(pi);
+    return true;
+}
+
 
 struct PipelineIterator *new_pipe_iterator(struct Pipeline *pipe, struct Packet *packet)
 {
@@ -74,7 +85,7 @@ struct PipelineIterator *new_pipe_iterator(struct Pipeline *pipe, struct Packet 
 
 static bool iterator_done(struct PipelineIterator *pi)
 {
-    return pi->pos >= pi->pipe->action_count;
+    return pi->pos_ >= pi->pipe->action_count;
 }
 
 static void delete_iterator(struct PipelineIterator *pi)
@@ -104,13 +115,13 @@ void pipe_iterator_run(struct PipelineIterator *pi)
 {
     log_packet("pipe_iterator_run %s, action count %u", pi->pipe->name, pi->pipe->action_count);
     while (!iterator_done(pi)) {
-        struct Action *a = &pi->pipe->actions[pi->pos];
+        struct Action *a = &pi->pipe->actions[pi->pos_];
         log_packet("  action type %d %s '%s'", a->type, action_name_from_type(a->type), a->text);
         PACKET_LOGCAT(pi->packet, "%s ", action_name_from_type(a->type));
         enum ActionResult res = a->execute(a, pi);
         switch (res) {
             case ACR_CONTINUE:
-                pi->pos++;
+                pi->pos_++;
                 break;
             case ACR_DONE:
                 delete_iterator(pi);

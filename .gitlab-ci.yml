@@ -1,12 +1,11 @@
-# this is based on the C++.gitlab-ci.yml template
-
-# run on the main branch, from web, for merge requests
-#   only run for feature branch commits when there is no associated merge request
 
 variables:
   IMAGE_NAME: r2dtwo-ci
   IMAGE_VERSION: v3
 
+
+# run on the main branch, from web, for merge requests
+#   only run for feature branch commits when there is no associated merge request
 workflow:
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -16,14 +15,13 @@ workflow:
       when: never
     - when: always
 
-# this Docker image should contain everything we need
-# image: ${IMAGE_NAME}:${IMAGE_VERSION}
 
 stages:
   - build-image
   - verify
   - build
   - test
+
 
 verify-ci-config:
   image: ${IMAGE_NAME}:${IMAGE_VERSION}
@@ -33,6 +31,9 @@ verify-ci-config:
   script:
     - .gitlab-ci/verify_yaml.pl
 
+
+# this Docker image should contain everything we need
+# image: ${IMAGE_NAME}:${IMAGE_VERSION}
 build-docker-image:
   stage: build-image
   image:
@@ -48,6 +49,7 @@ build-docker-image:
   rules:
     - changes:
       - .gitlab-ci/Dockerfile
+
 
 build-r2dtwo-debug:
   stage: build
@@ -118,6 +120,21 @@ build-unit_test:
     paths:
       - unit_test/build/test_*
 
+build-unit_test_asan:
+  stage: build
+  image: ${IMAGE_NAME}:${IMAGE_VERSION}
+  tags:
+    - tsn
+  script:
+    - cd unit_test
+    - mkdir build
+    - cd build
+    - cmake .. -DUSE_ASAN=yes
+    - make -j
+  artifacts:
+    paths:
+      - unit_test/build/test_*
+
 
 .pytest.common:
   stage: test
@@ -127,90 +144,71 @@ build-unit_test:
   dependencies:
     - build-r2dtwo-debug
   retry: 2
+  allow_failure: false
+  script:
+    - cd test
+    - python3 -m $TESTNAME
 
 pytest_oam:
   extends: .pytest.common
-  script:
-    - cd test
-    - python3 -m oam.oam
-  allow_failure: false
+  variables:
+    TESTNAME: oam.oam
 
 pytest_oam_tsn:
   extends: .pytest.common
-  script:
-    - cd test
-    - python3 -m oam_tsn.oam_tsn
-  allow_failure: false
+  variables:
+    TESTNAME: oam_tsn.oam_tsn
 
 pytest_oam_srv6:
   extends: .pytest.common
-  script:
-    - cd test
-    - python3 -m oam_srv6.oam_srv6
-  allow_failure: false
+  variables:
+    TESTNAME: oam_srv6.oam_srv6
 
 pytest_notification_tsn:
   extends: .pytest.common
-  script:
-    - cd test
-    - python3 -m notification.notification
-  allow_failure: false
+  variables:
+    TESTNAME: notification.notification
 
 pytest_notification_detnet:
   extends: .pytest.common
-  script:
-    - cd test
-    - python3 -m notification.notification-detnet
-  allow_failure: false
+  variables:
+    TESTNAME: notification.notification-detnet
 
 pytest_elimination:
   extends: .pytest.common
-  script:
-    - cd test
-    - python3 -m sequence.sequence
-  allow_failure: false
+  variables:
+    TESTNAME: sequence.sequence
 
 pytest_match:
   extends: .pytest.common
-  script:
-    - cd test
-    - python3 -m match.match
-  allow_failure: false
+  variables:
+    TESTNAME: match.match
 
 pytest_mask:
   extends: .pytest.common
-  script:
-    - cd test
-    - python3 -m mask.mask
-  allow_failure: false
+  variables:
+    TESTNAME: mask.mask
 
 pytest_pof:
   extends: .pytest.common
-  script:
-    - cd test
-    - python3 -m pof.pof
-  allow_failure: false
+  variables:
+    TESTNAME: pof.pof
 
 pytest_delay:
   extends: .pytest.common
-  script:
-    - cd test
-    - python3 -m delay.delay
-  allow_failure: false
+  variables:
+    TESTNAME: delay.delay
 
 pytest_stress:
   extends: .pytest.common
-  script:
-    - cd test
-    - python3 -m stress.stress_ping
-  allow_failure: false
+  variables:
+    TESTNAME: stress.stress_ping
 
 pytest_srv6:
   extends: .pytest.common
-  script:
-    - cd test
-    - python3 -m srv6.srv6
-  allow_failure: false
+  variables:
+    TESTNAME: srv6.srv6
+
 
 .unit_test.common:
   image: ${IMAGE_NAME}:${IMAGE_VERSION}
@@ -226,6 +224,11 @@ unit_test.conf_utils:
   extends: .unit_test.common
   variables:
     TESTNAME: test_conf_utils
+
+unit_test.delay:
+  extends: .unit_test.common
+  variables:
+    TESTNAME: test_delay
 
 unit_test.header_api:
   extends: .unit_test.common
@@ -262,6 +265,11 @@ unit_test.packet:
   variables:
     TESTNAME: test_packet
 
+unit_test.seq_gen:
+  extends: .unit_test.common
+  variables:
+    TESTNAME: test_seq_gen
+
 unit_test.seq_rcvy_match:
   extends: .unit_test.common
   variables:
@@ -271,6 +279,11 @@ unit_test.seq_rcvy_oam:
   extends: .unit_test.common
   variables:
     TESTNAME: test_seq_rcvy_oam
+
+unit_test.seq_rcvy_seamless:
+  extends: .unit_test.common
+  variables:
+    TESTNAME: test_seq_rcvy_seamless
 
 unit_test.seq_rcvy_vector:
   extends: .unit_test.common
@@ -291,3 +304,36 @@ unit_test.utils:
   extends: .unit_test.common
   variables:
     TESTNAME: test_utils
+
+
+# we need to run these separately because valgrind has no concurrency
+.multithread_unit_test.common:
+  image: ${IMAGE_NAME}:${IMAGE_VERSION}
+  stage: test
+  tags:
+    - tsn
+  dependencies:
+    - build-unit_test_asan
+  script:
+    - TEST_COLOR=1 unit_test/build/$TESTNAME
+
+multithread_unit_test.delay:
+  extends: .multithread_unit_test.common
+  variables:
+    TESTNAME: test_delay
+
+multithread_unit_test.seq_rcvy_match:
+  extends: .multithread_unit_test.common
+  variables:
+    TESTNAME: test_seq_rcvy_match
+
+multithread_unit_test.seq_rcvy_oam:
+  extends: .multithread_unit_test.common
+  variables:
+    TESTNAME: test_seq_rcvy_oam
+
+multithread_unit_test.seq_rcvy_vector:
+  extends: .multithread_unit_test.common
+  variables:
+    TESTNAME: test_seq_rcvy_vector
+

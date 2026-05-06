@@ -8,6 +8,7 @@
 #include "log.h"
 #include "oam.h"
 #include "packet.h"
+#include "thread_utils.h"
 #include "utils.h"
 
 #include <stdio.h>
@@ -45,12 +46,25 @@ static bool oam_recv(struct Interface *iface)
     int n;
 
     n = recv(iface->recvfd, buffer, sizeof(buffer)-1, 0);
-    if (n>0) {
+    if (iface->state == IFS_SHUTDOWN) {
+        return false;
+    }
+    if (n > 0) {
         buffer[n]=0;
         oam_receive_outofband(iface, buffer);
     }
 
     return true;
+}
+
+static void *oam_recv_loop(void *arg)
+{
+    struct Interface *iface = (struct Interface *)arg;
+
+    while (iface->state != IFS_SHUTDOWN)
+        oam_recv(iface);
+
+    return NULL;
 }
 
 static bool oam_send(struct Interface *iface, struct Packet *p)
@@ -124,6 +138,7 @@ static bool oam_open(struct Interface *iface)
     log_info("OAM return interface %s %s port %u", iface->name, oid->oam_ip_str, oid->port);
     iface->recvfd = sock;
     iface->state = IFS_OPEN;
+    iface->recv_th_ = thread_launch(oam_recv_loop, iface, "rtn %s", iface->name);
     add_oam_if(iface);
     return true;
 }
@@ -207,7 +222,6 @@ struct Interface *new_oam_interface(const char *name,
                         const char *oam_ip, unsigned port)
 {
     _NEW_IFACE(IF_OAM);
-    iface->recv = oam_recv;
     iface->send = oam_send;
     iface->open = oam_open;
     iface->close_ = oam_close;

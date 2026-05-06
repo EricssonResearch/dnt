@@ -15,6 +15,7 @@
 #include "object.h"
 #include "packet.h"
 #include "pipeline.h"
+#include "thread_utils.h"
 #include "time_utils.h"
 #include "utils.h"
 
@@ -56,7 +57,7 @@ struct Pof {
     int pof_last_sent;
     bool take_any;
 
-    pthread_t thread_id;
+    struct Thread *worker;
     pthread_mutex_t lock;
     int evfd;
     // Conditional Delay Buffer implemented as ordered queue
@@ -147,7 +148,7 @@ static enum ActionResult pof_insert(struct PipelineObject *p, struct PipelineIte
 {
     struct Pof *pof = (struct Pof*)p;
 
-    if (SEQ_IS_OAM(pi->packet->sequence)) {
+    if (SEQ_IS_OAM(pi->packet->sequence)) { //TODO test with all OAM types
         return ACR_CONTINUE;
     }
 
@@ -176,7 +177,7 @@ static enum ActionResult pof_insert(struct PipelineObject *p, struct PipelineIte
     pof->queue_len += 1;
     clock_gettime(CLOCK_REALTIME, &pof->pof_last_recv_ts);
 
-    unsigned long event;
+    int64_t event;
     if ((pe->seq <= pof->pof_last_sent + 1) || pof->take_any == true) {
         event = POF_IN_ORDER_PKT;
     } else {
@@ -184,7 +185,7 @@ static enum ActionResult pof_insert(struct PipelineObject *p, struct PipelineIte
     }
     if (write(pof->evfd, &event, sizeof(event)) != sizeof(event)) {
         // TODO: might be fatal, terminate r2dtwo
-        log_perror("write");
+        log_perror("eventfd write");
     }
     pthread_mutex_unlock(&pof->lock); // TODO: check if OK
     log_packet("pof insert %u queue len %u", pe->seq, pof->queue_len);
@@ -219,7 +220,7 @@ static void pof_pop_item(struct PofElem *pe)
 static void pof_reset(struct Pof *pof)
 {
     while (pof->q_head)
-        pof_pop_item(pof->q_head);
+        pof_pop_item(pof->q_head); //TODO do not drop packets!!!!
     if (pof->take_any == false) {
         log_info("reset");
 
@@ -255,14 +256,15 @@ static void pof_forward(struct PofElem *pe)
     struct Pof *pof = pe->pof;
     if (pe->seq > pof->pof_last_sent) //TODO this if is not present in RFC 9550 (but it seems crucial)
         pof->pof_last_sent = pe->seq;
-    pe->pi->pos += 1; // advance in the pipeline
     /* printf("POF: last_sent=%d forward=%d take_any=%d\n", pof->pof_last_sent, pe->seq, pof->take_any); */
-    pipe_iterator_run(pe->pi);
+    pipe_iterator_resume(pe->pi);
 }
 
 static void pof_try_forward(struct Pof *pof, int event)
 {
     struct PofElem *pkt_to_send = pof->q_head;
+    //TODO on timeout the packet with the lowest seq should be sent not the oldest one in the queue
+    //      (this follows the RFC, but it's wrong)
     if ((event & POF_TIMEOUT) && pof->take_any == false) {
         log_packet("timeout, next to forward %u", pof->next_to_forward->seq);
         if (pof->next_to_forward)
@@ -293,7 +295,6 @@ static void *pof_thread(void *arg)
 {
     struct Pof *pof = (struct Pof *)arg;
     struct pollfd fd = { .fd = pof->evfd, .events = POLLIN, .revents = 0 };
-    pthread_setname_np(pthread_self(), "pof thread");
     pof_reset(pof);
 
     struct timespec now, timeout;
@@ -312,12 +313,18 @@ static void *pof_thread(void *arg)
         /* pof_debug(pof); */
         pthread_mutex_lock(&pof->lock);
         if (fd.revents != 0 && (fd.revents & POLLIN)) {
-            unsigned long event;
+            int64_t event;
             ret = read(fd.fd, &event, sizeof(event));
             if (ret < 0) {
-                log_perror("read");
+                log_perror("eventfd read");
                 goto out;
             }
+            if (event < 0) {
+                pthread_mutex_unlock(&pof->lock);
+                return NULL;
+            }
+            //TODO instead of this: if first item's seq == pof->pof_last_sent + 1
+            //      even better: no if here, decide it in pof_try_forward()
             if (event & POF_IN_ORDER_PKT) {
                 pof_try_forward(pof, event);
             }
@@ -370,8 +377,9 @@ struct PipelineObject *new_pof(const char *name, unsigned pof_max_delay, unsigne
         log_perror("pthread_mutex_init");
         goto err_thread;
     }
-    if (pthread_create(&ret->thread_id, NULL, pof_thread, ret) != 0) {
-        log_perror("pthread_create");
+    ret->worker = thread_launch(pof_thread, ret, "pof %s", name);
+    if (ret->worker == NULL) {
+        log_perror("thread launch");
         goto err_thread;
     }
     notification_register_source(ret->base.name, pof_notification_pull_fn, ret, 2000);
@@ -389,10 +397,16 @@ struct PipelineObject *delete_pof(struct PipelineObject *p)
 {
     struct Pof *pof = (struct Pof*)p;
     notification_register_source(p->name, NULL, NULL, 2000);
-    pthread_cancel(pof->thread_id);
-    pthread_join(pof->thread_id, NULL);
+    int64_t event = -10;
+    if (write(pof->evfd, &event, sizeof(event)) != sizeof(event)) {
+        // TODO: might be fatal, terminate r2dtwo
+        log_perror("eventfd write");
+    }
+    thread_join(pof->worker);
     pthread_mutex_destroy(&pof->lock);
-    pof_reset(pof);
+    close(pof->evfd);
+    pof->take_any = true; // no notification spam in pof_reset
+    pof_reset(pof); // TODO this should flush the queue not drop it
     free(p->name);
     free(p);
     return NULL;

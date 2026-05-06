@@ -62,8 +62,8 @@ Interfaces that can receive packets have a ParseTree (defined in `parsetree.h`) 
 *ParseTree* analyzes the received packet, identifies headers in it, and matches field values to see which stream it belongs to.
 It has a list of registered streams, each stream is composed of two parts:
 
-* HeaderDescriptor is a linked list of header types, and associated field match statements, if any
-* Pipeline is an array of *Action* objects that are the processing steps we must do on the received packet (it also carries the name of the stream)
+* *HeaderDescriptor* is a linked list of header types, and associated field match statements, if any
+* *Pipeline* is an array of *Action* objects that are the processing steps we must do on the received packet (it also carries the name of the stream)
 
 If a stream is received on multiple interfaces, the Pipeline is de-duplicated: each ParseTree holds a reference to a common shared Pipeline.
 On the other hand, the HeaderDescriptor list is copied, because it's difficult to reference count a linked list.
@@ -84,7 +84,7 @@ The *Interface* has two types of references:
 * Interface sender: held by Send actions that use the Interface
 
 This distinction is needed for a proper create, open, close and shutdown life-cycle.
-The Interface only disappears, when its both reference types are zero.
+The Interface only disappears, when both of its references are zero.
 
 The *OAM* module performs Operation, Administration and Maintenance functions.
 It can send/receive probe messages to monitor the network using *MaintenancePoint* objects that are owned by the OAM actions:

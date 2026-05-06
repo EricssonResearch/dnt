@@ -193,16 +193,14 @@ static struct Message *tq_pop(struct Message **queue)
     }
 }
 
-static void *tq_pop_data(struct MessageQueue *q, bool must_be_nonempty)
+static void *tq_pop_data(struct MessageQueue *q)
 {
     pthread_mutex_lock(&q->mutex);
     struct Message *m = tq_pop(&q->queue);
     pthread_mutex_unlock(&q->mutex);
 
     if (m == NULL) {
-        if (must_be_nonempty) {
-            log_error("messagequeue had nonzero item count while being empty");
-        }
+        log_error("messagequeue had nonzero item count while being empty");
         return NULL;
     } else {
         void *ret = m->data;
@@ -231,9 +229,9 @@ struct MessageQueue *delete_messagequeue(struct MessageQueue *q)
 void messagequeue_push(struct MessageQueue *q, void *message)
 {
     pthread_mutex_lock(&q->mutex);
+    sem_post(&q->semaphore);
     tq_push(&q->queue, message);
     pthread_mutex_unlock(&q->mutex);
-    sem_post(&q->semaphore);
 }
 
 void *messagequeue_pop(struct MessageQueue *q, int usec)
@@ -241,11 +239,8 @@ void *messagequeue_pop(struct MessageQueue *q, int usec)
     if (usec == 0) {
         // must return immediately
         if (sem_trywait(&q->semaphore) == 0) {
-            return tq_pop_data(q, true);
+            return tq_pop_data(q);
         } else {
-            if (q->queue != NULL) {
-                log_error("messagequeue had zero item count while containing items");
-            }
             return NULL;
         }
     }
@@ -257,13 +252,37 @@ void *messagequeue_pop(struct MessageQueue *q, int usec)
         struct timespec inc = {.tv_sec = usec / 1000000, .tv_nsec = (usec % 1000000)*1000};
         struct timespec end;
         timespecadd(&now, &inc, &end);
-        sem_timedwait(&q->semaphore, &end);
-        //TODO we may have woken up earlier due to a signal
-        return tq_pop_data(q, false);
+        if (sem_timedwait(&q->semaphore, &end) == 0) {
+            // we could lock the semaphore so we have a message
+            return tq_pop_data(q);
+        } else {
+            if (errno == ETIMEDOUT) {
+                // we mustn't pop on timeout
+                return NULL;
+            } else if (errno == EINTR) {
+                // we got interrupted by a signal, let's try again
+                if (sem_timedwait(&q->semaphore, &end) == 0) {
+                    return tq_pop_data(q);
+                } else {
+                    if (errno == ETIMEDOUT) {
+                        return NULL;
+                    } else if (errno == EINTR) {
+                        log_error("timer got interrupted by a signal twice");
+                        return NULL;
+                    } else {
+                        log_perror("timer got interrupted");
+                        return NULL;
+                    }
+                }
+            } else {
+                log_perror("timer got interrupted");
+                return NULL;
+            }
+        }
     } else { // usec < 0
         // wait indefinitely
         sem_wait(&q->semaphore);
-        return tq_pop_data(q, true);
+        return tq_pop_data(q);
     }
 }
 

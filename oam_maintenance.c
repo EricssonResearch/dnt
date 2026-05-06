@@ -1418,12 +1418,13 @@ void mp_inject_packet(struct OAM_MaintenancePoint *mp, struct Packet *p)
         pthread_mutex_unlock(&mp_hash_lock);
         return;
     }
-    __atomic_fetch_add(&mp->oam_send, 1, __ATOMIC_RELAXED);
-    struct PipelineIterator *pi = new_pipe_iterator(mp->injections->pipe, p);
-    //TODO pipe_iterator_inject_at(pi, mp->injections->pipe_pos_idx);
-    pi->pos = mp->injections->pipe_pos_idx;
+    unsigned idx = mp->injections->pipe_pos_idx;
     pthread_mutex_unlock(&mp_hash_lock);
-    pipe_iterator_run(pi);
+
+    __atomic_fetch_add(&mp->oam_send, 1, __ATOMIC_RELAXED);
+
+    // inject at idx
+    pipeline_process(mp->injections->pipe, idx, p);
 }
 
 

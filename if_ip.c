@@ -8,6 +8,7 @@
 #include "log.h"
 #include "packet.h"
 #include "parsetree.h"
+#include "thread_utils.h"
 #include "utils.h"
 
 #include <stdlib.h>
@@ -43,7 +44,8 @@ static bool ip_recv(struct Interface *iface)
 
 
     struct Packet *p = iface_common_recv(iface, NULL, NULL);
-    if (p == NULL) return false;
+    if (p == NULL)
+        return false;
 
     unsigned short *ethertype = (unsigned short*)(p->buf + p->start + 12);
 
@@ -63,6 +65,16 @@ static bool ip_recv(struct Interface *iface)
     //dump_packet((char*)(p->buf + p->start), p->len);
     PACKET_LOGCAT(p, "%s %u ", iface->name, p->len);
     return iface_common_process(iface, p);
+}
+
+static void *ip_recv_loop(void *arg)
+{
+    struct Interface *iface = (struct Interface *)arg;
+
+    while (iface->state != IFS_SHUTDOWN)
+        ip_recv(iface);
+
+    return NULL;
 }
 
 static bool ip_send(struct Interface *iface, struct Packet *p)
@@ -270,6 +282,7 @@ static bool ip_open(struct Interface *iface)
         }
 
         iface->recvfd = sock_raw;
+        iface->recv_th_ = thread_launch(ip_recv_loop, iface, "rcv %s", iface->name);
     }
 
     notification_register_source(iface->name, iface_notification_pull_fn, iface, 2000);
@@ -365,7 +378,6 @@ struct Interface *new_ip_interface(const char *name, const char *ifname)
 {
     _NEW_IFACE(IF_IP);
     iface->ifname = strdup(ifname);
-    iface->recv = ip_recv;
     iface->send = ip_send;
     iface->open = ip_open;
     iface->close_ = ip_close;
