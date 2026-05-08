@@ -6,7 +6,7 @@
 #define R2_CONF_ACTIONS_H
 
 #include "inifile.h"
-#include "parsetree.h"
+#include "headerdesc.h"
 #include "pipeline.h"
 
 struct ConfAction;

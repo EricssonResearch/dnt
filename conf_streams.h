@@ -6,7 +6,7 @@
 #define R2_CONF_STREAMS_H
 
 #include "inifile.h"
-#include "parsetree.h"
+#include "headerdesc.h"
 
 #include <stdbool.h>
 

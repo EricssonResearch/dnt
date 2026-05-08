@@ -5,7 +5,7 @@
 #ifndef R2_CONF_PACKET_H
 #define R2_CONF_PACKET_H
 
-#include "parsetree.h"
+#include "headerdesc.h"
 
 #include <stdbool.h>
 

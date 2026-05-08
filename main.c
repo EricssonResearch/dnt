@@ -8,8 +8,6 @@
 #include "log.h"
 #include "notification.h"
 #include "oam.h"
-#include "packet.h"
-#include "parsetree.h"
 #include "seq_gen.h"
 #include "sysmon.h"
 #include "version.h"
