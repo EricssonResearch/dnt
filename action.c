@@ -25,39 +25,32 @@ DEFAULT_LOGGING_MODULE(PIPELINE, WARNING);
 
 const char *action_name_from_type(enum ActionType type)
 {
-    // these must be in the same order as enum ActionType
-    static const char *names[] = {
-        "Undef",
-        "Add",
-        "Checksum",
-        "Del",
-        "Delay",
-        "Drop",
-        "Edit",
-        "Eliminate",
-        "FilterOAM",
-        "OAMInject",
-        "OAMReceive",
-        "POF",
-        "ReadSeq",
-        "ReadTstamp",
-        "Replicate",
-        "Send",
-        "SeqGen",
-        "Setlength",
-        "TTLCheck",
-        "TTLReduce",
-        "Verify",
-        "WriteSeq",
-        "WriteTstamp",
+    switch (type) {
+        case ACT_ADD:           return "Add";
+        case ACT_CHECKSUM:      return "Checksum";
+        case ACT_DEL:           return "Del";
+        case ACT_DELAY:         return "Delay";
+        case ACT_DROP:          return "Drop";
+        case ACT_EDIT:          return "Edit";
+        case ACT_ELIM:          return "Eliminate";
+        case ACT_FILTEROAM:     return "FilterOAM";
+        case ACT_OAMINJECT:     return "OAMInject";
+        case ACT_OAMRECEIVE:    return "OAMReceive";
+        case ACT_POF:           return "POF";
+        case ACT_READSEQ:       return "ReadSeq";
+        case ACT_READTSTAMP:    return "ReadTstamp";
+        case ACT_REPL:          return "Replicate";
+        case ACT_SEND:          return "Send";
+        case ACT_SEQGEN:        return "SeqGen";
+        case ACT_SETLENGTH:     return "Setlength";
+        case ACT_TTLCHECK:      return "TTLCheck";
+        case ACT_TTLREDUCE:     return "TTLReduce";
+        case ACT_VERIFY:        return "Verify";
+        case ACT_WRITESEQ:      return "WriteSeq";
+        case ACT_WRITETSTAMP:   return "WriteTstamp";
     };
-    // update this when ACT_WRITETSTAMP is no longer the last item!
-#ifndef __cplusplus
-    _Static_assert(ARRAY_SIZE(names) == ACT_WRITETSTAMP+1, "must update the names array");
-#endif
-    return names[type];
+    return NULL;
 }
-
 
 #define INIT_ACTION(type_)                      \
     bzero(a, sizeof(*a));                       \
