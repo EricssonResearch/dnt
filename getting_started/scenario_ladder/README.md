@@ -1,6 +1,6 @@
-# Scenario #4: R2DTWO IPv4 over DetNet (Ladder redundancy)
+# Scenario 4: R2DTWO IPv4 over DetNet (Ladder redundancy)
 
-This scenario shows an example of "ladder redundancy". This network will continue to function in the face of multiple failures because the Stream is repeatedly split and remerged.
+This scenario shows an example of "ladder redundancy" taken from D.3 of 802.1CB. This network will continue to function in the face of multiple failures because the Stream is repeatedly split and remerged.
 
 ```
                                                         B                             D                                                       

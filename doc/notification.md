@@ -85,7 +85,7 @@ By default, push notification sources are enabled and pull notifications are dis
 
 Notifications have a *source* and a *level*. The source is a string, identifying the notification source module.
 
-For push notifications the *source* can be "transaction", "r2dtwo", "new src", "telnet", "mask", "triggered_source", "triggered_receiver" etc. For pull notifications the name can be the reporting module name as described [here](#Message formats)
+For push notifications the *source* can be "transaction", "r2dtwo", "new src", "telnet", "mask", "triggered_source", "triggered_receiver" etc. For pull notifications the name can be the reporting module's name as described [here](#message-formats).
 
 The notification level can be the following:  ERROR, WARNING, INFO, PULL (currently all pull sources use the PULL level). It is possible to filter sending notifications according to the level with a command line parameter:
 

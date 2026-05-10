@@ -68,7 +68,7 @@ r2dtwo: Config file required!
 Try `r2dtwo --help' or `r2dtwo --usage' for more information.
 ```
 
-# Test R2DTWO in a simple network environments
+## Test R2DTWO in various network scenarios
 
 For simplicity, in this guide we use standard Linux tools to test R2DTWO in a sandbox network.
 Some scenarios with more complex network we use `mininet` network emulator.
@@ -81,11 +81,10 @@ But every scenario described here focuses on running R2DTWO on a single machine 
 
 These are the scenarios, you can find detailed descriptions and relevant configs (network setup scripts and R2DTWO configs) in their subfolders:
 
-* [scenario_tsn](scenario_tsn/README.md) - this is the recommended starting point, using R2DTWO as a Layer2 Ethernet swtich with 802.1CB extension
-* [scenario_tsn_over_detnet](scenario_tsn_over_detnet/README.md) - TSN over DetNet scenario, where Layer2 Ethernet traffic encapsulated into DetNet MPLS pseudowires and handled with PREF extension
-* [scenario_ip_over_detnet](scenario_ip_over_detnet/README.md) - IPv46 over DetNet scenario, where regular Layer3 IP traffic encapsulated into DetNet MPLS pseudowires and handled with PREF extension
-* [scenario_ladder](scenario_ladder/README.md) - Ladder topology with DetNet implementing the IEEE 802.1CB's ladder redundancy example
-* [scenario_dynip](scenario_dynip/README.md) - Dynamic IP configuration for a mobile endpoint
-* [scenario_oam](scenario_oam/README.md) - IPv4 over DetNet scenario with additional Operation Administration and Maintenance (OAM) extension
-* [scenario_mask](scenario_mask/README.md) - Scenario presenting the path masking functionality of the replication object
-
+1. [scenario_tsn](scenario_tsn/README.md) - this is the recommended starting point, using R2DTWO as a Layer2 Ethernet swtich with 802.1CB extension
+2. [scenario_tsn_over_detnet](scenario_tsn_over_detnet/README.md) - TSN over DetNet scenario, where Layer2 Ethernet traffic encapsulated into DetNet MPLS pseudowires and handled with PREF extension
+3. [scenario_ip_over_detnet](scenario_ip_over_detnet/README.md) - IPv46 over DetNet scenario, where regular Layer3 IP traffic encapsulated into DetNet MPLS pseudowires and handled with PREF extension
+4. [scenario_ladder](scenario_ladder/README.md) - Ladder topology with DetNet implementing the IEEE 802.1CB's ladder redundancy example
+5. [scenario_dynip](scenario_dynip/README.md) - Dynamic IP configuration for a mobile endpoint
+6. [scenario_oam](scenario_oam/README.md) - IPv4 over DetNet scenario with additional Operation Administration and Maintenance (OAM) extension
+7. [scenario_mask](scenario_mask/README.md) - Scenario presenting the path masking functionality of the replication object

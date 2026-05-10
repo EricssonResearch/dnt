@@ -26,7 +26,7 @@ declare -a doc_topics=(
 VER_MARJOR=$(grep -oP 'VERSION_MAJOR \K\d+' version.h)
 VER_MINOR=$(grep -oP 'VERSION_MINOR \K\d+' version.h)
 
-# Mardown has no newpage directive.
+# Markdown has no newpage directive.
 # We need to call out for Latex to insert pagebreaks
 preamble="
 ---

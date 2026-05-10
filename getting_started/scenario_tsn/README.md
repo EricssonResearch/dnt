@@ -1,4 +1,4 @@
-# Scenario TSN: R2DTWO TSN operation, layer 2 bridge mode
+# Scenario 1: R2DTWO TSN operation, layer 2 bridge mode
 
 In the following, we will use R2DTWO as a Layer2 TSN switch with IEEE 802.1CB function.
 

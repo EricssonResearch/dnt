@@ -1,4 +1,4 @@
-# Scenario TSN over DetNet: R2DTWO TSN over DetNet
+# Scenario 2: R2DTWO TSN over DetNet
 
 __Important: this scenario assumes background knowledge of the basics from Scenario TSN. Please take a look into Scenario TSN if you have not already.__ [Scenario TSN](../scenario_tsn/README.md)
 
@@ -21,7 +21,7 @@ We will use the following topology, which consists:
 │          │    │                  │         │                  │    │          │
 │    eth0 ─┼────┼─ swp2            │         │            swp2 ─┼────┼─ eth0    │
 │ 10.0.0.1 │    │                  │         │                  │    │ 10.0.0.2 │
-│          │    │                  │         │                  │    │          │
+│ fd10::1  │    │                  │         │                  │    │ fd10::2  │
 │          │    │                  │         │                  │    │          │
 │          │    │           swp1  ─┼─────────┼─  swp1           │    │          │
 │          │    │      192.168.66.1│         │192.168.66.2      │    │          │
@@ -183,7 +183,7 @@ To run a command on a node (e.g. `talker` or `nxp1`, etc.) just prefix the comma
 ```
 talker ip -br a
 lo               UNKNOWN        127.0.0.1/8 ::1/128 
-eth0@if2         UP             10.0.0.1/24 fe80::f83d:8ff:fec6:527d/64 
+eth0@if2         UP             10.0.0.1/24 fd10::1/64 fe80::f83d:8ff:fec6:527d/64 
 
 nxp1 ip -br a
 lo               UNKNOWN        127.0.0.1/8 ::1/128 
@@ -216,6 +216,19 @@ PING 10.0.0.2 (10.0.0.2) from 10.0.0.1 teth0: 56(84) bytes of data.
 --- 10.0.0.2 ping statistics ---
 4 packets transmitted, 4 received, 0% packet loss, time 3050ms
 rtt min/avg/max/mdev = 0.170/0.222/0.319/0.057 ms
+```
+
+```
+talker ping -c 4 fd10::2
+PING fd10::2 (fd10::2) 56 data bytes
+64 bytes from fd10::2: icmp_seq=1 ttl=64 time=0.151 ms
+64 bytes from fd10::2: icmp_seq=2 ttl=64 time=0.177 ms
+64 bytes from fd10::2: icmp_seq=3 ttl=64 time=0.176 ms
+64 bytes from fd10::2: icmp_seq=4 ttl=64 time=0.166 ms
+
+--- fd10::2 ping statistics ---
+4 packets transmitted, 4 received, 0% packet loss, time 3052ms
+rtt min/avg/max/mdev = 0.151/0.167/0.177/0.010 ms
 ```
 
 To observe the VLAN and R-tags, start `tshark` packet tracer on some of the __NNI__ interfaces (`swp0` or `swp1` either on `nxp1` or `nxp2`).

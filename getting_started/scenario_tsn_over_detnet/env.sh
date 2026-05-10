@@ -56,6 +56,8 @@ configure_networkenv() {
   # Configure the addresses
   talker ip address add 10.0.0.1/24 dev eth0
   listener ip address add 10.0.0.2/24 dev eth0
+  talker ip address add fd10::1/64 dev eth0
+  listener ip address add fd10::2/64 dev eth0
   nxp1 ip address add 192.168.55.1/24 dev swp0
   nxp1 ip address add 192.168.66.1/24 dev swp1
   nxp2 ip address add 192.168.55.2/24 dev swp0

@@ -148,5 +148,5 @@ The header field comparison is done with a Comparator function that has three pa
 In `header.h` the function `header_get_field_comprator()` returns a Comparator function that compare the given *target* header field with the given *match* value, or NULL when they are incompatible.
 
 There were discussions about supporting generic value-value comparisons and Producer functions, but the current implementation is good enough for the `Parsetree`.
-It might be useful to support comparison with interface properties, but currently there are no plans to implement it.
+It might be useful to support comparison with interface properties, like `ipv6.dst=recvif.srcip`, but currently there are no plans to implement it.
 

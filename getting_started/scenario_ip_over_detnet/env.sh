@@ -29,7 +29,7 @@ function configure_tc() {
   nxp1 tc qdisc add dev swp2 handle ffff: ingress
   # redirect IP egress traffic to R2DTWO
   nxp1 tc filter add dev swp2 parent ffff: protocol ip flower src_ip 10.0.100.11 dst_ip 10.0.200.22 action mirred egress redirect dev r2eth0
-  nxp1 tc filter add dev swp2 parent ffff: protocol ipv6 flower src_ip 2001::11 dst_ip 2002::22 action mirred egress redirect dev r2eth0
+  nxp1 tc filter add dev swp2 parent ffff: protocol ipv6 flower src_ip fd01::11 dst_ip fd02::22 action mirred egress redirect dev r2eth0
   # redirect R2DTWO UNI traffic back to the node (talker) if no suitable UNI interface with IP address
   # nxp1 tc qdisc add dev r2eth0 handle 0: root prio
   # nxp1 tc filter add dev r2eth0 parent 0: matchall action mirred egress redirect dev swp2
@@ -40,13 +40,22 @@ function configure_tc() {
   nxp2 tc qdisc add dev swp2 handle ffff: ingress
   # redirect IP egress traffic to R2DTWO
   nxp2 tc filter add dev swp2 parent ffff: protocol ip flower src_ip 10.0.200.22 dst_ip 10.0.100.11 action mirred egress redirect dev r2eth0
-  nxp2 tc filter add dev swp2 parent ffff: protocol ipv6 flower src_ip 2002::22 dst_ip 2001::11 action mirred egress redirect dev r2eth0
+  nxp2 tc filter add dev swp2 parent ffff: protocol ipv6 flower src_ip fd02::22 dst_ip fd01::11 action mirred egress redirect dev r2eth0
   # direct R2DTWO UNI traffic back to the node (listener) if no suitable UNI interface with IP address
   # nxp2 tc qdisc add dev r2eth0 handle 0: root prio
   # nxp2 tc filter add dev r2eth0 parent 0: matchall action mirred egress redirect dev swp2
 }
 
 export -f configure_tc
+
+function configure_blackhole() {
+  nxp1 ip route add blackhole 10.0.200.0/24
+  nxp1 ip route add blackhole fd02::/64
+  nxp2 ip route add blackhole 10.0.100.0/24
+  nxp2 ip route add blackhole fd01::/64
+}
+
+export -f configure_blackhole
 
 configure_networkenv() {
   echo "Initialize r2dtwo test environment"
@@ -82,24 +91,24 @@ configure_networkenv() {
 
   # Configure the addresses, IPv4 and IPv6
   talker ip address add 10.0.100.11/24 dev eth0
-  talker ip address add 2001::11/64 dev eth0
+  talker ip address add fd01::11/64 dev eth0
 
   listener ip address add 10.0.200.22/24 dev eth0
-  listener ip address add 2002::22/64 dev eth0
+  listener ip address add fd02::22/64 dev eth0
 
   nxp1 ip address add 192.168.55.1/24 dev swp0
   nxp1 ip address add 192.168.66.1/24 dev swp1
   nxp1 ip address add 10.0.100.1/24 dev swp2
-  nxp1 ip address add fc0a::1/64 dev swp0
-  nxp1 ip address add fc0b::1/64 dev swp1
-  nxp1 ip address add 2001::1/64 dev swp2
+  nxp1 ip address add fd0a::1/64 dev swp0
+  nxp1 ip address add fd0b::1/64 dev swp1
+  nxp1 ip address add fd01::1/64 dev swp2
 
   nxp2 ip address add 192.168.55.2/24 dev swp0
   nxp2 ip address add 192.168.66.2/24 dev swp1
   nxp2 ip address add 10.0.200.1/24 dev swp2
-  nxp2 ip address add fc0a::2/64 dev swp0
-  nxp2 ip address add fc0b::2/64 dev swp1
-  nxp2 ip address add 2002::2/64 dev swp2
+  nxp2 ip address add fd0a::2/64 dev swp0
+  nxp2 ip address add fd0b::2/64 dev swp1
+  nxp2 ip address add fd02::2/64 dev swp2
 
   # Enable IP forwarding
   nxp1 sysctl -w net.ipv4.ip_forward=1
@@ -109,9 +118,9 @@ configure_networkenv() {
 
   # Configure routing
   talker ip route add default via 10.0.100.1
-  talker ip -6 route add default via 2001::1
+  talker ip -6 route add default via fd01::1
   listener ip route add default via 10.0.200.1
-  listener ip -6 route add default via 2002::2
+  listener ip -6 route add default via fd02::2
 }
 
 # This is totally unsafe
