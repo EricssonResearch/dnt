@@ -4,28 +4,52 @@ R2DTWO supports observability by sending notifications to collection points. OAM
 
 ## Notification framework operation
 
-The Notification framework is enabled when a session named *notification_session* is created in the configuration file. The notifications are sent according to the pipeline defined by the *notification_session*. While this supports using any actions supported by R2DTWO pipelines, we suggest the following usage scenarios:
+The Notification framework needs a stream named *notification_session* in the configuration file. The notifications are sent according to the pipeline defined by the *notification_session*. While this supports using any actions supported by R2DTWO pipelines, we suggest the following usage scenarios:
 
 * New stream specifically for notifications. In this case a DetNet stream is defined for the notification messages, possibly with replication at the source and elimination at the destination. Note that all intermediate nodes must be aware of this session. In this case path selection and redundancy are handled by the DetNet stream.
 * Use a management network. A simpler method is to use the management network for sending the notification messages. In this case all messages are sent out-of-band, in a best effort manner. Sending on multiple paths may still be possible even in this case. Such an example is given in the */getting_started/scenario_notification*: when 2 paths are available through 2 different interfaces, we can send the messages on both. De-duplication is still possible at higher level since each message is identified by a *notif_seq* (and a *notif_fragment*) field. The notification receiver example (in */json_receiver*) shows how to implement the high level elimination.
 
-Notifications can be completely disabled either by not specifying notification stream in configuration file, or via a telnet command that enables their filtering.
+Notifications can be completely disabled either by not specifying notification stream in configuration file, or via a [telnet command](oam.md) that enables their filtering.
 
-There are 2 notification types:
+When the notification data is too big for a single packet, the notification module fragments it into multiple packets. Each of these packets have the same *notif_seq*, they carry part of the data in their *notif_msg*, and the fragmentation information is set in *notif_fragment* in the format of "1/3", "2/3" etc.
 
-* push
-* pull
+There is an example [python application and library](json_receiver/README.md) for collecting notifications, assembling the fragments and filtering duplicates.
+
+
+## Configuration file
+
+In the configuration file the *notification_session* in the *streams* section is a special stream, if it is present, the notifications will be sent according to this pipeline.
+The simplest way of sending out notifications is using one or more *udp-out* interfaces, because then the collector application can be based on a simple UDP receiver.
+
+Thus, the minimal configuration changes to enable notifications are the following:
+
+```ini
+[interfaces]
+
+notif = udp-out iface=eno1 dstip=10.10.10.2 dstport=6000
+
+[streams]
+
+notification_session = send notif
+```
+
+Of course, multiple notification interfaces can be used, using different paths to the destination for reliability.
+It is also possible to use the standard DetNet PRF/PEF functionalities for the notification messages as well, but in most cases a simple sequence number based elimination is enough. An example receiver script is available in the */json_receiver* directory.
+
+At the destination the *notif_hostname* and the *notif_seq* sequence number can be used to filter duplicate notification messages.
+In some cases (for example in Mininet) multiple nodes have the same hostname, for this case R2DTWO has a command line parameter *-h* which overrides the hostname (which is also used for generating the OAM node id).
+
 
 ## Push notifications
 
-The *push* notifications are triggered by events, and they are sent immediately. For example, when a user connects to R2DTWO via a telnet interface, a push notification is sent indicating a telnet login. The following notification *push* sources are currently defined:
+The *push* notifications are triggered by events, and they are sent immediately. For example, when a user connects to R2DTWO via a telnet interface, a push notification is sent indicating the telnet login. The following notification *push* sources are currently defined:
 
 * "delay", type NOTIF_ERROR : a packet arrived later than the delay specified
 * "new src", type NOTIF_INFO: an udp-in interface detected an IP address change on its HW interface
 * "new dst", type  NOTIF_INFO: an udp-out interface was notified about a new destination IP
 * "r2dtwo", type  NOTIF_INFO: r2dtwo startup notification
 * "telnet", type NOTIF_INFO: new telnet client connected
-* "send", type NOTIF_ERROR or NOTIF_WARNING: packet sending related information, error or warning
+* "send", type NOTIF_ERROR or NOTIF_WARNING: detected anomalies about packet sending
 * "mask", type NOTIF_INFO: a replication path has been masked
 * "pof", type NOTIF_INFO: packet ordering function was reset on timeout
 * "seq_rcvy", type NOTIF_INFO: sequence recovery was reset on timeout
@@ -41,11 +65,9 @@ When AutoMIP is used on an object, the target objects of the created MIPs are al
 
 ## Pull notifications
 
-The *pull* notifications are triggered periodically, with a fixed period of 2 seconds. The reporting period is aligned to the even seconds according to the node's clock, therefore when all nodes running R2DTWO are in sync (with PTP), their reporting periods will also be in sync.
+The *pull* notifications are triggered periodically, with a fixed period of 2 seconds. The reporting period is aligned to the even seconds according to the node's clock, therefore when all nodes running R2DTWO are in sync (with PTP), the reporting happens at the same time on all nodes.
 
-On startup, all notification sources in R2DTWO register themselves to the notification module. When reporting, the notification module queries all the registered notification sources, which all provide a json report about their state. The notification module collects these, and runs the *notification_session* pipeline in the resulting packets.
-
-When the collected data is too big for a single packet, the notification module fragments it into multiple packets. Each of these packets have the same *notif_seq*, they carry part of the data in their *notif_msg*, and the fragmentation information is set in *notif_fragment* in the format of "1/3", "2/3" etc.
+On startup, all notification sources in R2DTWO register themselves to the notification module. When reporting, the notification module queries all the registered notification sources, which all provide a json report about their state. The notification module collects these, and runs the *notification_session* pipeline on the resulting packets.
 
 Currently the following pull notification sources are implemented:
 
@@ -55,6 +77,27 @@ Currently the following pull notification sources are implemented:
 * pipeline object states (seq_gen, seq_recovery, pof, replicate)
 * delay statistics per-stream (correctly delayed, delay exceeded)
 * sysmon: tc and modem monitoring state
+
+
+## Filtering of notifications
+
+By default, push notification sources are enabled and pull notifications are disabled. To enable pull notifications, use the *notif_pull enable* [telnet command](oam.md).
+
+Notifications have a *source* and a *level*. The source is a string, identifying the notification source module.
+
+For push notifications the *source* can be "transaction", "r2dtwo", "new src", "telnet", "mask", "triggered_source", "triggered_receiver" etc. For pull notifications the name can be the reporting module name as described [here](#Message formats)
+
+The notification level can be the following:  ERROR, WARNING, INFO, PULL (currently all pull sources use the PULL level). It is possible to filter sending notifications according to the level with a command line parameter:
+
+```
+-n, --notify={LOG|SUBMIT}:LEVEL
+                           Available levels: NONE, ERROR, WARNING, INFO,
+                           PULL, ALL
+```
+
+This means that we can filter sending notifications based on level. The notification collector can also filter based on these levels and the *source* names.
+
+The LOG setting controls which notification messages get logged on the node (by default only WARNING and up). The SUBMIT setting controls which notification messages get sent to the collector via the *notification_session* (by default everything).
 
 
 ## Traffic characteristic collection with notifications
@@ -73,60 +116,17 @@ Although these two push messages are not sent at the exact same time, there is o
 Note that by default the pull notifications are disabled. They can be enabled with the *notif_pull enable* telnet command.
 
 
-## Filtering of notifications
-
-By default, push notification sources are enabled and pull notifications are disabled. To enable pull notifications, use the *notif_pull enable* telnet command.
-
-Notifications have a *source* and a *level*. The source is a string, identifying the notification source module.
-
-For push notifications the *source* can be "transaction", "r2dtwo", "new src", "telnet", "mask", "triggered_source", "triggered_receiver" etc. For pull notifications the name can be the reporting module name as described [here](#Message formats)
-
-The notification level can be the following:  ERROR, WARNING, INFO, PULL (currently all pull sources use the PULL level). It is possible to filter sending notifications according to the level, from command line parameter:
-
-```
--n, --notify={LOG|SUBMIT}:LEVEL
-                           Available levels: NONE, ERROR, WARNING, INFO,
-                           PULL, ALL
-```
-
-This means that we can filter sending notifications based on level. The notification collector can also filter based on these levels and the *source* names.
-
-The LOG setting controls which notification messages get logged on the node (by default only WARNING and up). The SUBMIT setting controls which notification messages get sent to the collector via the *notification_session* (by default everything).
-
-
-## Configuration file
-
-In the configuration file the *notification_session* in the **[streams]** section is a special stream, if it is present, the notifications will be sent according to this pipeline.
-It is recommended to use one or more *udp-out* interfaces for sending notifications for simplicity.
-Thus, the minimal configuration changes to enable notifications are the following:
-
-```ini
-[interfaces]
-
-notif = udp-out iface=eno1 dstip=10.10.10.2 dstport=6000
-
-[streams]
-
-notification_session = send notif
-```
-
-Of course, multiple notification interfaces can be used, using different paths to the destination for reliability. At the destination the *notif_hostname* and the *notif_seq* sequence number can be used to filter duplicate notification messages.
-
-It is also possible to use the standard DetNet PRF/PEF functionalities for the notification messages as well, but in most cases a simple sequence number based elimination is enough. An example receiver script is available in the */json_receiver* directory.
-
-In some cases (for example in Mininet) multiple nodes have the same hostname. For this case R2DTWO has a command line parameter *-h* which overrides the hostname for the notification messages.
-
 ## System monitor
 
 The system monitor is a source for the notification framework. Its main purpose is to monitor critical system components and resources. The following monitoring functions are currently implemented:
 
 * synchronization monitor. Monitors the Linux PTP daemon, the *ptp4l* via the `pmc` interface. Sends immediate push notification when synchronization is lost.
 
-* Linux Trffic Control monitor. Monitors the interface qdisc setting and statistics via the `tc` command. When TAPRIO qdisc is used, the per-queue statistics can be used for monitoring and diagnostic purposes. It returns the root qdisc information, indifferent of qdisc type.
+* Linux Traffic Control monitor. Monitors the interface qdisc setting and statistics via the `tc` command. When TAPRIO qdisc is used, the per-queue statistics can be used for monitoring and diagnostic purposes. It returns the root qdisc information, indifferent of qdisc type.
 
 * Modem monitor. Monitors the modem state and signal quality. In case of Quectel modems even more information is provided like QCSQ and serving cell information.
 
-To activte a system monitor component, the telnet interface can be used. With `sysmon add ...` telnet command, we can activate the monitoring of TC interfaces and/or modem statistics.
+To activate a system monitor component, the telnet interface can be used. With `sysmon add ...` telnet command, we can activate the monitoring of TC interfaces and/or modem statistics.
 For example the following commands activate the TC and modem monitor respectively.
 
 ```
@@ -140,9 +140,9 @@ The synchronization monitor is started automatically if `delay` is enabled in th
 
 ## Related telnet commands
 
-The pull messages can be enabled/disabled from telnet command.
+The pull messages can be enabled/disabled from the [telnet interface](oam.md).
 
-* notif_pull enable/disable - Enable or disable pull notification_source
+* notif_pull enable/disable - Enable or disable pull notifications
 
 * notif_trigger `source MIP` `target MIP` level [options] - send trigger message, and trigger local push notification
   * source MIP is the starting point of the trigger message. It is usually the pre-replication MIP.
@@ -150,11 +150,13 @@ The pull messages can be enabled/disabled from telnet command.
   * level is the trigger message level
   * valid options are the -n, -i and -t - similar to the ping options: n=count of packets, -i is the interval_ms, and -t is the TTL
 
- * sysmon `command` `type` `target` [period_ms] - add/remove system monitoring.
+* sysmon `command` `type` `target` [period_ms] - add/remove system monitoring.
     Thee `command` is either `add` or `rem` - for remove.
     The `type` can be: `tc`, `modem`. The `target` is specific to the command, as described below.
     * tc - monitor the Linux Advanced Routing and Traffic Control, via the `tc` command. For `tc` type, the `target` is and interface name to be monitored. The system monitor will periodically query the root qdisc stats, and report the received json as-is.
     * modem - monitor the attached modem statistics. The `target` is the name of the modem's TTY device name. For example, an attached Quectel USB modem will show 4 new USB TTY devices, for example /dev/ttyUSB0, /dev/ttyUSB1, /dev/ttyUSB2, and /dev/ttyUSB3. For monitor, the AT command TTY device must be specified, usually ttyUSB2. The `target` is the device name, without the "/dev/" prefix.
+
+
 
 ## Message formats
 
@@ -463,12 +465,3 @@ When AutoMIP is used, the target is automatically filled so all MIP reports are 
     "notif_tstamp": 1743628441.283137
 ```
 
-## Limitations
-
-The notification framework currently is limited to DetNet operation, i.e. notification messages are IP based.
-This means that:
-
-* Notification messages should be sent on UDP-out interfaces
-* Trigger messages are specific to the DetNet OAM
-
-However, TSN over DetNet is fully supported.

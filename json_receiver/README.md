@@ -15,12 +15,11 @@ To identify the fragments, two fields are used: the *notif_seq* and the *notif_f
 }
 ```
 
-- *json_udp_receiver* is a receiver that displays the messages _as is_, without reassembling the fragments.
-However, elimination of multiple messages is performed.
+- *json_udp_receiver* is a simple application that displays the messages _as is_, without reassembling the fragments. However, elimination of multiple messages is performed.
 - *notification_receiver* is a python library that performs both the elimination of duplicates and reassembly of the messages.
 - *multipart_json_udp_receiver* is a receiver based on the *notification_receiver* library that receives the fragments and displays the reassembled messages.
 
-## Usage
+## Usage of the library
 
 The *notification_receiver.py* provides a *NotificationReceiver* class, which implements all the required functionality. To use the class, first we need to instantiate a receiver:
 

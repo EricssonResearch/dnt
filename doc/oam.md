@@ -1,7 +1,7 @@
 
 # OAM functions
 
-OAM functions include service basic ping and remote ping functionality, initiated either from telnet-like CLI or configuration file. Both Ethernet and DetNet OAM is supported, with similar operation. The differences will be highlighted in this document.
+OAM functions include service basic ping and remote ping functionality, initiated either from telnet-like CLI or configuration file. Currently TSN, DetNet and SRv6 OAM are supported, with similar operation. The differences will be highlighted in this document.
 
 The OAM functionality requires the following pre-requisites:
 
@@ -9,15 +9,15 @@ The OAM functionality requires the following pre-requisites:
 * Add `mep-start`, `mip` and `mep-stop` actions to the stream actions
 * optionally add OAM background commands in the config
 
-Multiple `oam` and `oam_eth` (or both) interfaces can be specified. By default, the first `oam` interface in name order is used.
+Multiple `oam` and `oam_eth` (or both) interfaces can be specified. By default, the first `oam` interface in alphabetical order is used.
 
-The OAM CLI can be reached via `telnet` command to the address:port specified for the `oam_cmd` interface.
+The OAM CLI can be reached via `telnet` command to the address and port specified for the `oam_cmd` interface (default port is 8000).
 
 Examples and naming convention for the interface and command parameters can be found below.
 
 ## Naming convention
 
-For a self-explanatory configuration file and proper OAM operation, there are recommended naming rules.
+For a self-explanatory configuration file and proper OAM operation, these are the recommended naming rules.
 The naming is also important for [automatically generated OAM points](#automatic-mip-generation) discussed later.
 Note that the `mip`s will be automatically generated only if `AutoMIP` is specified for the replication/elimination object.
 
@@ -59,12 +59,13 @@ e1-c1 = ..., send if3
 
 ## Automatic MIP generation
 
-For each replication and elimination object, `mip` points can be automatically created with the `AutoMIP=level` parameter. In case of replication objects, a `mip` is placed before the replication. In case of elimination objects, a `mip` is placed before AND after the elimination.
+For each replication and elimination object, `mip` points can be automatically created with the `AutoMIP=level` parameter. In case of replication objects, a `mip` is placed before the replication, and at the start of each branch. In case of elimination objects, a `mip` is placed before and after the elimination.
 The automatically generated `mip`s are always uniquely identified with the following naming scheme.
 
-The naming for the auto generated replication `mip` objects is
+The naming for the auto generated replication `mip` objects are:
 
 * `o_<stream_action_name>_L<level>_pre_<replication_object_name>`
+* `o_<stream_action_name><num>_L<level>_post_<replication_object_name>`
 
 For the elimination objects, the generated `mip`s are:
 
@@ -81,18 +82,18 @@ The main OAM commands are `ping` and `rping`. There also are several helping com
 
 The available commands are:
 
-* `help`, `?` get help
 * `exit`, `quit`, `CTRL+D` exit OAM
-* `log [module newlevel]` get current log levels or set it for the given module
-* `notify [{LOG|SUBMIT} newlevel]` get current notification levels or set them
-* `sysmon <command> <type> <target> [period_ms]` add/rem system monitoring. Type: delay, tc, modem. Target: specific
-* `notif_pull [enable|disable]` enable or disable the pull notifications
-* `mode [mode]` set ping reply printing mode, can be 'dump' or 'json'
+* `help`, `?` get help
+* `iface [ifname]` print information about interfaces
 * `list` list monitoring start points
-* `returns` list return interfaces
-* `sessions [stream]` list active sessions for stream, lists all sessions if no 'stream' is specified
+* `log [module newlevel]` get current log levels or set it for the given module
 * `[un]mask <replication pipeline>` mask/unmask a replication pipeline
-* `rlist[@if] <mep-start/mip> <mep-stop/mip/any> <level>` list monitoring start points of the remote node
+* `mode [mode]` set ping reply printing mode, can be 'dump' or 'json'
+* `mp [mpname]` print information about maintenance points
+* `notif_pull [enable|disable]` enable or disable the [pull notifications](notification.md)
+* `notif_trigger <mep-start> <mep-stop/mip/any> <level> [-i <interval>] [-n <count>] [-t <ttl>]` sends a request inside a stream that triggers notifications at `mep_start` and the target maintenance point (no OAM reply is generated, just the notifications)
+* `notify [{LOG|SUBMIT} newlevel]` get current notification levels or set them
+* `object [objname]` print information about pipeline objects
 * `ping[@if] <mep-start> <mep-stop/mip/any> <level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]` sends a ping request inside a stream, the reply will come out-of-band to @if
     * `<mep-start>` sets the position in the action pipeline where the ping starts
     * `<mep-stop/mip/any>` is the name of the destination of the ping
@@ -103,10 +104,14 @@ The available commands are:
     * `-i` interval in seconds (default: 1.0, minimum 0.002)
     * `-n` number of requests to send (default: 1, inf means infinite)
     * `-t` ttl (default: 64)
+* `returns` list return interfaces
+* `rlist[@if] <mep-start/mip> <mep-stop/mip/any> <level>` list monitoring start points of the remote node
 * `rping[@if] <remote stream:mep-stop/mip> <stream:mep-start> <mep-stop/mip/any> <level> [-r] [-o] [-i <interval>] [-n <count>] [-t <ttl>]` sends a remote ping request: instruct a remote OAM start point to send a ping request
     * accepts the same parameters as `ping`
-* `notif_trigger <mep-start> <mep-stop/mip/any> <level> [-i <interval>] [-n <count>] [-t <ttl>]` sends a trigger request inside a stream which triggers notifications at mep_start and target. No reply is generated, just the notifications.
+* `sessions [stream]` list active sessions for stream, lists all sessions if no 'stream' is specified
 * `stop [stream session_id]` stop a running OAM session identified by `stream:session_id`, without parameter it stops the last session
+* `sysmon <command> <type> <target> [period_ms]` add/rem system monitoring. Type: delay, tc, modem. Target: specific
+* `ue <tty>` show modem statistics
 
 The `ping` command sends a ping request inside a stream, and the responder will send a ping reply out-of-bound to the OAM return interface. The `rping` command on an *originator* node is sent to the *initiator* node, which in turn will send a normal ping request to the given target.
 
@@ -117,6 +122,7 @@ For Ethernet ping, it is possible to specify DMAC[+VLAN] instead of return inter
 
 With the `mask` and `unmask` command the operator can disable or enable the transmission on replication pipelines at runtime.
 Only works with replication pipelines, normal stream and jump pipelines cannot be masked.
+The corresponding `replicate` action must have a state object.
 
 ## OAM message formats
 
@@ -128,21 +134,21 @@ The ping request uses a fixed header according to the protocol used.
 
 Fixed header for DetNet PseudoWire messages:
 
- * channel - we use 1 as a placeholder until IANA assigns something to us
+ * channel - we use an experimental type (0x7fff)
  * level - OAM level
- * nodeid - identifies the source node, should be an MPLS label (now: last 2 octets of the IPv4 address of the default return interface)
+ * nodeid - identifies the source node, should be an MPLS label (now: a hash of the hostname)
  * session - distinguishes between ping sessions from the same node on the same stream
  * seq - sequence number within a session (when sending multiple ping requests)
 
 Fixed header for Ethernet OAM messages:
 
- The Ethernet ping uses a CFM message format (EtherType 0x8902), with a generic data TLV containing the actual Json string. When the stream is R-Tagged, the CFM frame will also be R-Tagged with the following fields:
+The Ethernet ping uses a CFM message format (EtherType 0x8902), with a generic data TLV containing the actual Json string. When the stream is R-Tagged, the CFM frame will also be R-Tagged with the following fields:
  * OAM nibble (to identify as OAM R-tag)
  * 1 byte sequence number
  * 1 byte flags (0)
  * 4 bit session ID
 
-Json ()
+Json data:
 
  * type = "ping"
  * code = "request"
@@ -229,8 +235,9 @@ Json has mostly the same info as ping reply.
 
 ### trigger request
 
-The notif_trigger command can be used for triggered MEP statistic collection, which can be used even when no synchronization is available.
-When sent, the initiator MEP sends a `triggered_source` push notification, and also sends the trigger request. When the target receives the trigger request, it sends a `triggered_receiver` push notification with all MEPs related to the target object. There is no response to the trigger request.s
+The notif_trigger command can be used to trigger MEP statistic collection at the same time on the sender and the receiver, even when no time synchronization is available.
+When sent, the initiator MEP sends a `triggered_source` push notification, and also sends the trigger request. When the target receives the trigger request, it sends a `triggered_receiver` push notification with all MEPs related to the target object.
+There is no response to the trigger requests.
 
 Fixed header
 
@@ -248,7 +255,7 @@ Json
 
 ### rlist request
 
-The originator of an rping can discover start points on the potential initiator nodes.
+The originator of an `rping` can discover start points on the potential initiator nodes.
 
 Fixed header is same as ping. Json has mostly the same info as ping.
 
