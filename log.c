@@ -69,7 +69,7 @@ char *logname_from_config(const char *config_name)
     return ret;
 }
 
-bool open_log(LOG_OUTPUT out, char *logname)
+bool open_log(LOG_OUTPUT out, const char *logname)
 {
     if (out == LOG_OUT_LOGFILE) {
         logfile = fopen(logname, "a");
@@ -93,8 +93,7 @@ bool open_log(LOG_OUTPUT out, char *logname)
     } else if (out == LOG_OUT_SYSLOG) {
         printf("%sInfo:%s Logging to syslog.\n", colors[INFO], colors[RESET]);
         color = false;
-        //TODO we leak logname, and there is no good way of not leaking it
-        openlog(strdup(logname), 0, LOG_USER);
+        openlog(NULL, LOG_PID, LOG_USER);
     } else {
         return false;
     }

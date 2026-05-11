@@ -41,7 +41,7 @@ typedef enum {
  *
  * @retval true if successful.
  */
-bool open_log(LOG_OUTPUT out, char *log_filename);
+bool open_log(LOG_OUTPUT out, const char *log_filename);
 
 /* Close the log facility.
  * Closes the logfile
