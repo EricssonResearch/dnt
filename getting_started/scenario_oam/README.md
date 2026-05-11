@@ -1,9 +1,9 @@
-# Scenario: R2DTWO Operation, Administration and Maintenance (OAM)
+# Scenario 6: R2DTWO Operation, Administration and Maintenance (OAM)
 
 __Important: this scenario assumes background knowledge of the first three scenarios.
 Please take a look into Scenarios TSN, TSNoDetNet and IP46oDetNet scenarios if you have not already.__
 
-This scenario extending the IP46oDetNet scenario with OAM capabilities and functions.
+This scenario extends the IP46oDetNet scenario with OAM capabilities and functions.
 To make things simpler, the IPv6 streams and addressing removed to focus more on the OAM part.
 
 We will use the following topology, which consists:
@@ -82,6 +82,8 @@ If the level is equal, the MP responds to the request; if it is greater, the MP 
 OAM can be used for continuity checking, recording path, delay measurement, and PREOF function status monitoring.
 In this guide, we will show examples for each use case.
 
+**Note:** when this guide was written R2DTWO only supported PseudoWire OAM.
+Support for TSN and SRv6 OAM was added later, they can be used in the same way, the only difference is the protocol stack at the maintenance points.
 
 ## R2DTWO CLI interface
 

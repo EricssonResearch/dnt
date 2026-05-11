@@ -1,6 +1,6 @@
-# Scenario 2R-2E: R2DTWO IPv4 over DetNet PseudoWire with 2 Replicate and 2 Eliminate
+# Scenario 9: R2DTWO IPv4 over DetNet PseudoWire with 2 Replicate and 2 Eliminate points
 
-This scenario is the same from networking aspects as the Scenario IP over DetNet, only the network topology is extended, as the stream replication and elimination is done at two r2dtwo nodes in the network.
+This scenario is the same from networking aspects as the Scenario IP over DetNet, but the network topology is extended, as the stream replication and elimination is done at two r2dtwo nodes in the network, and we also have fully configured OAM and notification setup.
 
 ```
                                                                                         ┌─────┬──────────────────┐             

@@ -1,9 +1,9 @@
-# Scenario: Replication path masking
+# Scenario 7: R2DTWO Replication path masking
 
 __Important: this scenario assumes background knowledge from scenarios TSN, TSNoDetNet, IP46oDetNet and OAM.
 Please follow the instructions of those if you have not already.__
 
-This scenario illustrate the R2DTWO path masking functionality.
+This scenario illustrates the R2DTWO path masking functionality.
 We use the OAM getting started as our base scenario.
 
 We will use the following topology, which consists:
@@ -302,7 +302,7 @@ Initiated mask signalling from MIP 'o_prf-member1_L5_post-prf'
 
 This tells us that the automatically generated MIP after the Replicate object has started sending mask signals so the Elimination point knows that this branch has been intentionally turned off.
 
-As visible in the output of __nxp2__ we dont see the `DISFUNCTIONING_PATHS` warnings anymore.
+As visible in the output of __nxp2__ we don't see the `DISFUNCTIONING_PATHS` warnings anymore.
 This is exactly because the signaled masking update the `frerSeqRcvyLatentErrorPaths` value of the PEF as paths masked/unmasked.
 
 

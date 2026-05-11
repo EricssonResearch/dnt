@@ -193,6 +193,8 @@ member11 = edit ipv6_outer.func=0 ipv6_outer.flowid=0x11111, send if3
 member12 = edit ipv6_outer.func=1 ipv6_outer.flowid=0x12222, send if3
 ```
 
+**Note:** for SRv6 the `writeseq` action is required to add the sequence number to the PREOF SID. For TSN R-TAG and PseudoWire d-ACH it happens automatically after the `add rtag` and `add dcw` actions, because those headers are designed to hold the sequence number. The SID on the other hand is just an IPv6 address, and R2DTWO cannot automatically determine that it is meant to hold a PREOF sequence number.
+
 The  NNI flow entries will identify the flows based on the `flowid`. After identification we read the sequence number from the `seq` field of the SID, remove the outer IPv6 header and after elimination it is sent to the egress UNI interface.
 
 ```
@@ -202,7 +204,7 @@ s3:actions = readseq ipv6_outer, del ipv6_outer, pef1 send_uni1
 
 ## OAM
 
-SRv6 implementation also supports the same OAM functionalities as described in [OAM](oam.md). Just like for TSN and Detnet OAM, there is a protocol-specific header for OAM messages, while the payload is JSON. The OAM replies are sent out-of-band, as UDP messages containing the JSON payload to the return interface specified. The same ping, rping, rlist,... commands are supported.
+SRv6 implementation also supports the same OAM functionalities as described in [OAM](oam.md). Just like for TSN and DetNet OAM, there is a protocol-specific header for OAM messages, while the payload is JSON. The OAM replies are sent out-of-band, as UDP messages containing the JSON payload to the return interface specified. The same ping, rping, rlist,... commands are supported.
 
 ### OAM message format
 

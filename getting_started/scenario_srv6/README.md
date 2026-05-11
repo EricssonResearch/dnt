@@ -1,4 +1,4 @@
-# SRv6 getting started
+# Scenario 10: R2DTWO for Segment Routing over IPv6
 
 __Important: this assumes background knowledge of the basic from the doc/srv6. Please take a look into the SRv6 documentation if you have not already.__ [SRv6](../../doc/srv6.md)
 

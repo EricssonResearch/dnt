@@ -88,3 +88,6 @@ These are the scenarios, you can find detailed descriptions and relevant configs
 5. [scenario_dynip](scenario_dynip/README.md) - Dynamic IP configuration for a mobile endpoint
 6. [scenario_oam](scenario_oam/README.md) - IPv4 over DetNet scenario with additional Operation Administration and Maintenance (OAM) extension
 7. [scenario_mask](scenario_mask/README.md) - Scenario presenting the path masking functionality of the replication object
+8. [scenario_notification](scenario_notification/README.md) - Using the Notification Framework for statistics collection
+9. [scenario_2R-2E](scenario_2R-2E/README.md) - Scenario with 2 Replicate and 2 Eliminate points
+10. [scenario_srv6](scenario_srv6/README.md) - Scenario for Segment Routing over IPv6

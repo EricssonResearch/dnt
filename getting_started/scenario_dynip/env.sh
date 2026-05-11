@@ -101,7 +101,7 @@ else
   configure_networkenv
 fi
 
-/bin/bash --init-file <(echo "PS1='(dynip) \u:\W# '")
+/bin/bash --init-file <(echo "PS1='(dynamic ip) \u:\W# '")
 
 read scenname cntvalue < $CNTFILE
 if [ $cntvalue -eq 1 ]; then #last bash instance in the env, do cleanup

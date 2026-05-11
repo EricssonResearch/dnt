@@ -69,10 +69,6 @@ configure_networkenv() {
 
   ip netns exec talker ip route add default via 192.168.1.2
   ip netns exec listener ip route add default via 192.168.2.1
-  ip netns exec F ip route add default via 192.168.2.2
-
-  ip netns exec talker ip link set eth0 address 00:00:00:01:01:01
-  ip netns exec listener ip link set eth0 address 00:00:00:02:02:02
 
   ip netns exec talker ethtool -K eth0 tx off rx off
 }

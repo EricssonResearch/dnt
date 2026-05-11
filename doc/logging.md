@@ -22,6 +22,7 @@ The name of the log file is automatically generated from the name of the config 
 
 The log messages are colorful, if the target is stdout or stderr and it's a terminal.
 
+If the output is syslog the results can be viewed with `journalctl -t r2dtwo` on systems using `systemd-journald`.
 
 ## Selecting verbosity
 

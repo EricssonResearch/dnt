@@ -5,12 +5,13 @@ declare -a getting_started=(
     "tsn"
     "tsn_over_detnet"
     "ip_over_detnet"
+    "ladder"
+    "dynip"
     "oam"
     "mask"
-    "dynip"
-    "srv6"
     "notification"
     "2R-2E"
+    "srv6"
 )
 
 # documentations

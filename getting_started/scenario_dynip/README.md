@@ -1,4 +1,4 @@
-# Scenario: Dynamic IP configuration
+# Scenario 5: R2DTWO Dynamic IP configuration
 
 __Important: this scenario assumes background knowledge of the basics from the DetNet scenarios__ [TSN over DetNet](../scenario_tsn_over_detnet/README.md) and [IP over DetNet](../scenario_ip_over_detnet/README.md)
 
@@ -51,9 +51,7 @@ It is important to also set MTU for the VRF interfaces, because by default it's 
 
 ## R2DTWO configurations
 
-The R2DTWO configurations for **mobile** and **server** are similar to the [IP over DetNet](../scenario_ip_over_detnet/README.md) scenario with two differences.
-The UNI interfaces are *ip* type, which are used bidirectionally here.
-There are no IPv4 streams or tunnels configured.
+The R2DTWO configurations for **mobile** and **server** are similar to the [IP over DetNet](../scenario_ip_over_detnet/README.md) scenario.
 
 Since the **mobile** gets its IP addresses dynamically from its anchor points, we cannot configure destination addresses on the *udp-out* interfaces on the **server** node.
 Instead, we only specify the IP version in the config, and wait for notifications about the real addresses.
@@ -66,7 +64,7 @@ In this scenario there is no dedicated OAM network, so the notification IP addre
 The reason for sending notification to both *oam* interfaces from both *udp-in* on **mobile** is a routing issue.
 As mentioned previously, traffic not bound to an interface will choose the first default route.
 Here, we have a default route for each *wwan* interface, and the winner will be the one that connected to the network first.
-Therefore, both *udp-in* interfaces will end up sending all their notifications on the same *wwan* interface, but one of them will not be routed to the **sever** node, because the destination is unreachable on that path.
+Therefore, both *udp-in* interfaces would end up sending all their notifications on the same *wwan* interface, but one of them would not be routed to the **sever** node, because the destination is unreachable on that path.
 
 ## Running the scenario
 
@@ -78,26 +76,27 @@ sudo -s
 source env.sh
 ```
 
-This changes the prompt to `(dynip) root:scenario_dynip#` if done from the correct directory.
-
-In two of the terminals we need to run *radvd* to supply IP address to the **mobile** node via Router Advertisement messages:
-
-```
-# in terminal 1
-gateway1 radvd -C ./radvd.conf -m stderr -n -p radvd_gateway1.pid
-
-# in terminal 2
-gateway2 radvd -C ./radvd.conf -m stderr -n -p radvd_gateway2.pid
-```
+This changes the prompt to `(dynamic ip) root:scenario_dynip#` if done from the correct directory.
 
 In two of the terminals we need to run R2DTWO:
 
 ```
-# in terminal 3
+# in terminal 1
 server r2dtwo server.ini
 
-# in terminal 4
+# in terminal 2
 mobile r2dtwo mobile.ini
+```
+
+We can't run traffic yet, because the **mobile** node has no IP addresses yet.
+In two of the terminals we need to run *radvd* to supply IP address to the **mobile** node via ICMPv6 Router Advertisement messages:
+
+```
+# in terminal 3
+gateway1 radvd -C ./radvd.conf -m stderr -n -p radvd_gateway1.pid
+
+# in terminal 4
+gateway2 radvd -C ./radvd.conf -m stderr -n -p radvd_gateway2.pid
 ```
 
 Now we can use the remaining terminals to send traffic between **mobile** and **server**.
@@ -134,3 +133,4 @@ mobile ip vrf exec vrf0 iperf -c fd55::1
 As usual, at the end we can exit the sourced environments with `exit` or `Ctrl+D`.
 When we exit from the last environment, that will clean up the network namespaces and every other network configuration related to the test environment.
 
+__Important: do not run multiple test scenarios at the same time! Make sure you are exited from the test environment in every terminal before sourcing a new environment in for a new test scenario!__

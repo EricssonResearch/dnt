@@ -15,7 +15,7 @@ This scenario shows an example of "ladder redundancy" taken from D.3 of 802.1CB.
 │               │    │               │              │      │                       │     │              │               │    │               │
 │      eth0     ├────▶    eth0       │              │      │                       │     │              │        eth0   ├────▶      eth0     │
 │  192.168.1.1  │    │192.168.1.2    │           31 │      │ 26                 31 │     │ 26           │    192.168.2.1│    │  192.168.2.2  │
-00:00:00:01:01:01    │               │              │      │                       │     │              │               │    00:00:00:02:02:02
+│               │    │               │              │      │                       │     │              │               │    │               │
 │               │    │               │              │      │                       │     │              │               │    │               │
 │               │    │         a2    │              │      │                       │     │              │     f2        │    │               │
 │               │    │     10.0.13.1 ├──┐   ┌───────▼──────┴───────┐      ┌────────▼─────┴───────┐  ┌───▶ 10.0.56.6     │    │               │
@@ -30,12 +30,18 @@ This scenario shows an example of "ladder redundancy" taken from D.3 of 802.1CB.
 
 As one can see, the Talker end system sequences Stream 31, then splits it into two Streams 26 and 31, sending one on each of its two ports. The network "ladder" has two "rails", an upper (relay systems B and D) and a lower (relay systems C and E). The "rungs" are the connections B–C and D–E. Each relay system sends the Stream received on the rail from the left both to the right, along the rail, and up or down, over the rung. It forwards the packets received from the rung only to the right, along the rail. At each output port to the rail, the end systems have a Sequence recovery function to eliminate duplicates.
 
+Note that this scenario sets up a one-way tunnel from `talker` to `listener`, so `ping` doesn't work.
+
 ## The R2DTWO configurations
 
 We have six different configuration files for all DetNet nodes: `A.ini`, `B.ini`, `C.ini`, `D.ini`, `E.ini`, and `F.ini`.
 This is required because even if the topology is symmetrical, we have different IP addresses.
 
-## Run the R2DTWO and generate traffic
+Note that on `A` we make sure that only ipv4 traffic gets into the tunnel by matching on the protocol type.
+This works, because the default route of `talker` and `listener` are via `A` and `F` respectively, so the tunnel doesn't need to transport ARP.
+We do this as a demonstration of filtering on the protocol type, we could use `ip` interface instead.
+
+## Run R2DTWO and generate traffic
 
 Let's try out R2DTWO with this scenario.
 
@@ -78,7 +84,7 @@ F r2dtwo F.ini
 ```
 
 If everything is OK, the `r2dtwo` instances are up and running.
-But we have to generate some traffic right now with `netcat` so run it on the `talker` node:
+We can generate some traffic with `netcat` so run it on the `talker` node:
 
 ```
 talker netcat -u 192.168.2.2 20345 

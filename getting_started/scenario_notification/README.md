@@ -1,4 +1,4 @@
-# Scenario: R2DTWO Notification Framework
+# Scenario 8: R2DTWO Notification Framework
 
 __Important: this scenario assumes background knowledge of some other scenarios.
 Please take a look into IP46oDetNet and OAM scenarios if you have not already.__
