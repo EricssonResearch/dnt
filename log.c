@@ -21,7 +21,7 @@
 #include <unistd.h>
 
 static FILE *logfile = NULL;
-static LOG_OUTPUT log_output = LOG_OUT_STDOUT;
+static enum LoggingOutput log_output = LOG_OUT_STDOUT;
 static bool color = false;
 
 static void __attribute__((constructor)) init_logfile(void)
@@ -52,9 +52,10 @@ const char* colors[] = {
 #define RESET 0
 
 
-char *logname_from_config(const char *config_name)
+char *logname_from_config(const char *app_name, const char *config_name)
 {
     pid_t pid = getpid();
+
     const char *start = config_name;
     for (const char *c=config_name; *c; c++) {
         if (*c == '/') start = ++c;
@@ -64,34 +65,40 @@ char *logname_from_config(const char *config_name)
         if (*c == '.') end = c;
     }
     char *confname = end ? strndup(start, end-start) : (char*)start;
-    char *ret = strdup_printf("r2dtwo-%s-%u.log", confname, pid);
+
+    const char *appstart = app_name;
+    for (const char *c=app_name; *c; c++) {
+        if (*c == '/') appstart = ++c;
+    }
+
+    char *ret = strdup_printf("%s-%s-%u.log", appstart, confname, pid);
     if (confname != start) free(confname);
     return ret;
 }
 
-bool open_log(LOG_OUTPUT out, const char *logname)
+bool open_log(enum LoggingOutput out, const char *logname)
 {
     if (out == LOG_OUT_LOGFILE) {
         logfile = fopen(logname, "a");
         if(NULL == logfile) {
             fprintf(stderr, "%sError:%s could not open log file '%s': %s\n",
-                    colors[ERROR], logname, colors[RESET], strerror(errno));
+                    colors[LOGGING_ERROR], logname, colors[RESET], strerror(errno));
             return false;
         }
         color = false;
-        printf("%sInfo:%s File '%s' opened for logging.\n", colors[INFO], colors[RESET], logname);
+        printf("%sInfo:%s File '%s' opened for logging.\n", colors[LOGGING_INFO], colors[RESET], logname);
         setbuf(logfile, NULL); // this is slower but more reliable
         fprintf(logfile, "File '%s' opened for logging.\n", logname);
     } else if (out == LOG_OUT_STDOUT) {
         logfile = stdout;
         color = isatty(STDOUT_FILENO);
-        printf("%sInfo:%s Logging to standard output.\n", colors[INFO], colors[RESET]);
+        printf("%sInfo:%s Logging to standard output.\n", colors[LOGGING_INFO], colors[RESET]);
     } else if (out == LOG_OUT_STDERR) {
         logfile = stderr;
         color = isatty(STDERR_FILENO);
-        printf("%sInfo:%s Logging to standard error.\n", colors[INFO], colors[RESET]);
+        printf("%sInfo:%s Logging to standard error.\n", colors[LOGGING_INFO], colors[RESET]);
     } else if (out == LOG_OUT_SYSLOG) {
-        printf("%sInfo:%s Logging to syslog.\n", colors[INFO], colors[RESET]);
+        printf("%sInfo:%s Logging to syslog.\n", colors[LOGGING_INFO], colors[RESET]);
         color = false;
         openlog(NULL, LOG_PID, LOG_USER);
     } else {
@@ -105,7 +112,8 @@ void close_log(void)
 {
     if (logfile != NULL && logfile != stderr && logfile != stdout) {
         fclose(logfile);
-        printf("%sInfo:%s Logfile closed.\n", colors[INFO], colors[RESET]);
+        printf("%sInfo:%s Logfile closed.\n", colors[LOGGING_INFO], colors[RESET]);
+        logfile = stdout; // idiot-proofing
     }
 }
 
@@ -118,32 +126,32 @@ bool log_level_valid(const char *level)
     return false;
 }
 
-LOGGING_LEVELS log_level_from_string(const char *level)
+enum LoggingLevel log_level_from_string(const char *level)
 {
-    if (level == NULL) return NONE;
+    if (level == NULL) return LOGGING_NONE;
     for (unsigned i=0; i<ARRAY_SIZE(log_level_strings); i++) {
-        if (strcmp(level, log_level_strings[i]) == 0) return (LOGGING_LEVELS)i;
+        if (strcmp(level, log_level_strings[i]) == 0) return (enum LoggingLevel)i;
     }
-    return NONE;
+    return LOGGING_NONE;
 }
 
-const char *log_string_from_level(LOGGING_LEVELS level)
+const char *log_string_from_level(enum LoggingLevel level)
 {
     if (level >= 0 && level < ARRAY_SIZE(log_level_strings))
         return log_level_strings[level];
     return NULL;
 }
 
-static int log_level_to_syslog_level(LOGGING_LEVELS level)
+static int log_level_to_syslog_level(enum LoggingLevel level)
 {
     switch (level) {
-        case NONE: return LOG_CRIT;
-        case ERROR: return LOG_ERR;
-        case WARNING: return LOG_WARNING;
-        case INFO: return LOG_INFO;
-        case PACKET: return LOG_NOTICE;
-        case DEBUG: return LOG_DEBUG;
-        case ALL: return LOG_DEBUG;
+        case LOGGING_NONE: return LOG_CRIT;
+        case LOGGING_ERROR: return LOG_ERR;
+        case LOGGING_WARNING: return LOG_WARNING;
+        case LOGGING_INFO: return LOG_INFO;
+        case LOGGING_PACKET: return LOG_NOTICE;
+        case LOGGING_DEBUG: return LOG_DEBUG;
+        case LOGGING_ALL: return LOG_DEBUG;
     }
     return LOG_DEBUG;
 }
@@ -199,7 +207,7 @@ static void __attribute__((destructor)) cleanup_mod_instances(void)
     delete_hashmap(mod_instances);
 }
 
-static int __do_log(LOGGING_LEVELS level, const char *logmodule, const char *msg)
+static int __do_log(enum LoggingLevel level, const char *logmodule, const char *msg)
 {
     if (log_output != LOG_OUT_SYSLOG) {
         /*time_t now;
@@ -229,7 +237,7 @@ static int __do_log(LOGGING_LEVELS level, const char *logmodule, const char *msg
     }
 }
 
-int __log_func(LOGGING_LEVELS level, const char *logmodule, const char *frmt, ...)
+int __log_func(enum LoggingLevel level, const char *logmodule, const char *frmt, ...)
 {
     char msg[2048];
     va_list argp;
@@ -240,7 +248,7 @@ int __log_func(LOGGING_LEVELS level, const char *logmodule, const char *frmt, ..
     return __do_log(level, logmodule, msg);
 }
 
-int __log_p_func(LOGGING_LEVELS level, const char *logmodule, const char *frmt, ...)
+int __log_p_func(enum LoggingLevel level, const char *logmodule, const char *frmt, ...)
 {
     char msg[2048];
     va_list argp;
@@ -292,7 +300,7 @@ int log_get_levels(log_getlevel_cb *cb, void *userdata)
 static int mod_setlevel_all_cb(const char *key, void *value, void *userdata)
 {
     (void)key;
-    LOGGING_LEVELS *new_level = (LOGGING_LEVELS *)userdata;
+    enum LoggingLevel *new_level = (enum LoggingLevel *)userdata;
     struct ModuleInstance *inst = (struct ModuleInstance *)value;
     while (inst) {
         inst->mod->level = *new_level;
@@ -301,9 +309,9 @@ static int mod_setlevel_all_cb(const char *key, void *value, void *userdata)
     return 1;
 }
 
-bool log_set_level(const char *mod_name, LOGGING_LEVELS new_level)
+bool log_set_level(const char *mod_name, enum LoggingLevel new_level)
 {
-    if (new_level > ALL) new_level = ALL;
+    if (new_level > LOGGING_ALL) new_level = LOGGING_ALL;
 
     if (strcmp(mod_name, "ALL") == 0) {
         hashmap_foreach(mod_instances, mod_setlevel_all_cb, &new_level);

@@ -195,7 +195,7 @@ static int list_objects_cb(struct PipelineObject *obj, void *userdata)
     return 1;
 }
 
-static int list_log_modules_cb(const char *mod_name, LOGGING_LEVELS current_level, void *userdata)
+static int list_log_modules_cb(const char *mod_name, enum LoggingLevel current_level, void *userdata)
 {
     FILE *cmd_w = (FILE *)userdata;
     fprintf(cmd_w, "  %s level %s\n", mod_name, log_string_from_level(current_level));
@@ -519,7 +519,7 @@ static void command_loop(struct CommandConnection *conn)
                     if (!log_level_valid(newlevel)) {
                         fprintf(cmd_w, "Invalid log level '%s'\n", newlevel);
                     } else {
-                        LOGGING_LEVELS nlvl = log_level_from_string(newlevel);
+                        enum LoggingLevel nlvl = log_level_from_string(newlevel);
                         if (!log_set_level(modulename, nlvl)) {
                             fprintf(cmd_w, "Module '%s' does not exist.\n", modulename);
                         } else {

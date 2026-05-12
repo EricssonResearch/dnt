@@ -295,7 +295,7 @@ static void test_prepare_constant_number(void)
 
 static void test_read_constant(void)
 {
-    log_set_level("CONFIG", NONE);
+    log_set_level("CONFIG", LOGGING_NONE);
     struct Value val;
     unsigned char *buf;
 

@@ -372,8 +372,8 @@ static void test_multinoq(void)
         SKIP("Valgrind doesn't properly support multithreading");
 
     // stop the spam
-    log_set_level("DELAY", ERROR);
-    log_set_level("THREAD", NONE);
+    log_set_level("DELAY", LOGGING_ERROR);
+    log_set_level("THREAD", LOGGING_NONE);
 
     OK_FATAL(pthread_spin_init(&spinlock, 0) == 0, "create spinlock");
 

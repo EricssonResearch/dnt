@@ -24,6 +24,8 @@ The log messages are colorful, if the target is stdout or stderr and it's a term
 
 If the output is syslog the results can be viewed with `journalctl -t r2dtwo` on systems using `systemd-journald`.
 
+If the output is logfile the file will be created in the current directory as `r2dtwo-configname-pid.log`, so the directory must be writeable for the current user.
+
 ## Selecting verbosity
 
 R2DTWO is modularized, and each module has a well-defined purpose, such as reading configuration, sending and receiving packets, parsing and matching packet headers, executing a pipeline of actions, etc.

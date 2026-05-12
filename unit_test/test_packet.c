@@ -25,7 +25,7 @@ static void fill_packet(struct Packet *p, unsigned offset, unsigned count)
 
 static void test_create(void)
 {
-    log_set_level("PACKET", NONE);
+    log_set_level("PACKET", LOGGING_NONE);
 
     struct Packet *p = new_packet((struct Interface *)42);
     OK_FATAL(p != NULL, "have packet");
@@ -447,7 +447,7 @@ static void test_logbuf(void)
     OK_FATAL(p->buf != NULL, "have packet buffer");
 
     PACKET_LOGCAT(p, "by default the packettrace is disabled");
-    log_set_level("PACKETTRACE", PACKET);
+    log_set_level("PACKETTRACE", LOGGING_PACKET);
     PACKET_LOGCAT(p, "now %s", "we");
     PACKET_LOGCAT(p, " are");
     PACKET_LOGCAT(p, " %ding", 1099);

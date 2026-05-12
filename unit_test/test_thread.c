@@ -146,7 +146,7 @@ static void test_thread(void)
     OK(thread_stop(NULL) == NULL, "stop NULL thread");
     thread_exit(NULL); // exit NULL thread shouldn't segfault either
 
-    log_set_level("THREAD", NONE);
+    log_set_level("THREAD", LOGGING_NONE);
     struct ThreadTestParam param6;
     param6.counter = 0;
     param6.th = thread_launch_priority(thread_func, &param6, 10, "test thread %s", "p");

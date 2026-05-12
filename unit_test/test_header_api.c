@@ -40,7 +40,7 @@ bool notification_register_source(const char *name, notification_pull_fn *callba
 
 static void test_writer(void)
 {
-    log_set_level("HEADER", NONE);
+    log_set_level("HEADER", LOGGING_NONE);
 
     FOR_ALL
         value_consumer *writer = header_get_field_writer(&field, &value);
@@ -51,7 +51,7 @@ static void test_writer(void)
 
 static void test_reader(void)
 {
-    log_set_level("HEADER", NONE);
+    log_set_level("HEADER", LOGGING_NONE);
 
     FOR_ALL
         value_producer *reader = header_get_field_reader(&value, &field);
@@ -62,7 +62,7 @@ static void test_reader(void)
 
 static void test_comparator(void)
 {
-    log_set_level("HEADER", NONE);
+    log_set_level("HEADER", LOGGING_NONE);
 
     FOR_ALL
         // note: currently we can only compare to constant

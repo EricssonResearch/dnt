@@ -131,7 +131,7 @@ static bool set_loglevels(const char *levels)
             if (!log_level_valid(l)) {
                 THROW("Invalid log level '%s'", l);
             }
-            LOGGING_LEVELS nlvl = log_level_from_string(l);
+            enum LoggingLevel nlvl = log_level_from_string(l);
             if (!log_set_level(m, nlvl)) {
                 THROW("Module '%s' does not exist", m);
             }
@@ -219,7 +219,7 @@ static struct arguments {
     char *hostname;
     char *notification;
     char *verbosity;
-    LOG_OUTPUT output;
+    enum LoggingOutput output;
 } arguments;
 
 static error_t parse_opt(int key, char *arg, struct argp_state *state)
@@ -296,7 +296,7 @@ int main(int argc, char **argv)
     arguments.configfile = NULL;
     argp_parse(&argp, argc, argv, 0, NULL, &arguments);
 
-    char *logname = logname_from_config(arguments.configfile);
+    char *logname = logname_from_config(argv[0], arguments.configfile);
     if (!open_log(arguments.output, logname)) {
         log_error("Failed to open the log.");
         free(logname);
