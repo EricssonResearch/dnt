@@ -171,6 +171,11 @@ static void test_flush(void)
     //      here we call finish_delay() while the queue is not empty
     //      expectation: queue is flushed properly, no packet is lost
     run_singlethread(false);
+    // if we are running in valgrind the next tests all SKIP, and occasionally
+    // the main thread exits before the pthread_exit() in delay's background thread
+    // can finish, resulting in a memory leak (at least this is what I think happens)
+    // try to prevent this by sleeping a bit here
+    usleep(20*1000);
 }
 
 static int count_total_packets(const char *pipe, uint64_t packets, uint64_t delay_exceeded, void *userdata)

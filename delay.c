@@ -279,10 +279,10 @@ bool init_delay(void)
 void finish_delay(void)
 {
     struct MessageQueue *m = READ_ONCE(mbox);
-    // use the mutex to wait for the thread to flush its queue
-    pthread_mutex_lock(&mutex);
     if (m) {
-        messagequeue_push(m, FLUSH_SIGNAL);
+        // use the mutex to wait for the thread to flush its queue
+        pthread_mutex_lock(&mutex);
+        messagequeue_push(m, FLUSH_SIGNAL); // this will unlock when ready
         pthread_mutex_lock(&mutex);
         mbox = NULL;
         pthread_mutex_unlock(&mutex);
