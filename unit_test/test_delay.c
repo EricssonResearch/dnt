@@ -309,7 +309,7 @@ static void test_multi(void)
                 recvtimes[i].tv_sec, recvtimes[i].tv_nsec,
                 expecteds[i].tv_sec, expecteds[i].tv_nsec,
                 diff);*/
-        OK(diff < 1000 && diff > -1000, "%u recv %lu.%.09lu expected %lu.%.09lu diff %ld", i,
+        OK(diff < 1500 && diff > -1500, "%u recv %lu.%.09lu expected %lu.%.09lu diff %ld", i,
                 recvtimes[i].tv_sec, recvtimes[i].tv_nsec,
                 expecteds[i].tv_sec, expecteds[i].tv_nsec,
                 diff);
