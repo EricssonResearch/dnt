@@ -140,12 +140,12 @@ static int log_level_to_syslog_level(LOGGING_LEVELS level)
         case NONE: return LOG_CRIT;
         case ERROR: return LOG_ERR;
         case WARNING: return LOG_WARNING;
-        case INFO: return LOG_NOTICE;
-        case PACKET: return LOG_INFO;
+        case INFO: return LOG_INFO;
+        case PACKET: return LOG_NOTICE;
         case DEBUG: return LOG_DEBUG;
         case ALL: return LOG_DEBUG;
-        default: return LOG_WARNING;
     }
+    return LOG_DEBUG;
 }
 
 
