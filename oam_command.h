@@ -15,7 +15,7 @@
 #include <stdbool.h>
 
 enum TerminalFormat {
-    TF_DUMP, //TODO why is this called dump mode?
+    TF_NORMAL,
     TF_JSON,
 };
 

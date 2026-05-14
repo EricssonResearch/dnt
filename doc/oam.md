@@ -88,7 +88,7 @@ The available commands are:
 * `list` list monitoring start points
 * `log [module newlevel]` get current log levels or set it for the given module
 * `[un]mask <replication pipeline>` mask/unmask a replication pipeline
-* `mode [mode]` set ping reply printing mode, can be 'dump' or 'json'
+* `mode [mode]` set ping reply printing mode, can be 'normal' or 'json'
 * `mp [mpname]` print information about maintenance points
 * `notif_pull [enable|disable]` enable or disable the [pull notifications](notification.md)
 * `notif_trigger <mep-start> <mep-stop/mip/any> <level> [-i <interval>] [-n <count>] [-t <ttl>]` sends a request inside a stream that triggers notifications at `mep_start` and the target maintenance point (no OAM reply is generated, just the notifications)
@@ -123,6 +123,9 @@ For Ethernet ping, it is possible to specify DMAC[+VLAN] instead of return inter
 With the `mask` and `unmask` command the operator can disable or enable the transmission on replication pipelines at runtime.
 Only works with replication pipelines, normal stream and jump pipelines cannot be masked.
 The corresponding `replicate` action must have a state object.
+
+The `mode` command can be used to switch between `normal` and `json` mode.
+The latter one doesn't interpret the received messages, just prints the raw JSON data, which might be easier to process with a script.
 
 ## OAM message formats
 

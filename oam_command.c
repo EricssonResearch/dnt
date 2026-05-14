@@ -64,8 +64,8 @@ struct MaskObjectForeachArg {
 static const char *terminal_format_name(enum TerminalFormat f)
 {
     switch (f) {
-        case TF_DUMP:
-            return "dump";
+        case TF_NORMAL:
+            return "normal";
         case TF_JSON:
             return "json";
     }
@@ -448,8 +448,8 @@ static void command_loop(struct CommandConnection *conn)
                 char *mode_str = oam_command + 4;
                 while (isspace(*mode_str)) mode_str++;
                 if (*mode_str) {
-                    if (strcmp(mode_str, "dump") == 0) {
-                        conn->mode = TF_DUMP;
+                    if (strcmp(mode_str, "normal") == 0) {
+                        conn->mode = TF_NORMAL;
                     } else if (strcmp(mode_str, "json") == 0) {
                         conn->mode = TF_JSON;
                     }else{

@@ -223,14 +223,14 @@ OAM request ping session 5 seq 0, s1n1-e4-01 -> s1n4-i4-34 level 4 count 1 inter
 """
 OAM request ping session 6 seq 0, s1n1-e4-01 -> s1n4-e4-40 level 4 count 1 interval 1000, rr: no os: yes	[reply to ip fd11:fade::1 port 6634]
   oam_r s1:6 seq 0 lvl 4 R - ping on stream s1 target s1n4-e4-40; reply from s1n4-e4-40
-	s1n4-e4-40 stats: data packets 0 octets 0 OAM recv 3 sent 0
-	Object pef4 type seqrec
-		recovery_algorithm vector, reset_timer 2000ms
-		use_init_flag false, use_reset_flag false, history_length 2
-		history_content ...
-		latent_error_paths 2, latent_error_resets 0, latent_errors 0
-		latest_valid_sequence_number 0, passed 0, discarded 0
-		number_of_resets 1
+    s1n4-e4-40 stats: data packets 0 octets 0 OAM recv 3 sent 0
+    Object pef4 type seqrec
+        recovery_algorithm vector, reset_timer 2000ms
+        use_init_flag false, use_reset_flag false, history_length 2
+        history_content ...
+        latent_error_paths 2, latent_error_resets 0, latent_errors 0
+        latest_valid_sequence_number 0, passed 0, discarded 0
+        number_of_resets 1
 """
      ),
 
@@ -288,7 +288,7 @@ OAM request ping session 12 seq 0, s1n1-e4-01 -> any level 4 count 1 interval 10
 """
 OAM request ping session 13 seq 0, s1n1-e4-01 -> s1n4-i4-24 level 4 count 1 interval 1000, rr: yes os: no	[reply to ip fd11:fade::1 port 6634]
   oam_r s1:13 seq 0 lvl 4 R - ping on stream s1 target s1n4-i4-24; reply from s1n4-i4-24
-	Record Route: [ s1n1-e4-01 s1n4-i4-24 ]
+    Record Route: [ s1n1-e4-01 s1n4-i4-24 ]
 """
      ),
 
@@ -296,7 +296,7 @@ OAM request ping session 13 seq 0, s1n1-e4-01 -> s1n4-i4-24 level 4 count 1 inte
 """
 OAM request ping session 14 seq 0, s1n1-e4-01 -> s1n4-e4-40 level 4 count 1 interval 1000, rr: yes os: no	[reply to ip fd11:fade::1 port 6634]
   oam_r s1:14 seq 0 lvl 4 R - ping on stream s1 target s1n4-e4-40; reply from s1n4-e4-40
-	Record Route: [ s1n1-e4-01 s1n3-i4-23 s1n3-i4-34 s1n4-i4-34 s1n4-e4-40 ]
+    Record Route: [ s1n1-e4-01 s1n3-i4-23 s1n3-i4-34 s1n4-i4-34 s1n4-e4-40 ]
 """
     ),
 
@@ -305,31 +305,26 @@ OAM request ping session 14 seq 0, s1n1-e4-01 -> s1n4-e4-40 level 4 count 1 inte
 """
 OAM request rlist session 15 seq 0, s1n1-e4-01 -> any level 4 count 1 interval 1000, rr: no os: no	[reply to ip fd11:fade::1 port 6634]
 Rlist result from s1n3-i4-23:
-s1n3-i4-13
-s1n3-i4-23
-s1n3-i4-34
-
+  s1n3-i4-13
+  s1n3-i4-23
+  s1n3-i4-34
 Rlist result from s1n3-i4-34:
-s1n3-i4-13
-s1n3-i4-23
-s1n3-i4-34
-
+  s1n3-i4-13
+  s1n3-i4-23
+  s1n3-i4-34
 Rlist result from s1n4-i4-34:
-s1n4-i4-24
-s1n4-i4-34
-
+  s1n4-i4-24
+  s1n4-i4-34
 Rlist result from s1n4-e4-40:
-s1n4-i4-24
-s1n4-i4-34
-
+  s1n4-i4-24
+  s1n4-i4-34
 Rlist result from s1n3-i4-13:
-s1n3-i4-13
-s1n3-i4-23
-s1n3-i4-34
-
+  s1n3-i4-13
+  s1n3-i4-23
+  s1n3-i4-34
 Rlist result from s1n4-i4-24:
-s1n4-i4-24
-s1n4-i4-34
+  s1n4-i4-24
+  s1n4-i4-34
 """
     ),
 
@@ -338,16 +333,14 @@ s1n4-i4-34
 """
 OAM request rlist session 0 seq 0, s1n1-e4-01 -> any level 3 count 1 interval 1000, rr: no os: no	[reply to ip fd11:fade::1 port 6634]
 Rlist result from s1n2-i3-12:
-s1n2-i3-12
-
+  s1n2-i3-12
 Rlist result from s1n3-e3-23:
-s1n3-i4-13
-s1n3-i4-23
-s1n3-i4-34
-
+  s1n3-i4-13
+  s1n3-i4-23
+  s1n3-i4-34
 Rlist result from s1n4-e3-24:
-s1n4-i4-24
-s1n4-i4-34
+  s1n4-i4-24
+  s1n4-i4-34
 """
     ),
     (
