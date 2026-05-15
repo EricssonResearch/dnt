@@ -147,7 +147,7 @@ def send_cli_commands():
 
     cli.send("notif_trigger o_s2_L5_pre-prf o_common_actions_L5_post-srcvy1 5 -n 3 -i 0.05 ") # send notif_trigger command
     msg = cli.recv()
-    if "OAM request trigger session" not in msg:
+    if "trigger o_s2_L5_pre-prf -> o_common_actions_L5_post-srcvy1" not in msg:
         print("Error: ", msg)
         ret = False
 
