@@ -34,7 +34,7 @@ Avoid global variables and public variables.
 R2DTWO runs with many threads, *everything* should be thread-safe.
 
 
-# Memory management conventions
+## Memory management conventions
 
 Object delete methods should return a NULL pointer.
 This enables the `pSomething = delete_something(pSomething);` idiom.
