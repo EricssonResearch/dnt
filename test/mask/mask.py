@@ -272,11 +272,11 @@ mask state for Replicate 'R2'
             # OAM ping should go through on masked branches
             ("ping o_M1_L3_post-R1 o_M5_L3_pre-E1 3", """
 ping o_M1_L3_post-R1 -> o_M5_L3_pre-E1 stream M1 session 1 level 3 count 1 interval 1000 [reply to ip 127.0.0.1 port 6666]
-  oam_r M1:1 seq 0 lvl 3 R - ping on stream M1 target o_M5_L3_pre-E1; reply from o_M5_L3_pre-E1
+  ping reply from o_M5_L3_pre-E1 [target o_M5_L3_pre-E1] stream M1 session 1 level 3 seq 0
 """),
             ("ping o_M1_L3_post-R1 o_M6_L3_pre-E2 3", """
 ping o_M1_L3_post-R1 -> o_M6_L3_pre-E2 stream M1 session 2 level 3 count 1 interval 1000 [reply to ip 127.0.0.1 port 6666]
-  oam_r M1:2 seq 0 lvl 3 R - ping on stream M1 target o_M6_L3_pre-E2; reply from o_M6_L3_pre-E2
+  ping reply from o_M6_L3_pre-E2 [target o_M6_L3_pre-E2] stream M1 session 2 level 3 seq 0
 """),
             ("unmask M5", """
 Pipeline 'M5' in Replicate R2 now unmasked

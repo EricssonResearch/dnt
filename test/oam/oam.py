@@ -167,39 +167,39 @@ Available OAM return interfaces:
     ('n1', 'ping s1n1-e4-01 s1n2-i3-12 3', 2,
 """
 ping s1n1-e4-01 -> s1n2-i3-12 stream s1 session <session> level 3 count 1 interval 1000 [reply to ip 10.0.0.1 port 6634]
-  oam_r s1:<session> seq 0 lvl 3 R - ping on stream s1 target s1n2-i3-12; reply from s1n2-i3-12
+  ping reply from s1n2-i3-12 [target s1n2-i3-12] stream s1 session <session> level 3 seq 0
 """),
     ('n1', 'ping@oam0 s1n1-e4-01 s1n2-i3-12 3', 3,
 """
 ping s1n1-e4-01 -> s1n2-i3-12 stream s1 session <session> level 3 count 1 interval 1000 [reply to ip 10.0.0.1 port 6634]
-  oam_r s1:<session> seq 0 lvl 3 R - ping on stream s1 target s1n2-i3-12; reply from s1n2-i3-12
+  ping reply from s1n2-i3-12 [target s1n2-i3-12] stream s1 session <session> level 3 seq 0
 """),
     ('n1', 'ping@10.0.0.1:6634 s1n1-e4-01 s1n2-i3-12 3', 4,
 """
 ping s1n1-e4-01 -> s1n2-i3-12 stream s1 session <session> level 3 count 1 interval 1000 [reply to ip 10.0.0.1 port 6634]
-  oam_r s1:<session> seq 0 lvl 3 R - ping on stream s1 target s1n2-i3-12; reply from s1n2-i3-12
+  ping reply from s1n2-i3-12 [target s1n2-i3-12] stream s1 session <session> level 3 seq 0
 """),
     ('n1', 'ping s1n1-e4-01 s1n2-i3-12 3 -n 3 -i 0.001', 5,
 """
 ping s1n1-e4-01 -> s1n2-i3-12 stream s1 session <session> level 3 count 3 interval 2 [reply to ip 10.0.0.1 port 6634]
-  oam_r s1:<session> seq 0 lvl 3 R - ping on stream s1 target s1n2-i3-12; reply from s1n2-i3-12
-  oam_r s1:<session> seq 1 lvl 3 R - ping on stream s1 target s1n2-i3-12; reply from s1n2-i3-12
-  oam_r s1:<session> seq 2 lvl 3 R - ping on stream s1 target s1n2-i3-12; reply from s1n2-i3-12
+  ping reply from s1n2-i3-12 [target s1n2-i3-12] stream s1 session <session> level 3 seq 0
+  ping reply from s1n2-i3-12 [target s1n2-i3-12] stream s1 session <session> level 3 seq 1
+  ping reply from s1n2-i3-12 [target s1n2-i3-12] stream s1 session <session> level 3 seq 2
 """),
     ('n1', 'ping s1n1-e4-01 s1n3-i4-23 4', 6,
 """
 ping s1n1-e4-01 -> s1n3-i4-23 stream s1 session <session> level 4 count 1 interval 1000 [reply to ip 10.0.0.1 port 6634]
-  oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target s1n3-i4-23; reply from s1n3-i4-23
+  ping reply from s1n3-i4-23 [target s1n3-i4-23] stream s1 session <session> level 4 seq 0
 """),
     ('n1', 'ping s1n1-e4-01 s1n4-i4-34 4', 7,
 """
 ping s1n1-e4-01 -> s1n4-i4-34 stream s1 session <session> level 4 count 1 interval 1000 [reply to ip 10.0.0.1 port 6634]
-  oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target s1n4-i4-34; reply from s1n4-i4-34
+  ping reply from s1n4-i4-34 [target s1n4-i4-34] stream s1 session <session> level 4 seq 0
 """),
     ('n1', 'ping s1n1-e4-01 s1n4-e4-40 4 -o', 8,
 """
 ping s1n1-e4-01 -> s1n4-e4-40 stream s1 session <session> level 4 count 1 interval 1000 ObjectState [reply to ip 10.0.0.1 port 6634]
-  oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target s1n4-e4-40; reply from s1n4-e4-40
+  ping reply from s1n4-e4-40 [target s1n4-e4-40] stream s1 session <session> level 4 seq 0
     s1n4-e4-40 stats: data packets 0 octets 0 OAM recv 3 sent 0
     Object pef4 type seqrec
         recovery_algorithm vector, reset_timer 2000ms
@@ -212,69 +212,69 @@ ping s1n1-e4-01 -> s1n4-e4-40 stream s1 session <session> level 4 count 1 interv
     ('n1', 'ping s1n1-e4-01 s1n4-e4-40 4 -t 1', 9,
 """
 ping s1n1-e4-01 -> s1n4-e4-40 stream s1 session <session> level 4 count 1 interval 1000 [reply to ip 10.0.0.1 port 6634]
-  oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target s1n4-e4-40; reply from s1n3-i4-13
+  ping reply from s1n3-i4-13 [target s1n4-e4-40] stream s1 session <session> level 4 seq 0
 """),
     ('n1', 'ping s1n1-e4-01 s1n4-e4-40 4 -t 2', 10,
 """
 ping s1n1-e4-01 -> s1n4-e4-40 stream s1 session <session> level 4 count 1 interval 1000 [reply to ip 10.0.0.1 port 6634]
-  oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target s1n4-e4-40; reply from s1n3-i4-23
-  oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target s1n4-e4-40; reply from s1n4-i4-34
-  oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target s1n4-e4-40; reply from s1n4-i4-24
+  ping reply from s1n3-i4-23 [target s1n4-e4-40] stream s1 session <session> level 4 seq 0
+  ping reply from s1n4-i4-34 [target s1n4-e4-40] stream s1 session <session> level 4 seq 0
+  ping reply from s1n4-i4-24 [target s1n4-e4-40] stream s1 session <session> level 4 seq 0
 """),
     ('n1', 'ping s1n1-e4-01 s1n4-e4-40 4 -t 3', 11,
 """
 ping s1n1-e4-01 -> s1n4-e4-40 stream s1 session <session> level 4 count 1 interval 1000 [reply to ip 10.0.0.1 port 6634]
-  oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target s1n4-e4-40; reply from s1n4-i4-34
-  oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target s1n4-e4-40; reply from s1n4-e4-40
+  ping reply from s1n4-i4-34 [target s1n4-e4-40] stream s1 session <session> level 4 seq 0
+  ping reply from s1n4-e4-40 [target s1n4-e4-40] stream s1 session <session> level 4 seq 0
 """),
     ('n1', 'ping s1n1-e4-01 s1n4-e4-40 4 -t 4', 12,
 """
 ping s1n1-e4-01 -> s1n4-e4-40 stream s1 session <session> level 4 count 1 interval 1000 [reply to ip 10.0.0.1 port 6634]
-  oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target s1n4-e4-40; reply from s1n4-e4-40
+  ping reply from s1n4-e4-40 [target s1n4-e4-40] stream s1 session <session> level 4 seq 0
 """),
     ('n1', 'ping s1n1-e4-01 s1n4-e4-40 4 -d', 13,
 """
 ping s1n1-e4-01 -> s1n4-e4-40 stream s1 session <session> level 4 count 1 interval 1000 [reply to ip 10.0.0.1 port 6634]
-  oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target s1n4-e4-40; reply from s1n4-e4-40 delay 0
+  ping reply from s1n4-e4-40 [target s1n4-e4-40] stream s1 session <session> level 4 seq 0 delay 0
 """),
     ('n1', 'ping s1n1-e4-01 any 4', 14,
 """
 ping s1n1-e4-01 -> any stream s1 session <session> level 4 count 1 interval 1000 [reply to ip 10.0.0.1 port 6634]
-  oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n3-i4-23
-  oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n3-i4-34
-  oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n4-i4-34
-  oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n4-e4-40
-  oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n3-i4-13
-  oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n4-i4-24
+  ping reply from s1n3-i4-23 [target any] stream s1 session <session> level 4 seq 0
+  ping reply from s1n3-i4-34 [target any] stream s1 session <session> level 4 seq 0
+  ping reply from s1n4-i4-34 [target any] stream s1 session <session> level 4 seq 0
+  ping reply from s1n4-e4-40 [target any] stream s1 session <session> level 4 seq 0
+  ping reply from s1n3-i4-13 [target any] stream s1 session <session> level 4 seq 0
+  ping reply from s1n4-i4-24 [target any] stream s1 session <session> level 4 seq 0
 """),
 
     ('n1', 'ping s1n1-e4-01 s1n4-i4-24 4 -r', 15,
 """
 ping s1n1-e4-01 -> s1n4-i4-24 stream s1 session <session> level 4 count 1 interval 1000 RecordRoute [reply to ip 10.0.0.1 port 6634]
-  oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target s1n4-i4-24; reply from s1n4-i4-24
+  ping reply from s1n4-i4-24 [target s1n4-i4-24] stream s1 session <session> level 4 seq 0
     Record Route: [ s1n1-e4-01 s1n4-i4-24 ]
 """),
 
     ('n1', 'ping s1n1-e4-01 s1n4-e4-40 4 -r', 0,
 """
 ping s1n1-e4-01 -> s1n4-e4-40 stream s1 session <session> level 4 count 1 interval 1000 RecordRoute [reply to ip 10.0.0.1 port 6634]
-  oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target s1n4-e4-40; reply from s1n4-e4-40
+  ping reply from s1n4-e4-40 [target s1n4-e4-40] stream s1 session <session> level 4 seq 0
     Record Route: [ s1n1-e4-01 s1n3-i4-23 s1n3-i4-34 s1n4-i4-34 s1n4-e4-40 ]
 """),
     ('n1', 'ping s1n1-e4-01 any 4 -r', 2,
 """
 ping s1n1-e4-01 -> any stream s1 session <session> level 4 count 1 interval 1000 RecordRoute [reply to ip 10.0.0.1 port 6634]
-  oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n3-i4-23
+  ping reply from s1n3-i4-23 [target any] stream s1 session <session> level 4 seq 0
     Record Route: [ s1n1-e4-01 s1n3-i4-23 ]
-  oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n3-i4-34
+  ping reply from s1n3-i4-34 [target any] stream s1 session <session> level 4 seq 0
     Record Route: [ s1n1-e4-01 s1n3-i4-23 s1n3-i4-34 ]
-  oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n4-i4-34
+  ping reply from s1n4-i4-34 [target any] stream s1 session <session> level 4 seq 0
     Record Route: [ s1n1-e4-01 s1n3-i4-23 s1n3-i4-34 s1n4-i4-34 ]
-  oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n4-e4-40
+  ping reply from s1n4-e4-40 [target any] stream s1 session <session> level 4 seq 0
     Record Route: [ s1n1-e4-01 s1n3-i4-23 s1n3-i4-34 s1n4-i4-34 s1n4-e4-40 ]
-  oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n3-i4-13
+  ping reply from s1n3-i4-13 [target any] stream s1 session <session> level 4 seq 0
     Record Route: [ s1n1-e4-01 s1n3-i4-13 ]
-  oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n4-i4-24
+  ping reply from s1n4-i4-24 [target any] stream s1 session <session> level 4 seq 0
     Record Route: [ s1n1-e4-01 s1n4-i4-24 ]
 """),
     ('n1', 'rlist s1n1-e4-01 any 4', 3,
@@ -318,28 +318,28 @@ Rlist result from s1n4-e3-24:
     ('n1', 'rping s1n1-e4-01 s1n3-i4-13 4 s1n3-i4-13 any 4', 5,
 """
 rping s1n1-e4-01 -> s1n3-i4-13 stream s1 session <session> level 4 count 1 interval 1000 [reply to ip 10.0.0.1 port 6634]
-  oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n3-i4-34
-  oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n4-i4-34
-  oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n4-e4-40
+  ping reply from s1n3-i4-34 [target any] stream s1 session <session> level 4 seq 0
+  ping reply from s1n4-i4-34 [target any] stream s1 session <session> level 4 seq 0
+  ping reply from s1n4-e4-40 [target any] stream s1 session <session> level 4 seq 0
 """),
     ('n1', 'rping s1n1-e4-01 s1n3-i4-13 4 s1n3-i4-34 any 4', 6,
 """
 rping s1n1-e4-01 -> s1n3-i4-13 stream s1 session <session> level 4 count 1 interval 1000 [reply to ip 10.0.0.1 port 6634]
-  oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n4-i4-34
-  oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n4-e4-40
+  ping reply from s1n4-i4-34 [target any] stream s1 session <session> level 4 seq 0
+  ping reply from s1n4-e4-40 [target any] stream s1 session <session> level 4 seq 0
 """),
     ('n1', 'rping s1n1-e4-01 s1n3-i4-34 4 s1n3-i4-13 any 4', 7,
 """
 rping s1n1-e4-01 -> s1n3-i4-34 stream s1 session <session> level 4 count 1 interval 1000 [reply to ip 10.0.0.1 port 6634]
-  oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n3-i4-34
-  oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n4-i4-34
-  oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n4-e4-40
+  ping reply from s1n3-i4-34 [target any] stream s1 session <session> level 4 seq 0
+  ping reply from s1n4-i4-34 [target any] stream s1 session <session> level 4 seq 0
+  ping reply from s1n4-e4-40 [target any] stream s1 session <session> level 4 seq 0
 """),
     ('n1', 'rping s1n1-e4-01 s1n3-i4-34 4 s1n3-i4-34 any 4', 8,
 """
 rping s1n1-e4-01 -> s1n3-i4-34 stream s1 session <session> level 4 count 1 interval 1000 [reply to ip 10.0.0.1 port 6634]
-  oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n4-i4-34
-  oam_r s1:<session> seq 0 lvl 4 R - ping on stream s1 target any; reply from s1n4-e4-40
+  ping reply from s1n4-i4-34 [target any] stream s1 session <session> level 4 seq 0
+  ping reply from s1n4-e4-40 [target any] stream s1 session <session> level 4 seq 0
 """),
     ('n1', 'rping nonexistentmp s1n3-i4-13 4 s1n3-i4-34 any 4', 0,
 """
@@ -348,30 +348,30 @@ Error: rping command is invalid: rping start 'nonexistentmp' invalid
     ('n4', 'ping s2n4-e5-04 s2n1-i5-21 5', 2,
 """
 ping s2n4-e5-04 -> s2n1-i5-21 stream s2 session <session> level 5 count 1 interval 1000 [reply to ip 10.0.0.4 port 6634]
-  oam_r s2:2 seq 0 lvl 5 R - ping on stream s2 target s2n1-i5-21; reply from s2n1-i5-21
+  ping reply from s2n1-i5-21 [target s2n1-i5-21] stream s2 session <session> level 5 seq 0
 """),
     ('n4', 'ping s2n4-e5-04 s2n1-i5-31 5', 3,
 """
 ping s2n4-e5-04 -> s2n1-i5-31 stream s2 session <session> level 5 count 1 interval 1000 [reply to ip 10.0.0.4 port 6634]
-  oam_r s2:<session> seq 0 lvl 5 R - ping on stream s2 target s2n1-i5-31; reply from s2n1-i5-31
+  ping reply from s2n1-i5-31 [target s2n1-i5-31] stream s2 session <session> level 5 seq 0
 """),
     ('n4', 'ping s2n4-e5-04 s2n1-e5-10 5', 4,
 """
 ping s2n4-e5-04 -> s2n1-e5-10 stream s2 session <session> level 5 count 1 interval 1000 [reply to ip 10.0.0.4 port 6634]
-  oam_r s2:<session> seq 0 lvl 5 R - ping on stream s2 target s2n1-e5-10; reply from s2n1-e5-10
+  ping reply from s2n1-e5-10 [target s2n1-e5-10] stream s2 session <session> level 5 seq 0
 """),
     ('n1', 'ping s3n1-e4-01 any 4', 2,
 """
 ping s3n1-e4-01 -> any stream s3 session <session> level 4 count 1 interval 1000 [reply to ip 10.0.0.1 port 6634]
-  oam_r s3:<session> seq 0 lvl 4 R - ping on stream s3 target any; reply from s3n3-i4-13
-  oam_r s3:<session> seq 0 lvl 4 R - ping on stream s3 target any; reply from s3n4-i4-34
-  oam_r s3:<session> seq 0 lvl 4 R - ping on stream s3 target any; reply from s3n4-e4-40
-  oam_r s3:<session> seq 0 lvl 4 R - ping on stream s3 target any; reply from s3n4-i4-24
+  ping reply from s3n3-i4-13 [target any] stream s3 session <session> level 4 seq 0
+  ping reply from s3n4-i4-34 [target any] stream s3 session <session> level 4 seq 0
+  ping reply from s3n4-e4-40 [target any] stream s3 session <session> level 4 seq 0
+  ping reply from s3n4-i4-24 [target any] stream s3 session <session> level 4 seq 0
 """),
     ('n3', 'ping s3n3-e1-32 any 1', 1,
 """
 ping s3n3-e1-32 -> any stream tx332 session <session> level 1 count 1 interval 1000 [reply to ip 10.0.0.3 port 6634]
-  oam_r tx332:<session> seq 0 lvl 1 R - ping on stream tx332 target any; reply from s3n4-e1-24
+  ping reply from s3n4-e1-24 [target any] stream tx332 session <session> level 1 seq 0
 """),
     ('n1', 'rping s1n1-e4-01 nonexistentmp 4 s1n3-i4-34 any 4', 9,
 """

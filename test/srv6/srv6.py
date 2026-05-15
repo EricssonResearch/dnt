@@ -214,16 +214,16 @@ oam_testcases = [
     ('r2', 'ping s2r2-det s2r4-det2 4',
 """
 ping s2r2-det -> s2r4-det2 stream s2 session 1 level 4 count 1 interval 1000 [reply to ip fd12:fade::2 port 6634]
-  oam_r s2:1 seq 0 lvl 4 R - ping on stream s2 target s2r4-det2; reply from s2r4-det2
+  ping reply from s2r4-det2 [target s2r4-det2] stream s2 session 1 level 4 seq 0
 """
      ),
 
     ('r2', 'ping s2r2-det s2r4-det2 4 -n 3 -i 0.001',
 """
 ping s2r2-det -> s2r4-det2 stream s2 session 2 level 4 count 3 interval 2 [reply to ip fd12:fade::2 port 6634]
-  oam_r s2:2 seq 0 lvl 4 R - ping on stream s2 target s2r4-det2; reply from s2r4-det2
-  oam_r s2:2 seq 1 lvl 4 R - ping on stream s2 target s2r4-det2; reply from s2r4-det2
-  oam_r s2:2 seq 2 lvl 4 R - ping on stream s2 target s2r4-det2; reply from s2r4-det2
+  ping reply from s2r4-det2 [target s2r4-det2] stream s2 session 2 level 4 seq 0
+  ping reply from s2r4-det2 [target s2r4-det2] stream s2 session 2 level 4 seq 1
+  ping reply from s2r4-det2 [target s2r4-det2] stream s2 session 2 level 4 seq 2
 """
     ),
 ]

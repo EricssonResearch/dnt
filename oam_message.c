@@ -153,11 +153,11 @@ static int process_reply(const char *msg)
             if (command_connection_get_format(conn) == TF_JSON) {
                 fprintf(cmd_w, "%s\n", msg);
             } else { // normal mode
-                //TODO change this format
                 fprintf(cmd_w,
-                        "  oam_r %s:%.0f seq %.0f lvl %.0f R - %s on stream %s target %s; reply from %s",
-                        jstream->v.string, jsession->v.number, jseq->v.number, jlevel->v.number,
-                        jtype->v.string, jstream->v.string, jtarget->v.string, jreceivername->v.string);
+                        "  ping reply from %s [target %s] stream %s session %.0f level %.0f seq %.0f",
+                        jreceivername->v.string, jtarget->v.string,
+                        jstream->v.string, jsession->v.number,
+                        jlevel->v.number, jseq->v.number);
 
                 struct JsonValue *delay = json_object_get_bool(j, "delay");
                 if (delay != NULL && delay->type == JSON_TRUE) {
