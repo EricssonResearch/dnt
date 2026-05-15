@@ -742,7 +742,7 @@ bool initiate_request(struct OamRequest *req, const char *conn_name)
     req->seq = 0;
 
     char *return_str = request_get_return_addr_string(req);
-    log_info("request %s stream %s:%d seq %d lvl %d type %s mep %s -> %s"
+    log_packet("request %s stream %s:%d seq %d lvl %d type %s mep %s -> %s"
             " count %d interval %d, rr: %s os: %s bg: %s %s",
              mp_get_name(req->mp_start), mp_get_stream_name(req->mp_start), req->session_id,
              req->seq, req->level, req->type, mp_get_name(req->mp_start), req->mep_stop, req->count, req->interval_ms,
@@ -750,11 +750,11 @@ bool initiate_request(struct OamRequest *req, const char *conn_name)
 
     struct CommandConnection *conn = find_command_connection(conn_name);
     FILE *cmd_w = command_connection_get_w(conn);
-    if (cmd_w) fprintf(cmd_w, "OAM request %s session %u seq %u, %s -> %s level %d count %d interval %d,"
-            " rr: %s os: %s%s\t%s\n",
-            req->type, req->session_id, req->seq, mp_get_name(req->mp_start),
-            req->mep_stop, req->level, req->count, req->interval_ms,
-            req->record_route?"yes":"no", req->object_state?"yes":"no", req->background?" background":"", return_str);
+    if (cmd_w) fprintf(cmd_w, "%s %s -> %s stream %s session %u level %d count %d interval %d%s%s%s %s\n",
+            req->type, mp_get_name(req->mp_start), req->mep_stop, mp_get_stream_name(req->mp_start),
+            req->session_id, req->level, req->count, req->interval_ms,
+            req->record_route?" RecordRoute":"", req->object_state?" ObjectState":"", req->background?" Background":"",
+            return_str);
     free(return_str);
     release_command_connection(conn);
 
