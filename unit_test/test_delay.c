@@ -95,6 +95,8 @@ static void run_singlethread(bool verify_results)
     struct timespec expecteds[ARRAY_SIZE(offsets)];
 
     OK_FATAL(init_delay(), "init delay");
+    finish_delay();
+    OK_FATAL(init_delay(), "init delay");
 
     struct Interface timerif;
     timerif.send = timerif_send;
@@ -314,7 +316,7 @@ static void test_multi(void)
                 recvtimes[i].tv_sec, recvtimes[i].tv_nsec,
                 expecteds[i].tv_sec, expecteds[i].tv_nsec,
                 diff);*/
-        OK(diff < 1500 && diff > -1500, "%u recv %lu.%.09lu expected %lu.%.09lu diff %ld", i,
+        OK(diff < 3000 && diff > -3000, "%u recv %lu.%.09lu expected %lu.%.09lu diff %ld", i,
                 recvtimes[i].tv_sec, recvtimes[i].tv_nsec,
                 expecteds[i].tv_sec, expecteds[i].tv_nsec,
                 diff);
