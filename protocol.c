@@ -146,12 +146,14 @@ static bool ipproto_from_id(uint16_t *proto, enum ProtocolID id)
 static const struct ProtocolField payload_fields[] = {
 };
 
+// IEEE 802.3 Ethernet
 static const struct ProtocolField eth_fields[] = {
     {"dmac",         0, 6*8, FT_MACADDRESS},
     {"smac",       6*8, 6*8, FT_MACADDRESS},
     {"ethertype", 12*8, 2*8, FT_NEXTHEADER},
 };
 
+// IEEE 802.1Q Virtual LAN tag or 802.1ad Service tag
 static const struct ProtocolField vlan_fields[] = {
     {"pcp",   0,  3, FT_NUMBER},
     {"dei",   3,  1, FT_NUMBER}, // drop eligible indicator
@@ -160,6 +162,7 @@ static const struct ProtocolField vlan_fields[] = {
     {"vlan",  0, 16, FT_NUMBER}, // the whole header at once
 };
 
+// IEEE 802.1CB Redundancy Tag
 static const struct ProtocolField rtag_fields[] = {
     {"rt_flag",       4,  1, FT_NUMBER}, // rtag-ttag indicator
     {"reset_flag",    5,  1, FT_NUMBER},
@@ -170,6 +173,7 @@ static const struct ProtocolField rtag_fields[] = {
     {"seq",           0, 32, FT_TSNSEQ}, // sequence and the flags in reserved
 };
 
+// IEEE 802.1CB Redundancy Tag modified to carry timestamp
 static const struct ProtocolField ttag_fields[] = {
     {"rt_flag",       4,  1, FT_NUMBER}, // rtag-ttag indicator
     {"reset_flag",    5,  1, FT_NUMBER},
@@ -180,6 +184,7 @@ static const struct ProtocolField ttag_fields[] = {
     {"tstamp",        0, 32, FT_TSNTSTAMP}, // timestamp and the flags in reserved
 };
 
+// RFC 3031 MultiProtocol Label Switching
 static const struct ProtocolField mpls_fields[] = {
     {"label",  0, 20, FT_NUMBER},
     {"class", 20,  3, FT_NUMBER},
@@ -187,8 +192,9 @@ static const struct ProtocolField mpls_fields[] = {
     {"ttl",   24,  8, FT_TTL},
 };
 
+// RFC 8964 DetNet Control Word for MPLS Pseudo Wire
 static const struct ProtocolField dcw_fields[] = {
-    {"rt_flag",       4,  1, FT_NUMBER}, // rtag-ttag indicator
+    {"rt_flag",       4,  1, FT_NUMBER}, // dcw-tcw indicator
     {"reset_flag",    5,  1, FT_NUMBER},
     {"initseq_flag",  6,  1, FT_NUMBER},
     {"resv",          0, 16, FT_NUMBER}, // reserved bits
@@ -196,8 +202,9 @@ static const struct ProtocolField dcw_fields[] = {
     {"seq",           0, 32, FT_TSNSEQ}, // sequence and the flags in reserved
 };
 
+// RFC 8964 DetNet Control Word for MPLS Pseudo Wire modified to carry timestamp
 static const struct ProtocolField tcw_fields[] = {
-    {"rt_flag",       4,  1, FT_NUMBER}, // rtag-ttag indicator
+    {"rt_flag",       4,  1, FT_NUMBER}, // dcw-tcw indicator
     {"reset_flag",    5,  1, FT_NUMBER},
     {"initseq_flag",  6,  1, FT_NUMBER},
     {"resv",          0, 16, FT_NUMBER}, // reserved bits
@@ -205,6 +212,7 @@ static const struct ProtocolField tcw_fields[] = {
     {"tstamp",        0, 32, FT_TSNTSTAMP}, // timestamp and the flags in reserved
 };
 
+// RFC 791 Internet Protocol version 4
 static const struct ProtocolField ipv4_fields[] = {
     {"version",         0,  4, FT_NUMBER}, // should be 4
     {"ihl",             4,  4, FT_NUMBER}, // should be 5
@@ -233,6 +241,7 @@ static const char *const ipv4_default =
         "\x00\x00\x00\x00"
         "\x40\x00\x00\x00";
 
+// RFC 8200 Internet Protocol version 6
 static const struct ProtocolField ipv6_fields[] = {
     {"version",      0,   4, FT_NUMBER}, // should be 6
     {"class",        4,   8, FT_NUMBER},
@@ -255,6 +264,7 @@ static const char *const ipv6_default =
 //TODO IPv6 extension headers? most of them are variable-length...
 
 //TODO theoretically this is variable-length, but in practice it's not
+// RFC 826 Address Resolution Protocol
 static const struct ProtocolField arp_fields[] = {
     {"hwtype",   0, 16, FT_NUMBER}, // should be 1 (Eth)
     {"prtype",  16, 16, FT_NUMBER}, // should be 0x0800 (IPv4)
@@ -271,6 +281,7 @@ static const char *const arp_default =
     "\x00\x01\x08\x00"  // Ethernet, IPv4
     "\x06\x04\x00\x01"; // request by default
 
+// RFC 768 User Datagram Protocol
 static const struct ProtocolField udp_fields[] = {
     {"srcport",   0, 16, FT_NUMBER},
     {"dstport",  16, 16, FT_NUMBER},
@@ -278,6 +289,7 @@ static const struct ProtocolField udp_fields[] = {
     {"checksum", 48, 16, FT_CHECKSUM},
 };
 
+// RFC 9293 Transmission Control Protocol
 static const struct ProtocolField tcp_fields[] = {
     {"srcport",      0, 16, FT_NUMBER},
     {"dstport",     16, 16, FT_NUMBER},
@@ -300,8 +312,7 @@ static const struct ProtocolField tcp_fields[] = {
 };
 //TODO TCP options how? we must support variable-length headers somehow
 
-// DetNet MPLS PW OAM Associated Channel Header (d-ACH)
-// RFC 9546
+// RFC 9546 DetNet MPLS PW OAM Associated Channel Header (d-ACH)
 static const struct ProtocolField oam_fields[] = {
     {"oam_nibble",  0,  4, FT_NUMBER}, // must be 1
     {"version",     4,  4, FT_NUMBER}, // should be 0
@@ -313,6 +324,7 @@ static const struct ProtocolField oam_fields[] = {
     {"session",    60,  4, FT_NUMBER},
 };
 
+// IEEE 802.1CB Redundancy tag modified for OAM (not standard)
 static const struct ProtocolField oamrtag_fields[] = {
     {"oam_nibble",  0,  4, FT_NUMBER}, // must be 1
     {"reserved",    4,  4, FT_NUMBER}, // must be 0 (this is where the non-standard flags are in rtag)
@@ -322,7 +334,7 @@ static const struct ProtocolField oamrtag_fields[] = {
     {"session",    28,  4, FT_NUMBER},
 };
 
-// common header for 802.1ag Connectivity Fault Management (also ITU-T Y.1731)
+// Common header for IEEE 802.1ag Connectivity Fault Management (also ITU-T Y.1731)
 static const struct ProtocolField cfm_fields[] = {
     {"mel",        0,  3, FT_NUMBER}, // maintenance endpoint level
     {"version",    3,  5, FT_NUMBER}, // should be 0
@@ -331,53 +343,42 @@ static const struct ProtocolField cfm_fields[] = {
     {"tlvoffset", 24,  8, FT_NUMBER}, // length of a fixed header after CFM
 };
 
+// RFC 792 Internet Control Message Protocol for IPv4
 static const struct ProtocolField icmpv4_fields[] = {
     {"type",        0,  8, FT_NUMBER}, //TODO FT_ENUM?
     {"code",        8,  8, FT_NUMBER}, //TODO FT_ENUM?
     {"checksum",   16, 16, FT_CHECKSUM},
 
-    // Echo Request (type=8)
-    // Echo Reply (type=0)
-    {"identifier", 32, 16, FT_NUMBER},
-    {"sequence",   48, 16, FT_NUMBER},
+    {"identifier", 32, 16, FT_NUMBER}, // Echo Request (type=8) Echo Reply (type=0)
+    {"sequence",   48, 16, FT_NUMBER}, // Echo Request (type=8) Echo Reply (type=0)
 
     //TODO other informational messages?
     //  Router Discovery RFC 1256
 
-    // Destination Unreachable (type=3)
-    // Time Exceeded (type=11)
-    {"unused",     32, 32, FT_NUMBER},
+    {"unused",     32, 32, FT_NUMBER}, // Destination Unreachable (type=3) Time Exceeded (type=11)
 
-    // Redirect (type=5)
-    {"gateway",    32, 32, FT_IPV4ADDRESS},
+    {"gateway",    32, 32, FT_IPV4ADDRESS}, // Redirect (type=5)
 
-    // Parameter Problem (type=12)
-    {"pointer",    32,  8, FT_NUMBER},
+    {"pointer",    32,  8, FT_NUMBER}, // Parameter Problem (type=12)
 };
 
-// ICMPv6 protocol fields, including type specific fields
+// RFC 4443 Internet Control Message Protocol for IPv6
 static const struct ProtocolField icmpv6_fields[] = {
     {"type",        0,  8, FT_NUMBER}, //TODO FT_ENUM?
     {"code",        8,  8, FT_NUMBER}, //TODO FT_ENUM?
     {"checksum",   16, 16, FT_CHECKSUM},
 
-    // Echo Request (type=128)
-    // Echo Reply (type=129)
-    {"identifier", 32, 16, FT_NUMBER},
-    {"sequence",   48, 16, FT_NUMBER},
+    {"identifier", 32, 16, FT_NUMBER}, // Echo Request (type=128) Echo Reply (type=129)
+    {"sequence",   48, 16, FT_NUMBER}, // Echo Request (type=128) Echo Reply (type=129)
 
     //TODO other informational messages?
     //  Neighbor Discovery, Multicast Listener etc.
 
-    // Destination Unreachable (type=1)
-    // Time Exceeded (type=3)
-    {"unused",     32, 32, FT_NUMBER},
+    {"unused",     32, 32, FT_NUMBER}, // Destination Unreachable (type=1) Time Exceeded (type=3)
 
-    // Packet Too Big (type=2)
-    {"mtu",        32, 32, FT_NUMBER},
+    {"mtu",        32, 32, FT_NUMBER}, // Packet Too Big (type=2)
 
-    // Parameter Problem (type=4)
-    {"pointer",    32, 32, FT_NUMBER},
+    {"pointer",    32, 32, FT_NUMBER}, // Parameter Problem (type=4)
 };
 
 

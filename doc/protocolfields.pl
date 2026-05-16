@@ -14,13 +14,16 @@ This list was generated with $0.
 EOF
 
 my $protoname;
+my $last_comment;
 my %headers;
 my %protocols;
+my %headerdesc;
 
 while (<>) {
     if ($protoname) {
         if (/^};/) {
-            undef $protoname
+            undef $protoname;
+            undef $last_comment;
         } else {
             my ($name) = /"(\w+)"/;
             next unless defined $name;
@@ -31,9 +34,13 @@ while (<>) {
     } else {
         if (/^static const struct ProtocolField (\w+)_fields/) {
             $protoname = $1;
-        }
-        if (/^    \{"(\w+)", (\w+)_fields/) {
-            $protocols{$1} = $2;
+            $headerdesc{$protoname} = $last_comment
+        } elsif (/^    \{"(\w+)", (\w+)_fields/) {
+            $protocols{$1} = $2
+        } elsif (/^\/\/(.*)/) {
+            $last_comment = $1
+        } else {
+            undef $last_comment
         }
     }
 }
@@ -43,5 +50,6 @@ for my $proto (sort keys %protocols) {
     next unless defined $fields;
 
     print "\n## $proto\n\n";
+    print "$headerdesc{$protocols{$proto}}\n\n" if defined $headerdesc{$protocols{$proto}};
     print for @$fields;
 }
