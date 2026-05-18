@@ -35,14 +35,34 @@ declare -a dev_topics=(
 VER_MARJOR=$(grep -oP 'VERSION_MAJOR \K\d+' version.h)
 VER_MINOR=$(grep -oP 'VERSION_MINOR \K\d+' version.h)
 
+# how to change the font size for teletype:
+#   redefine \texttt for the inline teletype text (LaTeX core)
+#   verbatim@font sets for block environments without any special (package verbatim)
+#   FV@FontSize sets for block environments with line/page breaks (package fancyvrb)
+
+#TODO can we get rid of the gaps between rows in the teletype figures?
+#   TODO none of the followings work
+#  \AtBeginEnvironment{verbatim}{\setlength{\lineskip}{0pt}}
+#  \fvset{formatcom=\setlength{\lineskip}{0pt}}
+#  \usepackage{setspace}
+#  \fvset{formatcom=\singlespacing}
+
 preamble="
 ---
 title: R2DTWO v${VER_MARJOR}.${VER_MINOR} documentation
 urlcolor: blue
 header-includes: |
   \usepackage{fancyhdr}
+  \usepackage{verbatim}
+  \usepackage{fancyvrb}
   \usepackage{fvextra}
   \fvset{breaklines=true}
+  \renewcommand*{\texttt}[1]{{\small{\ttfamily #1}}}
+  \makeatletter
+  \\def\verbatim@font{\normalfont\ttfamily\small\hyphenchar\font\m@ne\@noligs}
+  \\def\FV@FontSize{\small}
+  \makeatother
+  \fvset{formatcom=\setlength{\parskip}{0pt}}
 ...
 
 "
@@ -96,7 +116,7 @@ create_pdf() {
 	pandoc \
     --toc \
     --pdf-engine=xelatex \
-    -V 'monofontoptions: Color=0070c0,Scale=0.6' \
+    -V 'monofontoptions: Color=0070c0' \
 		-V monofont="Noto Sans Mono" \
     -V fontsize=12pt -V geometry:margin=1.5cm $AGGREGATE -o readme.pdf
 }
