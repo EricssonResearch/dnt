@@ -42,7 +42,7 @@ List of interfaces where we can send/receive packets. The keys of the items are 
     * `ip` address (optional, accepts incoming telnet connections on any interface if not given)
     * `port` listening port (default: 8000)
 
-Each interface can have an accompanying line with key `ifname:streams` that defines the [streams](#streams) received on that interface. The value for this key is a list of stream names separated by space. The ordering of the streams in this line determines the matching order when a received packet is processed. The interface drops all incoming packets if no streams are defined on it. One stream can be listed on multiple interfaces.
+Each interface can have an accompanying line with key `ifname:streams`, which defines the [streams](#streams) received on that interface. The value for this key is a list of stream names separated by space. The ordering of the streams in this line determines the matching order when a received packet is processed: the action pipeline of the *first matching* stream is used to process the packet. If there is no match the packet is dropped. The interface drops all incoming packets if no streams are defined on it. One stream can be listed on multiple interfaces.
 
 Each interface can have read-only properties that can be used as right-hand-side expressions in `edit` actions in the form of `ifname.property`. The currently supported properties are:
 
