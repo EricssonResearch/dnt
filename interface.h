@@ -29,29 +29,25 @@ enum IfaceType {
     IF_UDP_OUT,
 };
 
+
 enum IfaceState {
     IFS_INIT = 1, // created but not yet opened
     IFS_OPEN, // opened and ready to send/recv
     IFS_SHUTDOWN, // closing, can still send but not recv
 };
 
-// receive a packet on @fd
-// blocks if no packet is in the rx queue!
-// @returns true if the reception was successful
-typedef bool iface_recv(struct Interface *iface);
-
 // sends the packet on the interface
 // @returns false if the packet sending failed
-typedef bool iface_send(struct Interface *iface, struct Packet *p);
+typedef bool iface_send_fun(struct Interface *iface, struct Packet *p);
 
 // opens the interface
 // @returns false on error
-typedef bool iface_open(struct Interface *iface);
+typedef bool iface_open_fun(struct Interface *iface);
 
 // closes the interface, called by @close_interface
 // @close_interface frees @name and @ifname so this callback doesn't have to
 // @returns false on error
-typedef bool iface_close(struct Interface *iface);
+typedef bool iface_close_fun(struct Interface *iface);
 
 // @return a function that can read @property of the interface
 // @type is the type the consumer wants, it is checked against the property
@@ -85,9 +81,9 @@ struct Interface {
     struct Thread *recv_th_; // private
 
     // all of these methods are mandatory
-    iface_send *send;
-    iface_open *open;
-    iface_close *close_;
+    iface_send_fun *send;
+    iface_open_fun *open;
+    iface_close_fun *close_;
 
     // this method is optional
     iface_get_property_reader *get_property_reader;

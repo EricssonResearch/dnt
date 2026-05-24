@@ -43,7 +43,7 @@ struct ObjectInfo {
             unsigned take_any_time_ms;
             unsigned buffer_size;
         } pof;
-    } p;
+    }; // anonymous union needs gnu99 or c11
 };
 
 static void set_default_parameters(struct ObjectInfo *info)
@@ -51,23 +51,23 @@ static void set_default_parameters(struct ObjectInfo *info)
     info->auto_mip_level = -1;
     switch (info->type) {
         case PO_SEQGEN:
-            info->p.gen.use_reset_flag = false;
-            info->p.gen.use_init_flag = false;
-            info->p.gen.init_seq = 0x8000; // based on the old code
+            info->gen.use_reset_flag = false;
+            info->gen.use_init_flag = false;
+            info->gen.init_seq = 0x8000; // based on the old code
             break;
         case PO_SEQREC:
-            info->p.rec.use_reset_flag = false;
-            info->p.rec.use_init_flag = false;
-            info->p.rec.history_length = 2;
-            info->p.rec.reset_msec = 2000;
-            info->p.rec.diag.admin_latent_error_paths = 2;
-            info->p.rec.diag.latent_error_period = 0;
-            info->p.rec.algo = RCVY_Vector;
+            info->rec.use_reset_flag = false;
+            info->rec.use_init_flag = false;
+            info->rec.history_length = 2;
+            info->rec.reset_msec = 2000;
+            info->rec.diag.admin_latent_error_paths = 2;
+            info->rec.diag.latent_error_period = 0;
+            info->rec.algo = RCVY_Vector;
             break;
         case PO_POF:
-            info->p.pof.max_delay_ms = 20;
-            info->p.pof.take_any_time_ms = 2000;
-            info->p.pof.buffer_size = 2; // = info->p.rec.history_length
+            info->pof.max_delay_ms = 20;
+            info->pof.take_any_time_ms = 2000;
+            info->pof.buffer_size = 2; // = info->p.rec.history_length
             break;
         case PO_REPL:
             // nothing to init
@@ -109,20 +109,20 @@ static bool token_cb(char *str, void *userdata)
                         if (reset < 0) {
                             THROW("invalid reset flag");
                         }
-                        info->p.gen.use_reset_flag = reset;
+                        info->gen.use_reset_flag = reset;
                     } else if (strcmp(key, "InitSeqFlag") == 0) {
                         int init = read_boolean(val);
                         if (init < 0) {
                             THROW("invalid init flag");
                         }
-                        info->p.gen.use_init_flag = init;
+                        info->gen.use_init_flag = init;
                     } else if (strcmp(key, "InitSeqStart") == 0) {
                         unsigned seq;
                         char err;
                         if (sscanf(val, "%i%c", &seq, &err) != 1) {
                             THROW("invalid init sequence number '%s'", val);
                         }
-                        info->p.gen.init_seq = seq;
+                        info->gen.init_seq = seq;
                     } else {
                         THROW("invalid parameter '%s' for sequence generator", key);
                     }
@@ -133,69 +133,69 @@ static bool token_cb(char *str, void *userdata)
                         if (reset < 0) {
                             THROW("invalid reset flag");
                         }
-                        info->p.rec.use_reset_flag = reset;
+                        info->rec.use_reset_flag = reset;
                     } else if (strcmp(key, "InitSeqFlag") == 0) {
                         int init = read_boolean(val);
                         if (init < 0) {
                             THROW("invalid init flag");
                         }
-                        info->p.rec.use_init_flag = init;
+                        info->rec.use_init_flag = init;
                     } else if (strcmp(key, "frerSeqRcvyHistoryLength") == 0) {
                         unsigned hlen;
                         char err;
                         if (sscanf(val, "%i%c", &hlen, &err) != 1) {
                             THROW("invalid history length '%s'", val);
                         }
-                        info->p.rec.history_length = hlen;
+                        info->rec.history_length = hlen;
                     } else if (strcmp(key, "frerSeqRcvyResetMSec") == 0) {
                         unsigned msec;
                         char err;
                         if (sscanf(val, "%i%c", &msec, &err) != 1) {
                             THROW("invalid reset msec '%s'", val);
                         }
-                        info->p.rec.reset_msec = msec;
+                        info->rec.reset_msec = msec;
                     } else if (strcmp(key, "frerSeqRcvyLatentErrorPaths") == 0) {
                         unsigned path;
                         char err;
                         if (sscanf(val, "%i%c", &path, &err) != 1) {
                             THROW("invalid latent error paths '%s'", val);
                         }
-                        info->p.rec.diag.admin_latent_error_paths = path;
+                        info->rec.diag.admin_latent_error_paths = path;
                     } else if (strcmp(key, "frerSeqRcvyLatentErrorPeriod") == 0) {
                         unsigned msec;
                         char err;
                         if (sscanf(val, "%i%c", &msec, &err) != 1) {
                             THROW("invalid latent error period '%s'", val);
                         }
-                        info->p.rec.diag.latent_error_period = msec;
+                        info->rec.diag.latent_error_period = msec;
                     } else if (strcmp(key, "frerSeqRcvyLatentResetPeriod") == 0) {
                         unsigned msec;
                         char err;
                         if (sscanf(val, "%i%c", &msec, &err) != 1) {
                             THROW("invalid latent error reset period '%s'", val);
                         }
-                        info->p.rec.diag.latent_reset_period = msec;
+                        info->rec.diag.latent_reset_period = msec;
                     } else if (strcmp(key, "frerSeqRcvyLatentErrorDifference") == 0) {
                         unsigned pkts;
                         char err;
                         if (sscanf(val, "%i%c", &pkts, &err) != 1) {
                             THROW("invalid latent error period '%s'", val);
                         }
-                        info->p.rec.diag.latent_error_difference = pkts;
+                        info->rec.diag.latent_error_difference = pkts;
                     } else if (strcmp(key, "frerSeqRcvyOutageThreshold") == 0) {
                         unsigned pkts;
                         char err;
                         if (sscanf(val, "%i%c", &pkts, &err) != 1) {
                             THROW("invalid outage threshold '%s'", val);
                         }
-                        info->p.rec.diag.outage_threshold = pkts;
+                        info->rec.diag.outage_threshold = pkts;
                     } else if (strcmp(key, "frerSeqRcvyAlgorithm") == 0) {
                         if (strcmp(val, "Vector") == 0) {
-                            info->p.rec.algo = RCVY_Vector;
+                            info->rec.algo = RCVY_Vector;
                         } else if (strcmp(val, "SeamlessVector") == 0) {
-                            info->p.rec.algo = RCVY_SeamlessVector;
+                            info->rec.algo = RCVY_SeamlessVector;
                         } else if (strcmp(val, "Match") == 0) {
-                            info->p.rec.algo = RCVY_Match;
+                            info->rec.algo = RCVY_Match;
                         } else {
                             THROW("invalid recovery algorithm '%s'", val);
                         }
@@ -210,21 +210,21 @@ static bool token_cb(char *str, void *userdata)
                         if (sscanf(val, "%i%c", &msec, &err) != 1) {
                             THROW("invalid take any time '%s'", val);
                         }
-                        info->p.pof.take_any_time_ms = msec;
+                        info->pof.take_any_time_ms = msec;
                     } else if (strcmp(key, "MaxDelay") == 0) {
                         unsigned msec;
                         char err;
                         if (sscanf(val, "%i%c", &msec, &err) != 1) {
                             THROW("invalid max delay time '%s'", val);
                         }
-                        info->p.pof.max_delay_ms = msec;
+                        info->pof.max_delay_ms = msec;
                     } else if (strcmp(key, "BufferSize") == 0) {
                         unsigned size;
                         char err;
                         if (sscanf(val, "%i%c", &size, &err) != 1) {
                             THROW("invalid max delay time '%s'", val);
                         }
-                        info->p.pof.buffer_size = size;
+                        info->pof.buffer_size = size;
                     } else {
                         THROW("invalid parameter '%s' for packet ordering function", key);
                     }
@@ -271,22 +271,22 @@ static int object_cb(const char *key, void *value, void *userdata)
     struct PipelineObject *obj = NULL;
     switch (info.type) {
         case PO_SEQGEN:
-            obj = new_seq_gen(key, info.p.gen.use_reset_flag,
-                    info.p.gen.use_init_flag,
-                    info.p.gen.init_seq);
+            obj = new_seq_gen(key, info.gen.use_reset_flag,
+                    info.gen.use_init_flag,
+                    info.gen.init_seq);
             break;
         case PO_SEQREC:
-            obj = new_seq_rec(key, info.p.rec.algo,
-                    info.p.rec.use_reset_flag,
-                    info.p.rec.use_init_flag,
-                    info.p.rec.history_length,
-                    info.p.rec.reset_msec,
-                    &info.p.rec.diag);
+            obj = new_seq_rec(key, info.rec.algo,
+                    info.rec.use_reset_flag,
+                    info.rec.use_init_flag,
+                    info.rec.history_length,
+                    info.rec.reset_msec,
+                    &info.rec.diag);
             break;
         case PO_POF:
-            obj = new_pof(key, info.p.pof.max_delay_ms,
-                    info.p.pof.take_any_time_ms,
-                    info.p.pof.buffer_size);
+            obj = new_pof(key, info.pof.max_delay_ms,
+                    info.pof.take_any_time_ms,
+                    info.pof.buffer_size);
             break;
         case PO_REPL:
             obj = new_replicate(key);
