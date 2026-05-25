@@ -148,90 +148,90 @@ static const struct ProtocolField payload_fields[] = {
 
 // IEEE 802.3 Ethernet
 static const struct ProtocolField eth_fields[] = {
-    {"dmac",         0, 6*8, FT_MACADDRESS},
-    {"smac",       6*8, 6*8, FT_MACADDRESS},
-    {"ethertype", 12*8, 2*8, FT_NEXTHEADER},
+    {"dmac",         0, 6*8, PFTYPE_MACADDRESS},
+    {"smac",       6*8, 6*8, PFTYPE_MACADDRESS},
+    {"ethertype", 12*8, 2*8, PFTYPE_NEXTHEADER},
 };
 
 // IEEE 802.1Q Virtual LAN tag or 802.1ad Service tag
 static const struct ProtocolField vlan_fields[] = {
-    {"pcp",   0,  3, FT_NUMBER},
-    {"dei",   3,  1, FT_NUMBER}, // drop eligible indicator
-    {"vid",   4, 12, FT_NUMBER},
-    {"tpid", 16, 16, FT_NEXTHEADER},
-    {"vlan",  0, 16, FT_NUMBER}, // the whole header at once
+    {"pcp",   0,  3, PFTYPE_NUMBER},
+    {"dei",   3,  1, PFTYPE_NUMBER}, // drop eligible indicator
+    {"vid",   4, 12, PFTYPE_NUMBER},
+    {"tpid", 16, 16, PFTYPE_NEXTHEADER},
+    {"vlan",  0, 16, PFTYPE_NUMBER}, // the whole header at once
 };
 
 // IEEE 802.1CB Redundancy Tag
 static const struct ProtocolField rtag_fields[] = {
-    {"rt_flag",       4,  1, FT_NUMBER}, // rtag-ttag indicator
-    {"reset_flag",    5,  1, FT_NUMBER},
-    {"initseq_flag",  6,  1, FT_NUMBER},
-    {"resv",          0, 16, FT_NUMBER}, // reserved bits
-    {"seqnum",       16, 16, FT_NUMBER}, // just the sequence number
-    {"tpid",         32, 16, FT_NEXTHEADER}, // next protocol id (ethertype)
-    {"seq",           0, 32, FT_TSNSEQ}, // sequence and the flags in reserved
+    {"rt_flag",       4,  1, PFTYPE_NUMBER}, // rtag-ttag indicator
+    {"reset_flag",    5,  1, PFTYPE_NUMBER},
+    {"initseq_flag",  6,  1, PFTYPE_NUMBER},
+    {"resv",          0, 16, PFTYPE_NUMBER}, // reserved bits
+    {"seqnum",       16, 16, PFTYPE_NUMBER}, // just the sequence number
+    {"tpid",         32, 16, PFTYPE_NEXTHEADER}, // next protocol id (ethertype)
+    {"seq",           0, 32, PFTYPE_TSNSEQ}, // sequence and the flags in reserved
 };
 
 // IEEE 802.1CB Redundancy Tag modified to carry timestamp
 static const struct ProtocolField ttag_fields[] = {
-    {"rt_flag",       4,  1, FT_NUMBER}, // rtag-ttag indicator
-    {"reset_flag",    5,  1, FT_NUMBER},
-    {"initseq_flag",  6,  1, FT_NUMBER},
-    {"resv",          0, 16, FT_NUMBER}, // reserved bits
-    {"tstampnum",    11, 21, FT_NUMBER}, // just the timestamp
-    {"tpid",         32, 16, FT_NEXTHEADER}, // next protocol id (ethertype)
-    {"tstamp",        0, 32, FT_TSNTSTAMP}, // timestamp and the flags in reserved
+    {"rt_flag",       4,  1, PFTYPE_NUMBER}, // rtag-ttag indicator
+    {"reset_flag",    5,  1, PFTYPE_NUMBER},
+    {"initseq_flag",  6,  1, PFTYPE_NUMBER},
+    {"resv",          0, 16, PFTYPE_NUMBER}, // reserved bits
+    {"tstampnum",    11, 21, PFTYPE_NUMBER}, // just the timestamp
+    {"tpid",         32, 16, PFTYPE_NEXTHEADER}, // next protocol id (ethertype)
+    {"tstamp",        0, 32, PFTYPE_TSNTSTAMP}, // timestamp and the flags in reserved
 };
 
 // RFC 3031 MultiProtocol Label Switching
 static const struct ProtocolField mpls_fields[] = {
-    {"label",  0, 20, FT_NUMBER},
-    {"class", 20,  3, FT_NUMBER},
-    {"bos",   23,  1, FT_NUMBER}, // bottom-of-stack indicator
-    {"ttl",   24,  8, FT_TTL},
+    {"label",  0, 20, PFTYPE_NUMBER},
+    {"class", 20,  3, PFTYPE_NUMBER},
+    {"bos",   23,  1, PFTYPE_NUMBER}, // bottom-of-stack indicator
+    {"ttl",   24,  8, PFTYPE_TTL},
 };
 
 // RFC 8964 DetNet Control Word for MPLS Pseudo Wire
 static const struct ProtocolField dcw_fields[] = {
-    {"rt_flag",       4,  1, FT_NUMBER}, // dcw-tcw indicator
-    {"reset_flag",    5,  1, FT_NUMBER},
-    {"initseq_flag",  6,  1, FT_NUMBER},
-    {"resv",          0, 16, FT_NUMBER}, // reserved bits
-    {"seqnum",       16, 16, FT_NUMBER}, // just the sequence number
-    {"seq",           0, 32, FT_TSNSEQ}, // sequence and the flags in reserved
+    {"rt_flag",       4,  1, PFTYPE_NUMBER}, // dcw-tcw indicator
+    {"reset_flag",    5,  1, PFTYPE_NUMBER},
+    {"initseq_flag",  6,  1, PFTYPE_NUMBER},
+    {"resv",          0, 16, PFTYPE_NUMBER}, // reserved bits
+    {"seqnum",       16, 16, PFTYPE_NUMBER}, // just the sequence number
+    {"seq",           0, 32, PFTYPE_TSNSEQ}, // sequence and the flags in reserved
 };
 
 // RFC 8964 DetNet Control Word for MPLS Pseudo Wire modified to carry timestamp
 static const struct ProtocolField tcw_fields[] = {
-    {"rt_flag",       4,  1, FT_NUMBER}, // dcw-tcw indicator
-    {"reset_flag",    5,  1, FT_NUMBER},
-    {"initseq_flag",  6,  1, FT_NUMBER},
-    {"resv",          0, 16, FT_NUMBER}, // reserved bits
-    {"tstampnum",    11, 21, FT_NUMBER}, // just the timestamp
-    {"tstamp",        0, 32, FT_TSNTSTAMP}, // timestamp and the flags in reserved
+    {"rt_flag",       4,  1, PFTYPE_NUMBER}, // dcw-tcw indicator
+    {"reset_flag",    5,  1, PFTYPE_NUMBER},
+    {"initseq_flag",  6,  1, PFTYPE_NUMBER},
+    {"resv",          0, 16, PFTYPE_NUMBER}, // reserved bits
+    {"tstampnum",    11, 21, PFTYPE_NUMBER}, // just the timestamp
+    {"tstamp",        0, 32, PFTYPE_TSNTSTAMP}, // timestamp and the flags in reserved
 };
 
 // RFC 791 Internet Protocol version 4
 static const struct ProtocolField ipv4_fields[] = {
-    {"version",         0,  4, FT_NUMBER}, // should be 4
-    {"ihl",             4,  4, FT_NUMBER}, // should be 5
-    {"verihl",          0,  8, FT_NUMBER}, // should be 0x45
-    {"dscp",            8,  6, FT_NUMBER},
-    {"ecn",            14,  2, FT_NUMBER}, // explicit congestion notification
-    {"tos",             8,  8, FT_NUMBER}, // type of service
-    {"length",         16, 16, FT_NUMBER},
-    {"id",             32, 16, FT_NUMBER},
-    {"flags",          48,  3, FT_NUMBER},
-    {"evil",           48,  1, FT_NUMBER}, // RFC 3514
-    {"dontfragment",   49,  1, FT_NUMBER},
-    {"morefragments",  50,  1, FT_NUMBER},
-    {"fragoffset",     51, 13, FT_NUMBER},
-    {"ttl",            64,  8, FT_TTL},
-    {"protocol",       72,  8, FT_NEXTHEADER},
-    {"checksum",       80, 16, FT_CHECKSUM},
-    {"src",            96, 32, FT_IPV4ADDRESS},
-    {"dst",           128, 32, FT_IPV4ADDRESS},
+    {"version",         0,  4, PFTYPE_NUMBER}, // should be 4
+    {"ihl",             4,  4, PFTYPE_NUMBER}, // should be 5
+    {"verihl",          0,  8, PFTYPE_NUMBER}, // should be 0x45
+    {"dscp",            8,  6, PFTYPE_NUMBER},
+    {"ecn",            14,  2, PFTYPE_NUMBER}, // explicit congestion notification
+    {"tos",             8,  8, PFTYPE_NUMBER}, // type of service
+    {"length",         16, 16, PFTYPE_NUMBER},
+    {"id",             32, 16, PFTYPE_NUMBER},
+    {"flags",          48,  3, PFTYPE_NUMBER},
+    {"evil",           48,  1, PFTYPE_NUMBER}, // RFC 3514
+    {"dontfragment",   49,  1, PFTYPE_NUMBER},
+    {"morefragments",  50,  1, PFTYPE_NUMBER},
+    {"fragoffset",     51, 13, PFTYPE_NUMBER},
+    {"ttl",            64,  8, PFTYPE_TTL},
+    {"protocol",       72,  8, PFTYPE_NEXTHEADER},
+    {"checksum",       80, 16, PFTYPE_CHECKSUM},
+    {"src",            96, 32, PFTYPE_IPV4ADDRESS},
+    {"dst",           128, 32, PFTYPE_IPV4ADDRESS},
 };
 //TODO IP options how? we must support variable-length headers somehow
 //      IGMPv2 seems to use the Router Alert option
@@ -243,18 +243,18 @@ static const char *const ipv4_default =
 
 // RFC 8200 Internet Protocol version 6
 static const struct ProtocolField ipv6_fields[] = {
-    {"version",      0,   4, FT_NUMBER}, // should be 6
-    {"class",        4,   8, FT_NUMBER},
-    {"label",       12,  20, FT_NUMBER},
-    {"length",      32,  16, FT_NUMBER},
-    {"nextheader",  48,   8, FT_NEXTHEADER},
-    {"hoplimit",    56,   8, FT_TTL},
-    {"src",         64, 128, FT_IPV6ADDRESS},
-    {"dst",        192, 128, FT_IPV6ADDRESS},
-    {"loc",        192,  64, FT_NUMBER},  // when dst is a SID, this is SRv6 Locator
-    {"func",       256,  16, FT_NUMBER},  // SRv6 Functon
-    {"flowid",     272,  20, FT_NUMBER},  // SRv6 flow_id
-    {"seq",        292,  28, FT_SRV6SEQ},  // SRv6 seq
+    {"version",      0,   4, PFTYPE_NUMBER}, // should be 6
+    {"class",        4,   8, PFTYPE_NUMBER},
+    {"label",       12,  20, PFTYPE_NUMBER},
+    {"length",      32,  16, PFTYPE_NUMBER},
+    {"nextheader",  48,   8, PFTYPE_NEXTHEADER},
+    {"hoplimit",    56,   8, PFTYPE_TTL},
+    {"src",         64, 128, PFTYPE_IPV6ADDRESS},
+    {"dst",        192, 128, PFTYPE_IPV6ADDRESS},
+    {"loc",        192,  64, PFTYPE_NUMBER},  // when dst is a SID, this is SRv6 Locator
+    {"func",       256,  16, PFTYPE_NUMBER},  // SRv6 Functon
+    {"flowid",     272,  20, PFTYPE_NUMBER},  // SRv6 flow_id
+    {"seq",        292,  28, PFTYPE_SRV6SEQ},  // SRv6 seq
 };
 
 static const char *const ipv6_default =
@@ -266,15 +266,15 @@ static const char *const ipv6_default =
 //TODO theoretically this is variable-length, but in practice it's not
 // RFC 826 Address Resolution Protocol
 static const struct ProtocolField arp_fields[] = {
-    {"hwtype",   0, 16, FT_NUMBER}, // should be 1 (Eth)
-    {"prtype",  16, 16, FT_NUMBER}, // should be 0x0800 (IPv4)
-    {"hwsize",  32,  8, FT_NUMBER}, // should be 6
-    {"prsize",  40,  8, FT_NUMBER}, // should be 4
-    {"opcode",  48, 16, FT_NUMBER}, // 1 request, 2 reply
-    {"srcmac",  64, 48, FT_MACADDRESS},
-    {"srcip",  112, 32, FT_IPV4ADDRESS},
-    {"dstmac", 144, 48, FT_MACADDRESS},
-    {"dstip",  192, 32, FT_IPV4ADDRESS},
+    {"hwtype",   0, 16, PFTYPE_NUMBER}, // should be 1 (Eth)
+    {"prtype",  16, 16, PFTYPE_NUMBER}, // should be 0x0800 (IPv4)
+    {"hwsize",  32,  8, PFTYPE_NUMBER}, // should be 6
+    {"prsize",  40,  8, PFTYPE_NUMBER}, // should be 4
+    {"opcode",  48, 16, PFTYPE_NUMBER}, // 1 request, 2 reply
+    {"srcmac",  64, 48, PFTYPE_MACADDRESS},
+    {"srcip",  112, 32, PFTYPE_IPV4ADDRESS},
+    {"dstmac", 144, 48, PFTYPE_MACADDRESS},
+    {"dstip",  192, 32, PFTYPE_IPV4ADDRESS},
 };
 
 static const char *const arp_default =
@@ -283,102 +283,102 @@ static const char *const arp_default =
 
 // RFC 768 User Datagram Protocol
 static const struct ProtocolField udp_fields[] = {
-    {"srcport",   0, 16, FT_NUMBER},
-    {"dstport",  16, 16, FT_NUMBER},
-    {"length",   32, 16, FT_NUMBER},
-    {"checksum", 48, 16, FT_CHECKSUM},
+    {"srcport",   0, 16, PFTYPE_NUMBER},
+    {"dstport",  16, 16, PFTYPE_NUMBER},
+    {"length",   32, 16, PFTYPE_NUMBER},
+    {"checksum", 48, 16, PFTYPE_CHECKSUM},
 };
 
 // RFC 9293 Transmission Control Protocol
 static const struct ProtocolField tcp_fields[] = {
-    {"srcport",      0, 16, FT_NUMBER},
-    {"dstport",     16, 16, FT_NUMBER},
-    {"seq",         32, 32, FT_NUMBER},
-    {"ack",         64, 32, FT_NUMBER},
-    {"dataoffs",    96,  4, FT_NUMBER}, // 5 when no options (counts in 4 octet units)
-    {"reserved",   100,  4, FT_NUMBER},
-    {"flags",      104,  8, FT_NUMBER},
-    {"cwr",        104,  1, FT_NUMBER}, // congestion window reduced
-    {"ece",        105,  1, FT_NUMBER}, // ECN echo
-    {"urg",        106,  1, FT_NUMBER}, // urgent
-    {"ack",        107,  1, FT_NUMBER}, // acknowledgement
-    {"psh",        108,  1, FT_NUMBER}, // push
-    {"rst",        109,  1, FT_NUMBER}, // reset
-    {"syn",        110,  1, FT_NUMBER}, // synchronize
-    {"fin",        111,  1, FT_NUMBER}, // finish
-    {"windowsize", 112, 16, FT_NUMBER},
-    {"checksum",   128, 16, FT_CHECKSUM},
-    {"urgentp",    144, 16, FT_NUMBER},
+    {"srcport",      0, 16, PFTYPE_NUMBER},
+    {"dstport",     16, 16, PFTYPE_NUMBER},
+    {"seq",         32, 32, PFTYPE_NUMBER},
+    {"ack",         64, 32, PFTYPE_NUMBER},
+    {"dataoffs",    96,  4, PFTYPE_NUMBER}, // 5 when no options (counts in 4 octet units)
+    {"reserved",   100,  4, PFTYPE_NUMBER},
+    {"flags",      104,  8, PFTYPE_NUMBER},
+    {"cwr",        104,  1, PFTYPE_NUMBER}, // congestion window reduced
+    {"ece",        105,  1, PFTYPE_NUMBER}, // ECN echo
+    {"urg",        106,  1, PFTYPE_NUMBER}, // urgent
+    {"ack",        107,  1, PFTYPE_NUMBER}, // acknowledgement
+    {"psh",        108,  1, PFTYPE_NUMBER}, // push
+    {"rst",        109,  1, PFTYPE_NUMBER}, // reset
+    {"syn",        110,  1, PFTYPE_NUMBER}, // synchronize
+    {"fin",        111,  1, PFTYPE_NUMBER}, // finish
+    {"windowsize", 112, 16, PFTYPE_NUMBER},
+    {"checksum",   128, 16, PFTYPE_CHECKSUM},
+    {"urgentp",    144, 16, PFTYPE_NUMBER},
 };
 //TODO TCP options how? we must support variable-length headers somehow
 
 // RFC 9546 DetNet MPLS PW OAM Associated Channel Header (d-ACH)
 static const struct ProtocolField oam_fields[] = {
-    {"oam_nibble",  0,  4, FT_NUMBER}, // must be 1
-    {"version",     4,  4, FT_NUMBER}, // should be 0
-    {"sequence",    8,  8, FT_NUMBER},
-    {"channel",    16, 16, FT_NUMBER}, // https://www.iana.org/assignments/g-ach-parameters/g-ach-parameters.xhtml
-    {"nodeid",     32, 20, FT_NUMBER},
-    {"level",      52,  3, FT_NUMBER},
-    {"flags",      55,  5, FT_NUMBER}, // all reserved
-    {"session",    60,  4, FT_NUMBER},
+    {"oam_nibble",  0,  4, PFTYPE_NUMBER}, // must be 1
+    {"version",     4,  4, PFTYPE_NUMBER}, // should be 0
+    {"sequence",    8,  8, PFTYPE_NUMBER},
+    {"channel",    16, 16, PFTYPE_NUMBER}, // https://www.iana.org/assignments/g-ach-parameters/g-ach-parameters.xhtml
+    {"nodeid",     32, 20, PFTYPE_NUMBER},
+    {"level",      52,  3, PFTYPE_NUMBER},
+    {"flags",      55,  5, PFTYPE_NUMBER}, // all reserved
+    {"session",    60,  4, PFTYPE_NUMBER},
 };
 
 // IEEE 802.1CB Redundancy tag modified for OAM (not standard)
 static const struct ProtocolField oamrtag_fields[] = {
-    {"oam_nibble",  0,  4, FT_NUMBER}, // must be 1
-    {"reserved",    4,  4, FT_NUMBER}, // must be 0 (this is where the non-standard flags are in rtag)
-    {"sequence",    8,  8, FT_NUMBER},
-    {"flags",      16,  8, FT_NUMBER}, // all reserved
-    {"version",    24,  4, FT_NUMBER}, // should be 0
-    {"session",    28,  4, FT_NUMBER},
+    {"oam_nibble",  0,  4, PFTYPE_NUMBER}, // must be 1
+    {"reserved",    4,  4, PFTYPE_NUMBER}, // must be 0 (this is where the non-standard flags are in rtag)
+    {"sequence",    8,  8, PFTYPE_NUMBER},
+    {"flags",      16,  8, PFTYPE_NUMBER}, // all reserved
+    {"version",    24,  4, PFTYPE_NUMBER}, // should be 0
+    {"session",    28,  4, PFTYPE_NUMBER},
 };
 
 // Common header for IEEE 802.1ag Connectivity Fault Management (also ITU-T Y.1731)
 static const struct ProtocolField cfm_fields[] = {
-    {"mel",        0,  3, FT_NUMBER}, // maintenance endpoint level
-    {"version",    3,  5, FT_NUMBER}, // should be 0
-    {"opcode",     8,  8, FT_NUMBER},
-    {"flags",     16,  8, FT_NUMBER}, // no flags are standardized
-    {"tlvoffset", 24,  8, FT_NUMBER}, // length of a fixed header after CFM
+    {"mel",        0,  3, PFTYPE_NUMBER}, // maintenance endpoint level
+    {"version",    3,  5, PFTYPE_NUMBER}, // should be 0
+    {"opcode",     8,  8, PFTYPE_NUMBER},
+    {"flags",     16,  8, PFTYPE_NUMBER}, // no flags are standardized
+    {"tlvoffset", 24,  8, PFTYPE_NUMBER}, // length of a fixed header after CFM
 };
 
 // RFC 792 Internet Control Message Protocol for IPv4
 static const struct ProtocolField icmpv4_fields[] = {
-    {"type",        0,  8, FT_NUMBER}, //TODO FT_ENUM?
-    {"code",        8,  8, FT_NUMBER}, //TODO FT_ENUM?
-    {"checksum",   16, 16, FT_CHECKSUM},
+    {"type",        0,  8, PFTYPE_NUMBER}, //TODO PFTYPE_ENUM?
+    {"code",        8,  8, PFTYPE_NUMBER}, //TODO PFTYPE_ENUM?
+    {"checksum",   16, 16, PFTYPE_CHECKSUM},
 
-    {"identifier", 32, 16, FT_NUMBER}, // Echo Request (type=8) Echo Reply (type=0)
-    {"sequence",   48, 16, FT_NUMBER}, // Echo Request (type=8) Echo Reply (type=0)
+    {"identifier", 32, 16, PFTYPE_NUMBER}, // Echo Request (type=8) Echo Reply (type=0)
+    {"sequence",   48, 16, PFTYPE_NUMBER}, // Echo Request (type=8) Echo Reply (type=0)
 
     //TODO other informational messages?
     //  Router Discovery RFC 1256
 
-    {"unused",     32, 32, FT_NUMBER}, // Destination Unreachable (type=3) Time Exceeded (type=11)
+    {"unused",     32, 32, PFTYPE_NUMBER}, // Destination Unreachable (type=3) Time Exceeded (type=11)
 
-    {"gateway",    32, 32, FT_IPV4ADDRESS}, // Redirect (type=5)
+    {"gateway",    32, 32, PFTYPE_IPV4ADDRESS}, // Redirect (type=5)
 
-    {"pointer",    32,  8, FT_NUMBER}, // Parameter Problem (type=12)
+    {"pointer",    32,  8, PFTYPE_NUMBER}, // Parameter Problem (type=12)
 };
 
 // RFC 4443 Internet Control Message Protocol for IPv6
 static const struct ProtocolField icmpv6_fields[] = {
-    {"type",        0,  8, FT_NUMBER}, //TODO FT_ENUM?
-    {"code",        8,  8, FT_NUMBER}, //TODO FT_ENUM?
-    {"checksum",   16, 16, FT_CHECKSUM},
+    {"type",        0,  8, PFTYPE_NUMBER}, //TODO PFTYPE_ENUM?
+    {"code",        8,  8, PFTYPE_NUMBER}, //TODO PFTYPE_ENUM?
+    {"checksum",   16, 16, PFTYPE_CHECKSUM},
 
-    {"identifier", 32, 16, FT_NUMBER}, // Echo Request (type=128) Echo Reply (type=129)
-    {"sequence",   48, 16, FT_NUMBER}, // Echo Request (type=128) Echo Reply (type=129)
+    {"identifier", 32, 16, PFTYPE_NUMBER}, // Echo Request (type=128) Echo Reply (type=129)
+    {"sequence",   48, 16, PFTYPE_NUMBER}, // Echo Request (type=128) Echo Reply (type=129)
 
     //TODO other informational messages?
     //  Neighbor Discovery, Multicast Listener etc.
 
-    {"unused",     32, 32, FT_NUMBER}, // Destination Unreachable (type=1) Time Exceeded (type=3)
+    {"unused",     32, 32, PFTYPE_NUMBER}, // Destination Unreachable (type=1) Time Exceeded (type=3)
 
-    {"mtu",        32, 32, FT_NUMBER}, // Packet Too Big (type=2)
+    {"mtu",        32, 32, PFTYPE_NUMBER}, // Packet Too Big (type=2)
 
-    {"pointer",    32, 32, FT_NUMBER}, // Parameter Problem (type=4)
+    {"pointer",    32, 32, PFTYPE_NUMBER}, // Parameter Problem (type=4)
 };
 
 
@@ -418,27 +418,27 @@ const struct Protocol *protocol_from_id(enum ProtocolID id)
 const char *fieldtype_name_from_type(enum ProtocolFieldType type)
 {
     switch (type) {
-        case FT_UNKNOWN:
+        case PFTYPE_UNKNOWN:
             return "Unknown";
-        case FT_NUMBER:
+        case PFTYPE_NUMBER:
             return "Number";
-        case FT_MACADDRESS:
+        case PFTYPE_MACADDRESS:
             return "MAC";
-        case FT_IPV4ADDRESS:
+        case PFTYPE_IPV4ADDRESS:
             return "IPv4";
-        case FT_IPV6ADDRESS:
+        case PFTYPE_IPV6ADDRESS:
             return "IPv6";
-        case FT_TSNSEQ:
+        case PFTYPE_TSNSEQ:
             return "TSNSeq";
-        case FT_SRV6SEQ:
+        case PFTYPE_SRV6SEQ:
             return "SRv6Seq";
-        case FT_TSNTSTAMP:
+        case PFTYPE_TSNTSTAMP:
             return "TSNTstamp";
-        case FT_TTL:
+        case PFTYPE_TTL:
             return "TTL";
-        case FT_CHECKSUM:
+        case PFTYPE_CHECKSUM:
             return "Checksum";
-        case FT_NEXTHEADER:
+        case PFTYPE_NEXTHEADER:
             return "NextHeader";
     }
     return NULL;

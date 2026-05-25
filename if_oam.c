@@ -46,7 +46,7 @@ static bool oam_recv(struct Interface *iface)
     int n;
 
     n = recv(iface->recvfd, buffer, sizeof(buffer)-1, 0);
-    if (iface->state == IFS_SHUTDOWN) {
+    if (iface->state == IFSTATE_SHUTDOWN) {
         return false;
     }
     if (n > 0) {
@@ -61,7 +61,7 @@ static void *oam_recv_loop(void *arg)
 {
     struct Interface *iface = (struct Interface *)arg;
 
-    while (iface->state != IFS_SHUTDOWN)
+    while (iface->state != IFSTATE_SHUTDOWN)
         oam_recv(iface);
 
     return NULL;
@@ -77,7 +77,7 @@ static bool oam_send(struct Interface *iface, struct Packet *p)
 static bool oam_open(struct Interface *iface)
 {
     struct OamIfData *oid = (struct OamIfData *)iface->iface_private;
-    if (iface->state != IFS_INIT) {
+    if (iface->state != IFSTATE_INIT) {
         log_error("open OAM interface %s: already opened", iface->name);
         return false;
     }
@@ -137,7 +137,7 @@ static bool oam_open(struct Interface *iface)
 
     log_info("OAM return interface %s %s port %u", iface->name, oid->oam_ip_str, oid->port);
     iface->recvfd = sock;
-    iface->state = IFS_OPEN;
+    iface->state = IFSTATE_OPEN;
     iface->recv_th_ = thread_launch(oam_recv_loop, iface, "rtn %s", iface->name);
     add_oam_if(iface);
     return true;

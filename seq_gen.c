@@ -91,7 +91,7 @@ int reset_seq_generator(struct PipelineObject *obj, void *userdata)
 {
     (void) userdata;
 
-    if (obj->type == PO_SEQGEN) {
+    if (obj->type == PIPEOBJ_SEQGEN) {
         struct SequenceGenerator *g = (struct SequenceGenerator *)obj;
         sequence_generation_reset(g);
     }
@@ -146,7 +146,7 @@ static enum ActionResult seq_generator(struct PipelineObject *gen, struct Pipeli
 struct PipelineObject *new_seq_gen(const char *name, bool use_reset_flag, bool use_init_flag, unsigned init_seq_start)
 {
     struct SequenceGenerator *ret = calloc_struct(SequenceGenerator);
-    ret->base.type = PO_SEQGEN;
+    ret->base.type = PIPEOBJ_SEQGEN;
     ret->base.name = strdup(name);
     ret->base.get_state = sgen_get_state_json;
     ret->base.process_packet = seq_generator;
@@ -172,7 +172,7 @@ struct PipelineObject *new_seq_gen(const char *name, bool use_reset_flag, bool u
 struct PipelineObject *delete_seq_gen(struct PipelineObject *gen)
 {
     notification_register_source(gen->name, NULL, NULL, 2000);
-    //TODO throw if gen->type is not PO_SEQGEN
+    //TODO throw if gen->type is not PIPEOBJ_SEQGEN
     struct SequenceGenerator *g = (struct SequenceGenerator *)gen;
     pthread_mutex_destroy(&g->mutex);
     free(gen->name);

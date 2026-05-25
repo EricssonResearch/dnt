@@ -14,10 +14,10 @@
 #include <stdio.h>
 
 enum PipelineObjectType {
-    PO_SEQGEN = 1,
-    PO_SEQREC,
-    PO_POF,
-    PO_REPL,
+    PIPEOBJ_SEQGEN = 1,
+    PIPEOBJ_SEQREC,
+    PIPEOBJ_POF,
+    PIPEOBJ_REPL,
 };
 
 // base class for the objects used by the action pipeline

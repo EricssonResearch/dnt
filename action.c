@@ -26,35 +26,35 @@ DEFAULT_LOGGING_MODULE(PIPELINE, WARNING);
 const char *action_name_from_type(enum ActionType type)
 {
     switch (type) {
-        case ACT_ADD:           return "Add";
-        case ACT_CHECKSUM:      return "Checksum";
-        case ACT_DEL:           return "Del";
-        case ACT_DELAY:         return "Delay";
-        case ACT_DROP:          return "Drop";
-        case ACT_EDIT:          return "Edit";
-        case ACT_ELIM:          return "Eliminate";
-        case ACT_FILTEROAM:     return "FilterOAM";
-        case ACT_OAMINJECT:     return "OAMInject";
-        case ACT_OAMRECEIVE:    return "OAMReceive";
-        case ACT_POF:           return "POF";
-        case ACT_READSEQ:       return "ReadSeq";
-        case ACT_READTSTAMP:    return "ReadTstamp";
-        case ACT_REPL:          return "Replicate";
-        case ACT_SEND:          return "Send";
-        case ACT_SEQGEN:        return "SeqGen";
-        case ACT_SETLENGTH:     return "Setlength";
-        case ACT_TTLCHECK:      return "TTLCheck";
-        case ACT_TTLREDUCE:     return "TTLReduce";
-        case ACT_VERIFY:        return "Verify";
-        case ACT_WRITESEQ:      return "WriteSeq";
-        case ACT_WRITETSTAMP:   return "WriteTstamp";
+        case ACTION_ADD:           return "Add";
+        case ACTION_CHECKSUM:      return "Checksum";
+        case ACTION_DEL:           return "Del";
+        case ACTION_DELAY:         return "Delay";
+        case ACTION_DROP:          return "Drop";
+        case ACTION_EDIT:          return "Edit";
+        case ACTION_ELIM:          return "Eliminate";
+        case ACTION_FILTEROAM:     return "FilterOAM";
+        case ACTION_OAMINJECT:     return "OAMInject";
+        case ACTION_OAMRECEIVE:    return "OAMReceive";
+        case ACTION_POF:           return "POF";
+        case ACTION_READSEQ:       return "ReadSeq";
+        case ACTION_READTSTAMP:    return "ReadTstamp";
+        case ACTION_REPL:          return "Replicate";
+        case ACTION_SEND:          return "Send";
+        case ACTION_SEQGEN:        return "SeqGen";
+        case ACTION_SETLENGTH:     return "Setlength";
+        case ACTION_TTLCHECK:      return "TTLCheck";
+        case ACTION_TTLREDUCE:     return "TTLReduce";
+        case ACTION_VERIFY:        return "Verify";
+        case ACTION_WRITESEQ:      return "WriteSeq";
+        case ACTION_WRITETSTAMP:   return "WriteTstamp";
     };
     return NULL;
 }
 
 #define INIT_ACTION(type_)                      \
     bzero(a, sizeof(*a));                       \
-    a->type = ACT_ ## type_;                    \
+    a->type = ACTION_ ## type_;                 \
     a->execute = action_ ## type_ ## _execute;  \
     a->text = strdup(text)
 
@@ -71,7 +71,7 @@ const char *action_name_from_type(enum ActionType type)
                 if (protostack[i] == PROTO_ID_PAYLOAD) {                        \
                     _data->last_index = i-1;                                    \
                     const struct ProtocolField *ethertype =                     \
-                    protocol_get_field_by_type(protostack[i-1], FT_NEXTHEADER); \
+                    protocol_get_field_by_type(protostack[i-1], PFTYPE_NEXTHEADER); \
                     _data->ethertype_offset = ethertype->bitoffset / 8;         \
                     break;                                                      \
                 }                                                               \
@@ -704,7 +704,7 @@ void create_action_repl(struct Action *a, struct PipelineList *list, struct Pipe
 
 struct PipelineList *action_repl_get_piplinelist(struct Action *a)
 {
-    if (a->type == ACT_REPL) {
+    if (a->type == ACTION_REPL) {
         struct ReplData *rd = (struct ReplData *)a->action_private;
         return rd->pipes;
     }
@@ -735,7 +735,7 @@ void create_action_send(struct Action *a, struct Interface *iface, const char *t
 
 struct Interface *action_send_get_iface(struct Action *a)
 {
-    if (a->type == ACT_SEND) {
+    if (a->type == ACTION_SEND) {
         struct SendData *sd = (struct SendData *)a->action_private;
         return sd->iface;
     } else {

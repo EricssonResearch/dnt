@@ -55,7 +55,7 @@ static bool oam_cmd_recv(struct Interface *iface)
     struct sockaddr_storage their_addr; // remote's address information
     sin_size = sizeof their_addr;
     int new_fd = accept(iface->recvfd, (struct sockaddr *)&their_addr, &sin_size);
-    if (iface->state == IFS_SHUTDOWN) {
+    if (iface->state == IFSTATE_SHUTDOWN) {
         if (new_fd > 0)
             close(new_fd);
         return false;
@@ -78,7 +78,7 @@ static void *oam_cmd_recv_loop(void *arg)
 {
     struct Interface *iface = (struct Interface *)arg;
 
-    while (iface->state != IFS_SHUTDOWN)
+    while (iface->state != IFSTATE_SHUTDOWN)
         oam_cmd_recv(iface);
 
     return NULL;
@@ -94,7 +94,7 @@ static bool oam_cmd_send(struct Interface *iface, struct Packet *p)
 static bool oam_cmd_open(struct Interface *iface)
 {
     struct OamCmdIfData *oid = (struct OamCmdIfData *)iface->iface_private;
-    if (iface->state != IFS_INIT) {
+    if (iface->state != IFSTATE_INIT) {
         log_error("open OAM cmd interface %s: already opened", iface->name);
         return false;
     }
@@ -153,7 +153,7 @@ static bool oam_cmd_open(struct Interface *iface)
     iface->recvfd = sock;
     if (set_oam_cmd_if(iface)) {
         log_info("OAM Command interface on IPv%d port %u", oid->family==AF_INET6?6:4, oid->port);
-        iface->state = IFS_OPEN;
+        iface->state = IFSTATE_OPEN;
         iface->recv_th_ = thread_launch(oam_cmd_recv_loop, iface, "cmd %s", iface->name);
         return true;
     } else {

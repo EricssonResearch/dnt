@@ -45,7 +45,7 @@ static bool udpout_send(struct Interface *iface, struct Packet *p)
 {
     struct UdpOutIfData *uid = (struct UdpOutIfData *)iface->iface_private;
 
-    if (iface->state == IFS_INIT) {
+    if (iface->state == IFSTATE_INIT) {
         log_error("udp-out %s send: not opened yet", iface->name);
         return false;
     }
@@ -61,7 +61,7 @@ static bool udpout_send(struct Interface *iface, struct Packet *p)
 static bool udpout_open(struct Interface *iface)
 {
     struct UdpOutIfData *uid = (struct UdpOutIfData *)iface->iface_private;
-    if (iface->state != IFS_INIT) {
+    if (iface->state != IFSTATE_INIT) {
         log_error("open udp-out interface %s: already opened", iface->name);
         return false;
     }
@@ -216,7 +216,7 @@ static bool udpout_open(struct Interface *iface)
     log_info("Udp-out interface %s on device %s destination %s port %u", iface->name, iface->ifname, uid->dst_ip, uid->dport);
     iface->dropstat_cntr = 0;
     iface->dropstat_last_warn = 0;
-    iface->state = IFS_OPEN;
+    iface->state = IFSTATE_OPEN;
     return true;
 }
 
@@ -265,7 +265,7 @@ static value_producer *udpout_get_property_reader(const struct Interface *iface,
     struct UdpOutIfData *uid = (struct UdpOutIfData *)iface->iface_private;
 
     if (strcmp(property, "srcport") == 0) {
-        if (target_type != FT_NUMBER) {
+        if (target_type != PFTYPE_NUMBER) {
             log_error("udpout_get_property_reader 'srcport' target type %d invalid", target_type);
             return NULL;
         }
@@ -276,7 +276,7 @@ static value_producer *udpout_get_property_reader(const struct Interface *iface,
         }
         return udpout_srcport_producer;
     } else if (strcmp(property, "dstport") == 0) {
-        if (target_type != FT_NUMBER) {
+        if (target_type != PFTYPE_NUMBER) {
             log_error("udpout_get_property_reader 'dstport' target type %d invalid", target_type);
             return NULL;
         }
@@ -287,7 +287,7 @@ static value_producer *udpout_get_property_reader(const struct Interface *iface,
         }
         return udpout_dstport_producer;
     } else if (strcmp(property, "dstip") == 0) {
-        enum ProtocolFieldType ftype = uid->family == AF_INET6 ? FT_IPV6ADDRESS : FT_IPV4ADDRESS;
+        enum ProtocolFieldType ftype = uid->family == AF_INET6 ? PFTYPE_IPV6ADDRESS : PFTYPE_IPV4ADDRESS;
         unsigned bitcount = uid->family == AF_INET6 ? 128 : 32;
         if (target_type != ftype) {
             log_error("udpout_get_property_reader 'srcip' target type %d invalid", target_type);
@@ -366,7 +366,7 @@ struct Interface *new_udp_out_interface(const char *name, const char *ifname,
         }
     }
 
-    iface->state = IFS_INIT;
+    iface->state = IFSTATE_INIT;
 
     struct UdpOutIfData *uid = calloc_struct(UdpOutIfData);
     iface->iface_private = uid;
@@ -443,7 +443,7 @@ bool udp_out_set_dst(struct Interface *iface, const char *dst_ip, unsigned dst_p
     json_object_insert(js, "port", json_number(dst_port));
     notification_push_event("new dst", NOTIF_INFO, js);
 
-    if (iface->state == IFS_INIT) {
+    if (iface->state == IFSTATE_INIT) {
         if (uid->opened) {
             // this means we wanted to open but had no address
             return udpout_open(iface); // try again with the newly acquired address
@@ -473,7 +473,7 @@ bool udp_out_set_dst(struct Interface *iface, const char *dst_ip, unsigned dst_p
                     iface->name, dst_ip, dst_port);
         } else {
             log_info("udp-out %s destination has lost its address", iface->name);
-            iface->state = IFS_INIT;
+            iface->state = IFSTATE_INIT;
             uid->errq_monitor = stop_monitoring_error_queue(uid->errq_monitor);
             close(uid->sock);
             uid->sock = 0;

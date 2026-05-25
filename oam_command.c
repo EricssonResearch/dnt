@@ -206,7 +206,7 @@ static int query_mask_cb(struct PipelineObject *obj, void *userdata)
 {
     FILE *cmd_w = (FILE*)userdata;
 
-    if (obj->type == PO_REPL) {
+    if (obj->type == PIPEOBJ_REPL) {
         //TODO replicate_report_mask_state(obj, cmd_w);
         //      problem: we use too many oam-internal things in this loop
         fprintf(cmd_w, "mask state for Replicate '%s'\n", obj->name);
@@ -229,7 +229,7 @@ static int query_mask_cb(struct PipelineObject *obj, void *userdata)
 
             rlist = rlist->next;
         }
-    } else if (obj->type == PO_SEQREC) {
+    } else if (obj->type == PIPEOBJ_SEQREC) {
         seq_rec_report_mask_state(obj, cmd_w);
     }
 
@@ -240,7 +240,7 @@ static int set_mask_cb(struct PipelineObject *obj, void *userdata)
 {
     struct MaskObjectForeachArg *arg = (struct MaskObjectForeachArg *)userdata;
 
-    if (obj->type == PO_REPL) {
+    if (obj->type == PIPEOBJ_REPL) {
         //TODO move this loop to the replicate object somehow....
         struct PipelineList *rlist = replicate_get_pipes(obj);
         while (rlist) {

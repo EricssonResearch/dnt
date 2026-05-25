@@ -30,16 +30,16 @@ void pipeline_object_unref(struct PipelineObject *obj)
 
     if (refcount == 0) {
         switch (obj->type) {
-            case PO_SEQGEN:
+            case PIPEOBJ_SEQGEN:
                 delete_seq_gen(obj);
                 break;
-            case PO_SEQREC:
+            case PIPEOBJ_SEQREC:
                 delete_seq_rec(obj);
                 break;
-            case PO_POF:
+            case PIPEOBJ_POF:
                 delete_pof(obj);
                 break;
-            case PO_REPL:
+            case PIPEOBJ_REPL:
                 delete_replicate(obj);
                 break;
         }
@@ -54,13 +54,13 @@ const char *pipelineobject_get_name(const struct PipelineObject *obj)
 const char *pipelineobject_name_from_type(enum PipelineObjectType type)
 {
     switch (type) {
-        case PO_SEQGEN:
+        case PIPEOBJ_SEQGEN:
             return "SeqGen";
-        case PO_SEQREC:
+        case PIPEOBJ_SEQREC:
             return "SeqRcvy";
-        case PO_POF:
+        case PIPEOBJ_POF:
             return "Pof";
-        case PO_REPL:
+        case PIPEOBJ_REPL:
             return "Replicate";
     }
     return NULL;

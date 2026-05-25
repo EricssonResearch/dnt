@@ -356,7 +356,7 @@ struct PipelineObject *new_pof(const char *name, unsigned pof_max_delay, unsigne
         log_perror("calloc");
         return NULL;
     }
-    ret->base.type = PO_POF;
+    ret->base.type = PIPEOBJ_POF;
     ret->base.name = strdup(name);
     ret->base.get_state = pof_get_state_json;
     ret->base.process_packet = pof_insert;

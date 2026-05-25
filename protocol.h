@@ -9,17 +9,17 @@
 #include <stdint.h>
 
 enum ProtocolFieldType {
-    FT_UNKNOWN,
-    FT_NUMBER,
-    FT_MACADDRESS,
-    FT_IPV4ADDRESS,
-    FT_IPV6ADDRESS,
-    FT_TSNSEQ,
-    FT_SRV6SEQ,
-    FT_TSNTSTAMP,
-    FT_TTL,
-    FT_CHECKSUM,
-    FT_NEXTHEADER,
+    PFTYPE_UNKNOWN,
+    PFTYPE_NUMBER,
+    PFTYPE_MACADDRESS,
+    PFTYPE_IPV4ADDRESS,
+    PFTYPE_IPV6ADDRESS,
+    PFTYPE_TSNSEQ,
+    PFTYPE_SRV6SEQ,
+    PFTYPE_TSNTSTAMP,
+    PFTYPE_TTL,
+    PFTYPE_CHECKSUM,
+    PFTYPE_NEXTHEADER,
 };
 
 // the internal id of the protocols is their index in the @protocol_list array

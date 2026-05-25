@@ -196,7 +196,7 @@ struct Packet *iface_common_recv(struct Interface *iface, msghdr_process_cb *msg
 
     int res = recvmsg(iface->recvfd, &msg, 0);
     log_debug("recvmsg %d controllen %zu\n", res, msg.msg_controllen);
-    if (iface->state == IFS_SHUTDOWN) {
+    if (iface->state == IFSTATE_SHUTDOWN) {
         log_debug("recv %s exiting", iface->name);
         return delete_packet(p);
     }
@@ -216,7 +216,7 @@ struct Packet *iface_common_recv(struct Interface *iface, msghdr_process_cb *msg
         log_debug("packet overflow, received on interface %s", iface->name);
         return delete_packet(p);
     }
-    if (iface->state != IFS_OPEN) {
+    if (iface->state != IFSTATE_OPEN) {
         return delete_packet(p);
     }
 

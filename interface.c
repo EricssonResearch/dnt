@@ -37,7 +37,7 @@ void iface_unref(struct Interface *iface)
     log_debug("%s unref refcount %d senders %d", iface->name, refcount, iface->sender_count);
 
     if (refcount == 0) {
-        iface->state = IFS_SHUTDOWN;
+        iface->state = IFSTATE_SHUTDOWN;
         if (iface->sender_count > 0) {
             if (iface->recv_th_) {
                 thread_wakeup(iface->recv_th_);

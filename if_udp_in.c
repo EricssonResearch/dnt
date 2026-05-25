@@ -426,7 +426,7 @@ static void *udpin_recv_loop(void *arg)
 {
     struct Interface *iface = (struct Interface *)arg;
 
-    while (iface->state != IFS_SHUTDOWN)
+    while (iface->state != IFSTATE_SHUTDOWN)
         udpin_recv(iface);
 
     return NULL;
@@ -442,7 +442,7 @@ static bool udpin_send(struct Interface *iface, struct Packet *p)
 static bool udpin_open(struct Interface *iface)
 {
     struct UdpInIfData *uid = (struct UdpInIfData *)iface->iface_private;
-    if (iface->state != IFS_INIT) {
+    if (iface->state != IFSTATE_INIT) {
         log_error("open udp-in interface %s: already opened", iface->name);
         return false;
     }
@@ -525,7 +525,7 @@ static bool udpin_open(struct Interface *iface)
     notification_register_source(iface->name, iface_notification_pull_fn, iface, 2000);
 
     iface->recvfd = sock;
-    iface->state = IFS_OPEN;
+    iface->state = IFSTATE_OPEN;
     iface->recv_th_ = thread_launch(udpin_recv_loop, iface, "rcv %s", iface->name);
     return true;
 }
@@ -564,7 +564,7 @@ static value_producer *udpin_get_property_reader(const struct Interface *iface, 
     struct UdpInIfData *uid = (struct UdpInIfData *)iface->iface_private;
 
     if (strcmp(property, "port") == 0) {
-        if (target_type != FT_NUMBER) {
+        if (target_type != PFTYPE_NUMBER) {
             log_error("udpin_get_property_reader 'port' target type %d invalid", target_type);
             return NULL;
         }
@@ -575,7 +575,7 @@ static value_producer *udpin_get_property_reader(const struct Interface *iface, 
         }
         return udpin_port_producer;
     } else if (strcmp(property, "srcip") == 0) {
-        enum ProtocolFieldType ftype = uid->family == AF_INET6 ? FT_IPV6ADDRESS : FT_IPV4ADDRESS;
+        enum ProtocolFieldType ftype = uid->family == AF_INET6 ? PFTYPE_IPV6ADDRESS : PFTYPE_IPV4ADDRESS;
         unsigned bitcount = uid->family == AF_INET6 ? 128 : 32;
         if (target_type != ftype) {
             log_error("udpin_get_property_reader 'srcip' target type %d invalid", target_type);

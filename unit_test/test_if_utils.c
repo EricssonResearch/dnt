@@ -52,7 +52,7 @@ static void test_common_send(void)
     struct Interface iface;
     memset(&iface, 0, sizeof(iface));
     iface.name = strdup("dummy for testing");
-    iface.state = IFS_OPEN;
+    iface.state = IFSTATE_OPEN;
 
     struct Packet *p = new_packet(&iface);
     OK_FATAL(p != NULL, "have packet");
@@ -144,7 +144,7 @@ static void test_common_recv(void)
     struct Interface iface;
     memset(&iface, 0, sizeof(iface));
     iface.name = strdup("dummy for testing");
-    iface.state = IFS_OPEN;
+    iface.state = IFSTATE_OPEN;
     iface.recvfd = socks[0];
 
     unsigned char sendbuf[1024];

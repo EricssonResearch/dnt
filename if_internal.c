@@ -85,7 +85,7 @@ static bool int_recv(struct Interface *iface)
     struct PacketFifo *pf = (struct PacketFifo *)iface->iface_private;
     uint64_t one;
     int ret = read(iface->recvfd, &one, 8);
-    if (iface->state == IFS_SHUTDOWN) {
+    if (iface->state == IFSTATE_SHUTDOWN) {
         return false;
     }
     if (ret < 0) {
@@ -105,7 +105,7 @@ static void *int_recv_loop(void *arg)
 {
     struct Interface *iface = (struct Interface *)arg;
 
-    while (iface->state != IFS_SHUTDOWN)
+    while (iface->state != IFSTATE_SHUTDOWN)
         int_recv(iface);
 
     return NULL;
@@ -113,7 +113,7 @@ static void *int_recv_loop(void *arg)
 
 static bool int_send(struct Interface *iface, struct Packet *p)
 {
-    if (iface->state == IFS_INIT) {
+    if (iface->state == IFSTATE_INIT) {
         log_error("internal %s send: not opened yet", iface->name);
         return false;
     }
@@ -140,13 +140,13 @@ static bool int_send(struct Interface *iface, struct Packet *p)
 
 static bool int_open(struct Interface *iface)
 {
-    if (iface->state != IFS_INIT) {
+    if (iface->state != IFSTATE_INIT) {
         log_error("open internal interface %s: already opened", iface->name);
         return false;
     }
     notification_register_source(iface->name, iface_notification_pull_fn, iface, 2000);
     iface->recvfd = eventfd(0, EFD_SEMAPHORE);
-    iface->state = IFS_OPEN;
+    iface->state = IFSTATE_OPEN;
     iface->recv_th_ = thread_launch(int_recv_loop, iface, "rcv %s", iface->name);
     log_info("Internal interface %s", iface->name);
     return true;

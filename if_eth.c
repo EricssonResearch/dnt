@@ -97,7 +97,7 @@ static void *eth_recv_loop(void *arg)
 {
     struct Interface *iface = (struct Interface *)arg;
 
-    while (iface->state != IFS_SHUTDOWN)
+    while (iface->state != IFSTATE_SHUTDOWN)
         eth_recv(iface);
 
     return NULL;
@@ -107,7 +107,7 @@ static bool eth_send(struct Interface *iface, struct Packet *p)
 {
     struct EthIfData *eid = (struct EthIfData *)iface->iface_private;
 
-    if (iface->state == IFS_INIT) {
+    if (iface->state == IFSTATE_INIT) {
         log_error("eth %s send: not opened yet", iface->name);
         return false;
     }
@@ -145,7 +145,7 @@ static bool eth_open(struct Interface *iface)
 {
     struct EthIfData *eid = (struct EthIfData *)iface->iface_private;
 
-    if (iface->state != IFS_INIT) {
+    if (iface->state != IFSTATE_INIT) {
         log_error("open eth interface %s: already opened", iface->name);
         return false;
     }
@@ -265,7 +265,7 @@ static bool eth_open(struct Interface *iface)
     iface->recvfd = eid->sockfd[0];
     iface->dropstat_cntr = 0;
     iface->dropstat_last_warn = 0;
-    iface->state = IFS_OPEN;
+    iface->state = IFSTATE_OPEN;
     iface->recv_th_ = thread_launch(eth_recv_loop, iface, "rcv %s", iface->name);
     return true;
 }
@@ -302,7 +302,7 @@ static value_producer *eth_get_property_reader(const struct Interface *iface, co
         log_error("eth_get_property_reader unknown property '%s'", property);
         return NULL;
     }
-    if (target_type != FT_MACADDRESS) {
+    if (target_type != PFTYPE_MACADDRESS) {
         log_error("eth_get_property_reader target type %d is not mac address", target_type);
         return NULL;
     }

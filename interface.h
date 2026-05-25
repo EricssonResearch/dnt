@@ -31,9 +31,9 @@ enum IfaceType {
 
 
 enum IfaceState {
-    IFS_INIT = 1, // created but not yet opened
-    IFS_OPEN, // opened and ready to send/recv
-    IFS_SHUTDOWN, // closing, can still send but not recv
+    IFSTATE_INIT = 1, // created but not yet opened
+    IFSTATE_OPEN, // opened and ready to send/recv
+    IFSTATE_SHUTDOWN, // closing, can still send but not recv
 };
 
 // sends the packet on the interface

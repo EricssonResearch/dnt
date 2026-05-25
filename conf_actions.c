@@ -61,11 +61,11 @@ enum BeforeAfter {
 };
 
 enum ConfVariableType {
-    CVT_UNDEF,
-    CVT_FIELD, // header field
+    CVARTYPE_UNDEF,
+    CVARTYPE_FIELD, // header field
     // the ones below are rhs-only
-    CVT_CONST, // constant
-    CVT_IFACE, // interface property
+    CVARTYPE_CONST, // constant
+    CVARTYPE_IFACE, // interface property
 };
 
 struct ConfVariable {
@@ -386,13 +386,13 @@ static const char *confaction_name_from_type(enum ConfActionType type)
 static const char *variabletype_name_from_type(enum ConfVariableType type)
 {
     switch (type) {
-        case CVT_UNDEF:
+        case CVARTYPE_UNDEF:
             return "Undefined";
-        case CVT_FIELD:
+        case CVARTYPE_FIELD:
             return "Field";
-        case CVT_CONST:
+        case CVARTYPE_CONST:
             return "Constant";
-        case CVT_IFACE:
+        case CVARTYPE_IFACE:
             return "Interface";
     }
     return NULL;
@@ -440,7 +440,7 @@ static bool process_assignment_lhs(struct StageState *stst, struct ConfAssignmen
             THROW("header '%s' has no field named '%s'", hdr, field);
         }
 
-        init_confvariable(lhs, CVT_FIELD, f);
+        init_confvariable(lhs, CVARTYPE_FIELD, f);
         lhs->v.header.field = new_headerfield(header_index(stst->headers, h), f);
         lhs->v.header.header_name = strdup(hdr);
         lhs->v.header.field_name = strdup(field);
@@ -510,7 +510,7 @@ static bool process_assignment_rhs(struct StageState *stst, struct ConfAssignmen
                     THROW("types of left-hand-side %s and right-hand-side %s don't match",
                             fieldtype_name_from_type(lhs->value_type), fieldtype_name_from_type(f->type));
                 }
-                init_confvariable(rhs, CVT_FIELD, f);
+                init_confvariable(rhs, CVARTYPE_FIELD, f);
                 struct HeaderField *hf = new_headerfield(header_index(stst->headers, h), f);
                 rhs->v.header.field = hf;
 
@@ -540,7 +540,7 @@ static bool process_assignment_rhs(struct StageState *stst, struct ConfAssignmen
                 if (assign->read == NULL) {
                     THROW("interface %s has no property named '%s'", iface->name, val);
                 }
-                init_confvariable_full(rhs, CVT_IFACE,
+                init_confvariable_full(rhs, CVARTYPE_IFACE,
                         lhs->value_type, lhs->value.bitoffset%8, lhs->value.bitcount);
                 rhs->v.iface.iface = iface;
                 rhs->v.iface.property = strdup(val);
@@ -562,7 +562,7 @@ static bool process_assignment_rhs(struct StageState *stst, struct ConfAssignmen
 
     //log_debug("rhs may be a constant...");
     // constant doesn't have a read function just a value
-    init_confvariable_full(rhs, CVT_CONST, FT_UNKNOWN, lhs->value.bitoffset, lhs->value.bitcount);
+    init_confvariable_full(rhs, CVARTYPE_CONST, PFTYPE_UNKNOWN, lhs->value.bitoffset, lhs->value.bitcount);
     if (read_constant(&rhs->value, assign->lhs_protoid, lhs->value_type, string)) {
         log_debug("rhs is a constant");
         if (lhs->value.bitcount != rhs->value.bitcount) {
@@ -668,19 +668,19 @@ static bool process_token(char *token, void *userdata)
                 GET_OBJECT(token);
                 if (obj) {
                     switch (obj->type) {
-                        case PO_SEQGEN:
+                        case PIPEOBJ_SEQGEN:
                             newaction->type = CA_SEQGEN;
                             newaction->seq.gen = obj;
                             break;
-                        case PO_SEQREC:
+                        case PIPEOBJ_SEQREC:
                             newaction->type = CA_ELIM;
                             newaction->elim.rec = obj;
                             break;
-                        case PO_POF:
+                        case PIPEOBJ_POF:
                             newaction->type = CA_POF;
                             newaction->pof.pof = obj;
                             break;
-                        case PO_REPL:
+                        case PIPEOBJ_REPL:
                             newaction->type = CA_REPL;
                             newaction->repl.replobj = obj;
                             if (obj->auto_mip_level > 0 && !oam_mip_autoconfig(stst, NULL))
@@ -737,7 +737,7 @@ static bool process_token(char *token, void *userdata)
                         THROW("header %s has no field '%s'",
                                 newaction->add.newname, lhs);
                     }
-                    init_confvariable(&a->lhs, CVT_FIELD, f);
+                    init_confvariable(&a->lhs, CVARTYPE_FIELD, f);
                     // we don't yet have a header index here, we fix it in process_action()
                     a->lhs.v.header.field = new_headerfield(0, f);
                     a->lhs.v.header.header_name = strdup(newaction->add.newname);
@@ -761,7 +761,7 @@ static bool process_token(char *token, void *userdata)
                         THROW("header name '%s' is ambiguous", token);
                     }
                     struct HeaderField *field = header_get_field_of_type(hdr,
-                            header_index(stst->headers, hdr), FT_CHECKSUM);
+                            header_index(stst->headers, hdr), PFTYPE_CHECKSUM);
                     if (field == NULL) {
                         THROW("header '%s' doesn't have a checksum field", hdr->name);
                     }
@@ -870,7 +870,7 @@ static bool process_token(char *token, void *userdata)
             if (newaction->elim.rec == NULL) {
                 GET_OBJECT(token);
                 if (obj) {
-                    if (obj->type == PO_SEQREC) {
+                    if (obj->type == PIPEOBJ_SEQREC) {
                         newaction->elim.rec = obj;
                     } else {
                         THROW("first argument of eliminate must be a recovery object");
@@ -925,7 +925,7 @@ static bool process_token(char *token, void *userdata)
             if (newaction->pof.pof == NULL) {
                 GET_OBJECT(token);
                 if (obj) {
-                    if (obj->type == PO_POF) {
+                    if (obj->type == PIPEOBJ_POF) {
                         newaction->pof.pof = obj;
                     } else {
                         THROW("pof first argument must be a pof object");
@@ -948,13 +948,13 @@ static bool process_token(char *token, void *userdata)
                         THROW("header name '%s' is ambiguous", token);
                     }
                     enum ProtocolFieldType fieldtype = (newaction->type == CA_READSEQ ||
-                            newaction->type == CA_WRITESEQ) ? FT_TSNSEQ : FT_TSNTSTAMP;
+                            newaction->type == CA_WRITESEQ) ? PFTYPE_TSNSEQ : PFTYPE_TSNTSTAMP;
                     struct HeaderField *field = header_get_field_of_type(hdr,
                             header_index(stst->headers, hdr), fieldtype);
-                    if((field == NULL) && (fieldtype == FT_TSNSEQ)){        // check for FT_SRV6SEQ
+                    if((field == NULL) && (fieldtype == PFTYPE_TSNSEQ)){        // check for PFTYPE_SRV6SEQ
                         field = header_get_field_of_type(hdr,
-                                header_index(stst->headers, hdr), FT_SRV6SEQ);
-                        if(field != NULL) fieldtype = FT_SRV6SEQ;
+                                header_index(stst->headers, hdr), PFTYPE_SRV6SEQ);
+                        if(field != NULL) fieldtype = PFTYPE_SRV6SEQ;
                     }
                     if (field == NULL) {
                         THROW("header '%s' doesn't have a field of type %s", hdr->name,
@@ -996,7 +996,7 @@ static bool process_token(char *token, void *userdata)
                         && newaction->repl.pipelines == NULL) {
                     GET_OBJECT(token);
                     if (obj) {
-                        if (obj->type == PO_REPL) {
+                        if (obj->type == PIPEOBJ_REPL) {
                             newaction->repl.replobj = obj;
                             if (obj->auto_mip_level > 0 && !oam_mip_autoconfig(stst, NULL))
                                 log_warning("cannot generate pre-AutoMIP for '%s'", obj->name);
@@ -1068,7 +1068,7 @@ static bool process_token(char *token, void *userdata)
             if (newaction->seq.gen == NULL) {
                 GET_OBJECT(token);
                 if (obj) {
-                    if (obj->type == PO_SEQGEN) {
+                    if (obj->type == PIPEOBJ_SEQGEN) {
                         newaction->seq.gen = obj;
                     } else {
                         THROW("seqgen argument must be a sequence generator object");
@@ -1104,14 +1104,14 @@ static bool process_token(char *token, void *userdata)
                         THROW("header name '%s' is ambiguous", token);
                     }
                     struct HeaderField *field = header_get_field_of_type(hdr,
-                            header_index(stst->headers, hdr), FT_TTL);
+                            header_index(stst->headers, hdr), PFTYPE_TTL);
                     if (field == NULL) {
                         THROW("header '%s' doesn't have a TTL field", hdr->name);
                     }
                     newaction->ttl.field = field;
                     // header may also have a checksum (ipv4)
                     field = header_get_field_of_type(hdr,
-                            header_index(stst->headers, hdr), FT_CHECKSUM);
+                            header_index(stst->headers, hdr), PFTYPE_CHECKSUM);
                     newaction->ttl.csum = field;
                 } else {
                     THROW("invalid header '%s'", token);
@@ -1134,7 +1134,7 @@ static struct ConfAssignment *assign_nexthdrid_from_header_type(const char *acti
 {
     uint16_t nexthdrnum;
     const struct Protocol *dstpr = protocol_from_id(dstheader->id);
-    const struct ProtocolField *dstf = protocol_get_field_by_type(dstheader->id, FT_NEXTHEADER);
+    const struct ProtocolField *dstf = protocol_get_field_by_type(dstheader->id, PFTYPE_NEXTHEADER);
     if (!dstpr->get_nexthdr(&nexthdrnum, typeheader->id)) {
         return NULL;
     }
@@ -1142,8 +1142,8 @@ static struct ConfAssignment *assign_nexthdrid_from_header_type(const char *acti
     struct ConfAssignment *a = calloc_struct(ConfAssignment);
     a->text = strdup_printf("%s sets %s.%s=0x%.4x (%s)", action_name,
             dstheader->name, dstf->name, nexthdrnum, protocol_type_from_id(typeheader->id));
-    init_confvariable(&a->lhs, CVT_FIELD, dstf);
-    init_confvariable(&a->rhs, CVT_CONST, dstf);
+    init_confvariable(&a->lhs, CVARTYPE_FIELD, dstf);
+    init_confvariable(&a->rhs, CVARTYPE_CONST, dstf);
     prepare_constant_number(&a->rhs.value, nexthdrnum);
 
     struct HeaderField *dsthf = new_headerfield(dstpos, dstf);
@@ -1166,9 +1166,9 @@ static struct ConfAssignment *assign_nexthdrid_copy_from_srcheader(const char *a
         const struct HeaderDescriptor *srcheader, unsigned srcpos)
 {
     const struct Protocol *dstpr = protocol_from_id(dstheader->id);
-    const struct ProtocolField *dstf = protocol_get_field_by_type(dstheader->id, FT_NEXTHEADER);
+    const struct ProtocolField *dstf = protocol_get_field_by_type(dstheader->id, PFTYPE_NEXTHEADER);
     const struct Protocol *srcpr = protocol_from_id(srcheader->id);
-    const struct ProtocolField *srcf = protocol_get_field_by_type(srcheader->id, FT_NEXTHEADER);
+    const struct ProtocolField *srcf = protocol_get_field_by_type(srcheader->id, PFTYPE_NEXTHEADER);
     if (dstpr->get_nexthdr != srcpr->get_nexthdr) {
         log_error("nexthdr field type mismatch");
         return NULL;
@@ -1177,8 +1177,8 @@ static struct ConfAssignment *assign_nexthdrid_copy_from_srcheader(const char *a
     struct ConfAssignment *a = calloc_struct(ConfAssignment);
     a->text = strdup_printf("%s sets %s.%s=%s.%s", action_name,
             dstheader->name, dstf->name, srcheader->name, srcf->name);
-    init_confvariable(&a->lhs, CVT_FIELD, dstf);
-    init_confvariable(&a->rhs, CVT_FIELD, srcf);
+    init_confvariable(&a->lhs, CVARTYPE_FIELD, dstf);
+    init_confvariable(&a->rhs, CVARTYPE_FIELD, srcf);
 
     struct HeaderField *srchf = new_headerfield(srcpos, srcf);
     a->rhs.v.header.field = srchf;
@@ -1285,8 +1285,8 @@ static const char *header_field_thats_address_for_oam(enum ProtocolID proto)
 // @return the value for the addressing OAM message injection needs, or NULL if @ass doesn't assign such field
 static struct Value *address_for_oam_in_assignment(struct ConfAssignment *ass)
 {
-    //TODO can we support CVT_FIELD or CVT_IFACE somehow?
-    if (ass->rhs.type != CVT_CONST)
+    //TODO can we support CVARTYPE_FIELD or CVARTYPE_IFACE somehow?
+    if (ass->rhs.type != CVARTYPE_CONST)
         return NULL;
 
     if (ass->lhs_protoid == PROTO_ID_IPv6) {
@@ -1531,7 +1531,7 @@ static bool process_action(struct StageState *stst)
             }
 
             // set sequence number if the new header has such a field
-            const struct ProtocolField *seq_field = protocol_get_field_by_type(newheader->id, FT_TSNSEQ);
+            const struct ProtocolField *seq_field = protocol_get_field_by_type(newheader->id, PFTYPE_TSNSEQ);
             if (seq_field) {
                 if (stst->seq_set) {
                     struct ConfAction *writeseq = new_confaction(stst, CA_WRITESEQ,
@@ -1545,7 +1545,7 @@ static bool process_action(struct StageState *stst)
             }
 
             // set timestamp if the new header has such a field
-            const struct ProtocolField *tstamp_field = protocol_get_field_by_type(newheader->id, FT_TSNTSTAMP);
+            const struct ProtocolField *tstamp_field = protocol_get_field_by_type(newheader->id, PFTYPE_TSNTSTAMP);
             if (tstamp_field) {
                 struct ConfAction *writets = new_confaction(stst, CA_WRITETSTAMP,
                         strdup_printf("tstamp for %s", newaction->text));
@@ -1564,8 +1564,8 @@ static bool process_action(struct StageState *stst)
                 struct ConfAssignment *a = calloc_struct(ConfAssignment);
                 a->text = strdup_printf("add sets default value");
                 //TODO this part is a bit hacky because we are not writing a defined header field
-                init_confvariable_full(&a->lhs, CVT_FIELD, FT_NUMBER, 0, newproto->default_value_len*8);
-                init_confvariable_full(&a->rhs, CVT_CONST, FT_NUMBER, 0, newproto->default_value_len*8);
+                init_confvariable_full(&a->lhs, CVARTYPE_FIELD, PFTYPE_NUMBER, 0, newproto->default_value_len*8);
+                init_confvariable_full(&a->rhs, CVARTYPE_CONST, PFTYPE_NUMBER, 0, newproto->default_value_len*8);
                 a->rhs.value.value = memdup(newproto->default_value,
                         newproto->default_value_len);
                 struct HeaderField *dsthf = calloc_struct(HeaderField);
@@ -1585,7 +1585,7 @@ static bool process_action(struct StageState *stst)
             if (newproto->get_nexthdr != NULL) {
                 struct ConfAssignment *a = NULL;
                 for (struct ConfAssignment *i = newaction->add.assignments; i; i=i->next) {
-                    if (i->lhs.value_type == FT_NEXTHEADER) {
+                    if (i->lhs.value_type == PFTYPE_NEXTHEADER) {
                         a = i;
                         break;
                     }
@@ -1670,7 +1670,7 @@ static bool process_action(struct StageState *stst)
             newaction->del.idx = idx;
 
             // if removing a sequence number tag (= end of tunnel), automatically filter OAM packets
-            const struct ProtocolField *dseq_field = protocol_get_field_by_type(delh->id, FT_TSNSEQ);
+            const struct ProtocolField *dseq_field = protocol_get_field_by_type(delh->id, PFTYPE_TSNSEQ);
             if (dseq_field) {
                 struct ConfAction *filter = new_confaction(stst, CA_FILTEROAM,
                         strdup_printf("filter before %s", delh->name));
@@ -2046,10 +2046,10 @@ struct ConfAction *parse_actions_line(const char *stream, const char *line,
     };
 
     // automatically reduce TTL & schedule a check, if the very first header has such a field
-    const struct ProtocolField *ttlfield = protocol_get_field_by_type(headers->id, FT_TTL);
+    const struct ProtocolField *ttlfield = protocol_get_field_by_type(headers->id, PFTYPE_TTL);
     if (ttlfield) {
         new_confaction(&stst, CA_TTLREDUCE, strdup_printf("automatic TTL reduce on %s", headers->name));
-        struct HeaderField *field = header_get_field_of_type(stst.headers, 0, FT_TTL);
+        struct HeaderField *field = header_get_field_of_type(stst.headers, 0, PFTYPE_TTL);
         stst.actions->ttl.field = field;
         stst.ttl_set = true;
         stst.needs_ttlcheck = stst.headers;
@@ -2106,17 +2106,17 @@ static void delete_confassignments(struct ConfAssignment *assignments)
         assignments = assignments->next;
         free(del->text);
         free(del->rhs.value.value);
-        if (del->lhs.type == CVT_FIELD) {
+        if (del->lhs.type == CVARTYPE_FIELD) {
             free(del->lhs.v.header.field);
             free(del->lhs.v.header.header_name);
             free(del->lhs.v.header.field_name);
         }
-        if (del->rhs.type == CVT_FIELD) {
+        if (del->rhs.type == CVARTYPE_FIELD) {
             free(del->rhs.v.header.field);
             free(del->rhs.v.header.header_name);
             free(del->rhs.v.header.field_name);
         }
-        if (del->rhs.type == CVT_IFACE)
+        if (del->rhs.type == CVARTYPE_IFACE)
             free(del->rhs.v.iface.property);
         free(del);
     }
@@ -2231,31 +2231,31 @@ static struct EditAssign *assemble_fieldassigns(struct ConfAssignment *list, uns
         a->text = strdup(l->text);
         a->write = l->write;
         a->read = l->read;
-        if (l->lhs.type == CVT_UNDEF) {
+        if (l->lhs.type == CVARTYPE_UNDEF) {
             log_error("assign '%s' destination is undefined", l->text);
             for (unsigned j=0; j<=i; j++) free(ret[j].text);
             free(ret);
             return NULL;
         }
-        if (l->lhs.type == CVT_FIELD)
+        if (l->lhs.type == CVARTYPE_FIELD)
             a->write_state = memdup(l->lhs.v.header.field, sizeof(struct HeaderField));
 
         switch (l->rhs.type) {
-            case CVT_UNDEF:
+            case CVARTYPE_UNDEF:
                 log_error("assign '%s' source is undefined", l->text);
                 for (unsigned j=0; j<=i; j++) free(ret[j].text);
                 free(ret);
                 return NULL;
-            case CVT_FIELD:
+            case CVARTYPE_FIELD:
                 a->read_state = memdup(l->rhs.v.header.field, sizeof(struct HeaderField));
                 a->owns_read_state = true;
                 break;
-            case CVT_CONST: {
+            case CVARTYPE_CONST: {
                 a->constant = l->rhs.value;
                 unsigned len = DIVCEIL(a->constant.bitoffset + a->constant.bitcount, 8);
                 a->constant.value = memdup(l->rhs.value.value, len);
                 break; }
-            case CVT_IFACE:
+            case CVARTYPE_IFACE:
                 a->read_state = l->rhs.v.iface.iface;
                 a->owns_read_state = false;
                 break;
@@ -2466,7 +2466,7 @@ void confactions_log(const struct ConfAction *ca_list, unsigned indent)
                             variabletype_name_from_type(a->lhs.type),
                             fieldtype_name_from_type(a->lhs.value_type),
                             a->lhs.value.bitoffset, a->lhs.value.bitcount);
-                    if (a->lhs.type == CVT_FIELD) {
+                    if (a->lhs.type == CVARTYPE_FIELD) {
                         log_debug("%*s%s.%s index %u bitoffset %u bitcount %u", indent+4, "",
                                 a->lhs.v.header.header_name, a->lhs.v.header.field_name,
                                 a->lhs.v.header.field->header_idx,
@@ -2476,12 +2476,12 @@ void confactions_log(const struct ConfAction *ca_list, unsigned indent)
                             variabletype_name_from_type(a->rhs.type),
                             fieldtype_name_from_type(a->rhs.value_type),
                             a->rhs.value.bitoffset, a->rhs.value.bitcount);
-                    if (a->rhs.type == CVT_FIELD) {
+                    if (a->rhs.type == CVARTYPE_FIELD) {
                         log_debug("%*s%s.%s index %u bitoffset %u bitcount %u", indent+4, "",
                                 a->rhs.v.header.header_name, a->rhs.v.header.field_name,
                                 a->rhs.v.header.field->header_idx,
                                 a->rhs.v.header.field->bitoffset, a->rhs.v.header.field->bitcount);
-                    } else if (a->rhs.type == CVT_CONST) {
+                    } else if (a->rhs.type == CVARTYPE_CONST) {
                         unsigned bytes = DIVCEIL(a->rhs.value.bitoffset + a->rhs.value.bitcount, 8);
                         unsigned char *cst = (unsigned char *)a->rhs.value.value;
                         char b_str[128];

@@ -167,7 +167,7 @@ static int open_new_ifaces_cb(const char *key, void *value, void *userdata)
 {
     (void)userdata;
     struct Interface *iface = (struct Interface *)value;
-    if (iface->state == IFS_INIT) {
+    if (iface->state == IFSTATE_INIT) {
         log_debug("opening interface %s", key);
         return iface->open(iface);
     } else {

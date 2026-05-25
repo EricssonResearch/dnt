@@ -62,7 +62,7 @@ static NotificationLevel repl_notification_pull_fn(void *self, struct JsonValue 
 
 struct PipelineList *replicate_get_pipes(struct PipelineObject *rep)
 {
-    if (rep->type == PO_REPL) {
+    if (rep->type == PIPEOBJ_REPL) {
         struct Replicate *r = (struct Replicate *) rep;
         return r->pipes;
     }
@@ -95,7 +95,7 @@ static enum ActionResult replicate_packet_passed(struct PipelineObject *rep, str
 struct PipelineObject *new_replicate(const char *name)
 {
     struct Replicate *ret = calloc_struct(Replicate);
-    ret->base.type = PO_REPL;
+    ret->base.type = PIPEOBJ_REPL;
     ret->base.name = strdup(name);
     ret->base.process_packet = replicate_packet_passed;
     ret->base.get_state = repl_get_state_json;

@@ -302,54 +302,54 @@ static void test_read_constant(void)
     // the Value normally comes from the left-hand side of the match/edit expression
     // so read_constant() can trust its bitoffset/bitcount
 
-    // FT_UNKNOWN
-    OK(read_constant(&val, PROTO_ID_ETH, FT_UNKNOWN, "0") == false, "unknown should be rejected");
+    // PFTYPE_UNKNOWN
+    OK(read_constant(&val, PROTO_ID_ETH, PFTYPE_UNKNOWN, "0") == false, "unknown should be rejected");
 
 
-    // FT_NUMBER
+    // PFTYPE_NUMBER
     val.bitoffset = 3;
     val.bitcount = 1;
-    OK(read_constant(&val, PROTO_ID_ETH, FT_NUMBER, "0") == true, "should be accepted");
+    OK(read_constant(&val, PROTO_ID_ETH, PFTYPE_NUMBER, "0") == true, "should be accepted");
     OK_FATAL(val.value != NULL, "have buffer");
     buf = (unsigned char *)val.value;
     OK(buf[0] == 0x00, "value 0x%x", buf[0]);
     free(val.value); val.value = NULL;
-    OK(read_constant(&val, PROTO_ID_ETH, FT_NUMBER, "1") == true, "should be accepted");
+    OK(read_constant(&val, PROTO_ID_ETH, PFTYPE_NUMBER, "1") == true, "should be accepted");
     OK_FATAL(val.value != NULL, "have buffer");
     buf = (unsigned char *)val.value;
     OK(buf[0] == 0x10, "value 0x%x", buf[0]);
     free(val.value); val.value = NULL;
-    OK(read_constant(&val, PROTO_ID_ETH, FT_NUMBER, "false") == true, "should be accepted");
+    OK(read_constant(&val, PROTO_ID_ETH, PFTYPE_NUMBER, "false") == true, "should be accepted");
     OK_FATAL(val.value != NULL, "have buffer");
     buf = (unsigned char *)val.value;
     OK(buf[0] == 0x00, "value 0x%x", buf[0]);
     free(val.value); val.value = NULL;
-    OK(read_constant(&val, PROTO_ID_ETH, FT_NUMBER, "true") == true, "should be accepted");
+    OK(read_constant(&val, PROTO_ID_ETH, PFTYPE_NUMBER, "true") == true, "should be accepted");
     OK_FATAL(val.value != NULL, "have buffer");
     buf = (unsigned char *)val.value;
     OK(buf[0] == 0x10, "value 0x%x", buf[0]);
     free(val.value); val.value = NULL;
-    OK(read_constant(&val, PROTO_ID_ETH, FT_NUMBER, "no") == true, "should be accepted");
+    OK(read_constant(&val, PROTO_ID_ETH, PFTYPE_NUMBER, "no") == true, "should be accepted");
     OK_FATAL(val.value != NULL, "have buffer");
     buf = (unsigned char *)val.value;
     OK(buf[0] == 0x00, "value 0x%x", buf[0]);
     free(val.value); val.value = NULL;
-    OK(read_constant(&val, PROTO_ID_ETH, FT_NUMBER, "yes") == true, "should be accepted");
+    OK(read_constant(&val, PROTO_ID_ETH, PFTYPE_NUMBER, "yes") == true, "should be accepted");
     OK_FATAL(val.value != NULL, "have buffer");
     buf = (unsigned char *)val.value;
     OK(buf[0] == 0x10, "value 0x%x", buf[0]);
     free(val.value); val.value = NULL;
-    OK(read_constant(&val, PROTO_ID_ETH, FT_NUMBER, "on") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_ETH, FT_NUMBER, "off") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_ETH, FT_NUMBER, "árvíztűrő") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_ETH, PFTYPE_NUMBER, "on") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_ETH, PFTYPE_NUMBER, "off") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_ETH, PFTYPE_NUMBER, "árvíztűrő") == false, "should be rejected");
 
     val.bitcount = 10;
-    OK(read_constant(&val, PROTO_ID_ETH, FT_NUMBER, "yes") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_ETH, FT_NUMBER, "árvíztűrő") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_ETH, FT_NUMBER, "2000") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_ETH, FT_NUMBER, "-20") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_ETH, PFTYPE_NUMBER, "yes") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_ETH, PFTYPE_NUMBER, "árvíztűrő") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_ETH, PFTYPE_NUMBER, "2000") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_ETH, PFTYPE_NUMBER, "-20") == false, "should be rejected");
 
-    OK(read_constant(&val, PROTO_ID_ETH, FT_NUMBER, "1000") == true, "should be accepted");
+    OK(read_constant(&val, PROTO_ID_ETH, PFTYPE_NUMBER, "1000") == true, "should be accepted");
     OK_FATAL(val.value != NULL, "have buffer");
     buf = (unsigned char *)val.value;
     // 1000 = 0x3e8 = 0011 1110 1000
@@ -359,7 +359,7 @@ static void test_read_constant(void)
     OK(buf[1] == 0x40, "value 0x%x", buf[1]);
     free(val.value); val.value = NULL;
 
-    OK(read_constant(&val, PROTO_ID_ETH, FT_NUMBER, "0x1f4") == true, "should be accepted");
+    OK(read_constant(&val, PROTO_ID_ETH, PFTYPE_NUMBER, "0x1f4") == true, "should be accepted");
     OK_FATAL(val.value != NULL, "have buffer");
     buf = (unsigned char *)val.value;
     // 500 = 0x1f4 = 0001 1111 0100
@@ -369,7 +369,7 @@ static void test_read_constant(void)
     OK(buf[1] == 0xa0, "value 0x%x", buf[1]);
     free(val.value); val.value = NULL;
 
-    OK(read_constant(&val, PROTO_ID_ETH, FT_NUMBER, "0764") == true, "should be accepted");
+    OK(read_constant(&val, PROTO_ID_ETH, PFTYPE_NUMBER, "0764") == true, "should be accepted");
     OK_FATAL(val.value != NULL, "have buffer");
     buf = (unsigned char *)val.value;
     // 500 = 0x1f4 = 0001 1111 0100 = octal 0764
@@ -380,10 +380,10 @@ static void test_read_constant(void)
     free(val.value); val.value = NULL;
 
 
-    // FT_TTL should accept normal numbers
+    // PFTYPE_TTL should accept normal numbers
     // doesn't verify that the given protocol has ttl
-    OK(read_constant(&val, PROTO_ID_ETH, FT_TTL, "yes") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_ETH, FT_TTL, "0x1f4") == true, "should be accepted");
+    OK(read_constant(&val, PROTO_ID_ETH, PFTYPE_TTL, "yes") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_ETH, PFTYPE_TTL, "0x1f4") == true, "should be accepted");
     OK_FATAL(val.value != NULL, "have buffer");
     buf = (unsigned char *)val.value;
     // 500 = 0x1f4 = 0001 1111 0100
@@ -394,10 +394,10 @@ static void test_read_constant(void)
     free(val.value); val.value = NULL;
 
 
-    // FT_CHECKSUM should accept normal numbers
+    // PFTYPE_CHECKSUM should accept normal numbers
     // doesn't verify that the given protocol has checksum
-    OK(read_constant(&val, PROTO_ID_ETH, FT_CHECKSUM, "yes") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_ETH, FT_CHECKSUM, "0x1f4") == true, "should be accepted");
+    OK(read_constant(&val, PROTO_ID_ETH, PFTYPE_CHECKSUM, "yes") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_ETH, PFTYPE_CHECKSUM, "0x1f4") == true, "should be accepted");
     OK_FATAL(val.value != NULL, "have buffer");
     buf = (unsigned char *)val.value;
     // 500 = 0x1f4 = 0001 1111 0100
@@ -408,9 +408,9 @@ static void test_read_constant(void)
     free(val.value); val.value = NULL;
 
 
-    // FT_TSNSEQ should accept normal numbers (with warning)
-    OK(read_constant(&val, PROTO_ID_ETH, FT_TSNSEQ, "yes") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_ETH, FT_TSNSEQ, "0x1f4") == true, "should be accepted");
+    // PFTYPE_TSNSEQ should accept normal numbers (with warning)
+    OK(read_constant(&val, PROTO_ID_ETH, PFTYPE_TSNSEQ, "yes") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_ETH, PFTYPE_TSNSEQ, "0x1f4") == true, "should be accepted");
     OK_FATAL(val.value != NULL, "have buffer");
     buf = (unsigned char *)val.value;
     // 500 = 0x1f4 = 0001 1111 0100
@@ -421,9 +421,9 @@ static void test_read_constant(void)
     free(val.value); val.value = NULL;
 
 
-    // FT_TSNTSTAMP should accept normal numbers (with warning)
-    OK(read_constant(&val, PROTO_ID_ETH, FT_TSNTSTAMP, "yes") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_ETH, FT_TSNTSTAMP, "0x1f4") == true, "should be accepted");
+    // PFTYPE_TSNTSTAMP should accept normal numbers (with warning)
+    OK(read_constant(&val, PROTO_ID_ETH, PFTYPE_TSNTSTAMP, "yes") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_ETH, PFTYPE_TSNTSTAMP, "0x1f4") == true, "should be accepted");
     OK_FATAL(val.value != NULL, "have buffer");
     buf = (unsigned char *)val.value;
     // 500 = 0x1f4 = 0001 1111 0100
@@ -434,10 +434,10 @@ static void test_read_constant(void)
     free(val.value); val.value = NULL;
 
 
-    // FT_NEXTHEADER should accept normal numbers, protocol names
+    // PFTYPE_NEXTHEADER should accept normal numbers, protocol names
     // no validation should happen on numbers, the user knows what they're doing
     // in this case ARP has no nexthdr field, and 500 is an invalid value anyway
-    OK(read_constant(&val, PROTO_ID_ARP, FT_NEXTHEADER, "0x1f4") == true, "should be accepted");
+    OK(read_constant(&val, PROTO_ID_ARP, PFTYPE_NEXTHEADER, "0x1f4") == true, "should be accepted");
     OK_FATAL(val.value != NULL, "have buffer");
     buf = (unsigned char *)val.value;
     // 500 = 0x1f4 = 0001 1111 0100
@@ -448,29 +448,29 @@ static void test_read_constant(void)
     free(val.value); val.value = NULL;
 
     // decoding uses the protocol info, so the string is validated
-    OK(read_constant(&val, PROTO_ID_ARP, FT_NEXTHEADER, "cvlan") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_NEXTHEADER, "dcw") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_ETH, FT_NEXTHEADER, "udp") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_IPv4, FT_NEXTHEADER, "rtag") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_IPv6, FT_NEXTHEADER, "svlan") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_ARP, PFTYPE_NEXTHEADER, "cvlan") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_NEXTHEADER, "dcw") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_ETH, PFTYPE_NEXTHEADER, "udp") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_IPv4, PFTYPE_NEXTHEADER, "rtag") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_IPv6, PFTYPE_NEXTHEADER, "svlan") == false, "should be rejected");
 
     val.bitoffset = 8;
     val.bitcount = 16;
-    OK(read_constant(&val, PROTO_ID_RTAG, FT_NEXTHEADER, "svlan") == true, "should be accepted");
+    OK(read_constant(&val, PROTO_ID_RTAG, PFTYPE_NEXTHEADER, "svlan") == true, "should be accepted");
     OK_FATAL(val.value != NULL, "have buffer");
     buf = (unsigned char *)val.value;
     OK(buf[0] == 0x88, "value 0x%x", buf[0]);
     OK(buf[1] == 0xa8, "value 0x%x", buf[1]);
     free(val.value); val.value = NULL;
 
-    OK(read_constant(&val, PROTO_ID_IPv4, FT_NEXTHEADER, "tcp") == true, "should be accepted");
+    OK(read_constant(&val, PROTO_ID_IPv4, PFTYPE_NEXTHEADER, "tcp") == true, "should be accepted");
     OK_FATAL(val.value != NULL, "have buffer");
     buf = (unsigned char *)val.value;
     OK(buf[0] == 0x00, "value 0x%x", buf[0]);
     OK(buf[1] == 0x06, "value 0x%x", buf[1]);
     free(val.value); val.value = NULL;
 
-    OK(read_constant(&val, PROTO_ID_IPv6, FT_NEXTHEADER, "udp") == true, "should be accepted");
+    OK(read_constant(&val, PROTO_ID_IPv6, PFTYPE_NEXTHEADER, "udp") == true, "should be accepted");
     OK_FATAL(val.value != NULL, "have buffer");
     buf = (unsigned char *)val.value;
     OK(buf[0] == 0x00, "value 0x%x", buf[0]);
@@ -478,46 +478,46 @@ static void test_read_constant(void)
     free(val.value); val.value = NULL;
 
 
-    // FT_IPV4ADDRESS
+    // PFTYPE_IPV4ADDRESS
     val.bitoffset = 8;
     val.bitcount = 32;
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_IPV4ADDRESS, "") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_IPV4ADDRESS, "árvíz") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_IPV4ADDRESS, "1") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_IPV4ADDRESS, "1.2") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_IPV4ADDRESS, "1.2.3") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_IPV4ADDRESS, "1.2.3.4") == true, "should be accepted");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_IPV4ADDRESS, "") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_IPV4ADDRESS, "árvíz") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_IPV4ADDRESS, "1") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_IPV4ADDRESS, "1.2") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_IPV4ADDRESS, "1.2.3") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_IPV4ADDRESS, "1.2.3.4") == true, "should be accepted");
     OK_FATAL(val.value != NULL, "have buffer");
     buf = (unsigned char *)val.value;
     OK(memcmp(buf, "\x01\x02\x03\x04", 4) == 0, "value %u.%u.%u.%u", buf[0], buf[1], buf[2], buf[3]);
     free(val.value); val.value = NULL;
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_IPV4ADDRESS, "1.2.3.4.5") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_IPV4ADDRESS, "1.2.3.4:5") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_IPV4ADDRESS, "1.2.3.4test") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_IPV4ADDRESS, "1.2.3.4 test") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_IPV4ADDRESS, "255.255.256.255") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_IPV4ADDRESS, "1.2.3.4/23") == true, "should be accepted");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_IPV4ADDRESS, "1.2.3.4.5") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_IPV4ADDRESS, "1.2.3.4:5") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_IPV4ADDRESS, "1.2.3.4test") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_IPV4ADDRESS, "1.2.3.4 test") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_IPV4ADDRESS, "255.255.256.255") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_IPV4ADDRESS, "1.2.3.4/23") == true, "should be accepted");
     OK_FATAL(val.value != NULL, "have buffer");
     buf = (unsigned char *)val.value;
     OK(memcmp(buf, "\x01\x02\x02\x00", 4) == 0, "value %u.%u.%u.%u", buf[0], buf[1], buf[2], buf[3]);
     OK(val.bitcount == 23, "prefix %u", val.bitcount);
     free(val.value); val.value = NULL;
     val.bitcount = 32;
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_IPV4ADDRESS, "1.2.3.4/") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_IPV4ADDRESS, "1.2.3.4/many") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_IPV4ADDRESS, "1.2.3.4/5many") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_IPV4ADDRESS, "1.2.3.4/33") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_IPV4ADDRESS, "1.2.3.4/3/more") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_IPV4ADDRESS, "1.2.3.4/") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_IPV4ADDRESS, "1.2.3.4/many") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_IPV4ADDRESS, "1.2.3.4/5many") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_IPV4ADDRESS, "1.2.3.4/33") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_IPV4ADDRESS, "1.2.3.4/3/more") == false, "should be rejected");
 
 
-    // FT_IPV6ADDRESS
+    // PFTYPE_IPV6ADDRESS
     val.bitoffset = 8;
     val.bitcount = 128;
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_IPV6ADDRESS, "") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_IPV6ADDRESS, "árvíz") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_IPV6ADDRESS, "a") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_IPV6ADDRESS, "a:b") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_IPV6ADDRESS, "a::b") == true, "should be accepted");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_IPV6ADDRESS, "") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_IPV6ADDRESS, "árvíz") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_IPV6ADDRESS, "a") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_IPV6ADDRESS, "a:b") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_IPV6ADDRESS, "a::b") == true, "should be accepted");
     OK_FATAL(val.value != NULL, "have buffer");
     buf = (unsigned char *)val.value;
     OK(memcmp(buf, "\x00\x0a\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x0b", 16) == 0,
@@ -525,12 +525,12 @@ static void test_read_constant(void)
             buf[ 0], buf[ 1], buf[ 2], buf[ 3], buf[ 4], buf[ 5], buf[ 6], buf[ 7],
             buf[ 8], buf[ 9], buf[10], buf[11], buf[12], buf[13], buf[14], buf[15]);
     free(val.value); val.value = NULL;
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_IPV6ADDRESS, "a:::b") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_IPV6ADDRESS, "a::b::c") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_IPV6ADDRESS, "[a::b]:64") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_IPV6ADDRESS, "a::btest") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_IPV6ADDRESS, "a::b test") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_IPV6ADDRESS, "0123:4567:89ab:cdef:0123:4567:89ab:cdef") == true, "should be accepted");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_IPV6ADDRESS, "a:::b") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_IPV6ADDRESS, "a::b::c") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_IPV6ADDRESS, "[a::b]:64") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_IPV6ADDRESS, "a::btest") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_IPV6ADDRESS, "a::b test") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_IPV6ADDRESS, "0123:4567:89ab:cdef:0123:4567:89ab:cdef") == true, "should be accepted");
     OK_FATAL(val.value != NULL, "have buffer");
     buf = (unsigned char *)val.value;
     OK(memcmp(buf, "\x01\x23\x45\x67\x89\xab\xcd\xef\x01\x23\x45\x67\x89\xab\xcd\xef", 16) == 0,
@@ -538,7 +538,7 @@ static void test_read_constant(void)
             buf[ 0], buf[ 1], buf[ 2], buf[ 3], buf[ 4], buf[ 5], buf[ 6], buf[ 7],
             buf[ 8], buf[ 9], buf[10], buf[11], buf[12], buf[13], buf[14], buf[15]);
     free(val.value); val.value = NULL;
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_IPV6ADDRESS, "a::b/53") == true, "should be accepted");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_IPV6ADDRESS, "a::b/53") == true, "should be accepted");
     OK_FATAL(val.value != NULL, "have buffer");
     buf = (unsigned char *)val.value;
     OK(memcmp(buf, "\x00\x0a\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 16) == 0,
@@ -548,41 +548,41 @@ static void test_read_constant(void)
     OK(val.bitcount == 53, "prefix %u", val.bitcount);
     free(val.value); val.value = NULL;
     val.bitcount = 128;
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_IPV6ADDRESS, "a::b/") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_IPV6ADDRESS, "a::b/12many") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_IPV6ADDRESS, "a::b/many") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_IPV6ADDRESS, "a::b/129") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_IPV6ADDRESS, "a::b/12/more") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_IPV6ADDRESS, "a::b/") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_IPV6ADDRESS, "a::b/12many") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_IPV6ADDRESS, "a::b/many") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_IPV6ADDRESS, "a::b/129") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_IPV6ADDRESS, "a::b/12/more") == false, "should be rejected");
 
 
-    // FT_MACADDRESS
+    // PFTYPE_MACADDRESS
     val.bitoffset = 8;
     val.bitcount = 48;
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_MACADDRESS, "") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_MACADDRESS, "árvíz") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_MACADDRESS, "1") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_MACADDRESS, "1:") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_MACADDRESS, "1::") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_MACADDRESS, "1:2:3:4:5:6") == true, "should be accepted");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_MACADDRESS, "") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_MACADDRESS, "árvíz") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_MACADDRESS, "1") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_MACADDRESS, "1:") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_MACADDRESS, "1::") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_MACADDRESS, "1:2:3:4:5:6") == true, "should be accepted");
     OK_FATAL(val.value != NULL, "have buffer");
     buf = (unsigned char *)val.value;
     OK(memcmp(buf, "\x01\x02\x03\x04\x05\x06", 6) == 0, "value %x:%x:%x:%x:%x:%x",
             buf[0], buf[1], buf[2], buf[3], buf[4], buf[5]);
     free(val.value); val.value = NULL;
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_MACADDRESS, "a:b:c:d:e:f") == true, "should be accepted");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_MACADDRESS, "a:b:c:d:e:f") == true, "should be accepted");
     OK_FATAL(val.value != NULL, "have buffer");
     buf = (unsigned char *)val.value;
     OK(memcmp(buf, "\x0a\x0b\x0c\x0d\x0e\x0f", 6) == 0, "value %x:%x:%u:%x:%x:%x",
             buf[0], buf[1], buf[2], buf[3], buf[4], buf[5]);
     free(val.value); val.value = NULL;
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_MACADDRESS, "1:2:3:4:5:6:7") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_MACADDRESS, "1:2:3:4:5:6test") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_MACADDRESS, "1:2:3:4:5:6and something") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_MACADDRESS, "1:2:3:4:5:6 test") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_MACADDRESS, "1:2:3:4:5:6:7") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_MACADDRESS, "1:2:3:4:5:6test") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_MACADDRESS, "1:2:3:4:5:6and something") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_MACADDRESS, "1:2:3:4:5:6 test") == false, "should be rejected");
     // ether_pton() only accepts the colon notation
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_MACADDRESS, "1-2-3-4-5-6") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_MACADDRESS, "1_2_3_4_5_6") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_MACADDRESS, "a:b:c:d:e:f/13") == true, "should be accepted");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_MACADDRESS, "1-2-3-4-5-6") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_MACADDRESS, "1_2_3_4_5_6") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_MACADDRESS, "a:b:c:d:e:f/13") == true, "should be accepted");
     OK_FATAL(val.value != NULL, "have buffer");
     buf = (unsigned char *)val.value;
     OK(memcmp(buf, "\x0a\x08\x00\x00\x00\x00", 6) == 0, "value %x:%x:%x:%x:%x:%x",
@@ -590,11 +590,11 @@ static void test_read_constant(void)
     OK(val.bitcount == 13, "prefix %u", val.bitcount);
     free(val.value); val.value = NULL;
     val.bitcount = 48;
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_MACADDRESS, "1:2:3:4:5:6/") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_MACADDRESS, "1:2:3:4:5:6/many") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_MACADDRESS, "1:2:3:4:5:6/7many") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_MACADDRESS, "1:2:3:4:5:6/49") == false, "should be rejected");
-    OK(read_constant(&val, PROTO_ID_MPLS, FT_MACADDRESS, "1:2:3:4:5:6/7/more") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_MACADDRESS, "1:2:3:4:5:6/") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_MACADDRESS, "1:2:3:4:5:6/many") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_MACADDRESS, "1:2:3:4:5:6/7many") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_MACADDRESS, "1:2:3:4:5:6/49") == false, "should be rejected");
+    OK(read_constant(&val, PROTO_ID_MPLS, PFTYPE_MACADDRESS, "1:2:3:4:5:6/7/more") == false, "should be rejected");
 }
 
 TEST_CASES = {

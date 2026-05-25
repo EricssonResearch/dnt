@@ -50,12 +50,12 @@ static void set_default_parameters(struct ObjectInfo *info)
 {
     info->auto_mip_level = -1;
     switch (info->type) {
-        case PO_SEQGEN:
+        case PIPEOBJ_SEQGEN:
             info->gen.use_reset_flag = false;
             info->gen.use_init_flag = false;
             info->gen.init_seq = 0x8000; // based on the old code
             break;
-        case PO_SEQREC:
+        case PIPEOBJ_SEQREC:
             info->rec.use_reset_flag = false;
             info->rec.use_init_flag = false;
             info->rec.history_length = 2;
@@ -64,12 +64,12 @@ static void set_default_parameters(struct ObjectInfo *info)
             info->rec.diag.latent_error_period = 0;
             info->rec.algo = RCVY_Vector;
             break;
-        case PO_POF:
+        case PIPEOBJ_POF:
             info->pof.max_delay_ms = 20;
             info->pof.take_any_time_ms = 2000;
             info->pof.buffer_size = 2; // = info->p.rec.history_length
             break;
-        case PO_REPL:
+        case PIPEOBJ_REPL:
             // nothing to init
             break;
     }
@@ -103,7 +103,7 @@ static bool token_cb(char *str, void *userdata)
                 return true;
             }
             switch (info->type) {
-                case PO_SEQGEN:
+                case PIPEOBJ_SEQGEN:
                     if (strcmp(key, "ResetFlag") == 0) {
                         int reset = read_boolean(val);
                         if (reset < 0) {
@@ -127,7 +127,7 @@ static bool token_cb(char *str, void *userdata)
                         THROW("invalid parameter '%s' for sequence generator", key);
                     }
                     break;
-                case PO_SEQREC:
+                case PIPEOBJ_SEQREC:
                     if (strcmp(key, "ResetFlag") == 0) {
                         int reset = read_boolean(val);
                         if (reset < 0) {
@@ -203,7 +203,7 @@ static bool token_cb(char *str, void *userdata)
                         THROW("invalid parameter '%s' for sequence recovery", key);
                     }
                     break;
-                case PO_POF:
+                case PIPEOBJ_POF:
                     if (strcmp(key, "TakeAnyTime") == 0) {
                         unsigned msec;
                         char err;
@@ -229,7 +229,7 @@ static bool token_cb(char *str, void *userdata)
                         THROW("invalid parameter '%s' for packet ordering function", key);
                     }
                     break;
-                case PO_REPL:
+                case PIPEOBJ_REPL:
                     THROW("invalid parameter '%s' for replication", key);
                     break;
             }
@@ -238,13 +238,13 @@ static bool token_cb(char *str, void *userdata)
         }
     } else {
         if (strcmp(str, "SeqGen") == 0) {
-            info->type = PO_SEQGEN;
+            info->type = PIPEOBJ_SEQGEN;
         } else if (strcmp(str, "SeqRcvy") == 0) {
-            info->type = PO_SEQREC;
+            info->type = PIPEOBJ_SEQREC;
         } else if (strcmp(str, "Pof") == 0) {
-            info->type = PO_POF;
+            info->type = PIPEOBJ_POF;
         } else if (strcmp(str, "Replicate") == 0) {
-            info->type = PO_REPL;
+            info->type = PIPEOBJ_REPL;
         } else {
             THROW("invalid type '%s'", str);
         }
@@ -270,12 +270,12 @@ static int object_cb(const char *key, void *value, void *userdata)
 
     struct PipelineObject *obj = NULL;
     switch (info.type) {
-        case PO_SEQGEN:
+        case PIPEOBJ_SEQGEN:
             obj = new_seq_gen(key, info.gen.use_reset_flag,
                     info.gen.use_init_flag,
                     info.gen.init_seq);
             break;
-        case PO_SEQREC:
+        case PIPEOBJ_SEQREC:
             obj = new_seq_rec(key, info.rec.algo,
                     info.rec.use_reset_flag,
                     info.rec.use_init_flag,
@@ -283,12 +283,12 @@ static int object_cb(const char *key, void *value, void *userdata)
                     info.rec.reset_msec,
                     &info.rec.diag);
             break;
-        case PO_POF:
+        case PIPEOBJ_POF:
             obj = new_pof(key, info.pof.max_delay_ms,
                     info.pof.take_any_time_ms,
                     info.pof.buffer_size);
             break;
-        case PO_REPL:
+        case PIPEOBJ_REPL:
             obj = new_replicate(key);
             break;
 

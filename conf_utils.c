@@ -200,9 +200,9 @@ bool read_constant(struct Value *val, enum ProtocolID proto, enum ProtocolFieldT
     val->bitoffset %= 8;
 
     switch (type) {
-        case FT_UNKNOWN:
+        case PFTYPE_UNKNOWN:
             THROW("constant cannot be unknown type");
-        case FT_NUMBER: {
+        case PFTYPE_NUMBER: {
             uint64_t num;
             if (val->bitcount == 1) {
                 int b = read_boolean(string);
@@ -229,7 +229,7 @@ bool read_constant(struct Value *val, enum ProtocolID proto, enum ProtocolFieldT
                 THROW("number doesn't fit into %u bits", val->bitcount);
             }
             return true; }
-        case FT_MACADDRESS: {
+        case PFTYPE_MACADDRESS: {
             if (val->bitoffset != 0 || val->bitcount != 6*8) {
                 THROW("bitoffset %u bitcount %u invalid for Ethernet address",
                         val->bitoffset, val->bitcount);
@@ -244,7 +244,7 @@ bool read_constant(struct Value *val, enum ProtocolID proto, enum ProtocolFieldT
             free(stringdup);
             ZERO_SUFFIX(48);
             return true; }
-        case FT_IPV4ADDRESS: {
+        case PFTYPE_IPV4ADDRESS: {
             if (val->bitoffset != 0 || val->bitcount != 4*8) {
                 THROW("bitoffset %u bitcount %u invalid for IPv4 address",
                         val->bitoffset, val->bitcount);
@@ -259,7 +259,7 @@ bool read_constant(struct Value *val, enum ProtocolID proto, enum ProtocolFieldT
             free(stringdup);
             ZERO_SUFFIX(32);
             return true; }
-        case FT_IPV6ADDRESS: {
+        case PFTYPE_IPV6ADDRESS: {
             if (val->bitoffset != 0 || val->bitcount != 16*8) {
                 THROW("bitoffset %u bitcount %u invalid for IPv6 address",
                         val->bitoffset, val->bitcount);
@@ -274,14 +274,14 @@ bool read_constant(struct Value *val, enum ProtocolID proto, enum ProtocolFieldT
             free(stringdup);
             ZERO_SUFFIX(128);
             return true; }
-        case FT_TSNSEQ:
-        case FT_SRV6SEQ:
+        case PFTYPE_TSNSEQ:
+        case PFTYPE_SRV6SEQ:
             log_warning("It's not a good practice to set sequence number from constant");
-            return read_constant(val, proto, FT_NUMBER, string);
-        case FT_TSNTSTAMP:
+            return read_constant(val, proto, PFTYPE_NUMBER, string);
+        case PFTYPE_TSNTSTAMP:
             log_warning("It's not a good practice to set timestamp from constant");
-            return read_constant(val, proto, FT_NUMBER, string);
-        case FT_NEXTHEADER: {
+            return read_constant(val, proto, PFTYPE_NUMBER, string);
+        case PFTYPE_NEXTHEADER: {
             if (protocol_type_valid(string)) {
                 const struct Protocol *pr = protocol_from_id(proto);
                 if (pr->get_nexthdr) {
@@ -304,12 +304,12 @@ bool read_constant(struct Value *val, enum ProtocolID proto, enum ProtocolFieldT
                             protocol_type_from_id(proto));
                 }
             } else {
-                return read_constant(val, proto, FT_NUMBER, string);
+                return read_constant(val, proto, PFTYPE_NUMBER, string);
             }
         }
-        case FT_TTL:
-        case FT_CHECKSUM:
-            return read_constant(val, proto, FT_NUMBER, string);
+        case PFTYPE_TTL:
+        case PFTYPE_CHECKSUM:
+            return read_constant(val, proto, PFTYPE_NUMBER, string);
     }
     return false;
 #undef THROW

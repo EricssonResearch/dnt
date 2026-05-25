@@ -739,7 +739,7 @@ struct PipelineObject *new_seq_rec(const char *name, enum SequenceRecoveryAlgori
 {
     struct SequenceRecovery *ret = calloc_struct(SequenceRecovery);
 
-    ret->base.type = PO_SEQREC;
+    ret->base.type = PIPEOBJ_SEQREC;
     ret->base.name = strdup(name);
     ret->base.get_state = srec_get_state_json;
     ret->base.process_packet = seq_recovery;

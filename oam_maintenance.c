@@ -941,7 +941,7 @@ struct OAM_MaintenancePoint *oam_new_maintenance_point(const char *stream_name, 
 
         set_mp_address(mp, addr);
 
-        if (mp->object && mp->object->type == PO_REPL) {
+        if (mp->object && mp->object->type == PIPEOBJ_REPL) {
             if (oam_is_automip_name(mp_name, 1)) {
                 if (mp->injections && mp->injections->pipe->mask) {
                     mp_initiate_mask_signalling(mp, NULL);
@@ -1006,13 +1006,13 @@ struct OAM_MaintenancePoint *oam_new_maintenance_point(const char *stream_name, 
     mp->object = obj;
     if (obj) {
         pipeline_object_ref(obj);
-        if (obj->type == PO_SEQREC) {
+        if (obj->type == PIPEOBJ_SEQREC) {
             if (oam_is_automip_name(mp_name, 1)) {
                 seq_rec_register_postAutoMIP(obj, mp_name);
             } else if (oam_is_automip_name(mp_name, -1)) {
                 seq_rec_register_preAutoMIP(obj, mp_name);
             }
-        } else if (obj->type == PO_REPL) {
+        } else if (obj->type == PIPEOBJ_REPL) {
             if (oam_is_automip_name(mp_name, 1)) {
                 // we never get here, because first the reception point is created without pipe...
                 if (pipe && pipe->mask) {
@@ -1498,7 +1498,7 @@ void mp_receive_mask_signal(struct OAM_MaintenancePoint *mp)
     log_packet("%s received mask signal", mp->name);
 
     if (mp->object) {
-        if (mp->object->type == PO_SEQREC) {
+        if (mp->object->type == PIPEOBJ_SEQREC) {
             if (mp->mask_recv) {
                 // notify the thread so it doesn't timeout
                 // the pointer value doesn't matter just be non-null
@@ -1529,7 +1529,7 @@ void mp_receive_unmask_signal(struct OAM_MaintenancePoint *mp)
     log_packet("%s received unmask signal", mp->name);
 
     if (mp->object) {
-        if (mp->object->type == PO_SEQREC) {
+        if (mp->object->type == PIPEOBJ_SEQREC) {
             if (mp->mask_recv) {
                 if (seq_rec_path_unmasked(mp->object, mp->name)) {
                     mp->mask_recv = thread_stop(mp->mask_recv);

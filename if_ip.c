@@ -71,7 +71,7 @@ static void *ip_recv_loop(void *arg)
 {
     struct Interface *iface = (struct Interface *)arg;
 
-    while (iface->state != IFS_SHUTDOWN)
+    while (iface->state != IFSTATE_SHUTDOWN)
         ip_recv(iface);
 
     return NULL;
@@ -81,7 +81,7 @@ static bool ip_send(struct Interface *iface, struct Packet *p)
 {
     struct IpIfData *iid = (struct IpIfData *)iface->iface_private;
 
-    if (iface->state == IFS_INIT) {
+    if (iface->state == IFSTATE_INIT) {
         log_error("ip %s send: not opened yet", iface->name);
         return false;
     }
@@ -119,7 +119,7 @@ static bool ip_send(struct Interface *iface, struct Packet *p)
 static bool ip_open(struct Interface *iface)
 {
     struct IpIfData *iid = (struct IpIfData *)iface->iface_private;
-    if (iface->state != IFS_INIT) {
+    if (iface->state != IFSTATE_INIT) {
         log_error("open ip interface %s: already opened", iface->name);
         return false;
     }
@@ -291,7 +291,7 @@ static bool ip_open(struct Interface *iface)
     iid->sock6 = sock6;
     iface->dropstat_cntr = 0;
     iface->dropstat_last_warn = 0;
-    iface->state = IFS_OPEN;
+    iface->state = IFSTATE_OPEN;
     log_info("IP interface %s on device %s", iface->name, iface->ifname);
 
     return true;
@@ -335,14 +335,14 @@ static value_producer *ip_get_property_reader(const struct Interface *iface, con
     //      problem: we are between init and open
 
     if (strcmp(property, "srcip") == 0) {
-        if (target_type == FT_IPV4ADDRESS) {
+        if (target_type == PFTYPE_IPV4ADDRESS) {
             if ((target->bitoffset % 8) || (target->bitcount != 4*8)) {
                 log_error("ip_get_property_reader 'srcip' target position %u %u invalid",
                         target->bitoffset, target->bitcount);
                 return NULL;
             }
             return ip_ipv4_producer;
-        } else if (target_type == FT_IPV6ADDRESS) {
+        } else if (target_type == PFTYPE_IPV6ADDRESS) {
             if ((target->bitoffset % 8) || (target->bitcount != 16*8)) {
                 log_error("ip_get_property_reader 'srcip' target position %u %u invalid",
                         target->bitoffset, target->bitcount);

@@ -60,6 +60,6 @@ void dump_packet(char *buffer, int n);
     iface->name = strdup(name);                         \
     iface->reference_count = 1;                         \
     iface->type = type_;                                \
-    iface->state = IFS_INIT
+    iface->state = IFSTATE_INIT
 
 #endif // R2_IF_UTILS_H
