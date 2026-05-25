@@ -112,36 +112,36 @@ testcases = [
     ('n1', 'list', 0,
 """
 Available MEP Start points:
-s1n1-e3-12 in tx112 type MEP-Start level 3 TSN (pipe tx112 idx 0)
-s1n1-e4-01 in s1 type MEP-Start level 4 TSN (pipe s1 idx 5)
-s2n1-i5-21 in s2_m1 type MIP level 5 TSN (pipe s2_m1 idx 1)
-s2n1-i5-31 in s2_m2 type MIP level 5 TSN (pipe s2_m2 idx 1)
-s3n1-e4-01 in s3 type MEP-Start level 4 TSN (pipe s3 idx 6)
+s1n1-e3-12 in tx112 type MEP-Start level 3 TSN (pipe tx112 idx 0 DMAC from Default VLAN from Match)
+s1n1-e4-01 in s1 type MEP-Start level 4 TSN (pipe s1 idx 5 DMAC from Default VLAN from Match)
+s2n1-i5-21 in s2_m1 type MIP level 5 TSN (pipe s2_m1 idx 1 DMAC from Default VLAN from Match)
+s2n1-i5-31 in s2_m2 type MIP level 5 TSN (pipe s2_m2 idx 1 DMAC from Default VLAN from Match)
+s3n1-e4-01 in s3 type MEP-Start level 4 TSN (pipe s3 idx 6 DMAC from Default VLAN from Edit before MP)
 """),
     ('n2', 'list', 0,
 """
 Available MEP Start points:
-s1n2-i3-12 in s1_rx12 type MIP level 3 TSN (pipe s1_rx12 idx 1)
-s2n2-i5-21 in s2_rx42 type MIP level 5 TSN (pipe s2_rx42 idx 1)
+s1n2-i3-12 in s1_rx12 type MIP level 3 TSN (pipe s1_rx12 idx 1 DMAC from Default VLAN from Match)
+s2n2-i5-21 in s2_rx42 type MIP level 5 TSN (pipe s2_rx42 idx 1 DMAC from Default VLAN from Match)
 """),
     ('n3', 'list', 0,
 """
 Available MEP Start points:
-s1n3-i4-13 in rx113 type MIP level 4 TSN (pipe rx113 idx 1)
-s1n3-i4-23 in rx123 type MIP level 4 TSN (pipe rx123 idx 2)
-s1n3-i4-34 in s1rx_cont type MIP level 4 TSN (pipe rx123 idx 6)
-s2n3-i5-31 in rx243 type MIP level 5 TSN (pipe rx243 idx 1)
-s3n3-e1-32 in tx332 type MEP-Start level 1 TSN (pipe tx332 idx 0)
-s3n3-i4-13 in rx313 type MIP level 4 TSN (pipe rx313 idx 1)
+s1n3-i4-13 in rx113 type MIP level 4 TSN (pipe rx113 idx 1 DMAC from Default VLAN from Match)
+s1n3-i4-23 in rx123 type MIP level 4 TSN (pipe rx123 idx 2 DMAC from Default VLAN from Match)
+s1n3-i4-34 in s1rx_cont type MIP level 4 TSN (pipe rx123 idx 6 DMAC from Default VLAN from Match)
+s2n3-i5-31 in rx243 type MIP level 5 TSN (pipe rx243 idx 1 DMAC from Default VLAN from Match)
+s3n3-e1-32 in tx332 type MEP-Start level 1 TSN (pipe tx332 idx 0 DMAC from Default VLAN from Match)
+s3n3-i4-13 in rx313 type MIP level 4 TSN (pipe rx313 idx 1 DMAC from Default VLAN from Match)
 """),
     ('n4', 'list', 0,
 """
 Available MEP Start points:
-s1n4-i4-24 in rx124 type MIP level 4 TSN (pipe rx124 idx 2)
-s1n4-i4-34 in rx134 type MIP level 4 TSN (pipe rx134 idx 1)
-s2n4-e5-04 in s2 type MEP-Start level 5 TSN (pipe s2 idx 5)
-s3n4-i4-24 in rx324 type MIP level 4 TSN (pipe rx324 idx 2)
-s3n4-i4-34 in rx334 type MIP level 4 TSN (pipe rx334 idx 1)
+s1n4-i4-24 in rx124 type MIP level 4 TSN (pipe rx124 idx 2 DMAC from Default VLAN from Match)
+s1n4-i4-34 in rx134 type MIP level 4 TSN (pipe rx134 idx 1 DMAC from Default VLAN from Match)
+s2n4-e5-04 in s2 type MEP-Start level 5 TSN (pipe s2 idx 5 DMAC from Default VLAN from Match)
+s3n4-i4-24 in rx324 type MIP level 4 TSN (pipe rx324 idx 2 DMAC from Default VLAN from Match)
+s3n4-i4-34 in rx334 type MIP level 4 TSN (pipe rx334 idx 1 DMAC from Default VLAN from Match)
 """),
     ('n1', 'returns', 0,
 """
@@ -390,110 +390,108 @@ Stream s3 sessions:
 """),
 ]
 
-#TODO also check that they have the correct address
 def auto_mip_test():
     verdict = True
     print("Test TSN OAM automatic MIP configuration", end=" ")
     exec_bg("../r2dtwo oam_tsn/autconfig/auto.ini -v ALL:NONE")
     time.sleep(1)
     expected_list = """Available MEP Start points:
-o_Eafter_after2_L4_pre-Eaa in Eafter_after2 type MIP level 4 TSN (pipe Eafter_after2 idx 2)
-o_Eafter_after3_L4_pre-Eaa in Eafter_after3 type MIP level 4 TSN (pipe Eafter_after3 idx 2)
-o_Eafter_after_L4_post-Eaa in Eafter_after type MIP level 4 TSN (pipe Eafter_after3 idx 5)
-o_Eafter_before2_L4_pre-Eab in Eafter_before2 type MIP level 4 TSN (pipe Eafter_before2 idx 3)
-o_Eafter_before3_L4_pre-Eab in Eafter_before3 type MIP level 4 TSN (pipe Eafter_before3 idx 3)
-o_Eafter_before_L4_post-Eab in Eafter_before type MIP level 4 TSN (pipe Eafter_before3 idx 6)
-o_Eafter_match2_L4_pre-Eam in Eafter_match2 type MIP level 4 TSN (pipe Eafter_match2 idx 2)
-o_Eafter_match3_L4_pre-Eam in Eafter_match3 type MIP level 4 TSN (pipe Eafter_match3 idx 2)
-o_Eafter_match_L4_post-Eam in Eafter_match type MIP level 4 TSN (pipe Eafter_match3 idx 5)
-o_Eafter_missing2_L4_pre-Eax in Eafter_missing2 type MIP level 4 TSN (pipe Eafter_missing2 idx 2) CAN'T SEND
-o_Eafter_missing3_L4_pre-Eax in Eafter_missing3 type MIP level 4 TSN (pipe Eafter_missing3 idx 2) CAN'T SEND
-o_Eafter_missing_L4_post-Eax in Eafter_missing type MIP level 4 TSN (pipe Eafter_missing3 idx 5) CAN'T SEND
-o_Ebefore_after2_L4_pre-Eba in Ebefore_after2 type MIP level 4 TSN (pipe Ebefore_after2 idx 3)
-o_Ebefore_after3_L4_pre-Eba in Ebefore_after3 type MIP level 4 TSN (pipe Ebefore_after3 idx 3)
-o_Ebefore_after_L4_post-Eba in Ebefore_after type MIP level 4 TSN (pipe Ebefore_after3 idx 6)
-o_Ebefore_before2_L4_pre-Ebb in Ebefore_before2 type MIP level 4 TSN (pipe Ebefore_before2 idx 3)
-o_Ebefore_before3_L4_pre-Ebb in Ebefore_before3 type MIP level 4 TSN (pipe Ebefore_before3 idx 3)
-o_Ebefore_before_L4_post-Ebb in Ebefore_before type MIP level 4 TSN (pipe Ebefore_before3 idx 6)
-o_Ebefore_match2_L4_pre-Ebm in Ebefore_match2 type MIP level 4 TSN (pipe Ebefore_match2 idx 3)
-o_Ebefore_match3_L4_pre-Ebm in Ebefore_match3 type MIP level 4 TSN (pipe Ebefore_match3 idx 3)
-o_Ebefore_match_L4_post-Ebm in Ebefore_match type MIP level 4 TSN (pipe Ebefore_match3 idx 6)
-o_Ebefore_missing2_L4_pre-Ebx in Ebefore_missing2 type MIP level 4 TSN (pipe Ebefore_missing2 idx 3) CAN'T SEND
-o_Ebefore_missing3_L4_pre-Ebx in Ebefore_missing3 type MIP level 4 TSN (pipe Ebefore_missing3 idx 3) CAN'T SEND
-o_Ebefore_missing_L4_post-Ebx in Ebefore_missing type MIP level 4 TSN (pipe Ebefore_missing3 idx 6) CAN'T SEND
-o_Ematch_after2_L4_pre-Ema in Ematch_after2 type MIP level 4 TSN (pipe Ematch_after2 idx 2)
-o_Ematch_after3_L4_pre-Ema in Ematch_after3 type MIP level 4 TSN (pipe Ematch_after3 idx 2)
-o_Ematch_after_L4_post-Ema in Ematch_after type MIP level 4 TSN (pipe Ematch_after3 idx 5)
-o_Ematch_before2_L4_pre-Emb in Ematch_before2 type MIP level 4 TSN (pipe Ematch_before2 idx 3)
-o_Ematch_before3_L4_pre-Emb in Ematch_before3 type MIP level 4 TSN (pipe Ematch_before3 idx 3)
-o_Ematch_before_L4_post-Emb in Ematch_before type MIP level 4 TSN (pipe Ematch_before3 idx 6)
-o_Ematch_match2_L4_pre-Emm in Ematch_match2 type MIP level 4 TSN (pipe Ematch_match2 idx 2)
-o_Ematch_match3_L4_pre-Emm in Ematch_match3 type MIP level 4 TSN (pipe Ematch_match3 idx 2)
-o_Ematch_match_L4_post-Emm in Ematch_match type MIP level 4 TSN (pipe Ematch_match3 idx 5)
-o_Ematch_missing2_L4_pre-Ema in Ematch_missing2 type MIP level 4 TSN (pipe Ematch_missing2 idx 2) CAN'T SEND
-o_Ematch_missing3_L4_pre-Ema in Ematch_missing3 type MIP level 4 TSN (pipe Ematch_missing3 idx 2) CAN'T SEND
-o_Ematch_missing_L4_post-Ema in Ematch_missing type MIP level 4 TSN (pipe Ematch_missing3 idx 5) CAN'T SEND
-o_Emissing_after2_L4_pre-Exa in Emissing_after2 type MIP level 4 TSN (pipe Emissing_after2 idx 2)
-o_Emissing_after3_L4_pre-Exa in Emissing_after3 type MIP level 4 TSN (pipe Emissing_after3 idx 2)
-o_Emissing_after_L4_post-Exa in Emissing_after type MIP level 4 TSN (pipe Emissing_after3 idx 5)
-o_Emissing_before2_L4_pre-Exb in Emissing_before2 type MIP level 4 TSN (pipe Emissing_before2 idx 3)
-o_Emissing_before3_L4_pre-Exb in Emissing_before3 type MIP level 4 TSN (pipe Emissing_before3 idx 3)
-o_Emissing_before_L4_post-Exb in Emissing_before type MIP level 4 TSN (pipe Emissing_before3 idx 6)
-o_Emissing_match2_L4_pre-Exm in Emissing_match2 type MIP level 4 TSN (pipe Emissing_match2 idx 2)
-o_Emissing_match3_L4_pre-Exm in Emissing_match3 type MIP level 4 TSN (pipe Emissing_match3 idx 2)
-o_Emissing_match_L4_post-Exm in Emissing_match type MIP level 4 TSN (pipe Emissing_match3 idx 5)
-o_Emissing_missing2_L4_pre-Exx in Emissing_missing2 type MIP level 4 TSN (pipe Emissing_missing2 idx 2) CAN'T SEND
-o_Emissing_missing3_L4_pre-Exx in Emissing_missing3 type MIP level 4 TSN (pipe Emissing_missing3 idx 2) CAN'T SEND
-o_Emissing_missing_L4_post-Exx in Emissing_missing type MIP level 4 TSN (pipe Emissing_missing3 idx 5) CAN'T SEND
-o_Rafter_after_L3_pre-Raa in Rafter_after type MIP level 3 TSN (pipe Rafter_after idx 2)
-o_Rafter_before_L3_pre-Rab in Rafter_before type MIP level 3 TSN (pipe Rafter_before idx 3)
-o_Rafter_match_L3_pre-Ram in Rafter_match type MIP level 3 TSN (pipe Rafter_match idx 2)
-o_Rafter_missing_L3_pre-Rax in Rafter_missing type MIP level 3 TSN (pipe Rafter_missing idx 2) CAN'T SEND
-o_Rbefore_after_L3_pre-Rba in Rbefore_after type MIP level 3 TSN (pipe Rbefore_after idx 3)
-o_Rbefore_before_L3_pre-Rbb in Rbefore_before type MIP level 3 TSN (pipe Rbefore_before idx 3)
-o_Rbefore_match_L3_pre-Rbm in Rbefore_match type MIP level 3 TSN (pipe Rbefore_match idx 3)
-o_Rbefore_missing_L3_pre-Rbx in Rbefore_missing type MIP level 3 TSN (pipe Rbefore_missing idx 3) CAN'T SEND
-o_Rmatch_after_L3_pre-Rma in Rmatch_after type MIP level 3 TSN (pipe Rmatch_after idx 2)
-o_Rmatch_before_L3_pre-Rmb in Rmatch_before type MIP level 3 TSN (pipe Rmatch_before idx 3)
-o_Rmatch_match_L3_pre-Rmm in Rmatch_match type MIP level 3 TSN (pipe Rmatch_match idx 2)
-o_Rmatch_missing_L3_pre-Rmx in Rmatch_missing type MIP level 3 TSN (pipe Rmatch_missing idx 2) CAN'T SEND
-o_Rmissing_after_L3_pre-Rxa in Rmissing_after type MIP level 3 TSN (pipe Rmissing_after idx 2)
-o_Rmissing_before_L3_pre-Rxb in Rmissing_before type MIP level 3 TSN (pipe Rmissing_before idx 3)
-o_Rmissing_match_L3_pre-Rxm in Rmissing_match type MIP level 3 TSN (pipe Rmissing_match idx 2)
-o_Rmissing_missing_L3_pre-Rxx in Rmissing_missing type MIP level 3 TSN (pipe Rmissing_missing idx 2) CAN'T SEND
-o_repl_aa1_L3_post-Raa in repl_aa1 type MIP level 3 TSN (pipe repl_aa1 idx 1)
-o_repl_aa2_L3_post-Raa in repl_aa2 type MIP level 3 TSN (pipe repl_aa2 idx 1)
-o_repl_ab1_L3_post-Rab in repl_ab1 type MIP level 3 TSN (pipe repl_ab1 idx 1)
-o_repl_ab2_L3_post-Rab in repl_ab2 type MIP level 3 TSN (pipe repl_ab2 idx 1)
-o_repl_am1_L3_post-Ram in repl_am1 type MIP level 3 TSN (pipe repl_am1 idx 1)
-o_repl_am2_L3_post-Ram in repl_am2 type MIP level 3 TSN (pipe repl_am2 idx 1)
-o_repl_ax1_L3_post-Rax in repl_ax1 type MIP level 3 TSN (pipe repl_ax1 idx 1) CAN'T SEND
-o_repl_ax2_L3_post-Rax in repl_ax2 type MIP level 3 TSN (pipe repl_ax2 idx 1) CAN'T SEND
-o_repl_ba1_L3_post-Rba in repl_ba1 type MIP level 3 TSN (pipe repl_ba1 idx 1)
-o_repl_ba2_L3_post-Rba in repl_ba2 type MIP level 3 TSN (pipe repl_ba2 idx 1)
-o_repl_bb1_L3_post-Rbb in repl_bb1 type MIP level 3 TSN (pipe repl_bb1 idx 1)
-o_repl_bb2_L3_post-Rbb in repl_bb2 type MIP level 3 TSN (pipe repl_bb2 idx 1)
-o_repl_bm1_L3_post-Rbm in repl_bm1 type MIP level 3 TSN (pipe repl_bm1 idx 1)
-o_repl_bm2_L3_post-Rbm in repl_bm2 type MIP level 3 TSN (pipe repl_bm2 idx 1)
-o_repl_bx1_L3_post-Rbx in repl_bx1 type MIP level 3 TSN (pipe repl_bx1 idx 1) CAN'T SEND
-o_repl_bx2_L3_post-Rbx in repl_bx2 type MIP level 3 TSN (pipe repl_bx2 idx 1) CAN'T SEND
-o_repl_ma1_L3_post-Rma in repl_ma1 type MIP level 3 TSN (pipe repl_ma1 idx 1)
-o_repl_ma2_L3_post-Rma in repl_ma2 type MIP level 3 TSN (pipe repl_ma2 idx 1)
-o_repl_mb1_L3_post-Rmb in repl_mb1 type MIP level 3 TSN (pipe repl_mb1 idx 1)
-o_repl_mb2_L3_post-Rmb in repl_mb2 type MIP level 3 TSN (pipe repl_mb2 idx 1)
-o_repl_mm1_L3_post-Rmm in repl_mm1 type MIP level 3 TSN (pipe repl_mm1 idx 1)
-o_repl_mm2_L3_post-Rmm in repl_mm2 type MIP level 3 TSN (pipe repl_mm2 idx 1)
-o_repl_mx1_L3_post-Rmx in repl_mx1 type MIP level 3 TSN (pipe repl_mx1 idx 1) CAN'T SEND
-o_repl_mx2_L3_post-Rmx in repl_mx2 type MIP level 3 TSN (pipe repl_mx2 idx 1) CAN'T SEND
-o_repl_xa1_L3_post-Rxa in repl_xa1 type MIP level 3 TSN (pipe repl_xa1 idx 1)
-o_repl_xa2_L3_post-Rxa in repl_xa2 type MIP level 3 TSN (pipe repl_xa2 idx 1)
-o_repl_xb1_L3_post-Rxb in repl_xb1 type MIP level 3 TSN (pipe repl_xb1 idx 1)
-o_repl_xb2_L3_post-Rxb in repl_xb2 type MIP level 3 TSN (pipe repl_xb2 idx 1)
-o_repl_xm1_L3_post-Rxm in repl_xm1 type MIP level 3 TSN (pipe repl_xm1 idx 1)
-o_repl_xm2_L3_post-Rxm in repl_xm2 type MIP level 3 TSN (pipe repl_xm2 idx 1)
-o_repl_xx1_L3_post-Rxx in repl_xx1 type MIP level 3 TSN (pipe repl_xx1 idx 1) CAN'T SEND
-o_repl_xx2_L3_post-Rxx in repl_xx2 type MIP level 3 TSN (pipe repl_xx2 idx 1) CAN'T SEND
-
+o_Eafter_after2_L4_pre-Eaa in Eafter_after2 type MIP level 4 TSN (pipe Eafter_after2 idx 2 DMAC from Edit after MP VLAN from Edit after MP)
+o_Eafter_after3_L4_pre-Eaa in Eafter_after3 type MIP level 4 TSN (pipe Eafter_after3 idx 2 DMAC from Edit after MP VLAN from Edit after MP)
+o_Eafter_after_L4_post-Eaa in Eafter_after type MIP level 4 TSN (pipe Eafter_after3 idx 5 DMAC from Edit after MP VLAN from Edit after MP)
+o_Eafter_before2_L4_pre-Eab in Eafter_before2 type MIP level 4 TSN (pipe Eafter_before2 idx 3 DMAC from Edit after MP VLAN from Edit before MP)
+o_Eafter_before3_L4_pre-Eab in Eafter_before3 type MIP level 4 TSN (pipe Eafter_before3 idx 3 DMAC from Edit after MP VLAN from Edit before MP)
+o_Eafter_before_L4_post-Eab in Eafter_before type MIP level 4 TSN (pipe Eafter_before3 idx 6 DMAC from Edit after MP VLAN from Edit before MP)
+o_Eafter_match2_L4_pre-Eam in Eafter_match2 type MIP level 4 TSN (pipe Eafter_match2 idx 2 DMAC from Edit after MP VLAN from Match)
+o_Eafter_match3_L4_pre-Eam in Eafter_match3 type MIP level 4 TSN (pipe Eafter_match3 idx 2 DMAC from Edit after MP VLAN from Match)
+o_Eafter_match_L4_post-Eam in Eafter_match type MIP level 4 TSN (pipe Eafter_match3 idx 5 DMAC from Edit after MP VLAN from Match)
+o_Eafter_missing2_L4_pre-Eax in Eafter_missing2 type MIP level 4 TSN (pipe Eafter_missing2 idx 2 CAN'T SEND)
+o_Eafter_missing3_L4_pre-Eax in Eafter_missing3 type MIP level 4 TSN (pipe Eafter_missing3 idx 2 CAN'T SEND)
+o_Eafter_missing_L4_post-Eax in Eafter_missing type MIP level 4 TSN (pipe Eafter_missing3 idx 5 CAN'T SEND)
+o_Ebefore_after2_L4_pre-Eba in Ebefore_after2 type MIP level 4 TSN (pipe Ebefore_after2 idx 3 DMAC from Edit before MP VLAN from Edit after MP)
+o_Ebefore_after3_L4_pre-Eba in Ebefore_after3 type MIP level 4 TSN (pipe Ebefore_after3 idx 3 DMAC from Edit before MP VLAN from Edit after MP)
+o_Ebefore_after_L4_post-Eba in Ebefore_after type MIP level 4 TSN (pipe Ebefore_after3 idx 6 DMAC from Edit before MP VLAN from Edit after MP)
+o_Ebefore_before2_L4_pre-Ebb in Ebefore_before2 type MIP level 4 TSN (pipe Ebefore_before2 idx 3 DMAC from Edit before MP VLAN from Edit before MP)
+o_Ebefore_before3_L4_pre-Ebb in Ebefore_before3 type MIP level 4 TSN (pipe Ebefore_before3 idx 3 DMAC from Edit before MP VLAN from Edit before MP)
+o_Ebefore_before_L4_post-Ebb in Ebefore_before type MIP level 4 TSN (pipe Ebefore_before3 idx 6 DMAC from Edit before MP VLAN from Edit before MP)
+o_Ebefore_match2_L4_pre-Ebm in Ebefore_match2 type MIP level 4 TSN (pipe Ebefore_match2 idx 3 DMAC from Edit before MP VLAN from Match)
+o_Ebefore_match3_L4_pre-Ebm in Ebefore_match3 type MIP level 4 TSN (pipe Ebefore_match3 idx 3 DMAC from Edit before MP VLAN from Match)
+o_Ebefore_match_L4_post-Ebm in Ebefore_match type MIP level 4 TSN (pipe Ebefore_match3 idx 6 DMAC from Edit before MP VLAN from Match)
+o_Ebefore_missing2_L4_pre-Ebx in Ebefore_missing2 type MIP level 4 TSN (pipe Ebefore_missing2 idx 3 CAN'T SEND)
+o_Ebefore_missing3_L4_pre-Ebx in Ebefore_missing3 type MIP level 4 TSN (pipe Ebefore_missing3 idx 3 CAN'T SEND)
+o_Ebefore_missing_L4_post-Ebx in Ebefore_missing type MIP level 4 TSN (pipe Ebefore_missing3 idx 6 CAN'T SEND)
+o_Ematch_after2_L4_pre-Ema in Ematch_after2 type MIP level 4 TSN (pipe Ematch_after2 idx 2 DMAC from Match VLAN from Edit after MP)
+o_Ematch_after3_L4_pre-Ema in Ematch_after3 type MIP level 4 TSN (pipe Ematch_after3 idx 2 DMAC from Match VLAN from Edit after MP)
+o_Ematch_after_L4_post-Ema in Ematch_after type MIP level 4 TSN (pipe Ematch_after3 idx 5 DMAC from Match VLAN from Edit after MP)
+o_Ematch_before2_L4_pre-Emb in Ematch_before2 type MIP level 4 TSN (pipe Ematch_before2 idx 3 DMAC from Match VLAN from Edit before MP)
+o_Ematch_before3_L4_pre-Emb in Ematch_before3 type MIP level 4 TSN (pipe Ematch_before3 idx 3 DMAC from Match VLAN from Edit before MP)
+o_Ematch_before_L4_post-Emb in Ematch_before type MIP level 4 TSN (pipe Ematch_before3 idx 6 DMAC from Match VLAN from Edit before MP)
+o_Ematch_match2_L4_pre-Emm in Ematch_match2 type MIP level 4 TSN (pipe Ematch_match2 idx 2 DMAC from Match VLAN from Match)
+o_Ematch_match3_L4_pre-Emm in Ematch_match3 type MIP level 4 TSN (pipe Ematch_match3 idx 2 DMAC from Match VLAN from Match)
+o_Ematch_match_L4_post-Emm in Ematch_match type MIP level 4 TSN (pipe Ematch_match3 idx 5 DMAC from Match VLAN from Match)
+o_Ematch_missing2_L4_pre-Ema in Ematch_missing2 type MIP level 4 TSN (pipe Ematch_missing2 idx 2 CAN'T SEND)
+o_Ematch_missing3_L4_pre-Ema in Ematch_missing3 type MIP level 4 TSN (pipe Ematch_missing3 idx 2 CAN'T SEND)
+o_Ematch_missing_L4_post-Ema in Ematch_missing type MIP level 4 TSN (pipe Ematch_missing3 idx 5 CAN'T SEND)
+o_Emissing_after2_L4_pre-Exa in Emissing_after2 type MIP level 4 TSN (pipe Emissing_after2 idx 2 DMAC from Default VLAN from Edit after MP)
+o_Emissing_after3_L4_pre-Exa in Emissing_after3 type MIP level 4 TSN (pipe Emissing_after3 idx 2 DMAC from Default VLAN from Edit after MP)
+o_Emissing_after_L4_post-Exa in Emissing_after type MIP level 4 TSN (pipe Emissing_after3 idx 5 DMAC from Default VLAN from Edit after MP)
+o_Emissing_before2_L4_pre-Exb in Emissing_before2 type MIP level 4 TSN (pipe Emissing_before2 idx 3 DMAC from Default VLAN from Edit before MP)
+o_Emissing_before3_L4_pre-Exb in Emissing_before3 type MIP level 4 TSN (pipe Emissing_before3 idx 3 DMAC from Default VLAN from Edit before MP)
+o_Emissing_before_L4_post-Exb in Emissing_before type MIP level 4 TSN (pipe Emissing_before3 idx 6 DMAC from Default VLAN from Edit before MP)
+o_Emissing_match2_L4_pre-Exm in Emissing_match2 type MIP level 4 TSN (pipe Emissing_match2 idx 2 DMAC from Default VLAN from Match)
+o_Emissing_match3_L4_pre-Exm in Emissing_match3 type MIP level 4 TSN (pipe Emissing_match3 idx 2 DMAC from Default VLAN from Match)
+o_Emissing_match_L4_post-Exm in Emissing_match type MIP level 4 TSN (pipe Emissing_match3 idx 5 DMAC from Default VLAN from Match)
+o_Emissing_missing2_L4_pre-Exx in Emissing_missing2 type MIP level 4 TSN (pipe Emissing_missing2 idx 2 CAN'T SEND)
+o_Emissing_missing3_L4_pre-Exx in Emissing_missing3 type MIP level 4 TSN (pipe Emissing_missing3 idx 2 CAN'T SEND)
+o_Emissing_missing_L4_post-Exx in Emissing_missing type MIP level 4 TSN (pipe Emissing_missing3 idx 5 CAN'T SEND)
+o_Rafter_after_L3_pre-Raa in Rafter_after type MIP level 3 TSN (pipe Rafter_after idx 2 DMAC from Edit after MP VLAN from Edit after MP)
+o_Rafter_before_L3_pre-Rab in Rafter_before type MIP level 3 TSN (pipe Rafter_before idx 3 DMAC from Edit after MP VLAN from Edit before MP)
+o_Rafter_match_L3_pre-Ram in Rafter_match type MIP level 3 TSN (pipe Rafter_match idx 2 DMAC from Edit after MP VLAN from Match)
+o_Rafter_missing_L3_pre-Rax in Rafter_missing type MIP level 3 TSN (pipe Rafter_missing idx 2 CAN'T SEND)
+o_Rbefore_after_L3_pre-Rba in Rbefore_after type MIP level 3 TSN (pipe Rbefore_after idx 3 DMAC from Edit before MP VLAN from Edit after MP)
+o_Rbefore_before_L3_pre-Rbb in Rbefore_before type MIP level 3 TSN (pipe Rbefore_before idx 3 DMAC from Edit before MP VLAN from Edit before MP)
+o_Rbefore_match_L3_pre-Rbm in Rbefore_match type MIP level 3 TSN (pipe Rbefore_match idx 3 DMAC from Edit before MP VLAN from Match)
+o_Rbefore_missing_L3_pre-Rbx in Rbefore_missing type MIP level 3 TSN (pipe Rbefore_missing idx 3 CAN'T SEND)
+o_Rmatch_after_L3_pre-Rma in Rmatch_after type MIP level 3 TSN (pipe Rmatch_after idx 2 DMAC from Match VLAN from Edit after MP)
+o_Rmatch_before_L3_pre-Rmb in Rmatch_before type MIP level 3 TSN (pipe Rmatch_before idx 3 DMAC from Match VLAN from Edit before MP)
+o_Rmatch_match_L3_pre-Rmm in Rmatch_match type MIP level 3 TSN (pipe Rmatch_match idx 2 DMAC from Match VLAN from Match)
+o_Rmatch_missing_L3_pre-Rmx in Rmatch_missing type MIP level 3 TSN (pipe Rmatch_missing idx 2 CAN'T SEND)
+o_Rmissing_after_L3_pre-Rxa in Rmissing_after type MIP level 3 TSN (pipe Rmissing_after idx 2 DMAC from Default VLAN from Edit after MP)
+o_Rmissing_before_L3_pre-Rxb in Rmissing_before type MIP level 3 TSN (pipe Rmissing_before idx 3 DMAC from Default VLAN from Edit before MP)
+o_Rmissing_match_L3_pre-Rxm in Rmissing_match type MIP level 3 TSN (pipe Rmissing_match idx 2 DMAC from Default VLAN from Match)
+o_Rmissing_missing_L3_pre-Rxx in Rmissing_missing type MIP level 3 TSN (pipe Rmissing_missing idx 2 CAN'T SEND)
+o_repl_aa1_L3_post-Raa in repl_aa1 type MIP level 3 TSN (pipe repl_aa1 idx 1 DMAC from Edit after MP VLAN from Edit after MP)
+o_repl_aa2_L3_post-Raa in repl_aa2 type MIP level 3 TSN (pipe repl_aa2 idx 1 DMAC from Edit after MP VLAN from Edit after MP)
+o_repl_ab1_L3_post-Rab in repl_ab1 type MIP level 3 TSN (pipe repl_ab1 idx 1 DMAC from Edit after MP VLAN from Edit before MP)
+o_repl_ab2_L3_post-Rab in repl_ab2 type MIP level 3 TSN (pipe repl_ab2 idx 1 DMAC from Edit after MP VLAN from Edit before MP)
+o_repl_am1_L3_post-Ram in repl_am1 type MIP level 3 TSN (pipe repl_am1 idx 1 DMAC from Edit after MP VLAN from Match)
+o_repl_am2_L3_post-Ram in repl_am2 type MIP level 3 TSN (pipe repl_am2 idx 1 DMAC from Edit after MP VLAN from Match)
+o_repl_ax1_L3_post-Rax in repl_ax1 type MIP level 3 TSN (pipe repl_ax1 idx 1 CAN'T SEND)
+o_repl_ax2_L3_post-Rax in repl_ax2 type MIP level 3 TSN (pipe repl_ax2 idx 1 CAN'T SEND)
+o_repl_ba1_L3_post-Rba in repl_ba1 type MIP level 3 TSN (pipe repl_ba1 idx 1 DMAC from Edit before MP VLAN from Edit after MP)
+o_repl_ba2_L3_post-Rba in repl_ba2 type MIP level 3 TSN (pipe repl_ba2 idx 1 DMAC from Edit before MP VLAN from Edit after MP)
+o_repl_bb1_L3_post-Rbb in repl_bb1 type MIP level 3 TSN (pipe repl_bb1 idx 1 DMAC from Edit before MP VLAN from Edit before MP)
+o_repl_bb2_L3_post-Rbb in repl_bb2 type MIP level 3 TSN (pipe repl_bb2 idx 1 DMAC from Edit before MP VLAN from Edit before MP)
+o_repl_bm1_L3_post-Rbm in repl_bm1 type MIP level 3 TSN (pipe repl_bm1 idx 1 DMAC from Edit before MP VLAN from Match)
+o_repl_bm2_L3_post-Rbm in repl_bm2 type MIP level 3 TSN (pipe repl_bm2 idx 1 DMAC from Edit before MP VLAN from Match)
+o_repl_bx1_L3_post-Rbx in repl_bx1 type MIP level 3 TSN (pipe repl_bx1 idx 1 CAN'T SEND)
+o_repl_bx2_L3_post-Rbx in repl_bx2 type MIP level 3 TSN (pipe repl_bx2 idx 1 CAN'T SEND)
+o_repl_ma1_L3_post-Rma in repl_ma1 type MIP level 3 TSN (pipe repl_ma1 idx 1 DMAC from Match VLAN from Edit after MP)
+o_repl_ma2_L3_post-Rma in repl_ma2 type MIP level 3 TSN (pipe repl_ma2 idx 1 DMAC from Match VLAN from Edit after MP)
+o_repl_mb1_L3_post-Rmb in repl_mb1 type MIP level 3 TSN (pipe repl_mb1 idx 1 DMAC from Match VLAN from Edit before MP)
+o_repl_mb2_L3_post-Rmb in repl_mb2 type MIP level 3 TSN (pipe repl_mb2 idx 1 DMAC from Match VLAN from Edit before MP)
+o_repl_mm1_L3_post-Rmm in repl_mm1 type MIP level 3 TSN (pipe repl_mm1 idx 1 DMAC from Match VLAN from Match)
+o_repl_mm2_L3_post-Rmm in repl_mm2 type MIP level 3 TSN (pipe repl_mm2 idx 1 DMAC from Match VLAN from Match)
+o_repl_mx1_L3_post-Rmx in repl_mx1 type MIP level 3 TSN (pipe repl_mx1 idx 1 CAN'T SEND)
+o_repl_mx2_L3_post-Rmx in repl_mx2 type MIP level 3 TSN (pipe repl_mx2 idx 1 CAN'T SEND)
+o_repl_xa1_L3_post-Rxa in repl_xa1 type MIP level 3 TSN (pipe repl_xa1 idx 1 DMAC from Default VLAN from Edit after MP)
+o_repl_xa2_L3_post-Rxa in repl_xa2 type MIP level 3 TSN (pipe repl_xa2 idx 1 DMAC from Default VLAN from Edit after MP)
+o_repl_xb1_L3_post-Rxb in repl_xb1 type MIP level 3 TSN (pipe repl_xb1 idx 1 DMAC from Default VLAN from Edit before MP)
+o_repl_xb2_L3_post-Rxb in repl_xb2 type MIP level 3 TSN (pipe repl_xb2 idx 1 DMAC from Default VLAN from Edit before MP)
+o_repl_xm1_L3_post-Rxm in repl_xm1 type MIP level 3 TSN (pipe repl_xm1 idx 1 DMAC from Default VLAN from Match)
+o_repl_xm2_L3_post-Rxm in repl_xm2 type MIP level 3 TSN (pipe repl_xm2 idx 1 DMAC from Default VLAN from Match)
+o_repl_xx1_L3_post-Rxx in repl_xx1 type MIP level 3 TSN (pipe repl_xx1 idx 1 CAN'T SEND)
+o_repl_xx2_L3_post-Rxx in repl_xx2 type MIP level 3 TSN (pipe repl_xx2 idx 1 CAN'T SEND)
 """
     expected_mask = """
 mask state for SequenceRecovery 'Exa'

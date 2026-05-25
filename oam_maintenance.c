@@ -99,6 +99,7 @@ static int mp_delete_cb(const char *key, void *value, void *userdata)
     if (mp->object)
         pipeline_object_unref(mp->object);
 
+    // we should never have the queue at this point...
     if (mp->mask_queue) {
         log_info("mp_delete_cb %s with mask_queue", key);
         if (mp->mask_send) {
@@ -110,6 +111,7 @@ static int mp_delete_cb(const char *key, void *value, void *userdata)
         }
         delete_messagequeue(mp->mask_queue);
     }
+
     free(mp->name);
     free(mp->stream_name);
     free(mp);
@@ -221,12 +223,13 @@ static struct JsonValue *pack_srv6_message_header(const struct OAM_MaintenancePo
     ipv6[7] = ttl;   // hop count
 
     struct sockaddr_in6 sa6;
-    if(inet_pton(AF_INET6, oamif_get_ip(get_default_oam_ip_interface()), &(sa6.sin6_addr)) <= 0) {
-        log_warning_once("OAM interface '%s' does not have IPv6 address.", get_default_oam_ip_interface()->name);
+    const struct Interface *oamif = get_default_oam_ip_interface();
+    if (oamif && inet_pton(AF_INET6, oamif_get_ip(oamif), &(sa6.sin6_addr)) <= 0) {
+        log_warning_once("OAM interface '%s' does not have IPv6 address.", oamif ? oamif->name : "<no return interface>");
         memset(&ipv6[8], 0, 16);    // source addr ::0 (unknown addr)
     } else
         memcpy(&ipv6[8], &sa6.sin6_addr, 16);
-    memset(&ipv6[24], 0, 16); ipv6[39]=1;       // ::1
+    memset(&ipv6[24], 0, 16); ipv6[39]=1;       // dest addr ::1
 
     unsigned char *icmpv6  = p->buf + p->headers[2].start;
     icmpv6[0] = ICMP6_ECHO_REQUEST;     // type
@@ -287,12 +290,6 @@ static bool pack_srv6_payload(struct Packet *p, const struct JsonValue *msg)
     ipv6[4] = (new_len >> 8) & 0xff;
     ipv6[5] = new_len & 0xff;
 
-    // set ICMP checksum
-    struct ChecksumParameters cp = {
-        2, PROTO_ID_ICMPv6, 1, PROTO_ID_IPv6
-    };
-    checksum_compute(p, &cp);
-
     // add first 2 header lens
     new_len += p->headers[0].len+p->headers[1].len;
 
@@ -307,6 +304,13 @@ static bool pack_srv6_payload(struct Packet *p, const struct JsonValue *msg)
         p->headers[p->header_count-1].len += new_len - p->len;
         p->len = new_len;
     }
+
+    // set ICMP checksum
+    struct ChecksumParameters cp = {
+        2, PROTO_ID_ICMPv6, 1, PROTO_ID_IPv6
+    };
+    checksum_compute(p, &cp);
+
     return true;
 }
 
@@ -826,33 +830,38 @@ static int compare_tsn_level(const struct OAM_MaintenancePoint *mp, const struct
 
 static void set_mp_address(struct OAM_MaintenancePoint *mp, struct OAM_MP_Address *addr)
 {
-    //TODO is it possible that we overwrite a valid address with OAM_FROM_Unknown?
+    //TODO what if the first replicate branch is OAM_FROM_Later and the second one is OAM_FROM_Unknown?
     for (struct OAM_MP_Address *ad=addr; ad; ad=ad->next) {
         if (mp->encap == OAM_SRv6) {
-            if (strcmp(ad->field, "loc") == 0) {
+            if (mp->sid_address.loc_source == OAM_FROM_Unknown && strcmp(ad->field, "loc") == 0) {
                 mp->sid_address.loc_source = ad->source;
                 if (ad->source == OAM_FROM_Edit || ad->source == OAM_FROM_Match)
                     memcpy(mp->sid_address.loc, ad->val.value, 8);
             }
         } else if (mp->encap == OAM_PW) {
-            if (strcmp(ad->field, "label") == 0) {
+            if (mp->pw_address.label_source == OAM_FROM_Unknown && strcmp(ad->field, "label") == 0) {
                 mp->pw_address.label_source = ad->source;
                 if (ad->source == OAM_FROM_Edit || ad->source == OAM_FROM_Match)
                     memcpy(mp->pw_address.label, ad->val.value, 4);
             }
         } else if (mp->encap == OAM_TSN) {
             if (strcmp(ad->field, "dmac") == 0) {
-                mp->tsn_address.dmac_source = ad->source;
                 if (ad->source == OAM_FROM_Edit || ad->source == OAM_FROM_Match) {
+                    mp->tsn_address.dmac_source = ad->source;
                     // note: we don't have all 6 bytes if it was a prefix match
                     memcpy(mp->tsn_address.dmac, ad->val.value, DIVCEIL(ad->val.bitcount, 8));
+                } else if (ad->source == OAM_FROM_Later) {
+                    mp->tsn_address.dmac_source = OAM_FROM_Later;
                 } else if (ad->source == OAM_FROM_Unknown) {
-                    mp->tsn_address.dmac_source = OAM_FROM_Default;
-                    // group destination address for Continuity Check messages
-                    memcpy(mp->tsn_address.dmac, "\x01\x80\xc2\x00\x00", 5);
-                    mp->tsn_address.dmac[5] = mp->level;
+                    if (mp->tsn_address.dmac_source == OAM_FROM_Unknown) {
+                        mp->tsn_address.dmac_source = OAM_FROM_Default;
+                        // group destination address for Continuity Check messages
+                        memcpy(mp->tsn_address.dmac, "\x01\x80\xc2\x00\x00", 5);
+                        mp->tsn_address.dmac[5] = mp->level;
+                    }
                 }
-            } else if (strcmp(ad->field, "vlan") == 0 || strcmp(ad->field, "vid") == 0) {
+            } else if (mp->tsn_address.vlan_source == OAM_FROM_Unknown &&
+                    (strcmp(ad->field, "vlan") == 0 || strcmp(ad->field, "vid") == 0)) {
                 mp->tsn_address.vlan_source = ad->source;
                 if (ad->source == OAM_FROM_Edit || ad->source == OAM_FROM_Match)
                     memcpy(mp->tsn_address.vlan, ad->val.value, 2);
@@ -1035,6 +1044,21 @@ void oam_unref_maintenance_point(struct OAM_MaintenancePoint *mp)
 {
     int refcount = __atomic_sub_fetch(&mp->reference_count, 1, __ATOMIC_RELAXED);
     log_debug("%s unref refcount %d", mp->name, refcount);
+
+    // must kill the mask thread before grabbing the lock
+    if (refcount == 0) {
+        if (mp->mask_queue) {
+            log_info("mp %s unref stopping mask_queue", mp->name);
+            if (mp->mask_send) {
+                messagequeue_push(mp->mask_queue, mp);
+                thread_join(mp->mask_send);
+            }
+            if (mp->mask_recv) {
+                thread_stop(mp->mask_recv);
+            }
+            mp->mask_queue = delete_messagequeue(mp->mask_queue);
+        }
+    }
 
     pthread_mutex_lock(&mp_hash_lock);
     if (refcount == 0) {
@@ -1255,9 +1279,22 @@ void mp_print_info(const struct OAM_MaintenancePoint *mp, FILE *out, bool detail
 {
     fprintf(out, "%s in %s type %s level %u %s",
             mp->name, mp->stream_name, oam_mp_type_to_str(mp->type), mp->level, oam_mp_encap_to_str(mp->encap));
-    if (mp->injections)
-        fprintf(out, " (pipe %s idx %u)%s", mp->injections->pipe->name,
-                mp->injections->pipe_pos_idx, mp_can_send(mp) ? "" : " CAN'T SEND");
+    if (mp->injections) {
+        fprintf(out, " (pipe %s idx %u", mp->injections->pipe->name,
+                mp->injections->pipe_pos_idx);
+        if (mp_can_send(mp)) {
+            if (mp->encap == OAM_SRv6)
+                fprintf(out, " locator from %s)", oam_mp_addr_source_to_str(mp->sid_address.loc_source));
+            else if (mp->encap == OAM_PW)
+                fprintf(out, " label from %s)", oam_mp_addr_source_to_str(mp->pw_address.label_source));
+            else if (mp->encap == OAM_TSN)
+                fprintf(out, " DMAC from %s VLAN from %s)",
+                        oam_mp_addr_source_to_str(mp->tsn_address.dmac_source),
+                        oam_mp_addr_source_to_str(mp->tsn_address.vlan_source));
+        } else {
+            fprintf(out, " CAN'T SEND)");
+        }
+    }
 
     if (details) {
         if (mp->object)
@@ -1405,7 +1442,7 @@ static void *send_mask_request_thread(void *arg)
         void *stop_signal = messagequeue_pop(mp->mask_queue, MASK_PERIOD_MS * 1000);
 
         if (stop_signal) {
-            log_info("mask sending thread got stop signal");
+            log_info("mask sending thread for %s got stop signal", mp->name);
             break;
         }
     }
@@ -1449,9 +1486,11 @@ bool mp_initiate_mask_signalling(struct OAM_MaintenancePoint *mp, FILE *cmd_w)
     if (mp->mask_queue == NULL) {
         mp->mask_queue = new_messagequeue();
     }
-    mp->mask_send = thread_launch(send_mask_request_thread, mp, "mask %s", mp->name);
 
-    if (cmd_w) fprintf(cmd_w, "Initiated mask signalling from MIP '%s'\n", mp->name);
+    if (mp->mask_send == NULL) {
+        mp->mask_send = thread_launch(send_mask_request_thread, mp, "mask %s", mp->name);
+        if (cmd_w) fprintf(cmd_w, "Initiated mask signalling from MIP '%s'\n", mp->name);
+    }
 
     return true;
 }
@@ -1497,6 +1536,9 @@ void mp_receive_mask_signal(struct OAM_MaintenancePoint *mp)
 {
     log_packet("%s received mask signal", mp->name);
 
+    if (!oam_is_automip_name(mp->name, -1))
+        return;
+
     if (mp->object) {
         if (mp->object->type == PIPEOBJ_SEQREC) {
             if (mp->mask_recv) {
@@ -1527,6 +1569,9 @@ void mp_receive_mask_signal(struct OAM_MaintenancePoint *mp)
 void mp_receive_unmask_signal(struct OAM_MaintenancePoint *mp)
 {
     log_packet("%s received unmask signal", mp->name);
+
+    if (!oam_is_automip_name(mp->name, -1))
+        return;
 
     if (mp->object) {
         if (mp->object->type == PIPEOBJ_SEQREC) {

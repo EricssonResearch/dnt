@@ -124,6 +124,7 @@ The available actions are the following:
     * if `newheader` has a sequence number field, a `writeseq` action is automatically inserted after the `add` action
     * if `newheader` has a timestamp field, a `writetstamp` action is automatically inserted after the `add` action
     * the `fieldname=fieldvalue` assignments have the same rules as the `edit` action, but note that the header is not specified here because it's implicitly `newheader`
+    * unset fields in `newheader` are 0
 * `checksum header` calculates the Internet checksum field in `header` (supported protocols: ipv4, udp, tcp, icmpv4, icmpv6); note that when sending on an `ip` interface Linux sets correct checksum values for all headers not just the first one
 * `del header` removes the given header from the packet
 * `delay milliseconds [offload]` puts the packet in a delay buffer, where it will be kept until the specified *milliseconds* have passed since the timestamp value of the packet (use `readtstamp` before this action); the delay should be between 0 and 2000 ms and it can be a float value as well; there is an optional `offload` parameter to use an [external delay mechanism](#delay-offload) provided by the OS
