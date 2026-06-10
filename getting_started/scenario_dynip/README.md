@@ -1,4 +1,4 @@
-# Scenario 5: R2DTWO Dynamic IP configuration
+# Scenario 5: DNT Dynamic IP configuration
 
 __Important: this scenario assumes background knowledge of the basics from the DetNet scenarios__ [TSN over DetNet](../scenario_tsn_over_detnet/README.md) and [IP over DetNet](../scenario_ip_over_detnet/README.md)
 
@@ -12,7 +12,7 @@ The address of *ethX* on the **server** and *wwanX* on the **mobile** must be ro
 If the mobile network provider puts the mobile behind a stateful firewall, our UDP PseudoWire tunnels will not work.
 This is also the reason for this scenario being IPv6-only, as on IPv4 the mobile node would most likely be behind a NAT.
 
-This topology also shows an example on how to set up R2DTWO on an end-station.
+This topology also shows an example on how to set up DNT on an end-station.
 
 ```
  server                          gateway1                                mobile
@@ -33,7 +33,7 @@ This topology also shows an example on how to set up R2DTWO on an end-station.
 │           │           eth1││  │swp0          │  ││               │           │
 │           │             ──┼┼──┼────          │  ││               │           │
 │           │        fd21::2││  │fd21::1   swp1│  ││wwan1          │           │
-│           │ R2DTWO        ││  │           ───┼──┼┼───     R2DTWO │           │
+│           │ DNT        ││  │           ───┼──┼┼───     DNT │           │
 │           ╰───────────────╯│  │       fd22::1│  │╰───────────────╯           │
 └────────────────────────────┘  └──────────────┘  └────────────────────────────┘
 ```
@@ -41,7 +41,7 @@ This topology also shows an example on how to set up R2DTWO on an end-station.
 The routing is set up such that the end-stations can reach each other through the gateway nodes.
 When **mobile** receives its addresses, it also sets a default route to each gateway.
 Normal traffic that is not explicitly bound to one of the *wwanX* interfaces will choose the first default route, so the redundant paths are not utilized.
-The traffic R2DTWO sends is bound to the interfaces, so it makes use of the distinct paths.
+The traffic DNT sends is bound to the interfaces, so it makes use of the distinct paths.
 
 There is also an explicit route to reach the IP range (*fd55::/64* and *fd66::/64*) of the other end-station through the VRF interface.
 These IP ranges can be private even in a public deployment, only addresses on the physical interfaces must be globally routable.
@@ -49,9 +49,9 @@ These IP ranges can be private even in a public deployment, only addresses on th
 The MTU on the links of the gateway nodes is raised to 1600 so that it can accommodate the tunnelling overhead.
 It is important to also set MTU for the VRF interfaces, because by default it's 64k.
 
-## R2DTWO configurations
+## DNT configurations
 
-The R2DTWO configurations for **mobile** and **server** are similar to the [IP over DetNet](../scenario_ip_over_detnet/README.md) scenario.
+The DNT configurations for **mobile** and **server** are similar to the [IP over DetNet](../scenario_ip_over_detnet/README.md) scenario.
 
 Since the **mobile** gets its IP addresses dynamically from its anchor points, we cannot configure destination addresses on the *udp-out* interfaces on the **server** node.
 Instead, we only specify the IP version in the config, and wait for notifications about the real addresses.
@@ -78,14 +78,14 @@ source env.sh
 
 This changes the prompt to `(dynamic ip) root:scenario_dynip#` if done from the correct directory.
 
-In two of the terminals we need to run R2DTWO:
+In two of the terminals we need to run DNT:
 
 ```
 # in terminal 1
-server r2dtwo server.ini
+server dnt server.ini
 
 # in terminal 2
-mobile r2dtwo mobile.ini
+mobile dnt mobile.ini
 ```
 
 We can't run traffic yet, because the **mobile** node has no IP addresses yet.

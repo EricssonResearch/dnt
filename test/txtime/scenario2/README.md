@@ -47,11 +47,11 @@ Now the `ETF` offload is not set in `env.sh`, which means the proper delay is ca
 ### Commands to run this scenario:
 
 ```
-nxp1 r2dtwo r2dtwo.ini -o stdout -v INTERFACE:ALL
+nxp1 dnt dnt.ini -o stdout -v INTERFACE:ALL
 
 Info: Logging to standard output.
-2024.03.27 13:09:12 [MAIN] [INFO] R2DTWO - Reliable & Robust Deterministic Tool for netWOrking 6.3
-2024.03.27 13:09:12 [MAIN] [INFO] Reading config 'r2dtwo.ini'
+2024.03.27 13:09:12 [MAIN] [INFO] DNT - Dependable Networking Toolkit 6.3
+2024.03.27 13:09:12 [MAIN] [INFO] Reading config 'dnt.ini'
 
 2024.03.27 13:09:12 [INTERFACE] [DEBUG] SO_TXTIME enabled on 'swp0'
 2024.03.27 13:09:12 [INTERFACE] [DEBUG] SIOCSHWTSTAMP: HW timestamping for 'eth' on 'swp0' is not available
@@ -79,11 +79,11 @@ Info: Logging to standard output.
 ```
 
 ```
-nxp2 r2dtwo r2dtwo.ini -o stdout -v INTERFACE:ALL
+nxp2 dnt dnt.ini -o stdout -v INTERFACE:ALL
 
 Info: Logging to standard output.
-2024.03.27 13:09:52 [MAIN] [INFO] R2DTWO - Reliable & Robust Deterministic Tool for netWOrking 6.3
-2024.03.27 13:09:52 [MAIN] [INFO] Reading config 'r2dtwo.ini'
+2024.03.27 13:09:52 [MAIN] [INFO] DNT - Dependable Networking Toolkit 6.3
+2024.03.27 13:09:52 [MAIN] [INFO] Reading config 'dnt.ini'
 
 2024.03.27 13:09:52 [INTERFACE] [DEBUG] SO_TXTIME enabled on 'swp0'
 2024.03.27 13:09:52 [INTERFACE] [DEBUG] SIOCSHWTSTAMP: HW timestamping for 'eth' on 'swp0' is not available

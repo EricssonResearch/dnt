@@ -2,8 +2,8 @@
 // All rights reserved.
 
 
-#ifndef R2_VALUE_H
-#define R2_VALUE_H
+#ifndef DNT_VALUE_H
+#define DNT_VALUE_H
 
 
 #include "packet.h"
@@ -51,4 +51,4 @@ typedef void value_producer(void *state, value_consumer *consumer, void *consume
 // @state can be used to hold the "own" value
 typedef bool value_comparator(const void *state, const struct Value *value, const struct Packet *p);
 
-#endif // R2_VALUE_H
+#endif // DNT_VALUE_H

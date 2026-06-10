@@ -2,8 +2,8 @@
 // All rights reserved.
 
 
-#ifndef R2_PARSETREE_H
-#define R2_PARSETREE_H
+#ifndef DNT_PARSETREE_H
+#define DNT_PARSETREE_H
 
 #include "headerdesc.h"
 #include "interface.h"
@@ -53,4 +53,4 @@ struct PipelineIterator *parsetree_identify(struct ParseTree *pt, struct Packet 
 // intended for @iface_print_info of the 'iface' telnet command
 void parsetree_print_info(const struct ParseTree *pt, FILE *cmd_w);
 
-#endif // R2_PARSETREE_H
+#endif // DNT_PARSETREE_H

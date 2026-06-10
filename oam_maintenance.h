@@ -2,8 +2,8 @@
 // All rights reserved.
 
 
-#ifndef R2_OAM_MAINTENANCE_H
-#define R2_OAM_MAINTENANCE_H
+#ifndef DNT_OAM_MAINTENANCE_H
+#define DNT_OAM_MAINTENANCE_H
 
 #ifndef OAM_INTERNAL
 #error "this header is internal to the OAM module"
@@ -107,4 +107,4 @@ void mp_receive_mask_signal(struct OAM_MaintenancePoint *mp);
 // this will set the incoming branch of the recovery as not masked
 void mp_receive_unmask_signal(struct OAM_MaintenancePoint *mp);
 
-#endif // R2_OAM_MAINTENANCE_H
+#endif // DNT_OAM_MAINTENANCE_H

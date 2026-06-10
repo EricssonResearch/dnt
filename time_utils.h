@@ -2,8 +2,8 @@
 // All rights reserved.
 
 
-#ifndef R2_TIME_UTILS_H
-#define R2_TIME_UTILS_H
+#ifndef DNT_TIME_UTILS_H
+#define DNT_TIME_UTILS_H
 
 #include <stdint.h>
 #include <time.h>
@@ -118,4 +118,4 @@ static inline struct timespec time_add_us(struct timespec t, unsigned increase_u
 }
 
 
-#endif // R2_TIME_UTILS_H
+#endif // DNT_TIME_UTILS_H

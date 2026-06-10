@@ -52,7 +52,7 @@ def setup_network():
     r2.cmd("ip link set ve1 mtu 2000 up")
     r2.cmd("ip link set ve2 mtu 2000 up")
     r2.cmd("ip -6 addr add fd00:a2d2:0:0:0:2::2/96 dev ve1")
-    r2.cmd("ip -6 addr add fd00:a2d2:0:0:0:3::2/96 dev ve2")   # R2DTWO requires that IP type interfaces must have IP address
+    r2.cmd("ip -6 addr add fd00:a2d2:0:0:0:3::2/96 dev ve2")   # DNT requires that IP type interfaces must have IP address
 
 
     r4.cmd("ip link add name vrf1 type vrf table 254")
@@ -63,7 +63,7 @@ def setup_network():
     r4.cmd("ip link set ve1 mtu 2000 up")
     r4.cmd("ip link set ve2 mtu 2000 up")
     r4.cmd("ip -6 addr add fd00:a2d2:0:0:0:2::4/96 dev ve1")
-    r4.cmd("ip -6 addr add fd00:a2d2:0:0:0:3::4/96 dev ve2")   # R2DTWO requires that IP type interfaces must have IP address
+    r4.cmd("ip -6 addr add fd00:a2d2:0:0:0:3::4/96 dev ve2")   # DNT requires that IP type interfaces must have IP address
 
 
     # add dummy loopback interfaces for local SIDs (loopback interfaces do not work with SRv6)
@@ -163,20 +163,20 @@ def setup_network():
 
     return net
 
-def start_r2dtwos(net, scenario):
-    # start r2DTWOs
-    info(f"*** Starting R2DTWOs\n")
-    r2dtwos = []
+def start_dnts(net, scenario):
+    # start DNT
+    info(f"*** Starting DNTs\n")
+    dnts = []
     for n in ['r2', 'r4']:
         node = net.get(n)
-        proc = node.popen(f"r2dtwo -of {n}-{scenario}.cfg -v PACKETTRACE:PACKET")    # in general this is enough for debug
-        #proc = node.popen(f"r2dtwo -of {n}-{scenario}.cfg -v  ALL:ALL")             # but sometimes we need all logs...
-        r2dtwos.append(proc)
-    return r2dtwos
+        proc = node.popen(f"dnt -of {n}-{scenario}.cfg -v PACKETTRACE:PACKET")    # in general this is enough for debug
+        #proc = node.popen(f"dnt -of {n}-{scenario}.cfg -v  ALL:ALL")             # but sometimes we need all logs...
+        dnts.append(proc)
+    return dnts
 
-def stop_r2dtwos(r2dtwos):
-    info('*** Stopping r2DTWOs\n')
-    for p in r2dtwos:
+def stop_dnts(dnts):
+    info('*** Stopping DNT\n')
+    for p in dnts:
         p.terminate()
         # Wait for the process to completely terminate and clean up
         p.wait()
@@ -195,12 +195,12 @@ if __name__ == '__main__':
     net = setup_network()
 
     info(f"SRv6 scenario: {scenario}\n")
-    r2s = start_r2dtwos(net, scenario)
+    r2s = start_dnts(net, scenario)
 
     CLI(net)
 
     print("Cleanup...")
-    stop_r2dtwos(r2s)
+    stop_dnts(r2s)
     stop_network(net)
 
     exit(0)

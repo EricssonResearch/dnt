@@ -2,8 +2,8 @@
 // All rights reserved.
 
 
-#ifndef R2_LOG_H
-#define R2_LOG_H
+#ifndef DNT_LOG_H
+#define DNT_LOG_H
 
 #include <stdbool.h>
 
@@ -182,4 +182,4 @@ bool log_set_level(const char *mod_name, enum LoggingLevel new_level);
  */
 char *logname_from_config(const char *app_name, const char *config_name);
 
-#endif // R2_LOG_H
+#endif // DNT_LOG_H

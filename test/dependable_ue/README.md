@@ -1,6 +1,6 @@
-#  IP over DetNet scenario for dependable UE testing: R2DTWO IPv4 over DetNet PseudoWire
+#  IP over DetNet scenario for dependable UE testing: DNT IPv4 over DetNet PseudoWire
 
-In the following, we will use R2DTWO as a DetNet router.
+In the following, we will use DNT as a DetNet router.
 The Layer3 traffic of `talker` and `listener` nodes will be encapsulated in MPLS DetNet pseudowires, then sent through a PREF (Packet Replication and Elimination Functions).
 
 __Important: if this test running on the NXP boards, use the setup scripts for configuring the network properly!__: `nxp1_setup.sh` and `nxp2_setup.sh`
@@ -9,7 +9,7 @@ We will use the following topology, which consists:
 
 * a talker node called **talker** which will generate IPv4 traffic
 * a node called **listener** which receive the traffic coming from the **talker**
-* two R2DTWO instances, running on the **nxp1** and **nxp2** nodes.
+* two DNT instances, running on the **nxp1** and **nxp2** nodes.
 
 ```
                       PRF ───►                     ───► PEF
@@ -31,7 +31,7 @@ We will use the following topology, which consists:
 │          │    │           swp3  ─┼─────────┼─  swp3           │    │          │
 │          │    │eno0  192.168.77.1│         │192.168.77.2  eno0│    │          │
 └──────────┘    └──────────────────┘         └──────────────────┘    └──────────┘
-                  |         R2DTWO          R2DTWO           |
+                  |         DNT          DNT           |
                   |192.168.111.2                192.168.111.2|
                   |               ┌──────────┐               |
                   |               │   OAM    │               |
@@ -42,15 +42,15 @@ We will use the following topology, which consists:
 
 ```
 As you can see, there are more redundant paths between **nxp1** and **nxp2**.
-These paths will be utilized by R2DTWO for redundancy.
+These paths will be utilized by DNT for redundancy.
 There is a separate OAM network, connecting nxp1 and nxp2 to the OAM receiver via the eno0 interfaces.
 On the OAM node, briding is used, thus nxp1 and nxp2 can reach each other via their OAM interfaces, on 192.168.111.x network.
 The notifications are sent to 192.168.111.3, where the notification receiver runs.
 
 
-## The R2DTWO configurations
+## The DNT configurations
 
-Now we have separate R2DTWO config files for the two DetNet nodes: `nxp1.ini` and `nxp2.ini`.
+Now we have separate DNT config files for the two DetNet nodes: `nxp1.ini` and `nxp2.ini`.
 
 
 ### Explanation of the configuration
@@ -98,7 +98,7 @@ source env.sh
 
 If everything OK, the scenario starts by:
 - setting up the namespaces and interfaces
-- starting r2dtwos in background
+- starting dnts in background
 - starting a background ping with 200ms interval to generate data traffic
 - starting the *telnet_control* application on nxp1 - in an xterm, which connects to the local telnet interface.
 - starts a loop that periodically changes the link delay/drop rate according to the parameter table defined in the script.

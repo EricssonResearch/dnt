@@ -1,8 +1,8 @@
 // Copyright (c) 2023-2025, Ericsson AB and Ericsson Telecommunication Hungary
 // All rights reserved.
 
-#ifndef R2_POF_H
-#define R2_POF_H
+#ifndef DNT_POF_H
+#define DNT_POF_H
 
 #include "object.h"
 #include "pipeline.h"
@@ -23,4 +23,4 @@ struct PipelineObject *delete_pof(struct PipelineObject *pof);
 char *pof_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep);
 #endif
 
-#endif // R2_POF_H
+#endif // DNT_POF_H

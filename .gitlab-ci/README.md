@@ -1,6 +1,6 @@
 # CI info
 
-R2DTWO automated testing built upon a Gitlab CI pipeline.
+DNT automated testing built upon a Gitlab CI pipeline.
 This contains steps like verify the workflow syntax (`.gitlab-ci.yml`),
 generating the container image for testing, then run
 the tests (unit and integration) itself.

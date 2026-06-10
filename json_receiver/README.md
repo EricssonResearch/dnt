@@ -1,6 +1,6 @@
-# R2DTWO notification receiver
+# DNT notification receiver
 
-This directory contains a python library and examples for receiving and handling R2DTWO notifications.
+This directory contains a python library and examples for receiving and handling DNT notifications.
 The notifications are sent via UDP in json format, fragmented into 1200 byte chunks.
 
 To identify the fragments, two fields are used: the *notif_seq* and the *notif_fragment*. The *notif_seq* identifies the individual messages, which may be longer than 1200 byte. The *notif_fragment* tells how many fragments are in total, and also which fragment is the current.
@@ -39,5 +39,5 @@ The library has the following limitations:
 
 * No reordering of messages is allowed. While parts of a message are ordered, fragments of different messages are not handled. When message with a new *notif_seq* number arrives, the previous incomplete message is discarded.
 * Fragment loss results in the loss of the whole message. (Note that fragment loss means that the fragment is lost from all sending sources)
-* *notif_hostname* is used to identify the message sources. When running in Mininet environment it is important to override the hostname to R2DTWO by specifying the "-h hostname" parameter, because all Mininet nodes share the host's hostname.
+* *notif_hostname* is used to identify the message sources. When running in Mininet environment it is important to override the hostname to DNT by specifying the "-h hostname" parameter, because all Mininet nodes share the host's hostname.
 

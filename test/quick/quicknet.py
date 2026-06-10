@@ -59,12 +59,12 @@ def start_network():
     nd.cmd("ip a a fd92::4/64 dev ethDC.r2tunnel")
     nd.cmd("ip l set up dev ethDC.r2tunnel")
 
-    #TODO on nb: ../r2dtwo quicktest.ini
+    #TODO on nb: ../dnt quicktest.ini
     #TODO on na: ping 192.168.1.3
     #TODO on na: ping fd92::3
 
-    #TODO on nb: ../r2dtwo quickdetB.ini
-    #TODO on nc: ../r2dtwo quickdetC.ini
+    #TODO on nb: ../dnt quickdetB.ini
+    #TODO on nc: ../dnt quickdetC.ini
     #TODO on na: ping 192.126.1.4
     #TODO on na: ping fd92::4
 

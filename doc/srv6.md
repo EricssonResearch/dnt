@@ -2,14 +2,14 @@
 # SRv6 support
 
 SRv6 support makes possible the use of SRv6 as transport for DetNet tunnels.
-The R2DTWO support for SRv6 relies on the Linux SRv6 functions. As currently the Linux SRv6 implementation does not support DetNet SID as defined in [Deterministic Networking specific SID](https://datatracker.ietf.org/doc/draft-varga-spring-preof-sid/ "DetNet SID") and  [Deterministic Networking SRv6 Data Plane](https://datatracker.ietf.org/doc/draft-varga-detnet-srv6-data-plane/ "SRv6 data plane"), we use an outer IPv6 encapsulation which uses a PREOF SID as destination address. This encapsulation is done by the R2DTWO. This IPv6 encapsulated packet will be directed into a predefined Linux SRv6 TE-Tunnel.
+The DNT support for SRv6 relies on the Linux SRv6 functions. As currently the Linux SRv6 implementation does not support DetNet SID as defined in [Deterministic Networking specific SID](https://datatracker.ietf.org/doc/draft-varga-spring-preof-sid/ "DetNet SID") and  [Deterministic Networking SRv6 Data Plane](https://datatracker.ietf.org/doc/draft-varga-detnet-srv6-data-plane/ "SRv6 data plane"), we use an outer IPv6 encapsulation which uses a PREOF SID as destination address. This encapsulation is done by the DNT. This IPv6 encapsulated packet will be directed into a predefined Linux SRv6 TE-Tunnel.
 ```
 ┌─────────────────────────────────────┐
 │ Original packet (IPv6, IPv4 or TSN) │
 └─────────────────────────────────────┘
 
 ┌────────────────────────────┬─────────────────────────────────────┐
-│IPv6 header, dest=PREOF.SID │ Original packet (IPv6, IPv4 or TSN) │    R2DTWO: IPv6 encap with PREOF.SID
+│IPv6 header, dest=PREOF.SID │ Original packet (IPv6, IPv4 or TSN) │    DNT: IPv6 encap with PREOF.SID
 └────────────────────────────┴─────────────────────────────────────┘
 
 ┌──────────────────────┬────────────────────────────┬─────────────────────────────────────┐
@@ -32,8 +32,8 @@ The DetNet sequence field is similar to the TSN or DetNet sequence field, but it
 └──────────────┴──────────────┴────────────────────────────────────────┘
 ```
 
-At the UNI interface, the incoming traffic will be identified and directed to R2DTWO. R2DTWO will encapsulate the incoming packet (which can be IPv6, IPv4 or Ethernet/TSN), and sets the destination PREOF SID. The encapsulated packet will be routed to an SRv6 TE-Tunnel created by Linux using H.Encaps functionality, which encapsulates again the packet within a new IPv6 header containing the SRH.
-At the egress node, incoming packets will be directed to an End.DT6 termination, which decapsulates the SRv6 headers. The decapsulated IPv6 packet containing the PREOF SID will be routed to the R2DTWO. The R2DTWO performs identification, elimination, and decapsulates the original packet to send out on the UNI.
+At the UNI interface, the incoming traffic will be identified and directed to DNT. DNT will encapsulate the incoming packet (which can be IPv6, IPv4 or Ethernet/TSN), and sets the destination PREOF SID. The encapsulated packet will be routed to an SRv6 TE-Tunnel created by Linux using H.Encaps functionality, which encapsulates again the packet within a new IPv6 header containing the SRH.
+At the egress node, incoming packets will be directed to an End.DT6 termination, which decapsulates the SRv6 headers. The decapsulated IPv6 packet containing the PREOF SID will be routed to the DNT. The DNT performs identification, elimination, and decapsulates the original packet to send out on the UNI.
 
 ## Linux configuration for SRv6
 
@@ -42,25 +42,25 @@ In our example we use several IP address ranges:
 * `fd0N:a1fa::M/64` -  infrastructure IPv6 addresses, where M is the originating node ID, and N is the destination node ID
 * `fd1N:fade::0/64 ` - SID addresses used for Linux SRv6 tunnels, where N is the router node ID
 * `fd00:a2d2:0:000N/64` - PREOF.SID IPv6 addresses block, where N is the destination node ID
-* `fd00:a2d2:0000::/80` - reserved IPv6 address range, used for R2DTWO
+* `fd00:a2d2:0000::/80` - reserved IPv6 address range, used for DNT
   * `fd00:a2d2:0:0:0:1::1/96` - internal address for the vrf interface, also used as source for inner IPv6 source
   * `fd00:a2d2:0:0:0:2::2/96` - internal address for the ve1 interface. This will be used as gateway for the PREOF.SID prefix range.
-  * `fd00:a2d2:0:0:0:3::3/96` - internal address for the ve2 interface. This is only needed for R2DTWO IP interface.
+  * `fd00:a2d2:0:0:0:3::3/96` - internal address for the ve2 interface. This is only needed for DNT IP interface.
 
 From the `fd00:a2d2:` SID range we reserve the first block `fd00:a2d2:0000::/80` as reserved IPv6 range for internal use on vrf and veth interfaces.
 
-Linux and R2DTWO interaction in the context of SRv6 requires several internal interfaces:
+Linux and DNT interaction in the context of SRv6 requires several internal interfaces:
 
 * First of all, all NNI interfaces need IPv6 addresses to work. For this, we use IP addresses in the `a1fa` range. Also, the routing should also use these addresses.
 * All nodes should also have a loopback interface, in our case `sr0`, which should have an address from the `fade` range. Since the default loopback interface does not work with SRv6 processing, we use `dummy` interface for loopback.
 * At the UNI interface, a TC filter should intercept the DetNet/TSN traffic and direct it to the vet1/2 veth interface pair. This is needed because the UNI interface holds the IP address, and it answers any ARP/NDP requests. (Note that this is not needed for Ethernet/TSN traffic, as explained later.)
-* R2DTWO uses a vrf interface to send IP packets to NNI interfaces. The choice for VRF type interface was that it behaves as an IP interface, not requiring ARP/NDP support. SRv6 routing entries will be used to direct traffic from the VRF interface towards the tunnels. The VRF interface must also have an IPv6 address, from range `fd00:a2d2:0:0:0:1::/96`. This has local meaning, a routing entry will use it to route the /64 PREOF SID range through this interface to SRv6 tunnels (H.Encap).
-* R2DTWO uses an additional `veth` interface pair (`ve1` and `ve2`) to receive the decapsulated IP packets. Interface `ve1` is configured with an address from range `fd00:a2d2:0:0:0:2::/96`. To match the PREOF SIDs a /64 prefix network route is added to the routing table with a next hop in the `fd00:a2d2:0:0:0:2::/96` range, for example `fd00:a2d2:0:0:0:2::99`. Therefore all traffic exiting the End.DT6 function will be routed through the `ve1` interface. Since `ve1` is an Ethernet type interface, a static neighbor entry is needed for the next hop `fd00:a2d2:0:0:0:2::99`. This is needed to resolve the MAC address of the next hop, and also helps to avoid local L2 loops as this MAC address is not a local address. At the same time, the R2DTWO listens on the `ve2` interface at IP level. The R2DTWO `ip` interface type requires that `ve2` has an IP address. To fulfill this, `ve2` is equipped with an address from `fd00:a2d2:0:0:0:3::/96` range. (This IP is not used, so any local IP will do here.)
+* DNT uses a vrf interface to send IP packets to NNI interfaces. The choice for VRF type interface was that it behaves as an IP interface, not requiring ARP/NDP support. SRv6 routing entries will be used to direct traffic from the VRF interface towards the tunnels. The VRF interface must also have an IPv6 address, from range `fd00:a2d2:0:0:0:1::/96`. This has local meaning, a routing entry will use it to route the /64 PREOF SID range through this interface to SRv6 tunnels (H.Encap).
+* DNT uses an additional `veth` interface pair (`ve1` and `ve2`) to receive the decapsulated IP packets. Interface `ve1` is configured with an address from range `fd00:a2d2:0:0:0:2::/96`. To match the PREOF SIDs a /64 prefix network route is added to the routing table with a next hop in the `fd00:a2d2:0:0:0:2::/96` range, for example `fd00:a2d2:0:0:0:2::99`. Therefore all traffic exiting the End.DT6 function will be routed through the `ve1` interface. Since `ve1` is an Ethernet type interface, a static neighbor entry is needed for the next hop `fd00:a2d2:0:0:0:2::99`. This is needed to resolve the MAC address of the next hop, and also helps to avoid local L2 loops as this MAC address is not a local address. At the same time, the DNT listens on the `ve2` interface at IP level. The DNT `ip` interface type requires that `ve2` has an IP address. To fulfill this, `ve2` is equipped with an address from `fd00:a2d2:0:0:0:3::/96` range. (This IP is not used, so any local IP will do here.)
 
 
 ```
         ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓                   ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓      
-        ┃                              R2DTWO ┃                   ┃ R2DTWO                                  ┃      
+        ┃                              DNT ┃                   ┃ DNT                                  ┃      
         ┃     R/E/O/D   H.Encap IPv6 outer    ┃                   ┃     End.Decap IPv6 outer    R/E/O/D     ┃      
         ┃       ┌───┐  ┌─────┐                ┃                   ┃                    ┌─────┐   ┌───┐      ┃      
         ┃       │   ├──▶█████│─┐              ┃                   ┃                  ┌─▶█████│───▶   │      ┃      
@@ -96,22 +96,22 @@ Linux and R2DTWO interaction in the context of SRv6 requires several internal in
         ║ Local SID: fd12:fade::/64     Linux ║                   ║ Local SID: fd14:fade::/64        Linux  ║      
         ╚═════════════════════════════════════╝                   ╚═════════════════════════════════════════╝      
 ```
-The operation is the following: the incoming IP traffic from talker t1 is identified by the TC filter, and it is redirected to the veth interface. As the `t1r2` interface has IP address, it handles the ARP/NDP messages locally. The R2DTWO listens on the veth interface, and receives the packets.  After flow identification + any Replication/Elimination/Ordering/Delay (R/E/O/D) functions, R2DTWO encapsulates the packet by adding the outer IPv6 header which has the destination address the PREOF SID containing the `locator`, `func`, `flowid` and `seq` fields. The encapsulated packet is sent on the VRF interface.
+The operation is the following: the incoming IP traffic from talker t1 is identified by the TC filter, and it is redirected to the veth interface. As the `t1r2` interface has IP address, it handles the ARP/NDP messages locally. The DNT listens on the veth interface, and receives the packets.  After flow identification + any Replication/Elimination/Ordering/Delay (R/E/O/D) functions, DNT encapsulates the packet by adding the outer IPv6 header which has the destination address the PREOF SID containing the `locator`, `func`, `flowid` and `seq` fields. The encapsulated packet is sent on the VRF interface.
 The SRv6 tunnels encap rules defined in the Linux (H.Encaps) identifies the incoming packet, and further encapsulate into an IPv6 packet with SRH headers set accordingly.
 
-At the NNI interfaces we need to support multiple disjoint paths (on different NNI interfaces) for the PREOF functionality. These paths are created by different Linux SRv6 TE tunnels. In the R2DTWO config, the `func` field of the PREOF SID is used to direct the traffic to different SRv6 tunnels: for a given DetNet flow the `locator` is the same, but the PREOF SID `func` value varies to select different outgoing tunnels. The tunnel endpoint IP addresses are the Linux tunnel SIDs, belonging to the `fade` address range.
+At the NNI interfaces we need to support multiple disjoint paths (on different NNI interfaces) for the PREOF functionality. These paths are created by different Linux SRv6 TE tunnels. In the DNT config, the `func` field of the PREOF SID is used to direct the traffic to different SRv6 tunnels: for a given DetNet flow the `locator` is the same, but the PREOF SID `func` value varies to select different outgoing tunnels. The tunnel endpoint IP addresses are the Linux tunnel SIDs, belonging to the `fade` address range.
 Besides the PREOF SID `func` field, the `argument` field is also used. The `argument.flowid` is used for flow identification at the NNI ingress. Each member flow has an unique `flowid`, making flow identification simple.
 
 The `argument.seq` field is also filled with the generated PREOF sequence number. The `writeseq <header>` command must be used to write the sequence number to the `argument.seq` field.
 
 On the other end, packets are received at the NNI interfaces. The Linux SRv6 endpoint rules identify these packets, and perform an End.DT6 decapsulation. A routing rule with /64 prefix matches on the `locator`, and forwards the packet to the next hop, through the `ve1` interface.
-These packets will be received on the `ve2` interface by R2DTWO, where End.Decap of the outer IPv6 packet is performed with other (optional) R/E/O/D functions, and forwarded to the UNI interface.
+These packets will be received on the `ve2` interface by DNT, where End.Decap of the outer IPv6 packet is performed with other (optional) R/E/O/D functions, and forwarded to the UNI interface.
 
-In case of a transit node (consider a topology where a node R3 is connected to R1 and R2 on one side, and R4 and R5 on the other side), the operation is shown on the figure below. The packet enters on an NNI interface, and the Linux SRv6 terminates the TE tunnel with and End.DT6 function. The decapsulated packet is then sent to the R2DTWO via the `ve1`-`ve2` interface pair. The R2DTWO performs the R/E/O/D operations needed, and sends the packet back to the `vrf1` interface. The Linux routing will select the outgoing SRv6 TE tunnel, and sends the packet encapsulating with a H.Encap function.
+In case of a transit node (consider a topology where a node R3 is connected to R1 and R2 on one side, and R4 and R5 on the other side), the operation is shown on the figure below. The packet enters on an NNI interface, and the Linux SRv6 terminates the TE tunnel with and End.DT6 function. The decapsulated packet is then sent to the DNT via the `ve1`-`ve2` interface pair. The DNT performs the R/E/O/D operations needed, and sends the packet back to the `vrf1` interface. The Linux routing will select the outgoing SRv6 TE tunnel, and sends the packet encapsulating with a H.Encap function.
 
 ```
               ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━═━━━━━━━━━━━━━━━━┓      
-              ┃ R2DTWO                                                 ┃      
+              ┃ DNT                                                 ┃      
               ┃                          R/E/O/D                       ┃      
               ┃          End.Decap┌───┐  ┌─────┐  ┌───┐ H.Encap        ┃      
               ┃         IPv6 outer│███├──▶     │──▶███│ IPv6 outer     ┃    
@@ -147,7 +147,7 @@ In case of a transit node (consider a topology where a node R3 is connected to R
               ╚════════════════════════════════════════════════════════╝      
 ```
 
-For Ethernet/TSN over SRv6, the configuration is simpler, as the UNI interfaces do not need IP addresses, and also they do not need to answer any ARP/NDP requests. Thus the veth interface pair is not needed. In this case, the R2DTWO uses the UNI interface as the ingress directly, without directing the traffic with TC filter actions. The Ethernet frame is encpsulated in an IPv6 packet, and at the NNI side it is handled similarly to the IP/IPv6 case.
+For Ethernet/TSN over SRv6, the configuration is simpler, as the UNI interfaces do not need IP addresses, and also they do not need to answer any ARP/NDP requests. Thus the veth interface pair is not needed. In this case, the DNT uses the UNI interface as the ingress directly, without directing the traffic with TC filter actions. The Ethernet frame is encpsulated in an IPv6 packet, and at the NNI side it is handled similarly to the IP/IPv6 case.
 
 ## Linux SRv6 counters
 
@@ -166,9 +166,9 @@ fd14:fade:0:0:1::  encap seg6local action End.DT6 table 254 packets 20 bytes 432
 fe80::/64 proto kernel metric 256 pref medium
 ```
 
-## R2DTWO configuration for SRv6
+## DNT configuration for SRv6
 
-The R2DTWO configuration must be aware of the outer PREOF.SID locators, and also the flow IP addresses at the UNI if IP address based identification is used for flow separation.
+The DNT configuration must be aware of the outer PREOF.SID locators, and also the flow IP addresses at the UNI if IP address based identification is used for flow separation.
 
 In the `[interfaces]` section the following interfaces are needed:
 
@@ -193,7 +193,7 @@ member11 = edit ipv6_outer.func=0 ipv6_outer.flowid=0x11111, send if3
 member12 = edit ipv6_outer.func=1 ipv6_outer.flowid=0x12222, send if3
 ```
 
-**Note:** for SRv6 the `writeseq` action is required to add the sequence number to the PREOF SID. For TSN R-TAG and PseudoWire d-ACH it happens automatically after the `add rtag` and `add dcw` actions, because those headers are designed to hold the sequence number. The SID on the other hand is just an IPv6 address, and R2DTWO cannot automatically determine that it is meant to hold a PREOF sequence number.
+**Note:** for SRv6 the `writeseq` action is required to add the sequence number to the PREOF SID. For TSN R-TAG and PseudoWire d-ACH it happens automatically after the `add rtag` and `add dcw` actions, because those headers are designed to hold the sequence number. The SID on the other hand is just an IPv6 address, and DNT cannot automatically determine that it is meant to hold a PREOF sequence number.
 
 The  NNI flow entries will identify the flows based on the `flowid`. After identification we read the sequence number from the `seq` field of the SID, remove the outer IPv6 header and after elimination it is sent to the egress UNI interface.
 
@@ -247,7 +247,7 @@ For SRv6 OAM MPs can be added to the action pipeline similarly to TSN/DetNet. Ho
 * Write `loc`: the pipeline SHOULD write the "loc" field of the outer IPv6 header in order to satisfy the MP addressing.
 * After an MP injection point, `WriteSeq` must be added to write the sequence number to the IPv6 SID.
 
-The R2DTWO SRv6 support uses VRF interface to send IP packets to NNI interfaces. The VRF type interface behaves as an IP interface, meaning that it decrements the IPv4 TTL and IPv6 Hop Limit. However, by design R2DTWO also acts as an IP layer forwarder, thus also decrements TTL/Hop limit. This results that packets forwarded by the R2DTWO SRv6 will have Hop Limit decremented twice at each R2DTWO instance.
+The DNT SRv6 support uses VRF interface to send IP packets to NNI interfaces. The VRF type interface behaves as an IP interface, meaning that it decrements the IPv4 TTL and IPv6 Hop Limit. However, by design DNT also acts as an IP layer forwarder, thus also decrements TTL/Hop limit. This results that packets forwarded by the DNT SRv6 will have Hop Limit decremented twice at each DNT instance.
 
 To counter this effect, we can use the ip6tables hop limit field manipulation. This means that ip6tables with HL support (xt_HL or ip6t_HL kernel module loaded).
 
@@ -263,7 +263,7 @@ In our case the source address of such packets is given, it is the address of th
 ip6tables -t mangle -A OUTPUT -s fd00:a2d2:0:0:0:1::1/96 -j HL --hl-inc 1"
 ```
 
-where fd00:a2d2:0:0:0:1::1 is the IP address of the VRF interface. This increments the Hop Limit by 1 for all packets coming from the VRF interface, and the result is that the Hop Limit will only decrease by 1 on each R2DTWO hop as it should.
+where fd00:a2d2:0:0:0:1::1 is the IP address of the VRF interface. This increments the Hop Limit by 1 for all packets coming from the VRF interface, and the result is that the Hop Limit will only decrease by 1 on each DNT hop as it should.
 
 The oam_srv6 test in the `test` directory gives an example for SRv6 OAM usage and configuration.
 

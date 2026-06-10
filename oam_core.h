@@ -2,8 +2,8 @@
 // All rights reserved.
 
 
-#ifndef R2_OAM_CORE_H
-#define R2_OAM_CORE_H
+#ifndef DNT_OAM_CORE_H
+#define DNT_OAM_CORE_H
 
 #ifndef OAM_INTERNAL
 #error "this header is internal to the OAM module"
@@ -23,4 +23,4 @@ int foreach_oam_ifaces(hashmap_cb *cb, void *userdata);
 
 unsigned get_node_id(void);
 
-#endif // R2_OAM_CORE_H
+#endif // DNT_OAM_CORE_H

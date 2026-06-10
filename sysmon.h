@@ -1,8 +1,8 @@
 // Copyright (c) 2023-2025, Ericsson AB and Ericsson Telecommunication Hungary
 // All rights reserved.
 
-#ifndef R2_SYSMON_H
-#define R2_SYSMON_H
+#ifndef DNT_SYSMON_H
+#define DNT_SYSMON_H
 
 //#include "log.h"
 #include "notification.h"
@@ -17,4 +17,4 @@ char *modem_sprintf_state_json(struct JsonValue *json, const char *record_sep, c
 bool register_tc_notification(bool add, char *target, unsigned period_ms);
 bool register_modem_notification(bool add, char *target, unsigned period_ms);
 
-#endif // R2_SYSMON_H
+#endif // DNT_SYSMON_H

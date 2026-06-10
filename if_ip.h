@@ -2,11 +2,11 @@
 // All rights reserved.
 
 
-#ifndef R2_IF_IP_H
-#define R2_IF_IP_H
+#ifndef DNT_IF_IP_H
+#define DNT_IF_IP_H
 
 struct Interface;
 
 struct Interface *new_ip_interface(const char *name, const char *ifname);
 
-#endif // R2_IF_IP_H
+#endif // DNT_IF_IP_H

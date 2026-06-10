@@ -2,8 +2,8 @@
 // All rights reserved.
 
 
-#ifndef R2_PIPELINE_H
-#define R2_PIPELINE_H
+#ifndef DNT_PIPELINE_H
+#define DNT_PIPELINE_H
 
 #include <stdbool.h>
 
@@ -64,4 +64,4 @@ bool pipe_set_mask(struct Pipeline *pipe, bool new_mask);
 // get state information
 struct JsonValue *pipe_get_state(const struct Pipeline *pipe);
 
-#endif // R2_PIPELINE_H
+#endif // DNT_PIPELINE_H

@@ -38,7 +38,7 @@ HEADERS += oam.h oam_command.h oam_core.h oam_maintenance.h oam_message.h oam_re
 HEADERS += configfile.h conf_actions.h conf_interface.h conf_object.h conf_packet.h conf_streams.h conf_oam.h conf_utils.h
 HEADERS += lib/parsers/hashmap.h lib/parsers/inifile.h lib/parsers/json.h lib/parsers/parserutils.h
 
-EXE = r2dtwo
+EXE = dnt
 
 default: release
 

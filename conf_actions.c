@@ -25,7 +25,7 @@ DEFAULT_LOGGING_MODULE(CONFIG, WARNING);
 
 #define MAX_DEPTH 10
 
-// when adding a new action to R2DTWO, start with adding it to this enum
+// when adding a new action to DNT, start with adding it to this enum
 enum ConfActionType {
     CA_UNDEF,
     CA_ADD,

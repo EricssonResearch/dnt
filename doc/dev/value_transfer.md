@@ -4,8 +4,8 @@ We've developed a universal value passing architecture to have a universal `edit
 In this architecture the actual packet header field editing is happens by copying bit sequences, where the appropriate offsets and bit counts are set up from protocol header descriptors during configuration time.
 
 This value transfer architecture was designed to be more generic than a simple header read/write.
-In the original design of R2DTWO one could transfer values to/from packet header fields, packet property (metadata) slots, stateful objects, interface properties etc.
-Currently R2DTWO doesn't fully utilize the capabilities that could be possible, just reads and writes packet headers.
+In the original design of DNT one could transfer values to/from packet header fields, packet property (metadata) slots, stateful objects, interface properties etc.
+Currently DNT doesn't fully utilize the capabilities that could be possible, just reads and writes packet headers.
 
 
 ## Producer-Consumer model
@@ -43,7 +43,7 @@ Where to find the code related to this value transfer architecture:
 * `value.h` contains the `Value` structure, and the prototypes for the Producer and Consumer functions
 * `header.h` has functions that return Producer and Consumer functions for header fields based on bitoffset/bitcount
 * `interface.h` has the base class for interfaces, the `get_property_reader()` virtual method returns a Producer
-* `protocol.h` provides information on the header fields of each protocol known to R2DTWO
+* `protocol.h` provides information on the header fields of each protocol known to DNT
 * `conf_actions.c` is responsible for compiling the actions in the config into action pipelines
 
 The `edit` action parameters are assignments in the form of `lhs=rhs`.
@@ -113,7 +113,7 @@ This function has four parameters:
 The producer state is different for each Producer type.
 The config compiler has to know how to construct the appropriate state.
 
-The following Producer functions are currently available in R2DTWO.
+The following Producer functions are currently available in DNT.
 
 ### Constant value
 

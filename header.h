@@ -2,8 +2,8 @@
 // All rights reserved.
 
 
-#ifndef R2_HEADER_H
-#define R2_HEADER_H
+#ifndef DNT_HEADER_H
+#define DNT_HEADER_H
 
 #include "protocol.h"
 #include "value.h"
@@ -39,4 +39,4 @@ value_producer *header_get_field_reader(const struct Value *target, const struct
 // the state of the returned comparator function should be @target
 value_comparator *header_get_field_comprator(const struct HeaderField *target, const struct Value *match);
 
-#endif // R2_HEADER_H
+#endif // DNT_HEADER_H

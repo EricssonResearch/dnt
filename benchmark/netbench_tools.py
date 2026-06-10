@@ -66,7 +66,7 @@ list_ops=("fwd","encap-tsn","repl-tsn")
 
 def parse_cmdline():
     parser = argparse.ArgumentParser()
-    parser.add_argument("config",choices=list_ops, help="r2dtwo configuration")
+    parser.add_argument("config",choices=list_ops, help="dnt configuration")
     parser.add_argument("-d","--debug", help="debug mode", action="store_true")
     parser.add_argument("-i","--iperf", choices=("2","3"),help="iperf version to use, default is v2", default="2")
     parser.add_argument("-t","--topo", choices=("1hop","2hop"),help="topology to run on, default 1hop", default="1hop")

@@ -2,8 +2,8 @@
 // All rights reserved.
 
 
-#ifndef R2_CONF_OBJECT_H
-#define R2_CONF_OBJECT_H
+#ifndef DNT_CONF_OBJECT_H
+#define DNT_CONF_OBJECT_H
 
 #include "inifile.h"
 
@@ -13,6 +13,6 @@
 // @returns false on error
 bool parse_objects(struct HashMap *objects, const struct IniSection *objects_section);
 
-#endif // R2_CONF_OBJECT_H
+#endif // DNT_CONF_OBJECT_H
 
 

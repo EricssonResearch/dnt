@@ -1,15 +1,15 @@
-# Scenario 2: R2DTWO TSN over DetNet
+# Scenario 2: DNT TSN over DetNet
 
 __Important: this scenario assumes background knowledge of the basics from Scenario TSN. Please take a look into Scenario TSN if you have not already.__ [Scenario TSN](../scenario_tsn/README.md)
 
-In the following, we will use R2DTWO as a DetNet router.
+In the following, we will use DNT as a DetNet router.
 The Layer2 traffic of `talker` and `listener` nodes will be encapsulated in MPLS DetNet pseudowires, then sent through a PREF (Packet Replication and Elimination Functions).
 
 We will use the following topology, which consists:
 
 * a talker node called **talker** which will generate traffic
 * a node called **listener** which receive the traffic coming from the **talker**
-* two R2DTWO instances, running on the **nxp1** and **nxp2** nodes.
+* two DNT instances, running on the **nxp1** and **nxp2** nodes.
 
 ```
     talker              nxp1                         nxp2              listener
@@ -31,23 +31,23 @@ We will use the following topology, which consists:
 
                       PEF ◄───                     ◄─── PRF
 
-                      R2DTWO                       R2DTWO
+                      DNT                       DNT
 ```
 As you can see, there are redundant paths between **nxp1** and **nxp2**.
-These paths will be utilized by R2DTWO for redundancy.
-What is important here, unlike in the Layer2 TSN case (Scenario TSN) now R2DTWO operates at Layer3 and the replicated packets will be routed to the DetNet peer.
+These paths will be utilized by DNT for redundancy.
+What is important here, unlike in the Layer2 TSN case (Scenario TSN) now DNT operates at Layer3 and the replicated packets will be routed to the DetNet peer.
 
 In the scenario above however the routing is very simple, but the same configuration would work even when there are multiple routers between `nxp1` and `nxp2`.
 
-## The R2DTWO configurations
+## The DNT configurations
 
-Now we have separate R2DTWO config files for the two DetNet nodes: `nxp1.ini` and `nxp2.ini`.
+Now we have separate DNT config files for the two DetNet nodes: `nxp1.ini` and `nxp2.ini`.
 This is required because even if the topology is symmetrical, we have different IP addresses on the two routers.
 
 
 ### Explanation of the configuration
 
-For full details, please take a look at the R2DTWO documentation.
+For full details, please take a look at the DNT documentation.
 Right now we are only explaining the actions in the `nxp1.ini` file, but everything except the addresses apply to the `nxp2.ini` too obviously.
 Like before in Scenario TSN, this config also consists of three main sections: `[interfaces]`, `[objects]` and `[streams]`.
 
@@ -120,15 +120,15 @@ member2:actions = readseq dcw, pef pef-compound
 pef-compound = del dcw, del mpls, del cvlan, send uni
 ```
 
-For the full list of the supported R2DTWO actions, their parameters and behavior please consult with the documentation.
+For the full list of the supported DNT actions, their parameters and behavior please consult with the documentation.
 
 Right now, the packets matching in `compound` stream will be processed as described below as described in the `:actions` line:
 
-0. The switch receives a packet on `swp2` interface, and since its an ethernet interface, R2DTWO applies a VLAN 0 tag (named as `cvlan` in the config) on it by default
-1. The `gen` action gives a unique sequence number for each packet. R2DTWO smart enough to guess the action type from the object type.
+0. The switch receives a packet on `swp2` interface, and since its an ethernet interface, DNT applies a VLAN 0 tag (named as `cvlan` in the config) on it by default
+1. The `gen` action gives a unique sequence number for each packet. DNT smart enough to guess the action type from the object type.
 2. We change the VLAN ID to 99, while this is not necessary for the operation, in Wireshark we can confirm the packet belongs to the stream.
 3. Now we have to prepare the DetNet encapsulation. For that we will add an MPLS header `before eth add mpls` and a DetNet control word `after mpls add dcw`.
-4. Optional, but might be useful to show: `writeseq dcw` will write the sequence number of the packet (given from `gen`) into the `dcw` header. R2DTWO is smart enough to do that if we push new DetNet CW header.
+4. Optional, but might be useful to show: `writeseq dcw` will write the sequence number of the packet (given from `gen`) into the `dcw` header. DNT is smart enough to do that if we push new DetNet CW header.
 5. That was the common part of the pipeline. Now we perform a branching with the `prf prf-member1 prf-member2` action, and continue the execution of the pipeline differently with two copies of the packet.
 6. We set the MPLS Label field to 100 and 200 values, and sending the replica packets on `nni1_out` and `nni2_out` interfaces.
 Before the sending we also set the MPLS Bottom of Stack bit to 1, since we dont do label stacking, that is the only MPLS label we have right now.
@@ -147,7 +147,7 @@ The steps in `member1` and `member2`:
 
 1. After the matching of VLAN ID 99 we will read the DetNet CW sequence number: `readseq dcw`. That is required for the PEF
 2. Now we can do the elimination with the PEF, which is performed by the `pef` action.
-Notice that `pef` is defined in the `[objects]` section, but until their names are not ambiguous we can use an object name in the action pipeline and the action type implicitly guessed by the R2DTWO.
+Notice that `pef` is defined in the `[objects]` section, but until their names are not ambiguous we can use an object name in the action pipeline and the action type implicitly guessed by the DNT.
 3. The PEF drop the replica packets and the one passing packet's processing continues on the `pef-compound` action pipeline.
 4. Now we decapsulate the headers until the Layer2 payload, as received by the UNI, since the `talker` will expect the same encapsulation that it used when sent the packet.
 So right now we will delete the MPLS, DetNet CW and VLAN headers: `del dcw, del mpls, del cvlan`.
@@ -156,17 +156,17 @@ So right now we will delete the MPLS, DetNet CW and VLAN headers: `del dcw, del 
 
 Another stream `prio-compound` defined similarly to `compound`.
 It has its own stream definitions for UNI and NNI.
-R2DTWO tries to match the streams sequentially: the `compound` not matched if `prio-compound` matches on the packet.
+DNT tries to match the streams sequentially: the `compound` not matched if `prio-compound` matches on the packet.
 It might worth to mention, there are no separate member streams defined, since we identify the stream with the same label (500) on both paths.
 So `prio-members` stream is enough for the identification, it must be configured on both NNI interfaces.
 
 As mentioned before, the `nxp2.ini` is very similar however, the UNI is connected to the `listener` in that case.
 
 
-## Run the R2DTWO and generate traffic
+## Run the DNT and generate traffic
 
-Let's try out R2DTWO with this scenario.
-For that we need at least three terminal window: one for generate traffic (`talker`) and two for run R2DTWO instances on `nxp1` and `nxp2`.
+Let's try out DNT with this scenario.
+For that we need at least three terminal window: one for generate traffic (`talker`) and two for run DNT instances on `nxp1` and `nxp2`.
 
 After opening the terminals, switch to `root` user and do the network config in each with the `source env.sh` command:
 
@@ -192,17 +192,17 @@ swp0@if2         UP             192.168.55.1/24 fe80::e8aa:eff:fe0a:76f1/64
 swp1@if3         UP             192.168.66.1/24 fe80::c494:d1ff:fe1b:b38/64
 ```
 
-Now we can start the R2DTWO instances on `nxp1` and `nxp2`:
+Now we can start the DNT instances on `nxp1` and `nxp2`:
 
 ```
 # in one terminal:
-nxp1 r2dtwo nxp1.ini
+nxp1 dnt nxp1.ini
 
 # in another terminal window:
-nxp2 r2dtwo nxp2.ini
+nxp2 dnt nxp2.ini
 ```
 
-If everything OK, the `r2dtwo` instances are up and running.
+If everything OK, the `dnt` instances are up and running.
 But we have to generate some traffic right now with `ping` so run it on the `talker` node:
 
 ```
@@ -383,14 +383,14 @@ Inside that, we have the talker's traffic tunneled: Ethernet, CVLAN, IPv4 and IC
 
 For better visibility, please use Wireshark.
 
-Since R2DTWO 6.3 there is a `PACKETTRACE` module, which give a brief overview about the packets processed by R2DTWO.
-To enable that, start R2DTWO with the module enabled on max verbosity level.
+Since DNT 6.3 there is a `PACKETTRACE` module, which give a brief overview about the packets processed by DNT.
+To enable that, start DNT with the module enabled on max verbosity level.
 For example we use it on `nxp1`:
 
 ```
-nxp1 r2dtwo nxp1.ini -v PACKETTRACE:DEBUG
+nxp1 dnt nxp1.ini -v PACKETTRACE:DEBUG
 Info: Logging to standard output.
-2024.08.23 09:57:17 [MAIN] [INFO] R2DTWO - Reliable & Robust Deterministic Tool for netWOrking 6.3
+2024.08.23 09:57:17 [MAIN] [INFO] DNT - Dependable Networking Toolkit 6.3
 2024.08.23 09:57:17 [MAIN] [INFO] Reading config 'nxp1.ini'
 2024.08.23 09:57:17 [STATE] [INFO] adding stream member1 to interface nni1_in
 2024.08.23 09:57:17 [STATE] [INFO]   compiling new pipeline
@@ -430,17 +430,17 @@ Info: Logging to standard output.
 As one can see, this print one line per packet, summarizing the processing of it.
 It shows an internal ID of the packet, ingress interface, size, the matching stream (if any), header stack and the executed actions, finally the egress interface if send action exists.
 One can examine the decision of the `Eliminate` action if it drop or pass the packet (also the sequence number of the packet).
-__Important to note__: the output can be differs in future versions of R2DTWO. Also, R2DTWO can insert implicit actions, generated automatically. These actions not defined in the config file.
+__Important to note__: the output can be differs in future versions of DNT. Also, DNT can insert implicit actions, generated automatically. These actions not defined in the config file.
 
 To generate traffic matching on the `prio-compound` stream, there is a small python script prepared.
 The script generate one packet with VLAN ID 0 and PCP 6.
-After starting R2DTWOs execute the script:
+After starting DNTs execute the script:
 
 ```
 talker ./traffic.py
 ```
 
-If R2DTWO packet trace logging enabled, the output could look like the following:
+If DNT packet trace logging enabled, the output could look like the following:
 
 ```
 # on nxp1

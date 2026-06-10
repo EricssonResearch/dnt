@@ -1,11 +1,11 @@
-# R2DTWO path masking
+# DNT path masking
 
-R2DTWO has a runtime path masking feature. This allows replication pipelines to be masked through the Telnet CLI interface on a running R2DTWO instance.
-These tests should verify that R2DTWO's path masking feature is working properly.
+DNT has a runtime path masking feature. This allows replication pipelines to be masked through the Telnet CLI interface on a running DNT instance.
+These tests should verify that DNT's path masking feature is working properly.
 
 There are two versions of the test topology: single node and multi node.
 The single-node version is useful for testing because it does not require a virtual network setup.
-All traffic is generated locally, and all replication and recovery graph elimination functions are implemented within an R2DTWO instance.
+All traffic is generated locally, and all replication and recovery graph elimination functions are implemented within an DNT instance.
 
 The multi-node version implements the same recovery graph, but with a more realistic, virtual network scenario.
 Here, each replication and elimination function is implemented on different nodes, so that real network transmissions take place.

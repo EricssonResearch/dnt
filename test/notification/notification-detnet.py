@@ -71,9 +71,9 @@ async def cleanup_udp(transports):
         transport.close()  # Close UDP sockets
     await asyncio.sleep(1)  # Allow time for cleanup messages
 
-def start_r2dtwo():
-    return exec_bg("../r2dtwo notification/notification-detnet.ini")
-#    return exec_bg("../r2dtwo -of notification/notification-detnet.ini -v PACKETTRACE:PACKET")
+def start_dnt():
+    return exec_bg("../dnt notification/notification-detnet.ini")
+#    return exec_bg("../dnt -of notification/notification-detnet.ini -v PACKETTRACE:PACKET")
 
 def cleanup_ifaces():
     exec_fg("ip link del to_r2 type veth peer name r2rx")
@@ -397,7 +397,7 @@ def test_notifications():
 async def main():
     transports = []  # Store UDP transports
 
-    print("R2DTWO notifications tests - DetNet")
+    print("DNT notifications tests - DetNet")
     ret = 0
 
     receiver = NotificationReceiver(seq_history_size=200)
@@ -409,8 +409,8 @@ async def main():
     result = 0
     config_ifaces()
 
-    start_r2dtwo()
-    # run with sudo ../r2dtwo -of notification/notification-detnet.ini -v ALL:ALL
+    start_dnt()
+    # run with sudo ../dnt -of notification/notification-detnet.ini -v ALL:ALL
     #input("Press Enter to continue...")
 
     await asyncio.sleep(1)
@@ -424,7 +424,7 @@ async def main():
     if result == -1:
         print("Error running tests.")
 
-    exec_fg("killall r2dtwo")
+    exec_fg("killall dnt")
     await cleanup_udp(transports)
     cleanup_ifaces()
 

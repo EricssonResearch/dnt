@@ -37,8 +37,8 @@ def start_network():
     nxp1.cmd("tc qdisc add dev swp1 parent root netem loss 50%")
     nxp2.cmd("tc qdisc add dev swp1 parent root netem loss 50%")
 
-    # on nxp1: ../r2dtwo stress.ini
-    # on nxp2: ../r2dtwo stress.ini
+    # on nxp1: ../dnt stress.ini
+    # on nxp2: ../dnt stress.ini
     # on listener: iperf -Vs
     # on talker: iperf -c 10.0.0.2
     # on talker: iperf -c fd01::2

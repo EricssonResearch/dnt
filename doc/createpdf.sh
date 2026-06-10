@@ -1,6 +1,6 @@
 #!/usr/bin/bash
 
-AGGREGATE=/tmp/r2dtwo.md
+AGGREGATE=/tmp/dnt.md
 
 # getting started scenarios
 declare -a getting_started=(
@@ -49,7 +49,7 @@ VER_MINOR=$(grep -oP 'VERSION_MINOR \K\d+' version.h)
 
 preamble="
 ---
-title: R2DTWO v${VER_MARJOR}.${VER_MINOR} documentation
+title: DNT v${VER_MARJOR}.${VER_MINOR} documentation
 urlcolor: blue
 header-includes: |
   \usepackage{fancyhdr}

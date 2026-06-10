@@ -1,8 +1,8 @@
-# Scenario 3: R2DTWO IPv4/IPv6 over DetNet PseudoWire
+# Scenario 3: DNT IPv4/IPv6 over DetNet PseudoWire
 
 __Important: this scenario assumes background knowledge of the basics from Scenario TSN and #2. Please take a look into Scenarios #1 and #2 if you have not already.__ [Scenario TSN](../scenario_tsn/README.md), [Scenario TSN over DetNet](../scenario_tsn_over_detnet/README.md)
 
-In the following, we will use R2DTWO as a DetNet router.
+In the following, we will use DNT as a DetNet router.
 The Layer3 traffic of `talker` and `listener` nodes will be encapsulated in MPLS DetNet pseudowires, then sent through a PREF (Packet Replication and Elimination Functions).
 
 __Important: if this test running on the NXP boards, use the setup scripts for configuring the network properly!__: `nxp1_setup.sh` and `nxp2_setup.sh`
@@ -11,7 +11,7 @@ We will use the following topology, which consists:
 
 * a talker node called **talker** which will generate IPv4 and IPv6 traffic
 * a node called **listener** which receive the traffic coming from the **talker**
-* two R2DTWO instances, running on the **nxp1** and **nxp2** nodes.
+* two DNT instances, running on the **nxp1** and **nxp2** nodes.
 
 ```
     talker              nxp1                         nxp2              listener
@@ -33,14 +33,14 @@ We will use the following topology, which consists:
 
                       PEF ◄───                     ◄─── PRF
 
-                      R2DTWO                       R2DTWO
+                      DNT                       DNT
 ```
 As you can see, there are redundant paths between **nxp1** and **nxp2**.
-These paths will be utilized by R2DTWO for redundancy.
+These paths will be utilized by DNT for redundancy.
 
 As one can notice, now the talker and listener are placed into different subnets, so __nxp1__ and __nxp2__ must act as a router.
 
-Unlike in the TSN over DetNet case (Scenario TSN over DetNet) now R2DTWO operates at Layer3 on __both UNI and NNI__ interfaces.
+Unlike in the TSN over DetNet case (Scenario TSN over DetNet) now DNT operates at Layer3 on __both UNI and NNI__ interfaces.
 That means the IP packets from the talker will be encapsulated into MPLS DetNet PW and routed towards the PEF.
 The PEF handles the duplicates, then after decapsulating the packet __until the IPv4 or IPv6 header__ sent by the talker, it will send the packet to the listener over a native IP interface.
 The reverse path from listener to talker is similar.
@@ -51,9 +51,9 @@ Also, in some cases, we don't have Layer2 at all (IP tunnel interfaces, IP PDU s
 
 In the scenario above the routing is very simple, but the same configuration would work even when there are multiple routers between `nxp1` and `nxp2`.
 
-## The R2DTWO configurations
+## The DNT configurations
 
-Now we have separate R2DTWO config files for the two DetNet nodes: `nxp1.ini` and `nxp2.ini`.
+Now we have separate DNT config files for the two DetNet nodes: `nxp1.ini` and `nxp2.ini`.
 This is required because even if the topology is symmetrical, we have different IP addresses on the two routers.
 
 In the following we only take a closer look to `nxp1.ini` since `nxp2.ini` almost identical expect the IP addressing (they mirrored basically).
@@ -93,7 +93,7 @@ v6nni_in1:streams = pw6
 
 On `spw2` which is the UNI we receive IP packets.
 This is practical, since that way Linux will do the ARP or ND resolution.
-Otherwise this should be handled or configured within R2DTWO.
+Otherwise this should be handled or configured within DNT.
 
 On `spw0` and `spw1` we have four PWs defined, two for ingress and two for egress traffic.
 For example, the two IPv6 egress PW named as `v6nni_out0` and `v6nni_out1`.
@@ -135,10 +135,10 @@ With this, we can implement site-to-site DetNet routing between subnets as well 
 
 As we can see, the `ip` interface can send and receive IPv4 and IPv6 simultaneously (dual-stack).
 
-For the full list of the supported R2DTWO actions, their parameters and behavior please consult with the documentation.
+For the full list of the supported DNT actions, their parameters and behavior please consult with the documentation.
 We have the `compound4` and `compound6` streams, which can match to the traffic received by the UNI interface.
 If we found matching packets, we do the DetNet encapsulation __but we should remove all Layer2 headers like Ethernet and VLAN__.
-This is important since the other R2DTWO endpoint terminating the pseudowire expects IP over DetNet encapsulated packets.
+This is important since the other DNT endpoint terminating the pseudowire expects IP over DetNet encapsulated packets.
 
 
 For IPv4 traffic we set MPLS 400 for both member streams likewise label 600 for IPv6.
@@ -170,11 +170,11 @@ At the end of the pipeline, we will send the packet on the native IP interface.
 Now since the routing is quite trivial (we only have one UNI interface) the Linux network stack only helps us in the ARP or ND resolution of the listener's IP address.
 
 
-## Run the R2DTWO and generate traffic
+## Run the DNT and generate traffic
 
-Let's try out R2DTWO with this scenario.
+Let's try out DNT with this scenario.
 
-For that we need at least three terminal windows: one for generating traffic (`talker`) and two for run R2DTWO instances on `nxp1` and `nxp2`.
+For that we need at least three terminal windows: one for generating traffic (`talker`) and two for run DNT instances on `nxp1` and `nxp2`.
 
 After opening the terminals, switch to `root` user and do the network config in each with the `source env.sh` command:
 
@@ -187,17 +187,17 @@ source env.sh
 If everything OK, the prompt should be changed to `(ip over detnet) root:scenario_ip_over_detnet# ` which tells right now we are in the test network environment.
 Now we should have all the networking (nodes, interfaces, IP addresses and routing) configured and helper commands to execute commands on the nodes.
 
-Now we can start the R2DTWO instances on `nxp1` and `nxp2`:
+Now we can start the DNT instances on `nxp1` and `nxp2`:
 
 ```
 # in one terminal:
-nxp1 r2dtwo nxp1.ini
+nxp1 dnt nxp1.ini
 
 # in another terminal window:
-nxp2 r2dtwo nxp2.ini
+nxp2 dnt nxp2.ini
 ```
 
-If everything OK, the `r2dtwo` instances are up and running.
+If everything OK, the `dnt` instances are up and running.
 But we have to generate some traffic right now with `ping` so run it on the `talker` node:
 
 ```
@@ -217,29 +217,29 @@ As one can see, we have __Destination Net Unreachable__ errors.
 This is expected: `nxp1` doesn't have any routing entry for the `10.0.200.0/24` network, therefore can't route the packet properly, and generates an ICMP error message back to the talker.
 
 But why is this the case?
-R2DTWO is working with the user-space copy of the packet.
+DNT is working with the user-space copy of the packet.
 
-That means the packet continues its way in the Linux packet processing pipeline regardless of R2DTWO processing it or not.
-Essentially, since the ping packet sent by the talker is handled by R2DTWO and properly transmitted to the listener, we will receive a reply for that.
+That means the packet continues its way in the Linux packet processing pipeline regardless of DNT processing it or not.
+Essentially, since the ping packet sent by the talker is handled by DNT and properly transmitted to the listener, we will receive a reply for that.
 Beside that, the Linux also processes the frame, which goes up to the IP protocol handler which generate the net unreachable ICMP error.
 
-The recommended way of using R2DTWO in IP over DetNet scenario is to use it together with Linux TC and a virtual interface to separate the DetNet traffic from the background traffic before it even reaches R2DTWO.
+The recommended way of using DNT in IP over DetNet scenario is to use it together with Linux TC and a virtual interface to separate the DetNet traffic from the background traffic before it even reaches DNT.
 With TC we can do the following:
 
-1. Configure TC rules on the ingress interface, matching on the traffic expected in stream(s) defined in R2DTWO
-2. Redirect the matching packets to a virtual interface, like veth, which is defined as UNI in the R2DTWO config
-3. Let the Linux network stack handle the background traffic normally (which is not redirected hence invisible to R2DTWO)
+1. Configure TC rules on the ingress interface, matching on the traffic expected in stream(s) defined in DNT
+2. Redirect the matching packets to a virtual interface, like veth, which is defined as UNI in the DNT config
+3. Let the Linux network stack handle the background traffic normally (which is not redirected hence invisible to DNT)
 
 This can be visualized in the figure below:
 
 ```
-                                R2DTWO
+                                DNT
                               ┌────────────────────────────┐
                               │                            │
                       uni     │                            │
                         ┌─────┤                            │
                         │     │ ┌───────┐                  │
-                        │     │ │r2veth1│ ◄─── uni_in      │
+                        │     │ │dntveth1│ ◄─── uni_in      │
                         │     │ └───┬───┘                  │
                         │     │     │                      │
                         │     │     │                      │
@@ -247,7 +247,7 @@ This can be visualized in the figure below:
                         │           │
                         │           │
                         │       ┌───┴───┐
-                        │       │r2veth0│
+                        │       │dntveth0│
                         │       └───────┘
                         │           ▲
                         ▼           │Stream(s)
@@ -273,48 +273,48 @@ We can check the commands with the `declare -f configure_tc` command:
 (ip over detnet) root:scenario_ip_over_detnet# declare -f configure_tc
 configure_tc ()
 {
-    ip netns exec nxp1 ip link add r2eth0 type veth peer name r2eth1;
-    ip netns exec nxp1 ip link set dev r2eth0 up;
-    ip netns exec nxp1 ip link set dev r2eth1 up;
+    ip netns exec nxp1 ip link add dnteth0 type veth peer name dnteth1;
+    ip netns exec nxp1 ip link set dev dnteth0 up;
+    ip netns exec nxp1 ip link set dev dnteth1 up;
     ip netns exec nxp1 tc qdisc add dev swp2 handle ffff: ingress;
-    ip netns exec nxp1 tc filter add dev swp2 parent ffff: protocol ip flower src_ip 10.0.100.11 dst_ip 10.0.200.22 action mirred egress redirect dev r2eth0;
-    ip netns exec nxp1 tc filter add dev swp2 parent ffff: protocol ipv6 flower src_ip fd01::11 dst_ip fd02::22 action mirred egress redirect dev r2eth0;
-    ip netns exec nxp2 ip link add r2eth0 type veth peer name r2eth1;
-    ip netns exec nxp2 ip link set dev r2eth0 up;
-    ip netns exec nxp2 ip link set dev r2eth1 up;
+    ip netns exec nxp1 tc filter add dev swp2 parent ffff: protocol ip flower src_ip 10.0.100.11 dst_ip 10.0.200.22 action mirred egress redirect dev dnteth0;
+    ip netns exec nxp1 tc filter add dev swp2 parent ffff: protocol ipv6 flower src_ip fd01::11 dst_ip fd02::22 action mirred egress redirect dev dnteth0;
+    ip netns exec nxp2 ip link add dnteth0 type veth peer name dnteth1;
+    ip netns exec nxp2 ip link set dev dnteth0 up;
+    ip netns exec nxp2 ip link set dev dnteth1 up;
     ip netns exec nxp2 tc qdisc add dev swp2 handle ffff: ingress;
-    ip netns exec nxp2 tc filter add dev swp2 parent ffff: protocol ip flower src_ip 10.0.200.22 dst_ip 10.0.100.11 action mirred egress redirect dev r2eth0;
-    ip netns exec nxp2 tc filter add dev swp2 parent ffff: protocol ipv6 flower src_ip fd02::22 dst_ip fd01::11 action mirred egress redirect dev r2eth0
+    ip netns exec nxp2 tc filter add dev swp2 parent ffff: protocol ip flower src_ip 10.0.200.22 dst_ip 10.0.100.11 action mirred egress redirect dev dnteth0;
+    ip netns exec nxp2 tc filter add dev swp2 parent ffff: protocol ipv6 flower src_ip fd02::22 dst_ip fd01::11 action mirred egress redirect dev dnteth0
 }
 ```
 
-As one can see, this sets up the veth on both `nxp1` and `nxp2`, and redirects the IP traffic coming from the `talker` or `listener` to `r2eth1` interface.
-R2DTWO receives this IP traffic, encapsulates it to DetNet pseudowires, replicates it to the NNI interfaces.
+As one can see, this sets up the veth on both `nxp1` and `nxp2`, and redirects the IP traffic coming from the `talker` or `listener` to `dnteth1` interface.
+DNT receives this IP traffic, encapsulates it to DetNet pseudowires, replicates it to the NNI interfaces.
 At the termination of the pseudowire, the IP packet is decapsulated and sent with the IP header as a Layer3 packet on the UNI interface.
 In this case, the UNI interface set to `swp2` which is also the default gateway's interface for the `talker` and `listener`.
 
-So we have to edit the config files to use these new veth interfaces dedicated to R2DTWO UNI traffic only.
-For that, set the `uni_in` interface's definition from `swp2` UNI to the `r2eth1` UNI.
+So we have to edit the config files to use these new veth interfaces dedicated to DNT UNI traffic only.
+For that, set the `uni_in` interface's definition from `swp2` UNI to the `dnteth1` UNI.
 
 ```
 [interfaces]
 ...
-uni_in = eth iface=r2eth1
+uni_in = eth iface=dnteth1
 uni_out = ip iface=swp2
 ...
 ```
 
 We can use the configs __after__ executing `configure_tc` command in one of the bash.
-(If `configure_tc` was not executed, R2DTWO will fail to start since no r2eth1 interfaces exists)
+(If `configure_tc` was not executed, DNT will fail to start since no dnteth1 interfaces exists)
 
 
 ### Workaround without TC
 
 For many different streams the TC redirect configuration can be difficult and hard to debug.
 There is a workaround, which not correct but at least with that `nxp1` and `nxp2` does not generate network unreachable errors.
-As explained before, the packet received from UNI continues its journey in the network stack processing after handled by R2DTWO.
+As explained before, the packet received from UNI continues its journey in the network stack processing after handled by DNT.
 As also explained before, with TC filters we can redirect the packets of a stream to a new interface, which dont have IP addresses configured.
-Therefore only R2DTWO sees it, and the processing does not continue by the network stack.
+Therefore only DNT sees it, and the processing does not continue by the network stack.
 
 A workaround without including TC filters and creation of new UNI interface is applying blackhole routes to the UNI routes.
 In our example, this looks like the following (__note:__ before that, please restart the test environment, to delete the TC redirection rules):
@@ -335,11 +335,11 @@ Or use the convenience function:
 With this, we cant see any network unreachable errors on the `talker`.
 That is because Linux was explicitly told to drop this traffic at the routing stack without generating any error.
 
-This is not a recommended solution, because if we start R2DTWO with packet traces enabled, we will see packets from interface `uni` with the `unknown stream` message.
-That is because background traffic, like ARP and ND in this case, is also forwarded to R2DTWO.
+This is not a recommended solution, because if we start DNT with packet traces enabled, we will see packets from interface `uni` with the `unknown stream` message.
+That is because background traffic, like ARP and ND in this case, is also forwarded to DNT.
 If we don't have too much background traffic, this is not an issue, but it still causes CPU overhead to copy, match and then drop packets at userspace.
 Even worse, a bad stream matching statement might match on these packets by mistake for a known stream.
-So the recommended way to pre-filter streams for R2DTWO if there are background traffic on the network.
+So the recommended way to pre-filter streams for DNT if there are background traffic on the network.
 
 With the blackhole workaround, or the TC pre-filtering, we should see the following ping outputs:
 

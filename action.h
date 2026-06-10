@@ -2,8 +2,8 @@
 // All rights reserved.
 
 
-#ifndef R2_ACTION_H
-#define R2_ACTION_H
+#ifndef DNT_ACTION_H
+#define DNT_ACTION_H
 
 #include "header.h"
 #include "pipeline.h"
@@ -154,4 +154,4 @@ struct PipelineList *action_repl_get_piplinelist(struct Action *a);
 // frees the dynamic memory used by the action, but not the action itself (they are in an array)
 struct Action *delete_action(struct Action *a);
 
-#endif // R2_ACTION_H
+#endif // DNT_ACTION_H

@@ -2,8 +2,8 @@
 // All rights reserved.
 
 
-#ifndef R2_CONFIGFILE_H
-#define R2_CONFIGFILE_H
+#ifndef DNT_CONFIGFILE_H
+#define DNT_CONFIGFILE_H
 
 #include "state.h"
 
@@ -12,4 +12,4 @@
 struct StateTransaction *read_config_file(const char *filename);
 
 
-#endif // R2_CONFIGFILE_H
+#endif // DNT_CONFIGFILE_H

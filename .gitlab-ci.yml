@@ -1,6 +1,6 @@
 
 variables:
-  IMAGE_NAME: r2dtwo-ci
+  IMAGE_NAME: dnt-ci
   IMAGE_VERSION: v3
 
 
@@ -33,7 +33,7 @@ verify-ci-config:
 
 
 # this Docker image should contain everything we need
-# image: ${IMAGE_NAME}:${IMAGE_VERSION}
+image: ${IMAGE_NAME}:${IMAGE_VERSION}
 build-docker-image:
   stage: build-image
   image:
@@ -51,7 +51,7 @@ build-docker-image:
       - .gitlab-ci/Dockerfile
 
 
-build-r2dtwo-debug:
+build-dnt-debug:
   stage: build
   image: ${IMAGE_NAME}:${IMAGE_VERSION}
   tags:
@@ -60,9 +60,9 @@ build-r2dtwo-debug:
     - CC=gcc make debug -j
   artifacts:
     paths:
-      - r2dtwo
+      - dnt
 
-build-r2dtwo-release:
+build-dnt-release:
   stage: build
   image: ${IMAGE_NAME}:${IMAGE_VERSION}
   tags:
@@ -70,7 +70,7 @@ build-r2dtwo-release:
   script:
     - CC=gcc make release -j
 
-build-r2dtwo-debug-cpp:
+build-dnt-debug-cpp:
   stage: build
   image: ${IMAGE_NAME}:${IMAGE_VERSION}
   tags:
@@ -79,7 +79,7 @@ build-r2dtwo-debug-cpp:
     - .gitlab-ci/cppize.pl Makefile > Makefile-cpp
     - make debug -j -f Makefile-cpp
 
-build-r2dtwo-release-cpp:
+build-dnt-release-cpp:
   stage: build
   image: ${IMAGE_NAME}:${IMAGE_VERSION}
   tags:
@@ -88,7 +88,7 @@ build-r2dtwo-release-cpp:
     - .gitlab-ci/cppize.pl Makefile > Makefile-cpp
     - make release -j -f Makefile-cpp
 
-build-r2dtwo-debug-clang:
+build-dnt-debug-clang:
   stage: build
   image: ${IMAGE_NAME}:${IMAGE_VERSION}
   tags:
@@ -96,7 +96,7 @@ build-r2dtwo-debug-clang:
   script:
     - CC=clang make debug -j
 
-build-r2dtwo-release-clang:
+build-dnt-release-clang:
   stage: build
   image: ${IMAGE_NAME}:${IMAGE_VERSION}
   tags:
@@ -142,7 +142,7 @@ build-unit_test_asan:
   tags:
     - tsn
   dependencies:
-    - build-r2dtwo-debug
+    - build-dnt-debug
   retry: 2
   allow_failure: false
   script:

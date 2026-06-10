@@ -1,9 +1,9 @@
-# Scenario 10: R2DTWO for Segment Routing over IPv6
+# Scenario 10: DNT for Segment Routing over IPv6
 
 __Important: this assumes background knowledge of the basic from the doc/srv6. Please take a look into the SRv6 documentation if you have not already.__ [SRv6](../../doc/srv6.md)
 
 This scenario demonstrates the SRv6 based DetNet operation. It supports 3 subcases: IPv6 over SRv6, IPv4 over SRv6 and TSN (Ethernet) over SRv6.
-Although the same script sets up the environment for all subcases, for better understanding the different subcases have different R2DTWO configurations
+Although the same script sets up the environment for all subcases, for better understanding the different subcases have different DNT configurations
 
 
 We will use the following topology, which consists:
@@ -11,7 +11,7 @@ We will use the following topology, which consists:
 * a talker node called **T1** which will generate IPv6/IPv4/TSN traffic
 * a node called **L5** which receive the traffic coming from the **T1**
 * three routers (**R2**, **R3**, **R4**) in a topology providing 2 separate paths
-* two R2DTWO instances, running on the **R2** and **R4** nodes.
+* two DNT instances, running on the **R2** and **R4** nodes.
 
 he network topology is the same for all 3 scenarios. For IPv6/IPv4 scenario the T1 and L5 have IPv6/IPv4 addresses, and for the TSN scenario a VLAN is used. VLAN 10 is used to send TSN traffic.
 To differentiate the TSN/DetNet traffic from background, IP DSCP 6 (TOS 0xC0) is used. For TSN traffic, the DSCP 6 traffic is automatically mapped to Ethernet PCP 6 when sent out.
@@ -55,9 +55,9 @@ In our example we use several IP address ranges:
 The SRv6 support builds on the existing Linux SRv6 functionality. Therefore, first we configure Linux SRv6 tunnels between nodes **R2** and **R4**.
 To set up these tunnels, the `fade` SID addresses used. Although the Linux SRv6 implementation supports automatic SRv6 tunnel termination, we can not use it because counters will not be created for the tunnel. Thus, we use explicit SRv6 termination.
 
-R2DTWO instance at **R2** will encapsulate the incoming packet (which can be IPv6, IPv4 or Ethernet/TSN), and sets the destination PREOF SID. Since the packet will be replicated over 2 different tunnels, in the R2DTWO config, the `func` field of the PREOF SID is used to direct the traffic to different SRv6 tunnels: for a given DetNet flow the `locator` is the same, but the PREOF SID `func` value varies to select different outgoing tunnels. The `func` value of 1 is selecting the direct tunnel to **R4**, while the value of 2 selects the alternate path through **R3**. The encapsulated packets then will be sent on the `vrf1` interface, and it will be routed to an SRv6 TE-Tunnel. Thus, on the `vrf1` interface we can see both replicas of the encapsulated packet, with PREOF SID as the destination address.
+DNT instance at **R2** will encapsulate the incoming packet (which can be IPv6, IPv4 or Ethernet/TSN), and sets the destination PREOF SID. Since the packet will be replicated over 2 different tunnels, in the DNT config, the `func` field of the PREOF SID is used to direct the traffic to different SRv6 tunnels: for a given DetNet flow the `locator` is the same, but the PREOF SID `func` value varies to select different outgoing tunnels. The `func` value of 1 is selecting the direct tunnel to **R4**, while the value of 2 selects the alternate path through **R3**. The encapsulated packets then will be sent on the `vrf1` interface, and it will be routed to an SRv6 TE-Tunnel. Thus, on the `vrf1` interface we can see both replicas of the encapsulated packet, with PREOF SID as the destination address.
 
-At the egress node, incoming packets will be directed to an End.DT6 termination, which decapsulates the SRv6 headers. The decapsulated IPv6 packet containing the PREOF SID will be routed to the R2DTWO. The R2DTWO performs identification, elimination, and decapsulates the original packet to send out on the UNI.
+At the egress node, incoming packets will be directed to an End.DT6 termination, which decapsulates the SRv6 headers. The decapsulated IPv6 packet containing the PREOF SID will be routed to the DNT. The DNT performs identification, elimination, and decapsulates the original packet to send out on the UNI.
 
 To set up an unidirectional tunnel from **R2** to **R4**, we need the following commands:
 
@@ -81,7 +81,7 @@ listening on ve1, link-type EN10MB (Ethernet), snapshot length 262144 bytes
 ```
 
 As we can see, the source address is fd00:a2d2::1:0:2, which is the local IP address of the **R2** `ve1` interface. The destination is the DetNet SID, for example fd00:a2d2:0:4:1:1111:1000:13, where the `locator` is fd00:a2d2:0:4, the `func` is 1 and 2, the `flowid` is 1111 and 2222, the sequence number is the last (13, 14).  
-Each sequence number can be seen twice, the R2DTWO will do the elimination.
+Each sequence number can be seen twice, the DNT will do the elimination.
 
 
 We can also see the SRv6 TE traffic as well, on the **R2** eth_r2r4 (and eth_r2r3) interface. Here, we can see the SRv6 tunnel header, the DetNet SID, and the internal ping6 headers:
@@ -138,8 +138,8 @@ t1 r2 r3 r4 l5
 
 *** Waiting for switches to connect
 
-R2DTWO SRv6 debug
-*** Starting R2DTWOs, scenario ipv6
+DNT SRv6 debug
+*** Starting DNTs, scenario ipv6
 *** Starting CLI:
 mininet>
 
@@ -192,4 +192,4 @@ fe80::/64 proto kernel metric 256 pref medium
 
 ## Cleanup
 
-The R2DTWO logfiles will not be removed after running. These files need to be removed by the user, when they are not needed any more.
+The DNT logfiles will not be removed after running. These files need to be removed by the user, when they are not needed any more.

@@ -2,8 +2,8 @@
 // All rights reserved.
 
 
-#ifndef R2_PACKET_H
-#define R2_PACKET_H
+#ifndef DNT_PACKET_H
+#define DNT_PACKET_H
 
 #include "protocol.h"
 
@@ -152,4 +152,4 @@ void _packet_logcat(struct Packet *p, const char *frmt, ...)
 // print the packet log buffer to the appropriate output
 void packet_printlog(const struct Packet *p);
 
-#endif // R2_PACKET_H
+#endif // DNT_PACKET_H

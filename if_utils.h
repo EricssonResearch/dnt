@@ -2,8 +2,8 @@
 // All rights reserved.
 
 
-#ifndef R2_IF_UTILS_H
-#define R2_IF_UTILS_H
+#ifndef DNT_IF_UTILS_H
+#define DNT_IF_UTILS_H
 
 #include "interface.h"
 #include "notification.h"
@@ -62,4 +62,4 @@ void dump_packet(char *buffer, int n);
     iface->type = type_;                                \
     iface->state = IFSTATE_INIT
 
-#endif // R2_IF_UTILS_H
+#endif // DNT_IF_UTILS_H

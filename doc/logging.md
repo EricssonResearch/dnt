@@ -1,7 +1,7 @@
 
 # Logging functionality
 
-R2DTWO provides logging capabilities to monitor its operation in real time.
+DNT provides logging capabilities to monitor its operation in real time.
 This gives the operator a detailed view of what is happening in different modules with adjustable verbosity.
 Logging levels (verbosity) are adjustable separately for each module.
 
@@ -18,17 +18,17 @@ The options have a single-letter shorthand format, marked with the **bold** lett
 * sys**l**og
 * log**f**ile
 
-The name of the log file is automatically generated from the name of the config file and the PID of R2DTWO.
+The name of the log file is automatically generated from the name of the config file and the PID of DNT.
 
 The log messages are colorful, if the target is stdout or stderr and it's a terminal.
 
-If the output is syslog the results can be viewed with `journalctl -t r2dtwo` on systems using `systemd-journald`.
+If the output is syslog the results can be viewed with `journalctl -t dnt` on systems using `systemd-journald`.
 
-If the output is logfile the file will be created in the current directory as `r2dtwo-configname-pid.log`, so the directory must be writeable for the current user.
+If the output is logfile the file will be created in the current directory as `dnt-configname-pid.log`, so the directory must be writeable for the current user.
 
 ## Selecting verbosity
 
-R2DTWO is modularized, and each module has a well-defined purpose, such as reading configuration, sending and receiving packets, parsing and matching packet headers, executing a pipeline of actions, etc.
+DNT is modularized, and each module has a well-defined purpose, such as reading configuration, sending and receiving packets, parsing and matching packet headers, executing a pipeline of actions, etc.
 Logging verbosity can be configured independently for each module.
 Currently available modules:
 
@@ -50,19 +50,19 @@ Currently available modules:
 
 The logging level can be set at startup with the `-v` or `--verbose` commandline argument.
 The format is `MODULENAME1:LEVEL_X,MODULENAME2:LEVEL_Y,...`, to set it globally, use `ALL` for module name.
-There are pre-defined default levels for each R2DTWO module, which is typically `INFO`.
+There are pre-defined default levels for each DNT module, which is typically `INFO`.
 
 Verbosity levels:
 
 * `NONE` - logging completely turned off for this module
-* `ERROR` - fatal error conditions, where R2DTWO will shut down, e.g. configuration error
+* `ERROR` - fatal error conditions, where DNT will shut down, e.g. configuration error
 * `WARNING` - unusual behavior, indicates a non-fatal malfunction, e.g. low memory, unexpected data received
 * `INFO` - indicates normal operation, e.g. a service was started/stopped
 * `PACKET` - detailed information about packet processing steps __Note: decreases the packet processing performance significantly__
 * `DEBUG` - detailed logging for developers
 * `ALL` - shortcut for enabling all logging, no messages are generated with this level
 
-The logging level can also be configured with the `R2DTWO_VERBOSE` environment variable.
+The logging level can also be configured with the `DNT_VERBOSE` environment variable.
 It accepts the same format as the `--verbose` commandline argument.
 First this environment variable is processed, then the commandline argument can override it.
 
@@ -73,10 +73,10 @@ Changing the level for a module is done with the `log MODULE NEWLEVEL` command f
 
 ## Usage examples
 
-`r2dtwo --output syslog --verbosty ALL:NONE,INTERFACE:PACKET` - direct the output to syslog (likely at `/var/log/syslog`), and turn off logging for all module except `INTERFACE` where logging will be at `PACKET` verbosity level.
-This is equivalent to the `r2dtwo -o l -v ALL:NONE,INTERFACE:PACKET` command.
+`dnt --output syslog --verbosty ALL:NONE,INTERFACE:PACKET` - direct the output to syslog (likely at `/var/log/syslog`), and turn off logging for all module except `INTERFACE` where logging will be at `PACKET` verbosity level.
+This is equivalent to the `dnt -o l -v ALL:NONE,INTERFACE:PACKET` command.
 
-`R2DTWO_VERBOSE=ALL:NONE r2dtwo -ol -vINTERFACE:PACKET` - does the same setting as the previous example.
+`DNT_VERBOSE=ALL:NONE dnt -ol -vINTERFACE:PACKET` - does the same setting as the previous example.
 Note that POSIX allows the space to be omitted between the argument name and its parameter.
 
 A telnet example:

@@ -1,4 +1,4 @@
-CNTFILE=/tmp/r2dtwo_test_envs_tsnodn.count
+CNTFILE=/tmp/dnt_test_envs_tsnodn.count
 alias talker="ip netns exec talker"
 alias listener="ip netns exec listener"
 alias nxp1="ip netns exec nxp1"
@@ -11,14 +11,14 @@ if [ $(id -u) -ne 0 ]; then
   return -1
 fi
 
-if [ ! -f "/usr/local/bin/r2dtwo" ]; then
-  echo "r2dtwo executable not found."
-  echo "Compile r2dtwo and copy to /usr/local/bin"
+if [ ! -f "/usr/local/bin/dnt" ]; then
+  echo "dnt executable not found."
+  echo "Compile dnt and copy to /usr/local/bin"
   return -2
 fi
 
 configure_networkenv() {
-  echo "Initialize r2dtwo test environment"
+  echo "Initialize dnt test environment"
   
   # Create the test namespace
   ip netns add talker 2>/dev/null
@@ -79,7 +79,7 @@ fi
 
 cntvalue=`cat $CNTFILE`
 if [ $cntvalue -eq 1 ]; then # last bash instance in the env, do cleanup
-  echo "Cleanup r2dtwo test environment"
+  echo "Cleanup dnt test environment"
   rm $CNTFILE
   # Cleanup the test namespace
   ip netns del talker 2>/dev/null

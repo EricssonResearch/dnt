@@ -1,16 +1,16 @@
-# Scenario 7: R2DTWO Replication path masking
+# Scenario 7: DNT Replication path masking
 
 __Important: this scenario assumes background knowledge from scenarios TSN, TSNoDetNet, IP46oDetNet and OAM.
 Please follow the instructions of those if you have not already.__
 
-This scenario illustrates the R2DTWO path masking functionality.
+This scenario illustrates the DNT path masking functionality.
 We use the OAM getting started as our base scenario.
 
 We will use the following topology, which consists:
 
 * a talker node called **talker** which will generate IPv4 traffic
 * a node called **listener** which receive the traffic coming from the **talker**
-* two R2DTWO instances, running on the **nxp1** and **nxp2** nodes.
+* two DNT instances, running on the **nxp1** and **nxp2** nodes.
 * a node called __admin__ which connected to __nxp1__ and __nxp2__ over a management network.
 
 ```
@@ -42,17 +42,17 @@ We will use the following topology, which consists:
 
                       PEF ◄───                     ◄─── PRF
 
-                      R2DTWO                       R2DTWO
+                      DNT                       DNT
 ```
 
 Everything identical to the OAM scenario regarding the network topology.
-Every changes compared to the OAM scenario is in the R2DTWO configuration.
+Every changes compared to the OAM scenario is in the DNT configuration.
 
 
 ## Replication path masking intro
 
 By default, the replication function of both FRER and PREOF (we will refer to both as PRF for simplicity) replicates every frame unconditionally.
-This means that if we have configured 3 replication paths, R2DTWO PRF will send a replica packet on each path during the whole operation time.
+This means that if we have configured 3 replication paths, DNT PRF will send a replica packet on each path during the whole operation time.
 However, this may not be the desired operation.
 The administrator may want to use only one path as active path and the rest as backup paths.
 In our terms, the PRF has one unmasked and two masked paths.
@@ -69,12 +69,12 @@ When the UE started to move, the antenna orientation and radio coverage changed.
 In this situation, the increased reliability provided by the PRF is beneficial to the application.
 But most of the time, we can save radio resources by masking one path.
 
-## The R2DTWO path masking
+## The DNT path masking
 
-In R2DTWO there are two types of path masking: _local path masking_ and _signaled path masking_.
+In DNT there are two types of path masking: _local path masking_ and _signaled path masking_.
 Local path masking (or local masking for short) means that PRF mask the path but subsequent does not notified by the situation.
 This is important, if the subsequent PEFs of the recovery graph running periodical diagnostic.
-Both 802.1CB Latent error detection or R2DTWO diagnostic entity report false positive errors for locally masked paths.
+Both 802.1CB Latent error detection or DNT diagnostic entity report false positive errors for locally masked paths.
 These functions has no way to tell if the path is actually failing or just masked by the administrator.
 
 On the other hand, signaled masking intended to cope with such false positive error situations.
@@ -151,7 +151,7 @@ __PEF rules__:
 2. If the PEF in state mask regenerate state and its pre-MIP receive a new unmask signal from one of its paths, the PEF's post-MIP stop it's mask OAM session and generate a new unmask signal immediately
 
 With these rules, the path masking will work on arbitrary complex recovery graph with many PRFs and PEFs.
-These rules are enforced by the R2DTWO signaled masking operation, no additional configuration required.
+These rules are enforced by the DNT signaled masking operation, no additional configuration required.
 
 
 ## Configuration and path masking
@@ -161,16 +161,16 @@ As one can see, there are no manually configured nor automatically generated MIP
 That means signaled path masking not available, only local masking possible.
 
 To try out local masking, start the test environment.
-We need four terminal windows: 1-1 for the R2DTWO instances on __nxp1__ and __nxp2__, 1 for traffic generator and 1 for the telnet CLI.
+We need four terminal windows: 1-1 for the DNT instances on __nxp1__ and __nxp2__, 1 for traffic generator and 1 for the telnet CLI.
 
-First, start the R2DTWO instances with packet level logging enabled:
+First, start the DNT instances with packet level logging enabled:
 
 ```
 # nxp1
-nxp1 r2dtwo nxp1.ini -vPACKETTRACE:ALL
+nxp1 dnt nxp1.ini -vPACKETTRACE:ALL
 
 # nxp2
-nxp2 r2dtwo nxp2.ini -vPACKETTRACE:ALL
+nxp2 dnt nxp2.ini -vPACKETTRACE:ALL
 ```
 
 Then from a terminal telnet into `nxp1`' CLI from the admin machine:
@@ -192,7 +192,7 @@ This generate a small UDP message to port 5555 of the IP given in argument in ev
 (mask) root:scenario_mask# talker ./traffic.py 10.0.200.22
 ```
 
-After running the traffic generator, we can observe the output of R2DTWO on __nxp2__:
+After running the traffic generator, we can observe the output of DNT on __nxp2__:
 
 ```
 ...
@@ -213,7 +213,7 @@ After running the traffic generator, we can observe the output of R2DTWO on __nx
 ...
 ```
 
-As visible in the output, R2DTWO receive ingress message on both NNI interfaces `nni_in0` and `nni_in1`.
+As visible in the output, DNT receive ingress message on both NNI interfaces `nni_in0` and `nni_in1`.
 Likewise they match on stream `pw1` and `pw2`.
 Also visible in the packet log the PEF drop half of the packets, since these are the replica packets.
 
@@ -256,7 +256,7 @@ After a while, we see periodical WARNING messages on __nxp2__ output:
 ```
 These messages generated by the PEF object's anomaly detection functions.
 The `Latent error signals` generated by standard 802.1CB Latent error detection function.
-The `DISFUNCTIONING_PATHS` warnings generated by the R2DTWO anomaly detection extension.
+The `DISFUNCTIONING_PATHS` warnings generated by the DNT anomaly detection extension.
 To make them disappear, let's unmask the path with the following command:
 
 ```
@@ -277,7 +277,7 @@ prf = Replicate AutoMIP=5
 ```
 
 With adding `AutoMIP` argument to the objects, we enabled automatic MP generation around the SeqRcvy and Replicate objects.
-Let's restart both R2DTWO instances to see them.
+Let's restart both DNT instances to see them.
 After the restart, verify if the auto-generated MIPs are there from the telnet CLI with the `list` command:
 
 ```

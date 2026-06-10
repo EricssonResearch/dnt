@@ -2,8 +2,8 @@
 // All rights reserved.
 
 
-#ifndef R2_SEQ_GEN_H
-#define R2_SEQ_GEN_H
+#ifndef DNT_SEQ_GEN_H
+#define DNT_SEQ_GEN_H
 
 #include "object.h"
 #include "packet.h"
@@ -31,4 +31,4 @@ struct PipelineObject *delete_seq_gen(struct PipelineObject *gen);
 char *seq_gen_sprintf_state_json(struct JsonValue *json, const char *record_sep, const char *line_sep);
 #endif
 
-#endif // R2_SEQ_GEN_H
+#endif // DNT_SEQ_GEN_H

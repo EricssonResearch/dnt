@@ -1,4 +1,4 @@
-# Scenario 4: R2DTWO IPv4 over DetNet (Ladder redundancy)
+# Scenario 4: DNT IPv4 over DetNet (Ladder redundancy)
 
 This scenario shows an example of "ladder redundancy" taken from D.3 of 802.1CB. This network will continue to function in the face of multiple failures because the Stream is repeatedly split and remerged.
 
@@ -32,7 +32,7 @@ As one can see, the Talker end system sequences Stream 31, then splits it into t
 
 Note that this scenario sets up a one-way tunnel from `talker` to `listener`, so `ping` doesn't work.
 
-## The R2DTWO configurations
+## The DNT configurations
 
 We have six different configuration files for all DetNet nodes: `A.ini`, `B.ini`, `C.ini`, `D.ini`, `E.ini`, and `F.ini`.
 This is required because even if the topology is symmetrical, we have different IP addresses.
@@ -41,11 +41,11 @@ Note that on `A` we make sure that only ipv4 traffic gets into the tunnel by mat
 This works, because the default route of `talker` and `listener` are via `A` and `F` respectively, so the tunnel doesn't need to transport ARP.
 We do this as a demonstration of filtering on the protocol type, we could use `ip` interface instead.
 
-## Run R2DTWO and generate traffic
+## Run DNT and generate traffic
 
-Let's try out R2DTWO with this scenario.
+Let's try out DNT with this scenario.
 
-For that, we need at least eight terminal windows: one for generating traffic (`talker`), one for receiving traffic (`listener`), and six terminals for running R2DTWO instances.
+For that, we need at least eight terminal windows: one for generating traffic (`talker`), one for receiving traffic (`listener`), and six terminals for running DNT instances.
 
 After opening the terminals, switch to `root` user and do the network config in each with the `source env.sh` command:
 
@@ -57,33 +57,33 @@ source env.sh
 If everything is OK, the prompt will change to `(ladder redundancy) root:scenario_ladder# ` which tells us, we are in the test network environment.
 Now we should have all the networking (nodes, interfaces, IP addresses, and routing) configured and helper commands to execute commands on the nodes.
 
-Now we can start the R2DTWO instances in different namespaces: `A`, `B`, `C`, `D`, `E`, and `F`:
+Now we can start the DNT instances in different namespaces: `A`, `B`, `C`, `D`, `E`, and `F`:
 
 ```
-A r2dtwo A.ini
-```
-
-```
-B r2dtwo B.ini
+A dnt A.ini
 ```
 
 ```
-C r2dtwo C.ini
+B dnt B.ini
 ```
 
 ```
-D r2dtwo D.ini
+C dnt C.ini
 ```
 
 ```
-E r2dtwo E.ini
+D dnt D.ini
 ```
 
 ```
-F r2dtwo F.ini
+E dnt E.ini
 ```
 
-If everything is OK, the `r2dtwo` instances are up and running.
+```
+F dnt F.ini
+```
+
+If everything is OK, the `dnt` instances are up and running.
 We can generate some traffic with `netcat` so run it on the `talker` node:
 
 ```

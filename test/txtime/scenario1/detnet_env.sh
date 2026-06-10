@@ -1,37 +1,37 @@
-CNTFILE=/tmp/r2dtwo_test_envs_tsnodn.count
+CNTFILE=/tmp/dnt_test_envs_tsnodn.count
 alias tx="ip netns exec talker"
 alias lx="ip netns exec listener"
-alias nsx="ip netns exec r2dtwoenv"
+alias nsx="ip netns exec dntenv"
 
-ALIASES='alias tx="ip netns exec talker"; alias lx="ip netns exec listener"; alias nsx="ip netns exec r2dtwoenv"'
+ALIASES='alias tx="ip netns exec talker"; alias lx="ip netns exec listener"; alias nsx="ip netns exec dntenv"'
 
 if [ $(id -u) -ne 0 ]; then
   echo "Usage: run 'source detnet_env.sh' as root"
   return -1
 fi
 
-if [ ! -f "/usr/local/bin/r2dtwo" ]; then
-  echo "r2dtwo executable not found."
-  echo "Compile r2dtwo and copy to /usr/local/bin"
+if [ ! -f "/usr/local/bin/dnt" ]; then
+  echo "dnt executable not found."
+  echo "Compile dnt and copy to /usr/local/bin"
   return -2
 fi
 
 configure_networkenv() {
-  echo "Initialize r2dtwo test environment"
+  echo "Initialize dnt test environment"
 
-  NETNSES="talker listener r2dtwoenv"
+  NETNSES="talker listener dntenv"
   for item in $NETNSES; do
      ip netns add $item
      ip netns exec $item sysctl -w net.ipv6.conf.all.disable_ipv6=1
      ip netns exec $item ip link set dev lo up
   done
 
-  ip link add teth0 netns talker type veth peer name aeth0 netns r2dtwoenv
-  ip link add leth0 netns listener type veth peer name beth0 netns r2dtwoenv
+  ip link add teth0 netns talker type veth peer name aeth0 netns dntenv
+  ip link add leth0 netns listener type veth peer name beth0 netns dntenv
 
   IFNAMES_ALL="enp3s0 enp4s0 enp6s0 enp7s0"
   for item in $IFNAMES_ALL; do
-    ip link set $item netns r2dtwoenv
+    ip link set $item netns dntenv
     # nsx sh -c "echo 1 > /sys/class/net/$item/threaded"
     nsx ip link set dev $item promisc on
     nsx ethtool -K $item gro on
@@ -97,14 +97,14 @@ fi
 
 cntvalue=`cat $CNTFILE`
 if [ $cntvalue -eq 1 ]; then #last bash instance in the env, do cleanup
-  echo "Cleanup r2dtwo test environment"
+  echo "Cleanup dnt test environment"
   rm $CNTFILE
 
   nsx ip link set enp4s0 netns 1
   nsx ip link set enp3s0 netns 1
   ip netns del listener 2>/dev/null
   ip netns del talker 2>/dev/null
-  ip netns del r2dtwo 2>/dev/null
+  ip netns del dnt 2>/dev/null
   rmmod igc
   modprobe igc
 else

@@ -51,31 +51,31 @@ def log_test_details(protocol, offload, ping_type, delta):
         print(f" • Delay test with {ping_str}", end=" ", flush=True)
 
 
-def start_R2DTWO(protocol, conf):
+def start_DNT(protocol, conf):
     if protocol == "eth":
         if conf == "wrong priority":
-            exec_bg("ip netns exec nxp1 ../r2dtwo delay/eth_wrong_prio.ini")
-            exec_bg("ip netns exec nxp2 ../r2dtwo delay/eth_wrong_prio.ini")
+            exec_bg("ip netns exec nxp1 ../dnt delay/eth_wrong_prio.ini")
+            exec_bg("ip netns exec nxp2 ../dnt delay/eth_wrong_prio.ini")
         elif conf == "missing offload":
-            exec_bg("ip netns exec nxp1 ../r2dtwo delay/eth_missing_offload.ini")
-            exec_bg("ip netns exec nxp2 ../r2dtwo delay/eth_missing_offload.ini")
+            exec_bg("ip netns exec nxp1 ../dnt delay/eth_missing_offload.ini")
+            exec_bg("ip netns exec nxp2 ../dnt delay/eth_missing_offload.ini")
         elif conf == "good config":
-            exec_bg("ip netns exec nxp1 ../r2dtwo delay/eth.ini")
-            exec_bg("ip netns exec nxp2 ../r2dtwo delay/eth.ini")
+            exec_bg("ip netns exec nxp1 ../dnt delay/eth.ini")
+            exec_bg("ip netns exec nxp2 ../dnt delay/eth.ini")
     elif protocol == "udp":
         if conf == "wrong priority":
-            exec_bg("ip netns exec nxp1 ../r2dtwo delay/udp_nxp1_wrong_prio.ini")
-            exec_bg("ip netns exec nxp2 ../r2dtwo delay/udp_nxp2_wrong_prio.ini")
+            exec_bg("ip netns exec nxp1 ../dnt delay/udp_nxp1_wrong_prio.ini")
+            exec_bg("ip netns exec nxp2 ../dnt delay/udp_nxp2_wrong_prio.ini")
         elif conf == "missing offload":
-            exec_bg("ip netns exec nxp1 ../r2dtwo delay/udp_nxp1_missing_offload.ini")
-            exec_bg("ip netns exec nxp2 ../r2dtwo delay/udp_nxp2_missing_offload.ini")
+            exec_bg("ip netns exec nxp1 ../dnt delay/udp_nxp1_missing_offload.ini")
+            exec_bg("ip netns exec nxp2 ../dnt delay/udp_nxp2_missing_offload.ini")
         elif conf == "good config":
-            exec_bg("ip netns exec nxp1 ../r2dtwo delay/udp_nxp1.ini")
-            exec_bg("ip netns exec nxp2 ../r2dtwo delay/udp_nxp2.ini")
+            exec_bg("ip netns exec nxp1 ../dnt delay/udp_nxp1.ini")
+            exec_bg("ip netns exec nxp2 ../dnt delay/udp_nxp2.ini")
 
 
-def stop_R2DTWO():
-    exec_fg("killall r2dtwo")
+def stop_DNT():
+    exec_fg("killall dnt")
 
 
 def run_offload_veth_tests(protocol, conf, ping_type, delta) -> int:
@@ -110,8 +110,8 @@ def run_offload_veth_tests(protocol, conf, ping_type, delta) -> int:
 
 def run_offload_physical_tests(ping_type, delta) -> int:
     log_test_details('eth', True, ping_type, delta)
-    exec_bg("ip netns exec nsx ../r2dtwo delay/physical_send.ini")
-    exec_bg("ip netns exec nsx ../r2dtwo delay/physical_recv.ini")
+    exec_bg("ip netns exec nsx ../dnt delay/physical_send.ini")
+    exec_bg("ip netns exec nsx ../dnt delay/physical_recv.ini")
 
     time.sleep(0.5)
     exec_fg(f"ip netns exec talker ping 10.0.0.2 -c 3")  # first ping for ARP
@@ -123,17 +123,17 @@ def run_offload_physical_tests(ping_type, delta) -> int:
     
     if pingcmd.stdout and f", {num_pings} received," not in pingcmd.stdout:
         print('\n', pingcmd.stdout)
-        exec_fg("killall r2dtwo")
+        exec_fg("killall dnt")
         return 0
     
     bound = (DELAY - 2, DELAY + 2)
     if ping_check_time(pingcmd.stdout, bound) == False:
         print('\n', pingcmd.stdout)
         print("It should be between: ", bound)
-        exec_fg(f"killall r2dtwo")
+        exec_fg(f"killall dnt")
         return 0
     
-    exec_fg(f"killall r2dtwo")
+    exec_fg(f"killall dnt")
     return 1
 
 
@@ -257,7 +257,7 @@ def stop_ptp4l():
 def cleanup():
     print("\nCleaning up...")
     stop_ptp4l()
-    stop_R2DTWO()
+    stop_DNT()
     for ns in namespaces:
         exec_fg(f"ip netns del {ns}")
 
@@ -272,7 +272,7 @@ def main():
     all = 0
 
     try:
-        print("R2DTWO delay offload tests:")
+        print("DNT delay offload tests:")
         if args.physical:
             # Physical tests
             namespaces = ['talker', 'listener', 'nsx']
@@ -303,7 +303,7 @@ def main():
             for conf in config:
                 print(f"{conf.capitalize()} tests:")
                 for proto in PROTO:
-                    start_R2DTWO(proto, conf)
+                    start_DNT(proto, conf)
                     for ping_type in PING_TYPES:
                         for delta in DELTAS:
                             if not setup_etf(veth=True, delta=delta):
@@ -314,7 +314,7 @@ def main():
                             all += 1
                             print(f"{'✔' if result else '✘'}")
                             remove_etf(veth=True)
-                    stop_R2DTWO()
+                    stop_DNT()
             cleanup()
 
         if passed == all:

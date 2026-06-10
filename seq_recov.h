@@ -2,8 +2,8 @@
 // All rights reserved.
 
 
-#ifndef R2_SEQ_RECOV_H
-#define R2_SEQ_RECOV_H
+#ifndef DNT_SEQ_RECOV_H
+#define DNT_SEQ_RECOV_H
 
 #include "object.h"
 #include "packet.h"
@@ -92,4 +92,4 @@ struct SequenceRecovery *get_oam_rcvy(struct PipelineObject *rec, const char *se
 
 #endif
 
-#endif // R2_SEQ_RECOV_H
+#endif // DNT_SEQ_RECOV_H

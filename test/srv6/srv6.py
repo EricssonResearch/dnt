@@ -57,7 +57,7 @@ def setup_network():
     r2.cmd("ip link set ve1 mtu 2000 up")
     r2.cmd("ip link set ve2 mtu 2000 up")
     r2.cmd("ip -6 addr add fd00:a2d2:0:0:0:2::2/96 dev ve1")
-    r2.cmd("ip -6 addr add fd00:a2d2:0:0:0:3::2/96 dev ve2")   # R2DTWO requires that IP type interfaces must have IP address
+    r2.cmd("ip -6 addr add fd00:a2d2:0:0:0:3::2/96 dev ve2")   # DNT requires that IP type interfaces must have IP address
 
 
     r4.cmd("ip link add name vrf1 type vrf table 254")
@@ -68,7 +68,7 @@ def setup_network():
     r4.cmd("ip link set ve1 mtu 2000 up")
     r4.cmd("ip link set ve2 mtu 2000 up")
     r4.cmd("ip -6 addr add fd00:a2d2:0:0:0:2::4/96 dev ve1")
-    r4.cmd("ip -6 addr add fd00:a2d2:0:0:0:3::4/96 dev ve2")   # R2DTWO requires that IP type interfaces must have IP address
+    r4.cmd("ip -6 addr add fd00:a2d2:0:0:0:3::4/96 dev ve2")   # DNT requires that IP type interfaces must have IP address
 
 
     # add dummy loopback interfaces for local SIDs (loopback interfaces do not work with SRv6)
@@ -168,20 +168,20 @@ def setup_network():
 
     return net
 
-def start_r2dtwos(net, scenario, debug):
-    # start r2DTWOs
+def start_dnts(net, scenario, debug):
+    # start DNTs
     for n in ['r2', 'r4']:
         node = net.get(n)
         if debug:
-            # For debug! Spawns 4 r2dtwo windows in gdb
-            node.popen(f"xterm -T {n} -e env -i gdb -nx --args ../r2dtwo srv6/{n}-{scenario}.cfg -v ALL:ALL")
+            # For debug! Spawns 4 dnt windows in gdb
+            node.popen(f"xterm -T {n} -e env -i gdb -nx --args ../dnt srv6/{n}-{scenario}.cfg -v ALL:ALL")
         else:
-            node.popen(f"../r2dtwo -of srv6/{n}-{scenario}.cfg -v PACKETTRACE:PACKET")    # in general this is enough for debug
-            #node.popen(f"../r2dtwo -of srv6/{n}.cfg -v  ALL:ALL")             # but sometimes we need all logs...
+            node.popen(f"../dnt -of srv6/{n}-{scenario}.cfg -v PACKETTRACE:PACKET")    # in general this is enough for debug
+            #node.popen(f"../dnt -of srv6/{n}.cfg -v  ALL:ALL")             # but sometimes we need all logs...
 
-def stop_r2dtwos():
+def stop_dnts():
         switch_netns()
-        exec_fg("killall r2dtwo")
+        exec_fg("killall dnt")
 
 def stop_network(net):
     info('*** Stopping network')
@@ -270,11 +270,11 @@ def test_ipv6():
     retval=1
     try:
         print("Test SRv6 with IPv6 UNI ", end=" ")
-        # start r2DTWOs
+        # start DNT
         for n in ['r2', 'r4']:
             node = net.get(n)
-            p=node.popen(f"../r2dtwo -of srv6/{n}-ipv6.cfg -v PACKETTRACE:PACKET")    # in general this is enough for debug
-            pids[n]=f"r2dtwo-{n}-ipv6-{p.pid}.log"
+            p=node.popen(f"../dnt -of srv6/{n}-ipv6.cfg -v PACKETTRACE:PACKET")    # in general this is enough for debug
+            pids[n]=f"dnt-{n}-ipv6-{p.pid}.log"
 
         time.sleep(2)
         num_pings = PING_NUM
@@ -293,7 +293,7 @@ def test_ipv6():
 
     except Exception as e:
             print(e)
-            stop_r2dtwos()
+            stop_dnts()
             return 0
 
     switch_netns("r4")
@@ -305,7 +305,7 @@ def test_ipv6():
 
     retval = retval & test_oam(8000)
 
-    stop_r2dtwos()
+    stop_dnts()
 
     print(" packet sizes...", end=" ")
     r=check_log(pids['r2'], r'if4\s+(\d+)\s+s3\s+\|ipv6\|ipv6\|payload\|', 144)
@@ -338,11 +338,11 @@ def test_ipv4():
 
     try:
         print("Test SRv6 with IPv4 UNI ", end=" ")
-        # start r2DTWOs
+        # start DNT
         for n in ['r2', 'r4']:
             node = net.get(n)
-            p=node.popen(f"../r2dtwo -of srv6/{n}-ipv4.cfg -v PACKETTRACE:PACKET")    # in general this is enough for debug
-            pids[n]=f"r2dtwo-{n}-ipv4-{p.pid}.log"
+            p=node.popen(f"../dnt -of srv6/{n}-ipv4.cfg -v PACKETTRACE:PACKET")    # in general this is enough for debug
+            pids[n]=f"dnt-{n}-ipv4-{p.pid}.log"
 
         time.sleep(2)
         num_pings = PING_NUM
@@ -362,7 +362,7 @@ def test_ipv4():
 
     except Exception as e:
             print(e)
-            stop_r2dtwos()
+            stop_dnts()
             return 0
 
     switch_netns("r4")
@@ -374,7 +374,7 @@ def test_ipv4():
 
     retval = retval & test_oam(8001)
 
-    stop_r2dtwos()
+    stop_dnts()
 
     print(" packet sizes...", end=" ")
     #input("Press Enter to continue...")
@@ -408,11 +408,11 @@ def test_tsn():
 
     try:
         print("Test SRv6 with TSN  UNI ", end=" ")
-        # start r2DTWOs
+        # start DNT
         for n in ['r2', 'r4']:
             node = net.get(n)
-            p=node.popen(f"../r2dtwo -of srv6/{n}-tsn.cfg -v PACKETTRACE:PACKET")    # in general this is enough for debug
-            pids[n]=f"r2dtwo-{n}-tsn-{p.pid}.log"
+            p=node.popen(f"../dnt -of srv6/{n}-tsn.cfg -v PACKETTRACE:PACKET")    # in general this is enough for debug
+            pids[n]=f"dnt-{n}-tsn-{p.pid}.log"
 
         time.sleep(2)
         num_pings = PING_NUM
@@ -431,7 +431,7 @@ def test_tsn():
 
     except Exception as e:
             print(e)
-            stop_r2dtwos()
+            stop_dnts()
             return 0
 
     switch_netns("r4")
@@ -449,7 +449,7 @@ def test_tsn():
 
     retval = retval & test_oam(8002)
 
-    stop_r2dtwos()
+    stop_dnts()
 
     print(" packet sizes...", end=" ")
     #input("Press Enter to continue...")
@@ -482,16 +482,16 @@ if __name__ == '__main__':
 
     ret = 0
     if debug:
-        print("R2DTWO SRv6 debug")
-        info(f"*** Starting R2DTWOs, scenario {scenario}\n")
-        start_r2dtwos(net, scenario, debug)
-        #start_r2dtwos(net, scenario, False)
+        print("DNT SRv6 debug")
+        info(f"*** Starting DNTs, scenario {scenario}\n")
+        start_dnts(net, scenario, debug)
+        #start_dnts(net, scenario, False)
         CLI(net)
         print("Cleanup...")
-        exec_fg("killall r2dtwo")
+        exec_fg("killall dnt")
         tests = []
     else:
-        print("R2DTWO SRv6 test")
+        print("DNT SRv6 test")
         tests = [test_ipv6, test_ipv4, test_tsn]
         for test in tests:
             result = test()
@@ -500,7 +500,7 @@ if __name__ == '__main__':
                 print("✔")
             else:
                 print("✘")
-            exec_fg("killall r2dtwo")
+            exec_fg("killall dnt")
         print(f'All test completed, {ret}/{len(tests)} successfully')
 
     stop_network(net)

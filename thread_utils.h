@@ -2,8 +2,8 @@
 // All rights reserved.
 
 
-#ifndef R2_THREAD_H
-#define R2_THREAD_H
+#ifndef DNT_THREAD_H
+#define DNT_THREAD_H
 
 // finishing a thread can be done in 3 mutually exclusive ways:
 //  @thread_stop terminates another thread immediately
@@ -93,4 +93,4 @@ void *messagequeue_pop(struct MessageQueue *q, int usec);
 int messagequeue_foreach(struct MessageQueue *q, int (*cb)(const void *item, void *userdata), void *userdata);
 
 
-#endif // R2_THREAD_H
+#endif // DNT_THREAD_H

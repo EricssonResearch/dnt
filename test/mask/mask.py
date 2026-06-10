@@ -16,7 +16,7 @@ def create_net():
     """
     We have single and multi node version of this network.
     The single node version does not requre any virtual interface.
-    Everything runs inside R2DTWO (with internal interfaces).
+    Everything runs inside DNT (with internal interfaces).
 
     The multi-node version is a regular test with multiple mininet host.
     The setup of that network done by this function.
@@ -92,7 +92,7 @@ def create_net():
 def generate_traffic(node, count):
     """
     Minimalistic traffic generator: 100pps 100bytes UDP packets.
-    Can be received by R2DTWO with a udp-in interface.
+    Can be received by DNT with a udp-in interface.
     It abuses a mpls.label=0 match.
     """
     switch_netns(node)
@@ -107,7 +107,7 @@ def generate_traffic(node, count):
     sender.close()
 
 # for multinode
-def start_r2dtwos(net, no_signal = True):
+def start_dnts(net, no_signal = True):
     global debug
     global popens
 
@@ -120,8 +120,8 @@ def start_r2dtwos(net, no_signal = True):
         for n in ['r1', 'r2', 'e1', 'e2']:
             node = net.get(n)
             time.sleep(0.2)
-            node.popen(f"xterm -T {n} -e env -i ../r2dtwo mask/multinode/{n}{suffix}.ini -vPACKETTRACE:ALL")
-            # os.system(f"echo '../r2dtwo mask/multinode/{n}{suffix}.ini -vALL:ALL' >> /tmp/.mnbash_history_{n}")
+            node.popen(f"xterm -T {n} -e env -i ../dnt mask/multinode/{n}{suffix}.ini -vPACKETTRACE:ALL")
+            # os.system(f"echo '../dnt mask/multinode/{n}{suffix}.ini -vALL:ALL' >> /tmp/.mnbash_history_{n}")
             # exec_fg(f"zellij -s r2masktest run -- mnbash {n}")
         # exec_fg(f"zellij -s r2masktest action next-swap-layout --")
         CLI(net)
@@ -131,7 +131,7 @@ def start_r2dtwos(net, no_signal = True):
             node = net.get(n)
             time.sleep(0.2)
             switch_netns(n)
-            popens[n] = exec_bg(f"../r2dtwo mask/multinode/{n}{suffix}.ini -vDIAGNOSTIC:ALL", OUT_PIPE)
+            popens[n] = exec_bg(f"../dnt mask/multinode/{n}{suffix}.ini -vDIAGNOSTIC:ALL", OUT_PIPE)
     time.sleep(0.2)
 
 def command_test_no_signaling():
@@ -185,7 +185,7 @@ mask state for Replicate 'R2'
 
     success = 0
     try:
-        out = exec_bg("../r2dtwo -vALL:NONE,OAM:INFO ./mask/mask_no_signaling.ini", OUT_PIPE)
+        out = exec_bg("../dnt -vALL:NONE,OAM:INFO ./mask/mask_no_signaling.ini", OUT_PIPE)
         time.sleep(0.2)
         cli = Telnet("0", 8000)
         _ = cli.recv() # 'OAM ready'
@@ -204,7 +204,7 @@ mask state for Replicate 'R2'
         out.terminate()
     finally:
         cli.close()
-        exec_fg("killall r2dtwo")
+        exec_fg("killall dnt")
         if success == len(commands):
             return 1
         else:
@@ -304,7 +304,7 @@ mask state for Replicate 'R2'
 
     success = 0
     try:
-        out = exec_bg("../r2dtwo -vALL:NONE,OAM:INFO ./mask/mask_signaling.ini", OUT_PIPE)
+        out = exec_bg("../dnt -vALL:NONE,OAM:INFO ./mask/mask_signaling.ini", OUT_PIPE)
         time.sleep(0.2)
         cli = Telnet("0", 8000)
         _ = cli.recv() # 'OAM ready'
@@ -326,7 +326,7 @@ mask state for Replicate 'R2'
             success += 1
     finally:
         cli.close()
-        exec_fg("killall r2dtwo")
+        exec_fg("killall dnt")
         if success == len(commands):
             return 1
         else:
@@ -336,7 +336,7 @@ def loopback_local_mask():
     print("Local masking without signaling...", end=" ")
     ret = 0
     try:
-        out = exec_bg("../r2dtwo -vALL:NONE,DIAGNOSTIC:INFO ./mask/mask_no_signaling.ini", OUT_PIPE)
+        out = exec_bg("../dnt -vALL:NONE,DIAGNOSTIC:INFO ./mask/mask_no_signaling.ini", OUT_PIPE)
         time.sleep(0.2)
         cli = Telnet("0", 8000, auto_recv=True)
 
@@ -365,7 +365,7 @@ def loopback_mask_signaling():
     print("Masking with signaling...", end=" ")
     ret = 1
     try:
-        out = exec_bg("../r2dtwo -vALL:NONE,DIAGNOSTIC:INFO ./mask/mask_signaling.ini", OUT_PIPE)
+        out = exec_bg("../dnt -vALL:NONE,DIAGNOSTIC:INFO ./mask/mask_signaling.ini", OUT_PIPE)
         time.sleep(0.2)
         cli = Telnet("0", 8000, auto_recv=True)
 
@@ -396,7 +396,7 @@ def local_mask():
     ret = 0
     try:
         net = create_net()
-        start_r2dtwos(net)
+        start_dnts(net)
         switch_netns("r1")
         r1cli = Telnet("0", 8000, auto_recv=True)
 
@@ -432,7 +432,7 @@ def mask_signaling():
     ret = 1
     try:
         net = create_net()
-        start_r2dtwos(net, no_signal=False)
+        start_dnts(net, no_signal=False)
         switch_netns("r1")
         r1cli = Telnet("0", 8000, auto_recv=True)
 
@@ -493,18 +493,18 @@ def main():
     global debug
     all_ok = False
     try:
-        exec_fg("killall r2dtwo")
+        exec_fg("killall dnt")
         exec_fg("killall gdb")
         # net = create_net()
         if len(sys.argv) >= 2 and "debug" in sys.argv[1]:
             debug = True
-            print("R2DTWO mask debug (uncomment only the desired test)")
+            print("DNT mask debug (uncomment only the desired test)")
         else:
-            print("R2DTWO mask test")
+            print("DNT mask test")
         all_ok = run_tests()
     finally:
         print("Cleanup...")
-        exec_fg("killall -9 r2dtwo")
+        exec_fg("killall -9 dnt")
         if all_ok:
             exit(0)
         exit(1)

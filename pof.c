@@ -184,7 +184,7 @@ static enum ActionResult pof_insert(struct PipelineObject *p, struct PipelineIte
         event = POF_OUT_OF_ORDER_PKT;
     }
     if (write(pof->evfd, &event, sizeof(event)) != sizeof(event)) {
-        // TODO: might be fatal, terminate r2dtwo
+        // TODO: might be fatal, terminate dnt
         log_perror("eventfd write");
     }
     pthread_mutex_unlock(&pof->lock); // TODO: check if OK
@@ -399,7 +399,7 @@ struct PipelineObject *delete_pof(struct PipelineObject *p)
     notification_register_source(p->name, NULL, NULL, 2000);
     int64_t event = -10;
     if (write(pof->evfd, &event, sizeof(event)) != sizeof(event)) {
-        // TODO: might be fatal, terminate r2dtwo
+        // TODO: might be fatal, terminate dnt
         log_perror("eventfd write");
     }
     thread_join(pof->worker);

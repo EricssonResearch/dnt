@@ -31,7 +31,7 @@ The public methods should be prefixed by the name of the module.
 
 Avoid global variables and public variables.
 
-R2DTWO runs with many threads, *everything* should be thread-safe.
+DNT runs with many threads, *everything* should be thread-safe.
 
 
 ## Memory management conventions

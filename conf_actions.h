@@ -2,8 +2,8 @@
 // All rights reserved.
 
 
-#ifndef R2_CONF_ACTIONS_H
-#define R2_CONF_ACTIONS_H
+#ifndef DNT_CONF_ACTIONS_H
+#define DNT_CONF_ACTIONS_H
 
 #include "inifile.h"
 #include "headerdesc.h"
@@ -32,4 +32,4 @@ struct Pipeline *assemble_actions(const char *stream_name, const struct ConfActi
 //  basic information is INFO, details are DEBUG
 void confactions_log(const struct ConfAction *ca_list, unsigned indent);
 
-#endif // R2_CONF_ACTIONS_H
+#endif // DNT_CONF_ACTIONS_H

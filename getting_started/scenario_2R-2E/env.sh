@@ -1,4 +1,4 @@
-CNTFILE=/tmp/r2dtwo_test_env.count
+CNTFILE=/tmp/dnt_test_env.count
 SCENNAME="scenario_2R-2E"
 NETNSES="A B C D admin talker listener"
 function A() { ip netns exec A $@ ; }
@@ -21,30 +21,30 @@ if [ $(id -u) -ne 0 ]; then
   return -1
 fi
 
-if which r2dtwo > /dev/null ; then true ; else
-  echo "r2dtwo executable not found."
-  echo "Compile and install r2dtwo first."
+if which dnt > /dev/null ; then true ; else
+  echo "dnt executable not found."
+  echo "Compile and install dnt first."
   return -2
 fi
 
 function configure_tc() {
   # tc workaround for "Destination host unreachable"
-  ip netns exec A ip link add pass2r2eth0 type veth peer name r2eth0
-  ip netns exec A ip link set dev pass2r2eth0 up
-  ip netns exec A ip link set dev r2eth0 up
+  ip netns exec A ip link add pass2dnteth0 type veth peer name dnteth0
+  ip netns exec A ip link set dev pass2dnteth0 up
+  ip netns exec A ip link set dev dnteth0 up
   ip netns exec A tc qdisc add dev eth0 handle ffff: ingress;
-  ip netns exec A tc filter add dev eth0 parent ffff: protocol ip flower src_ip 192.168.1.1 dst_ip 192.168.2.2 action mirred egress redirect dev pass2r2eth0
-  ip netns exec D ip link add pass2r2eth0 type veth peer name r2eth0
-  ip netns exec D ip link set dev pass2r2eth0 up
-  ip netns exec D ip link set dev r2eth0 up
+  ip netns exec A tc filter add dev eth0 parent ffff: protocol ip flower src_ip 192.168.1.1 dst_ip 192.168.2.2 action mirred egress redirect dev pass2dnteth0
+  ip netns exec D ip link add pass2dnteth0 type veth peer name dnteth0
+  ip netns exec D ip link set dev pass2dnteth0 up
+  ip netns exec D ip link set dev dnteth0 up
   ip netns exec D tc qdisc add dev eth0 handle ffff: ingress;
-  ip netns exec D tc filter add dev eth0 parent ffff: protocol ip flower src_ip 192.168.2.2 dst_ip 192.168.1.1 action mirred egress redirect dev pass2r2eth0
+  ip netns exec D tc filter add dev eth0 parent ffff: protocol ip flower src_ip 192.168.2.2 dst_ip 192.168.1.1 action mirred egress redirect dev pass2dnteth0
 }
 
 export -f configure_tc
 
 configure_networkenv() {
-  echo "Initialize r2dtwo test environment"
+  echo "Initialize dnt test environment"
 
   for item in $NETNSES; do
     ip netns add $item 2>/dev/null
@@ -133,7 +133,7 @@ flock -x -w 5 "$CNTFD"
 read scenname cntvalue < $CNTFILE
 
 if [ $cntvalue -eq 1 ]; then #last bash instance in the env, do cleanup
-  echo "Cleanup r2dtwo test environment"
+  echo "Cleanup dnt test environment"
   rm $CNTFILE
   #Cleanup the test namespace
   for item in $NETNSES; do

@@ -2,8 +2,8 @@
 // All rights reserved.
 
 
-#ifndef R2_IF_OAM_H
-#define R2_IF_OAM_H
+#ifndef DNT_IF_OAM_H
+#define DNT_IF_OAM_H
 
 struct Interface;
 
@@ -16,4 +16,4 @@ const char *oamif_get_ip(const struct Interface *iface);
 
 unsigned oamif_get_port(const struct Interface *iface);
 
-#endif // R2_IF_OAM_H
+#endif // DNT_IF_OAM_H

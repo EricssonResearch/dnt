@@ -2,8 +2,8 @@
 // All rights reserved.
 
 
-#ifndef R2_CHECKSUM_H
-#define R2_CHECKSUM_H
+#ifndef DNT_CHECKSUM_H
+#define DNT_CHECKSUM_H
 
 #include "packet.h"
 #include "protocol.h"
@@ -21,4 +21,4 @@ void checksum_compute(struct Packet *p, struct ChecksumParameters *cp);
 // @returns true if the checksum of the header prescribed in @cp is correct
 bool checksum_verify(struct Packet *p, struct ChecksumParameters *cp);
 
-#endif // R2_CHECKSUM_H
+#endif // DNT_CHECKSUM_H

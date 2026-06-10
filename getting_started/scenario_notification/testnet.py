@@ -24,8 +24,8 @@ import time
 │     (prf)      │       │           │       └╔═══════╗┘
 └───╔═══════╗────┘       └─╔═══════╗─┘        ║ edge2 ║
     ║ edge1 ║              ║ core  ║          ╚═══════╝
-    ╚═══════╝              ╚═══════╝           R2DTWO
-     R2DTWO
+    ╚═══════╝              ╚═══════╝           DNT
+     DNT
 """
 
 def main():
@@ -91,22 +91,22 @@ def main():
     core.cmd("ip r add 192.168.2.0/24 via 192.168.1.2")
 
     # this rule drop false positive ICMP errors
-    # talker-to-listener packets are tunneled by R2DTWO and they reach their destination
+    # talker-to-listener packets are tunneled by DNT and they reach their destination
     # but edge1's routing table dont have host2's prefix and generate ICMP net unreach error
-    # to prevent this, we drop host1's packet right after R2DTWO's tap
+    # to prevent this, we drop host1's packet right after DNT's tap
     edge1.cmd("iptables -A PREROUTING -t raw -d 10.10.11.0/24 -j DROP")
     # edge1.cmd("tc qdisc add dev eno1 ingress")
     # edge1.cmd("tc filter add dev eno1 parent ffff: u32 match ip dst 10.10.11.0/24 action drop")
     host2.cmd("ip r add default via 10.10.11.1")
 
     edge2.popen(f"xterm -T edge2 -e python3 ../../json_receiver/multipart_json_udp_receiver.py 10.10.10.2 6000")
-    # start r2dtwos in background
+    # start dnts in background
     if automip:
-        edge1.popen(f"xterm -T edge1 -e r2dtwo edge1-automip.ini -h edge1 -v PACKETTRACE:ALL")
-        edge2.popen(f"xterm -T edge2 -e r2dtwo edge2-automip.ini -h edge2 -v PACKETTRACE:ALL")
+        edge1.popen(f"xterm -T edge1 -e dnt edge1-automip.ini -h edge1 -v PACKETTRACE:ALL")
+        edge2.popen(f"xterm -T edge2 -e dnt edge2-automip.ini -h edge2 -v PACKETTRACE:ALL")
     else:
-        edge1.popen(f"xterm -T edge1 -e r2dtwo edge1.ini -h edge1 -v PACKETTRACE:ALL")
-        edge2.popen(f"xterm -T edge2 -e r2dtwo edge2.ini -h edge2 -v PACKETTRACE:ALL")
+        edge1.popen(f"xterm -T edge1 -e dnt edge1.ini -h edge1 -v PACKETTRACE:ALL")
+        edge2.popen(f"xterm -T edge2 -e dnt edge2.ini -h edge2 -v PACKETTRACE:ALL")
 
     time.sleep(1)
     edge1.popen(f"xterm -T edge1 -e telnet localhost 8000")

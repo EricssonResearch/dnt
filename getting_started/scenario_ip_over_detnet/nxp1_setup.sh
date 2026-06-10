@@ -11,14 +11,14 @@ ip address add fd0a::1/64 dev swp0
 ip address add fd0b::1/64 dev swp1
 ip address add fd01::1/64 dev swp2
 
-ip link add r2veth0 type veth peer name r2veth1
-ip link set r2veth0 mtu 2000 up
-ip link set r2veth1 mtu 2000 up
+ip link add dntveth0 type veth peer name dntveth1
+ip link set dntveth0 mtu 2000 up
+ip link set dntveth1 mtu 2000 up
 
 function configure_tc() {
   tc qdisc add dev swp2 handle ffff: ingress
-  tc filter add dev swp2 parent ffff: protocol ip flower src_ip 10.0.100.11 dst_ip 10.0.200.22 action mirred egress redirect dev r2veth0
-  tc filter add dev swp2 parent ffff: protocol ipv6 flower src_ip fd01::11 dst_ip fd02::22 action mirred egress redirect dev r2eth0
+  tc filter add dev swp2 parent ffff: protocol ip flower src_ip 10.0.100.11 dst_ip 10.0.200.22 action mirred egress redirect dev dntveth0
+  tc filter add dev swp2 parent ffff: protocol ipv6 flower src_ip fd01::11 dst_ip fd02::22 action mirred egress redirect dev dnteth0
 }
 
 export -f configure_tc

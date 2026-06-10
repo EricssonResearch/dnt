@@ -1,4 +1,4 @@
-# Scenario 6: R2DTWO Operation, Administration and Maintenance (OAM)
+# Scenario 6: DNT Operation, Administration and Maintenance (OAM)
 
 __Important: this scenario assumes background knowledge of the first three scenarios.
 Please take a look into Scenarios TSN, TSNoDetNet and IP46oDetNet scenarios if you have not already.__
@@ -10,7 +10,7 @@ We will use the following topology, which consists:
 
 * a talker node called **talker** which will generate IPv4 traffic
 * a node called **listener** which receive the traffic coming from the **talker**
-* two R2DTWO instances, running on the **nxp1** and **nxp2** nodes.
+* two DNT instances, running on the **nxp1** and **nxp2** nodes.
 * a node called __admin__ which connected to __nxp1__ and __nxp2__ over a management network.
 
 ```
@@ -42,7 +42,7 @@ We will use the following topology, which consists:
 
                       PEF ◄───                     ◄─── PRF
 
-                      R2DTWO                       R2DTWO
+                      DNT                       DNT
 ```
 
 Compared to the IP46oDetNet scenario, there are some notable changes.
@@ -53,7 +53,7 @@ It is connected to __nxp1__ and __nxp2__ via a management network 172.16.0.0/24.
 This is a very common network setup: the production network has a high-speed forwarding plane, and the configuration of the nodes is done through a management network.
 
 Also, FRER/PREOF was intended to protect against path failures.
-Therefore administration of R2DTWO over the production network would be a bad idea since it is expected to fail from time to time.
+Therefore administration of DNT over the production network would be a bad idea since it is expected to fail from time to time.
 
 __nxp1__ and __nxp2__ connected to the management network with their `mgmt0` interfaces.
 They have the `172.16.0.1` and `172.16.0.2` management IP addresses respectively.
@@ -62,13 +62,13 @@ They have the `172.16.0.1` and `172.16.0.2` management IP addresses respectively
 ## Oparation, Administration and Maintenance (OAM) intro
 
 Before we proceed, we will introduce the concept of Maintenance Points.
-R2DTWO and this guide use the following IEEE 802.1ag terminology for OAM entities.
+DNT and this guide use the following IEEE 802.1ag terminology for OAM entities.
 
 MP - Maintenance Point(s)
 MIP - Maintenance Intermediate Point
 MEP - Maintenance Endpoint
 
-The operator must configure such MPs in R2DTWO to monitor the network.
+The operator must configure such MPs in DNT to monitor the network.
 OAM communication is only defined between MPs (two or more).
 There are two types of MEPs: MEP Start and MEP Stop.
 The MEP Start should be the initiator of the OAM session to a MIP or a MEP Stop.
@@ -82,14 +82,14 @@ If the level is equal, the MP responds to the request; if it is greater, the MP 
 OAM can be used for continuity checking, recording path, delay measurement, and PREOF function status monitoring.
 In this guide, we will show examples for each use case.
 
-**Note:** when this guide was written R2DTWO only supported PseudoWire OAM.
+**Note:** when this guide was written DNT only supported PseudoWire OAM.
 Support for TSN and SRv6 OAM was added later, they can be used in the same way, the only difference is the protocol stack at the maintenance points.
 
-## R2DTWO CLI interface
+## DNT CLI interface
 
-R2DTWO provides a command line interface (CLI) to access its OAM capabilities.
+DNT provides a command line interface (CLI) to access its OAM capabilities.
 This interface can be accessed via the Telnet protocol.
-For secure access, a Telnet-SSH proxy can be used that is not part of R2DTWO.
+For secure access, a Telnet-SSH proxy can be used that is not part of DNT.
 
 The Telnet CLI access is configured like a regular interface in the `[interfaces]` section of the config file.
 However, it has a special interface type, `oam_cmd`.
@@ -103,9 +103,9 @@ For example, this is how it looks like in the `nxp1.ini`:
 cmd0 = oam_cmd ip=172.16.0.1 port=8000
 ```
 
-Now R2DTWO listen on the 172.16.0.1:8000 TCP socket for incoming Telnet CLI sessions.
+Now DNT listen on the 172.16.0.1:8000 TCP socket for incoming Telnet CLI sessions.
 The __admin__ machine can access this since its also part of the management network.
-After R2DTWO started, we can access the CLI with the following command.
+After DNT started, we can access the CLI with the following command.
 
 ```
 (oam) root:scenario_oam# admin telnet 172.16.0.1 8000
@@ -116,14 +116,14 @@ OAM ready.
 ```
 
 Make sure `telnet` is installed on your machine.
-If the connection is successful, R2DTWO send the `OAM ready.` message for the client.
+If the connection is successful, DNT send the `OAM ready.` message for the client.
 You can use the `help` command to list the available CLI commands.
 
 __Important__: to terminate the telnet session properly use the `exit` or `quit` commands or the `Ctrl+D` keyboard shortcut.
 Do not use the `Ctrl+C` since thats for terminating a running OAM command.
 
 
-## The R2DTWO OAM configuration
+## The DNT OAM configuration
 
 In this guide, we discuss only the OAM-related parts of the configuration.
 Most of the configuration remains the same as in IP46oDetNet (except for the IPv6-related parts, which have been removed).
@@ -132,7 +132,7 @@ We also split the `pw` stream to `pw1` and `pw2` with MPLS labels `1000` and `20
 ### Create Maintenance Points
 
 We already discussed the concept of Maintenance Points (MPs).
-The first step in R2DTWO OAM configuration is the MP creation.
+The first step in DNT OAM configuration is the MP creation.
 
 As mentioned before, three types of MP supported: MEP Start, MIP and MEP Stop.
 These are defined in the action pipeline of the `[streams]` configuration.
@@ -191,7 +191,7 @@ This is done by deleting the Layer2 headers, and adding the MPLS and dCW headers
 This is the mandatory encapsulation format for OAM as mentioned before.
 
 Then we can create the MEP Start with the following action: `mep-start nxp1uni 3`.
-Recommended to stick to naming convention for MP names, R2DTWO support arbitrary names.
+Recommended to stick to naming convention for MP names, DNT support arbitrary names.
 Make sure these names are unique in the network, since they are MP IDs as well.
 
 After the MEP Start and the replication action, we define two MIPs, one for each NNI path.
@@ -212,19 +212,19 @@ With that, every MP react to every OAM request with level 3.
 
 ## Maintenance and network discovery with the OAM
 
-For moving forward, we need three terminals: two for the `r2dtwo` instances and one for the `telnet` application.
+For moving forward, we need three terminals: two for the `dnt` instances and one for the `telnet` application.
 
-Start the R2DTWO instances:
+Start the DNT instances:
 
 ```
 # terminal 1:
-(oam) root:scenario_oam# nxp1 r2dtwo nxp1.ini
+(oam) root:scenario_oam# nxp1 dnt nxp1.ini
 
 # terminal 2:
-(oam) root:scenario_oam# nxp2 r2dtwo nxp2.ini
+(oam) root:scenario_oam# nxp2 dnt nxp2.ini
 ```
 
-From the __admin__ machine, login to the __nxp1__'s R2DTWO instance with `telnet`:
+From the __admin__ machine, login to the __nxp1__'s DNT instance with `telnet`:
 
 ```
 (oam) root:scenario_oam# admin telnet 172.16.0.1 8000
@@ -251,11 +251,11 @@ Implicitly we also know that the elimination on __nxp2__ working properly since 
 
 ### Record Route
 
-This is an R2DTWO extension for OAM in FRER/PREOF environment.
+This is an DNT extension for OAM in FRER/PREOF environment.
 We know that the UNI towards the __listener__ is reachable, but we not know the exact path, where we reaching it.
 
 Normally on the IP networks we can use `traceroute` or `tracepath` to see the hops until our destination address.
-In R2DTWO we have the `ping` command's `-r` argument, to record the route until the MIP.
+In DNT we have the `ping` command's `-r` argument, to record the route until the MIP.
 This argument encoded in the OAM request, and every MIP see the request append it's MP IP to the request.
 When the request reach the target MIP, that will send a reply to us with the list of the MP IDs recorded.
 
@@ -337,7 +337,7 @@ Again, the output of this command depends on the current path delay and might ch
 ## Automatic MIP configuration
 
 For a complicated network with lots of eliminations, replications and redundant paths manual configuration of MPs is impractical.
-R2DTWO support automatic MIP configuration.
+DNT support automatic MIP configuration.
 This function create MIPs before and after replication, elimination and ordering functions.
 
 To enable this, edit the object definitions in `nxp1.ini` and `nxp2.ini` and add the `AutoMIP` parameter.
@@ -352,7 +352,7 @@ prf = Replicate AutoMIP=5
 ...
 ```
 
-Now logout from telnet with the `exit` command and restart the R2DTWO instances with the new config.
+Now logout from telnet with the `exit` command and restart the DNT instances with the new config.
 Then connect to the telnet CLI again and list the MPs with the `list` command:
 
 ```
@@ -377,7 +377,7 @@ o_pw2_L5_pre-pef level 5 in pipe pw2 at pos 3
 There are two takeaways in this output:
 1. Automatic MIPs are listed at MEP Start points in the output.
 We also see the manually configured MIPs as MEP Starts as well.
-This is normal because R2DTWO implicitly generate a MEP Start for each MIP.
+This is normal because DNT implicitly generate a MEP Start for each MIP.
 2. Automatic MIP names (MP IDs) generated following this scheme: `o_STREAM_Llevel_{post|pre}-OBJNAME`.
 The `o_` prefix in the MP ID quickly tells this is an automatically generated MIP.
 The `pre` or `post` before the object name distinguish between the placement of the MIP.

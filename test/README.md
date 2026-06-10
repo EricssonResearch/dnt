@@ -1,4 +1,4 @@
-# R2DTWO testing
+# DNT testing
 
 These tests intended for automatic integration testing (CI) use.
 Also they include many useful configuration and network examples.
@@ -29,7 +29,7 @@ sudo apt install cmake mininet python3-pyroute2 python3-regex iproute2 strace ps
 ## Integration tests
 
 There are integration selftests intended to be part of a CI/CD pipeline.
-They supposed to find regressions in R2DTWOs behavior.
+They supposed to find regressions in DNTs behavior.
 Additionally, these tests are (partially) documented and they have many configuration file examples.
 The examples can be used as building blocks other configurations as well.
 
@@ -37,8 +37,8 @@ The examples can be used as building blocks other configurations as well.
 ## Debugging tests
 
 In addition to selftests, there are live debugging mininet environments for quick development.
-These were used to debug R2DTWO during development.
-They are not systematic, not comprehensive, and not well-documented, but may be useful for showing some of the capabilities of R2DTWO.
+These were used to debug DNT during development.
+They are not systematic, not comprehensive, and not well-documented, but may be useful for showing some of the capabilities of DNT.
 It is recommended to start `xterm` terminals from mininet on the virtual nodes, and run the commands in those terminals.
 
 `quick` - small dual-stack test environment for basic TSN and DetNet functionality

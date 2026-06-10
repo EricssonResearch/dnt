@@ -2,8 +2,8 @@
 // All rights reserved.
 
 
-#ifndef R2_CONF_STREAMS_H
-#define R2_CONF_STREAMS_H
+#ifndef DNT_CONF_STREAMS_H
+#define DNT_CONF_STREAMS_H
 
 #include "inifile.h"
 #include "headerdesc.h"
@@ -23,4 +23,4 @@ bool parse_streams(struct HashMap *streams, const struct IniSection *streams_sec
 
 struct ConfStream *delete_confstream(struct ConfStream *stream);
 
-#endif // R2_CONF_STREAMS_H
+#endif // DNT_CONF_STREAMS_H

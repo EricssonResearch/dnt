@@ -14,18 +14,18 @@ import json
 from mininet_tools import *
 from netbench_tools import *
 
-def start_r2dtwos(net, debug, topo, mode):
-    # start R2DTWOs
+def start_dnts(net, debug, topo, mode):
+    # start DNTs
     match topo:
         case "1hop" : nodelist = ['n']
         case "2hop" : nodelist = ['n1', 'n2']
     for n in nodelist:
         node = net.get(n)
         if debug:
-            # For debug! Spawns r2dtwo windows in gdb
-            node.popen(f"xterm -T {n} -e env -i gdb -nx --args ../r2dtwo config/{mode}_{topo}.ini")
+            # For debug! Spawns dnt windows in gdb
+            node.popen(f"xterm -T {n} -e env -i gdb -nx --args ../dnt config/{mode}_{topo}.ini")
         else:
-            node.popen(f"../r2dtwo config/{mode}_{topo}.ini -vALL:NONE")
+            node.popen(f"../dnt config/{mode}_{topo}.ini -vALL:NONE")
 
 def main():
     all_ok = False
@@ -42,7 +42,7 @@ def main():
         config_net_fw(net)
         config_net_mtu(net,topo)
 
-        start_r2dtwos(net, debug, topo, ops)
+        start_dnts(net, debug, topo, ops)
 
         time.sleep(2)
 
