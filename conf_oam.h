@@ -2,8 +2,8 @@
 // All rights reserved.
 
 
-#ifndef R2_CONF_OAM_H
-#define R2_CONF_OAM_H
+#ifndef DNT_CONF_OAM_H
+#define DNT_CONF_OAM_H
 
 #include "inifile.h"
 
@@ -13,4 +13,4 @@
 // @returns false on error
 bool parse_oam(struct HashMap *oam, const struct IniSection *oam_section);
 
-#endif // R2_CONF_OAM_H
+#endif // DNT_CONF_OAM_H

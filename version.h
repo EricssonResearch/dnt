@@ -2,10 +2,10 @@
 // All rights reserved.
 
 
-#ifndef R2_VERSION_H
-#define R2_VERSION_H
+#ifndef DNT_VERSION_H
+#define DNT_VERSION_H
 
 #define VERSION_MAJOR 7
 #define VERSION_MINOR 3
 
-#endif // R2_VERSION_H
+#endif // DNT_VERSION_H

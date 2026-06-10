@@ -65,7 +65,7 @@ def config_net(net):
         n.cmd("ip link set ve1 mtu 2000 up")
         n.cmd("ip link set ve2 mtu 2000 up")
         n.cmd(f"ip -6 addr add fd00:a2d2:0:0:0:2::{ip_lo}/96 dev ve1")
-        n.cmd(f"ip -6 addr add fd00:a2d2:0:0:0:3::{ip_lo}/96 dev ve2")   # R2DTWO requires that IP type interfaces must have IP address
+        n.cmd(f"ip -6 addr add fd00:a2d2:0:0:0:3::{ip_lo}/96 dev ve2")   # DNT requires that IP type interfaces must have IP address
         # add dummy loopback interfaces for local SIDs (loopback interfaces do not work with SRv6)
         n.cmd("ip link add name sr0 type dummy")
         n.cmd(f"ip a a fd1{ip_lo}:fade::{ip_lo}/64 dev sr0")
@@ -172,19 +172,19 @@ def config_net(net):
     return net
 
 
-def start_r2dtwos(net, debug):
-    # start R2DTWOs
+def start_dnts(net, debug):
+    # start DNTs
     for n in ['n1', 'n2', 'n3', 'n4']:
         node = net.get(n)
         if debug:
-            # For debug! Spawns 4 r2dtwo windows in gdb
-            #node.popen(f"xterm -T {n} -e env -i gdb -nx --args ../r2dtwo oam_srv6/singlestage/{n}.cfg -v PACKETTRACE:PACKET")
-            node.popen(f"../r2dtwo -of oam_srv6/singlestage/{n}.cfg -v PACKETTRACE:PACKET -h {n}")    # in general this is enough for debug
-#            node.popen(f"../r2dtwo -of oam_srv6/singlestage/{n}.cfg -v ALL:ALL")    # in general this is enough for debug
+            # For debug! Spawns 4 dnt windows in gdb
+            #node.popen(f"xterm -T {n} -e env -i gdb -nx --args ../dnt oam_srv6/singlestage/{n}.cfg -v PACKETTRACE:PACKET")
+            node.popen(f"../dnt -of oam_srv6/singlestage/{n}.cfg -v PACKETTRACE:PACKET -h {n}")    # in general this is enough for debug
+#            node.popen(f"../dnt -of oam_srv6/singlestage/{n}.cfg -v ALL:ALL")    # in general this is enough for debug
         else:
-            # node.popen(f"xterm -T {n} -e env -i gdb -nx -ex=r --args ../r2dtwo oam_srv6/singlestage/{n}.cfg -vALL:NONE")
-            node.popen(f"../r2dtwo oam_srv6/singlestage/{n}.cfg -vALL:NONE -h {n}")
-#            node.popen(f"../r2dtwo -of oam_srv6/singlestage/{n}.cfg -v PACKETTRACE:PACKET")    # in general this is enough for debug
+            # node.popen(f"xterm -T {n} -e env -i gdb -nx -ex=r --args ../dnt oam_srv6/singlestage/{n}.cfg -vALL:NONE")
+            node.popen(f"../dnt oam_srv6/singlestage/{n}.cfg -vALL:NONE -h {n}")
+#            node.popen(f"../dnt -of oam_srv6/singlestage/{n}.cfg -v PACKETTRACE:PACKET")    # in general this is enough for debug
 
 # list of (sender node, telnet command, session id, expected reply)
 testcases = [
@@ -478,7 +478,7 @@ Stream s3 sessions:
 
 def auto_mip_test():
     print("Test SRv6 OAM automatic MIP configuration", end=" ")
-    exec_bg("../r2dtwo oam_srv6/autconfig/auto.ini -v ALL:NONE")
+    exec_bg("../dnt oam_srv6/autconfig/auto.ini -v ALL:NONE")
     time.sleep(1)
     expected_reply = """Available MEP Start points:
 o_C1_L2_post-E1 in C1 type MIP level 2 SRv6 (pipe M2 idx 6 locator from Match)
@@ -519,11 +519,11 @@ def run_tests(net, test):
         'n3' : "10.0.0.3",
         'n4' : "10.0.0.4",
     }
-    # Cleanup & start r2dtwos & wait for init
+    # Cleanup & start dnts & wait for init
     exec_fg("killall xterm")
-    exec_fg("killall r2dtwo")
+    exec_fg("killall dnt")
     time.sleep(0.3)
-    start_r2dtwos(net, False)
+    start_dnts(net, False)
     time.sleep(1.5)
     success = 0
     for node, msg, session, expected_reply in test:
@@ -571,17 +571,17 @@ def main():
         if len(sys.argv) >= 2 and sys.argv[1] == "debug":
             debug = True
         if debug:
-            print("R2DTWO SRv6 OAM debug")
+            print("DNT SRv6 OAM debug")
         else:
-            print("R2DTWO SRv6 OAM test")
+            print("DNT SRv6 OAM test")
         net = create_net()
         #setLogLevel('debug')
         config_net(net)
         if debug:
             inp = input("Do you want to start R2DWOs? (yes/no): ")
             if inp.lower() in ["yes", "y"]:
-#                start_r2dtwos(net, False)
-                start_r2dtwos(net, debug)
+#                start_dnts(net, False)
+                start_dnts(net, debug)
             CLI(net)
         else:
             all_ok = run_tests(net, testcases)
@@ -589,7 +589,7 @@ def main():
         print(type(ex))
     finally:
         print("Cleanup...")
-        exec_fg("killall r2dtwo")
+        exec_fg("killall dnt")
         exec_fg("killall xterm")
         #exec_fg("killall gdb")
         net.stop()

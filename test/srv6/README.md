@@ -8,7 +8,7 @@ There are 3 test cases differentiated:
 * IPv6 UNI - the incoming traffic is IPv6
 * IPv4 UNI - the incoming traffic is IPv4
 * TSN UNI - the incoming traffic is TSN
-For each test case there is an R2DTWO configuration pair in this directory, named <nodename>_<test>.cfg.
+For each test case there is an DNT configuration pair in this directory, named <nodename>_<test>.cfg.
 
 ## Running the srv6.py script
 
@@ -19,7 +19,7 @@ $ sudo python3 srv6.py
 The script sets up the network, and runs the test cases sequentially. If everything went well, we get a similar output:
 ```
 ...
-R2DTWO SRv6 test
+DNT SRv6 test
 Test SRv6 with IPv6 UNI   Background traffic...  DetNet traffic...  packet sizes...  stats... ✔
 Test SRv6 with IPv4 UNI   Background traffic...  DetNet traffic...  packet sizes...  stats... ✔
 Test SRv6 with TSN  UNI   Background traffic...  TSN    traffic...  packet sizes...  stats... ✔
@@ -35,7 +35,7 @@ For debugging a scenario, the script must be started with two more parameters: '
 
 $ sudo python3 srv6.py debug tsn
 
-Possible scenarios are `ipv6`, `ipv4` and `tsn`. The default is `ipv6`, so if `debug` is specified only, ipv6 scenario is supposed. After running the debug scenario, a mininet prompt is presented and the traffic can be generated manually. Note that in debug mode the generated R2DTWO logfiles are not removed, they must be removed manually.
+Possible scenarios are `ipv6`, `ipv4` and `tsn`. The default is `ipv6`, so if `debug` is specified only, ipv6 scenario is supposed. After running the debug scenario, a mininet prompt is presented and the traffic can be generated manually. Note that in debug mode the generated DNT logfiles are not removed, they must be removed manually.
 
 ## Network topology
 

@@ -1,8 +1,8 @@
-# Scenario 1: R2DTWO TSN operation, layer 2 bridge mode
+# Scenario 1: DNT TSN operation, layer 2 bridge mode
 
-In the following, we will use R2DTWO as a Layer2 TSN switch with IEEE 802.1CB function.
+In the following, we will use DNT as a Layer2 TSN switch with IEEE 802.1CB function.
 
-R2DTWO can protect the traffic by using redundant network paths simultaneously.
+DNT can protect the traffic by using redundant network paths simultaneously.
 Every packet is duplicated (or more generally replicated, since it can support more than two paths) to the network paths, called _replication_.
 The receiving node only accepts the first copy of the packet and drops the rest, that's called _elimination_.
 
@@ -10,7 +10,7 @@ We will use the following topology, which consists:
 
 * a talker node called **talker** which will generate traffic
 * a node called **listener** which receive the traffic coming from the **talker**
-* two R2DTWO switches, called **nxp1** and **nxp2** switching the traffic between the __talker__ and __listener__ (as mentioned before, those can be physical switches, but this guide will use virtual ones)
+* two DNT switches, called **nxp1** and **nxp2** switching the traffic between the __talker__ and __listener__ (as mentioned before, those can be physical switches, but this guide will use virtual ones)
 
 ```
   talker              nxp1                         nxp2              listener
@@ -29,14 +29,14 @@ We will use the following topology, which consists:
 └────────┘    └──────────────────┘         └──────────────────┘    └─────────┘
 ```
 As you can see, there are redundant paths between **nxp1** and **nxp2**.
-These paths will be utilized by R2DTWO for redundancy.
+These paths will be utilized by DNT for redundancy.
 
-## The R2DTWO configuration
+## The DNT configuration
 
-In the first scenario, we try out R2DTWO's IEEE 802.1CB FRER implementation.
+In the first scenario, we try out DNT's IEEE 802.1CB FRER implementation.
 This utilizes the FRER Redundancy Tag header with sequence numbers and operates in Layer 2.
 
-The configuration file for R2DTWO is prepared in this folder: `r2dtwo.ini`.
+The configuration file for DNT is prepared in this folder: `dnt.ini`.
 This is a symmetrical configuration, reflecting to the network topology above.
 In cases where the network setup is not symmetrical, separate configs might require on each switch.
 
@@ -54,16 +54,16 @@ However, on the listener side, we need to identify each member stream to merge t
 For this we also need an elimination action.
 
 For the rest of this guide, we will stick to the terminology of member streams and compound streams.
-Since the stream names are defined by the user in R2DTWO, meaningful names can make it clearer which stream is member and which is compound.
+Since the stream names are defined by the user in DNT, meaningful names can make it clearer which stream is member and which is compound.
 
 ### Explanation of the configuration
 
-For full details, please take a look into the R2DTWO documentation.
+For full details, please take a look into the DNT documentation.
 
-Right now we are only explaining the actions in the `r2dtwo.ini` file.
-Like other R2DTWO configurations, this consists three main sections: `[interfaces]`, `[objects]` and `[streams]`.
+Right now we are only explaining the actions in the `dnt.ini` file.
+Like other DNT configurations, this consists three main sections: `[interfaces]`, `[objects]` and `[streams]`.
 
-The `[interfaces]` section describes the network interfaces for R2DTWO for sending and receiving traffic.
+The `[interfaces]` section describes the network interfaces for DNT for sending and receiving traffic.
 It's completely normal, if an interface is only used for just sending or just receiving - it depends on the scenario we have.
 
 ```
@@ -82,12 +82,12 @@ The matches of the listed streams (described in `streamname:match` line) tested 
 
 __If none of the streams are identified, the packet will be dropped!__
 
-__Important:__ R2DTWO receives a copy of each packet! This is not a problem in many cases, but keep in mind in that case only the copy dropped by R2DTWO and the original packet continue its way in the Linux network stack.
+__Important:__ DNT receives a copy of each packet! This is not a problem in many cases, but keep in mind in that case only the copy dropped by DNT and the original packet continue its way in the Linux network stack.
 
 For each interface, we can define a meaningful custom name, that will used in the rest of the config, type (in this case all of them `eth`), and their real names in Linux (`ip link`).
 In this example we use the names `uni`, `nni1`, and `nni2` since these properly refer to their roles: User-Network Interface (`uni`) and Network-Network Interface (`nni1` and `nni2`).
 
-In the `r2dtwo.ini`'s `[interfaces]` section above we only have one stream candidate for each interface: `compound_uni`, `member1_uni` and `member2_uni`.
+In the `dnt.ini`'s `[interfaces]` section above we only have one stream candidate for each interface: `compound_uni`, `member1_uni` and `member2_uni`.
 As one can guess from these names, we identify the packets received from the `uni` interface as the compound stream.
 These streams defined in the `[streams]` of the config see below:
 
@@ -156,14 +156,14 @@ Its mandatory to have a common pipeline after the elimination action:
  member2_uni:actions
 ```
 
-For the full list of the supported R2DTWO actions, their parameters, and behavior please consult with the documentation.
+For the full list of the supported DNT actions, their parameters, and behavior please consult with the documentation.
 
 Right now, the packets matching in `compound_uni` stream will be processed as described below as described in the `:actions` line:
 
-0. The switch receives a packet on `swp2` interface, and since its an ethernet interface, R2DTWO applies a VLAN 0 tag (named as `cvlan` in the config) on it by default
+0. The switch receives a packet on `swp2` interface, and since its an ethernet interface, DNT applies a VLAN 0 tag (named as `cvlan` in the config) on it by default
 1. The `Gen` action gives a unique sequence number for each packet. Here `Gen` is a short form of `seqgen Gen`, where the action type is deduced by the type of the object argument.
-2. After the VLAN tag R2DTWO insert the FRER Redundancy-tag (R-tag) header
-3. The `writeseq` action inserts the packet's sequence number to the R-tag's sequence field. __This is optional, R2DTWO is smart enough to put the sequence number implicitly into the R-tag__
+2. After the VLAN tag DNT insert the FRER Redundancy-tag (R-tag) header
+3. The `writeseq` action inserts the packet's sequence number to the R-tag's sequence field. __This is optional, DNT is smart enough to put the sequence number implicitly into the R-tag__
 4. The `Repl` action do the packet copy and branches the action pipeline into two different paths. There is a stateless version of that action, it would looks like this: `replicate Repl-member1 Repl-member2`. The name of the pipelines are arbitrary.
 5. On both branches, there is an `edit` action set the VLAN ID-s to 100 an 200 then a `send` action that transmit the packets.
 Note that after the send action we can still process the packet further however, currently that is the last action in this particular config.
@@ -199,10 +199,10 @@ The __PipelineName__ is recommended to be meaningful about the stream.
 According to this conventions, our pipelines are named as `Repl-member1`, `Repl-member2` (after the replication) and `Elim-compound` (the common actions for the two member streams or simply the actions of the compound stream).
 
 
-## Run the R2DTWO and generate traffic
+## Run the DNT and generate traffic
 
-Let's try out R2DTWO with this scenario.
-For that, we need at least three terminal windows: one for generate traffic (`talker`) and two for run R2DTWO instances on `nxp1` and `nxp2`.
+Let's try out DNT with this scenario.
+For that, we need at least three terminal windows: one for generate traffic (`talker`) and two for run DNT instances on `nxp1` and `nxp2`.
 
 After opening the terminals, switch to `root` user and do the network config in each with the `source env.sh` command:
 
@@ -228,17 +228,17 @@ swp0@if2         UP             fe80::9449:e9ff:fe8e:4c7c/64
 swp1@if3         UP             fe80::5466:b5ff:fea0:c6fc/64 
 ```
 
-Now we can start the R2DTWO instances on `nxp1` and `nxp2`:
+Now we can start the DNT instances on `nxp1` and `nxp2`:
 
 ```
 # in one terminal:
-nxp1 r2dtwo r2dtwo.ini
+nxp1 dnt dnt.ini
 
 # in another terminal window:
-nxp2 r2dtwo r2dtwo.ini
+nxp2 dnt dnt.ini
 ```
 
-If everything OK, the `r2dtwo` instances are up and running.
+If everything OK, the `dnt` instances are up and running.
 But we have to generate some traffic right now with `ping` so run it on the `talker` node:
 
 ```

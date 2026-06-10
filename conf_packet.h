@@ -2,8 +2,8 @@
 // All rights reserved.
 
 
-#ifndef R2_CONF_PACKET_H
-#define R2_CONF_PACKET_H
+#ifndef DNT_CONF_PACKET_H
+#define DNT_CONF_PACKET_H
 
 #include "headerdesc.h"
 
@@ -24,4 +24,4 @@ bool parse_match_line(const char *stream, struct HeaderDescriptor *headers, char
 
 void confheaders_print(const struct HeaderDescriptor *headers);
 
-#endif // R2_CONF_PACKET_H
+#endif // DNT_CONF_PACKET_H

@@ -2,8 +2,8 @@
 // All rights reserved.
 
 
-#ifndef R2_CONF_INTERFACE_H
-#define R2_CONF_INTERFACE_H
+#ifndef DNT_CONF_INTERFACE_H
+#define DNT_CONF_INTERFACE_H
 
 #include "conf_streams.h"
 #include "inifile.h"
@@ -26,4 +26,4 @@ bool parse_interfaces(struct HashMap *ifaces, const struct IniSection *interface
 bool parse_interface_streams(struct HashMap *iface_streams, const struct IniSection *interfaces_section,
         const struct HashMap *ifaces, const struct HashMap *streams);
 
-#endif // R2_CONF_INTERFACE_H
+#endif // DNT_CONF_INTERFACE_H

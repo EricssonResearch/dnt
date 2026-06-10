@@ -2,8 +2,8 @@
 // All rights reserved.
 
 
-#ifndef R2_STATE_H
-#define R2_STATE_H
+#ifndef DNT_STATE_H
+#define DNT_STATE_H
 
 #include "hashmap.h"
 #include "interface.h"
@@ -34,7 +34,7 @@ struct StateTransaction *new_transaction(const char *name);
 struct StateTransaction *delete_transaction(struct StateTransaction *tr);
 
 
-// the state of R2DTWO is a singleton object
+// the state of DNT is a singleton object
 
 struct Interface *state_get_interface(const char *ifname);
 
@@ -67,4 +67,4 @@ void stream_names_in_pipeline(struct HashMap *names);
 bool same_compound_stream(const char *s1, const char *s2);
 
 
-#endif // R2_STATE_H
+#endif // DNT_STATE_H

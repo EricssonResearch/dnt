@@ -2,8 +2,8 @@
 // All rights reserved.
 
 
-#ifndef R2_INTERFACE_H
-#define R2_INTERFACE_H
+#ifndef DNT_INTERFACE_H
+#define DNT_INTERFACE_H
 
 #include "pipeline.h"
 #include "protocol.h"
@@ -123,4 +123,4 @@ const char *iface_type_str(enum IfaceType type);
 // prints more info if @stream_info is true
 void iface_print_info(const struct Interface *iface, FILE *cmd_w, bool stream_info);
 
-#endif // R2_INTERFACE_H
+#endif // DNT_INTERFACE_H

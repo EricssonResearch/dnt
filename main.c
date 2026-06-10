@@ -283,7 +283,7 @@ int main(int argc, char **argv)
 {
     init_rand();
 
-    const char *verbose_env = getenv("R2DTWO_VERBOSE");
+    const char *verbose_env = getenv("DNT_VERBOSE");
     if (verbose_env) {
         if (!set_loglevels(verbose_env)) {
             log_error("Verbosity environment '%s' is invalid", verbose_env);
@@ -322,7 +322,7 @@ int main(int argc, char **argv)
         notification_override_hostname(arguments.hostname);
     }
 
-    log_info("R2DTWO - Reliable & Robust Deterministic Tool for netWOrking %d.%d", VERSION_MAJOR, VERSION_MINOR);
+    log_info("DNT - Dependable Networking Toolkit %d.%d", VERSION_MAJOR, VERSION_MINOR);
 
     log_info("Reading config '%s'", arguments.configfile);
     struct StateTransaction *tr = read_config_file(arguments.configfile);
@@ -364,7 +364,7 @@ int main(int argc, char **argv)
 
     struct JsonValue *msg = json_object();
     json_object_insert(msg, "status", json_string("startup completed"));
-    notification_push_event("r2dtwo", NOTIF_INFO, msg);
+    notification_push_event("dnt", NOTIF_INFO, msg);
 
     main_loop();
     log_info("receive loop ended");

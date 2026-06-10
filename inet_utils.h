@@ -2,8 +2,8 @@
 // All rights reserved.
 
 
-#ifndef R2_INET_UTILS_H
-#define R2_INET_UTILS_H
+#ifndef DNT_INET_UTILS_H
+#define DNT_INET_UTILS_H
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -52,4 +52,4 @@ uint16_t csum_fold(uint32_t sum);
 // see RFC 1071
 uint32_t csum_partial(const uint8_t *p, size_t len, uint32_t sum);
 
-#endif // R2_INET_UTILS_H
+#endif // DNT_INET_UTILS_H

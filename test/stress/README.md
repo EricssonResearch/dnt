@@ -9,7 +9,7 @@ sudo ./stressnet.py
 mininet> xterm talker listener nxp1 nxp2
 ```
 
-In the *nxp1* and *nxp2* terminals do `../r2dtwo stress.ini` to start the tunnel.
+In the *nxp1* and *nxp2* terminals do `../dnt stress.ini` to start the tunnel.
 
 Traffic generation:
 

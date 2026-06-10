@@ -28,10 +28,10 @@ The `ETF` offload is not set in `env.sh`, which means the proper delay is calcul
 
 ### Commands to run this scenario:
 ```
-nxp1 r2dtwo nxp1.ini -o stdout -v INTERFACE:ALL
+nxp1 dnt nxp1.ini -o stdout -v INTERFACE:ALL
 
 Info: Logging to standard output.
-2024.03.27 12:17:24 [MAIN] [INFO] R2DTWO - Reliable & Robust Deterministic Tool for netWOrking 6.3
+2024.03.27 12:17:24 [MAIN] [INFO] DNT - Dependable Networking Toolkit 6.3
 2024.03.27 12:17:24 [MAIN] [INFO] Reading config 'nxp1.ini'
 
 2024.03.27 12:17:24 [INTERFACE] [DEBUG] SIOCSHWTSTAMP: HW timestamping for 'eth' on 'swp2' is not available
@@ -44,10 +44,10 @@ Info: Logging to standard output.
 ```
 
 ```
-nxp2 r2dtwo nxp2.ini -o stdout -v INTERFACE:ALL
+nxp2 dnt nxp2.ini -o stdout -v INTERFACE:ALL
 
 Info: Logging to standard output.
-2024.03.27 12:17:51 [MAIN] [INFO] R2DTWO - Reliable & Robust Deterministic Tool for netWOrking 6.3
+2024.03.27 12:17:51 [MAIN] [INFO] DNT - Dependable Networking Toolkit 6.3
 2024.03.27 12:17:51 [MAIN] [INFO] Reading config 'nxp2.ini'
 
 2024.03.27 12:17:51 [INTERFACE] [DEBUG] SIOCSHWTSTAMP: HW timestamping for 'eth' on 'swp2' is not available

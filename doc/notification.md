@@ -1,10 +1,10 @@
-# R2DTWO notifications
+# DNT notifications
 
-R2DTWO supports observability by sending notifications to collection points. OAM can also provide similar information by directing OAM replies to an specific collector point. The main difference is that OAM replies are always generated in a response to an OAM message (like *ping*), while notifications can be generated periodically or triggered by events or trigger messages.
+DNT supports observability by sending notifications to collection points. OAM can also provide similar information by directing OAM replies to an specific collector point. The main difference is that OAM replies are always generated in a response to an OAM message (like *ping*), while notifications can be generated periodically or triggered by events or trigger messages.
 
 ## Notification framework operation
 
-The Notification framework needs a stream named *notification_session* in the configuration file. The notifications are sent according to the pipeline defined by the *notification_session*. While this supports using any actions supported by R2DTWO pipelines, we suggest the following usage scenarios:
+The Notification framework needs a stream named *notification_session* in the configuration file. The notifications are sent according to the pipeline defined by the *notification_session*. While this supports using any actions supported by DNT pipelines, we suggest the following usage scenarios:
 
 * New stream specifically for notifications. In this case a DetNet stream is defined for the notification messages, possibly with replication at the source and elimination at the destination. Note that all intermediate nodes must be aware of this session. In this case path selection and redundancy are handled by the DetNet stream.
 * Use a management network. A simpler method is to use the management network for sending the notification messages. In this case all messages are sent out-of-band, in a best effort manner. Sending on multiple paths may still be possible even in this case. Such an example is given in the */getting_started/scenario_notification*: when 2 paths are available through 2 different interfaces, we can send the messages on both. De-duplication is still possible at higher level since each message is identified by a *notif_seq* (and a *notif_fragment*) field. The notification receiver example (in */json_receiver*) shows how to implement the high level elimination.
@@ -37,17 +37,17 @@ Of course, multiple notification interfaces can be used, using different paths t
 It is also possible to use the standard DetNet PRF/PEF functionalities for the notification messages as well, but in most cases a simple sequence number based elimination is enough. An example receiver script is available in the */json_receiver* directory.
 
 At the destination the *notif_hostname* and the *notif_seq* sequence number can be used to filter duplicate notification messages.
-In some cases (for example in Mininet) multiple nodes have the same hostname, for this case R2DTWO has a command line parameter *-h* which overrides the hostname (which is also used for generating the OAM node id).
+In some cases (for example in Mininet) multiple nodes have the same hostname, for this case DNT has a command line parameter *-h* which overrides the hostname (which is also used for generating the OAM node id).
 
 
 ## Push notifications
 
-The *push* notifications are triggered by events, and they are sent immediately. For example, when a user connects to R2DTWO via a telnet interface, a push notification is sent indicating the telnet login. The following notification *push* sources are currently defined:
+The *push* notifications are triggered by events, and they are sent immediately. For example, when a user connects to DNT via a telnet interface, a push notification is sent indicating the telnet login. The following notification *push* sources are currently defined:
 
 * "delay", type NOTIF_ERROR : a packet arrived later than the delay specified
 * "new src", type NOTIF_INFO: an udp-in interface detected an IP address change on its HW interface
 * "new dst", type  NOTIF_INFO: an udp-out interface was notified about a new destination IP
-* "r2dtwo", type  NOTIF_INFO: r2dtwo startup notification
+* "dnt", type  NOTIF_INFO: dnt startup notification
 * "telnet", type NOTIF_INFO: new telnet client connected
 * "send", type NOTIF_ERROR or NOTIF_WARNING: detected anomalies about packet sending
 * "mask", type NOTIF_INFO: a replication path has been masked
@@ -65,9 +65,9 @@ When AutoMIP is used on an object, the target objects of the created MIPs are al
 
 ## Pull notifications
 
-The *pull* notifications are triggered periodically, with a fixed period of 2 seconds. The reporting period is aligned to the even seconds according to the node's clock, therefore when all nodes running R2DTWO are in sync (with PTP), the reporting happens at the same time on all nodes.
+The *pull* notifications are triggered periodically, with a fixed period of 2 seconds. The reporting period is aligned to the even seconds according to the node's clock, therefore when all nodes running DNT are in sync (with PTP), the reporting happens at the same time on all nodes.
 
-On startup, all notification sources in R2DTWO register themselves to the notification module. When reporting, the notification module queries all the registered notification sources, which all provide a json report about their state. The notification module collects these, and runs the *notification_session* pipeline on the resulting packets.
+On startup, all notification sources in DNT register themselves to the notification module. When reporting, the notification module queries all the registered notification sources, which all provide a json report about their state. The notification module collects these, and runs the *notification_session* pipeline on the resulting packets.
 
 Currently the following pull notification sources are implemented:
 
@@ -85,7 +85,7 @@ By default, push notification sources are enabled and pull notifications are dis
 
 Notifications have a *source* and a *level*. The source is a string, identifying the notification source module.
 
-For push notifications the *source* can be "transaction", "r2dtwo", "new src", "telnet", "mask", "triggered_source", "triggered_receiver" etc. For pull notifications the name can be the reporting module's name as described [here](#message-formats).
+For push notifications the *source* can be "transaction", "dnt", "new src", "telnet", "mask", "triggered_source", "triggered_receiver" etc. For pull notifications the name can be the reporting module's name as described [here](#message-formats).
 
 The notification level can be the following:  ERROR, WARNING, INFO, PULL (currently all pull sources use the PULL level). It is possible to filter sending notifications according to the level with a command line parameter:
 
@@ -107,7 +107,7 @@ To collect periodic statistics for traffic management, 2 models are supported:
 1. based on pull notifications (mainly useful in a synchronized network)
 2. based on push notifications triggered by *trigger* messages (does not require synchronization)
 
-Pull notifications can be used in a synchronized network to provide periodic statistics. All pull statistics are reported periodically, with a pre-defined period of 2s (hardcoded currently) at every even second according to the local clock. This means that all nodes will send their stats in sync, if the nodes are synchronized via PTP. These pull notifications contain all the data about the state of R2DTWO.
+Pull notifications can be used in a synchronized network to provide periodic statistics. All pull statistics are reported periodically, with a pre-defined period of 2s (hardcoded currently) at every even second according to the local clock. This means that all nodes will send their stats in sync, if the nodes are synchronized via PTP. These pull notifications contain all the data about the state of DNT.
 
 However, synchronization may not be available/feasible in all cases. In such cases, the *trigger* notification can be used to perform periodic measurements. When a *trigger* message is sent, a local push of *triggered_source* is also performed. Upon reception of the *trigger* message, a push of *triggered_receiver* is performed. These triggered notifications only contain statistics about the MIPs involved in the message exchange, and the other MIPs that have the same target object.
 
@@ -160,7 +160,7 @@ The pull messages can be enabled/disabled from the [telnet interface](oam.md).
 
 ## Message formats
 
-Each component of R2DTWO reports its state in the notification message in a specific structure
+Each component of DNT reports its state in the notification message in a specific structure
 First, the object-specific JSON messages are described, then the notification messages themselves.
 
 ### Object report JSONs
@@ -264,8 +264,8 @@ The *delay_exceeded_packets* are the packets which arrived so late: their delay 
         "stream2 packets": 0}
 ```
 
-Increasing number of "no match packets" indicates that traffic other than TSN/DetNet reaches the R2DTWO.
-Usually we use TC filters or OVS to decouple the background traffic. However, in some cases traffic like ARP can still reach the R2DTWO. Excessive increase of "no match packets" indicates configuration error or misconfiguration of streams.
+Increasing number of "no match packets" indicates that traffic other than TSN/DetNet reaches the DNT.
+Usually we use TC filters or OVS to decouple the background traffic. However, in some cases traffic like ARP can still reach the DNT. Excessive increase of "no match packets" indicates configuration error or misconfiguration of streams.
 
 * TC report:
 
@@ -353,7 +353,7 @@ Where source_1...n are the registered pull notification sources, that can be the
 }
 ```
 
-Sent whenever R2DTWO commits a valid configuration.
+Sent whenever DNT commits a valid configuration.
 
 * Startup notification:
 
@@ -364,11 +364,11 @@ Sent whenever R2DTWO commits a valid configuration.
     "notif_tstamp": 1743628439.9162316,
     "notif_msg": "{
         \"push_level\": \"INFO\",
-        \"r2dtwo\": {\"status\": \"startup completed\"}
+        \"dnt\": {\"status\": \"startup completed\"}
     }"
 }
 ```
-Sent when R2DTWO is ready to process the incoming traffic.
+Sent when DNT is ready to process the incoming traffic.
 
 * IP change notification:
 

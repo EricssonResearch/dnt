@@ -75,8 +75,8 @@ pkts_bad_neg = [
     Ether()/Dot1Q(vlan=2025)/IPv6(src="beef:dead:face::face", dst="dead:cafe::cafe")/UDP(), # s50 but wrong dst
 ]
 
-def start_r2dtwo():
-    return exec_bg("../r2dtwo match/match.ini")
+def start_dnt():
+    return exec_bg("../dnt match/match.ini")
 
 def cleanup_ifaces():
     exec_fg("ip link del to_r2 type veth peer name r2rx")
@@ -136,7 +136,7 @@ def run_test(name, goods, bads):
 
 
 def main():
-    print("R2DTWO match test")
+    print("DNT match test")
     passed = 0
     tests = [
             ["Ethernet", pkts_good_eth, pkts_bad_eth],
@@ -147,7 +147,7 @@ def main():
             ["Negative", pkts_good_neg, pkts_bad_neg],
             ]
     config_ifaces()
-    start_r2dtwo()
+    start_dnt()
     time.sleep(1)
     for test in tests:
         result = run_test(test[0], test[1], test[2])
@@ -157,7 +157,7 @@ def main():
         else:
             print("✘")
     print(f'All test completed, {passed}/{len(tests)} successfully')
-    exec_fg("killall r2dtwo")
+    exec_fg("killall dnt")
     cleanup_ifaces()
     if passed != len(tests):
         exit(1)

@@ -2,8 +2,8 @@
 // All rights reserved.
 
 
-#ifndef R2_UTILS_H
-#define R2_UTILS_H
+#ifndef DNT_UTILS_H
+#define DNT_UTILS_H
 
 #define calloc_struct(T) (struct T *)calloc(1, sizeof(struct T))
 
@@ -40,4 +40,4 @@ char *strdup_printf(const char *format, ...)
     __attribute__((nonnull(1)));
 
 
-#endif // R2_UTILS_H
+#endif // DNT_UTILS_H

@@ -2,8 +2,8 @@
 // All rights reserved.
 
 
-#ifndef R2_OBJECT_H
-#define R2_OBJECT_H
+#ifndef DNT_OBJECT_H
+#define DNT_OBJECT_H
 
 #include "action.h"
 #include "json.h"
@@ -54,6 +54,6 @@ char *pipelineobject_sprintf_state_json(struct JsonValue *json, const char *reco
 // prints information about @obj to @cmd_w
 void pipelineobject_print_info(const struct PipelineObject *obj, FILE *cmd_w);
 
-#endif // R2_OBJECT_H
+#endif // DNT_OBJECT_H
 
 

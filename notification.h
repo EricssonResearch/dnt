@@ -2,8 +2,8 @@
 // All rights reserved.
 
 
-#ifndef R2_NOTIFICATION_H
-#define R2_NOTIFICATION_H
+#ifndef DNT_NOTIFICATION_H
+#define DNT_NOTIFICATION_H
 
 #include "json.h"
 
@@ -74,4 +74,4 @@ bool notification_enable_pull(int enable);
 // useful in mininet, where all nodes have the same hostname (no UTS namespace isolation)
 void notification_override_hostname(const char *name);
 
-#endif // R2_NOTIFICATION_H
+#endif // DNT_NOTIFICATION_H

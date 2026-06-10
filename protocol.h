@@ -2,8 +2,8 @@
 // All rights reserved.
 
 
-#ifndef R2_PROTOCOL_H
-#define R2_PROTOCOL_H
+#ifndef DNT_PROTOCOL_H
+#define DNT_PROTOCOL_H
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -111,4 +111,4 @@ const struct ProtocolField *protocol_get_field_by_type(enum ProtocolID id, enum 
 // @returns -1 if the protocol has no field with the given @type
 int protocol_get_field_idx_by_type(enum ProtocolID id, enum ProtocolFieldType type);
 
-#endif // R2_PROTOCOL_H
+#endif // DNT_PROTOCOL_H

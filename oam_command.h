@@ -2,8 +2,8 @@
 // All rights reserved.
 
 
-#ifndef R2_OAM_COMMAND_H
-#define R2_OAM_COMMAND_H
+#ifndef DNT_OAM_COMMAND_H
+#define DNT_OAM_COMMAND_H
 
 #ifndef OAM_INTERNAL
 #error "this header is internal to the OAM module"
@@ -41,4 +41,4 @@ void init_cmd_module(void);
 
 void finish_cmd_module(void);
 
-#endif // R2_OAM_COMMAND_H
+#endif // DNT_OAM_COMMAND_H

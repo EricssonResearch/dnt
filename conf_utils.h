@@ -2,8 +2,8 @@
 // All rights reserved.
 
 
-#ifndef R2_CONF_UTILS_H
-#define R2_CONF_UTILS_H
+#ifndef DNT_CONF_UTILS_H
+#define DNT_CONF_UTILS_H
 
 #include "protocol.h"
 
@@ -71,4 +71,4 @@ bool prepare_constant_number(struct Value *val, uint64_t num);
 //      the number doesn't fit @bitcount
 bool read_constant(struct Value *val, enum ProtocolID proto, enum ProtocolFieldType type, const char *string);
 
-#endif // R2_CONF_UTILS_H
+#endif // DNT_CONF_UTILS_H

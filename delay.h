@@ -2,8 +2,8 @@
 // All rights reserved.
 
 
-#ifndef R2_DELAY_H
-#define R2_DELAY_H
+#ifndef DNT_DELAY_H
+#define DNT_DELAY_H
 
 #include "pipeline.h"
 
@@ -32,4 +32,4 @@ bool register_delay_notification(bool add, unsigned period_ms);
 // stops iterating if @cb returns 0
 int foreach_delay_stat(int (*cb)(const char *pipe, uint64_t packets, uint64_t delay_exceeded, void *userdata), void *userdata);
 
-#endif // R2_DELAY_H
+#endif // DNT_DELAY_H

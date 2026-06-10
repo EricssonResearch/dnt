@@ -1,6 +1,6 @@
-# R2DTWO architecture
+# DNT architecture
 
-This document gives an overview of the components of R2DTWO and the way they are connected to each other.
+This document gives an overview of the components of DNT and the way they are connected to each other.
 
 The objects that R2DWTO is composed of are all identified by their names, which are often used as hash keys.
 
@@ -10,7 +10,7 @@ The objects that R2DWTO is composed of are all identified by their names, which 
 In C there is no automatic memory management, it is the responsibility of the programmer to keep track of the dynamically allocated objects.
 The usual solution is to define ownership relations, where the owner object must dispose of the owned objects when they are no longer needed.
 
-In R2DTWO the establishment of ownership relations are assisted with a reference-counting scheme.
+In DNT the establishment of ownership relations are assisted with a reference-counting scheme.
 Each object that is a *shared resource* has a `reference_count` member that keeps track of the number of its users.
 These object types have a `TYPE_ref()` member to acquire a reference, and a `TYPE_unref()` member to release the reference.
 The reference-counted object types don't have a `delete()` method, they are automatically disposed of when their reference count reaches zero.
@@ -18,7 +18,7 @@ The reference-counted object types don't have a `delete()` method, they are auto
 
 ## Architecture overview
 
-The overall architecture of R2DTWO is shown in the figure below:
+The overall architecture of DNT is shown in the figure below:
 
 ```
                                             ╔═══════════════════════════════════════════════╗
@@ -98,16 +98,16 @@ When the AutoMIP option is enabled on a PipelineObject, the generated MIPs will 
 
 ## Packet processing
 
-The main thread of R2DTWO is just an idle loop waiting for the interrupt or terminate signal.
+The main thread of DNT is just an idle loop waiting for the interrupt or terminate signal.
 The *Interface* objects that can receive packets each run their own receive threads, and the packet processing happens in those threads.
 This means that all packet processing code must be thread-safe.
 
 There is a common send-receive infrastructure found in `if_utils.h` that is used by almost all Interface types.
 It takes care of Packet allocation, receiving on the socket, timestamping, and error handling.
 
-There is a limit on how many packets can exist in R2DTWO at the same time to prevent memory exhaustion.
+There is a limit on how many packets can exist in DNT at the same time to prevent memory exhaustion.
 If the limit is reached, the incoming packets are read into a dummy buffer that is never processed, because we have to drain the receive buffer of the socket.
-Currently only Delay and POF modules can buffer packets, so those are the ones to watch out for when R2DTWO starts issuing warnings about packet overflow.
+Currently only Delay and POF modules can buffer packets, so those are the ones to watch out for when DNT starts issuing warnings about packet overflow.
 
 Once a Packet has been received there are two distinct phases of processing:
 
@@ -179,13 +179,13 @@ The database of the active OAM request sessions is implemented in `oam_session.c
 The `oam_cmd` interface type allows only one instance, but it can handle multiple simultaneous command connections.
 Each command connection runs in a separate background thread, the OAM request messages are injected into the action pipelines from these threads.
 
-The OAM functionality of R2DTWO is based on standardized technologies (e.g. RFC 9546, IEEE 802.1ag), but most of it (monitoring point architecture, message sequences, message formats) is non-standard, and it's only compatible with itself.
+The OAM functionality of DNT is based on standardized technologies (e.g. RFC 9546, IEEE 802.1ag), but most of it (monitoring point architecture, message sequences, message formats) is non-standard, and it's only compatible with itself.
 In this implementation the messages are encoded as JSON (ECMA-404).
 
 
 ## Configuration
 
-The configuration processing infrastructure is completely separate from the packet processing of R2DTWO.
+The configuration processing infrastructure is completely separate from the packet processing of DNT.
 It has several components, each corresponding to a section in the configuration file.
 
 The most complex processing is for the `actions` line of the streams in `conf_actions.c`.
@@ -201,10 +201,10 @@ Some actions do most of their processing in `process_token`, while others do it 
 Note that error checking should be performed as soon as possible.
 
 The configuration file is processed into a `Transaction` structure that contains all the interfaces, objects and streams to be created.
-Committing the transaction sets up R2DTWO for actual packet processing.
+Committing the transaction sets up DNT for actual packet processing.
 The conversion from `ConfAction` list to `Action` array by `assemble_actions` happens in this phase (this function is basically the constructor for the `Pipeline` structure).
 
-The shutdown sequence of R2DTWO is simple: commit a transaction that removes all the interfaces.
+The shutdown sequence of DNT is simple: commit a transaction that removes all the interfaces.
 This starts an avalanche:
 
 1. The Interfaces release their streams (the action pipeline is reference-counted)
@@ -218,7 +218,7 @@ Note that this shutdown process doesn't lose packets that have already been rece
 PipelineIterator objects hold a reference to their action pipeline.
 
 **Note**: the transaction commit mechanism is currently unfinished.
-It can properly start up and shut down R2DTWO, but incremental configuration during runtime is not yet possible.
+It can properly start up and shut down DNT, but incremental configuration during runtime is not yet possible.
 The main missing features are: remove individual streams, rollback on error, user interface (telnet commands and/or NETCONF).
 
 

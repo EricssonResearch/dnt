@@ -17,7 +17,7 @@
 └────────┘    └──────────────────┘         └──────────────────┘    └─────────┘
 ```
 
-This is a simple scenario to test R2DTWO on physical devices. `enp3s0`, `enp4s0`, `enp6s0` and `enp7s0` are physical devices, `teth0`, `aeth0`, `beth0` and `leth0` are veth devices. Physical interfaces have multiple `TX` queues. On these devices, we configured `ETF` qdisc as the second `TX` queue. `ETF` offload is enabled, so the delay is going to be what we wrote into the `ini` file. The delta does not matter here.
+This is a simple scenario to test DNT on physical devices. `enp3s0`, `enp4s0`, `enp6s0` and `enp7s0` are physical devices, `teth0`, `aeth0`, `beth0` and `leth0` are veth devices. Physical interfaces have multiple `TX` queues. On these devices, we configured `ETF` qdisc as the second `TX` queue. `ETF` offload is enabled, so the delay is going to be what we wrote into the `ini` file. The delta does not matter here.
 
 ```
 nsx tc qdisc add dev enp3s0 handle 100: parent root mqprio num_tc 3 map 0 1 2 2 queues 1@0 1@1 2@2 hw 0
@@ -56,10 +56,10 @@ nsx phc2sys -rr -m -R 10 -c enp7s0 -s CLOCK_REALTIME -O 0 -z /var/run/ptp4l -w
 
 ### To run this scenario:
 ```
-nsx r2dtwo send.ini -o stdout -v INTERFACE:ALL
+nsx dnt send.ini -o stdout -v INTERFACE:ALL
 
 Info: Logging to standard output.
-2024.03.28 14:17:44 [MAIN] [INFO] R2DTWO - Reliable & Robust Deterministic Tool for netWOrking 6.3
+2024.03.28 14:17:44 [MAIN] [INFO] DNT - Dependable Networking Toolkit 6.3
 2024.03.28 14:17:44 [MAIN] [INFO] Reading config 'send.ini'
 
 2024.03.28 14:17:44 [INTERFACE] [DEBUG] SO_TXTIME enabled on 'enp3s0'
@@ -87,10 +87,10 @@ Info: Logging to standard output.
 ```
 
 ```
-nsx r2dtwo recv.ini -o stdout -v INTERFACE:ALL
+nsx dnt recv.ini -o stdout -v INTERFACE:ALL
 
 Info: Logging to standard output.
-2024.03.28 14:18:01 [MAIN] [INFO] R2DTWO - Reliable & Robust Deterministic Tool for netWOrking 6.3
+2024.03.28 14:18:01 [MAIN] [INFO] DNT - Dependable Networking Toolkit 6.3
 2024.03.28 14:18:01 [MAIN] [INFO] Reading config 'recv.ini'
 
 2024.03.28 14:18:01 [INTERFACE] [DEBUG] SIOCSHWTSTAMP: rx_filter requested HWTSTAMP_FILTER_ALL got HWTSTAMP_FILTER_ALL

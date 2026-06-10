@@ -2,8 +2,8 @@
 // All rights reserved.
 
 
-#ifndef R2_OAM_REQUEST_H
-#define R2_OAM_REQUEST_H
+#ifndef DNT_OAM_REQUEST_H
+#define DNT_OAM_REQUEST_H
 
 #ifndef OAM_INTERNAL
 #error "this header is internal to the OAM module"
@@ -79,4 +79,4 @@ void request_set_originator(struct OamRequest *req, const char *stream, unsigned
 bool initiate_request(struct OamRequest *req, const char *conn_name);
 
 
-#endif // R2_OAM_REQUEST_H
+#endif // DNT_OAM_REQUEST_H

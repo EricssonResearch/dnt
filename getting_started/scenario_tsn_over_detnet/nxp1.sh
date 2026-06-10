@@ -7,9 +7,9 @@ sysctl -w net.ipv4.ip_forward=1
 ip addr add 192.168.55.1/24 dev swp0
 ip addr add 192.168.66.1/24 dev swp1
 
-ip link add veth0-ovs0 type veth peer name veth0-r2dtwo
+ip link add veth0-ovs0 type veth peer name veth0-dnt
 ip link set veth0-ovs0 mtu 2000 up
-ip link set veth0-r2dtwo mtu 2000 up
+ip link set veth0-dnt mtu 2000 up
 
 ovs-vsctl --if-exists del-br br0
 ovs-vsctl --if-exists del-br ovs0

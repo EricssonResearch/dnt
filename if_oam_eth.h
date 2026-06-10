@@ -2,8 +2,8 @@
 // All rights reserved.
 
 
-#ifndef R2_IF_OAM_ETH_H
-#define R2_IF_OAM_ETH_H
+#ifndef DNT_IF_OAM_ETH_H
+#define DNT_IF_OAM_ETH_H
 
 struct Interface;
 
@@ -13,4 +13,4 @@ char *oam_eth_if_get_mac(const struct Interface *iface);
 
 unsigned oam_eth_if_get_vlan(const struct Interface *iface);
 
-#endif // R2_IF_OAM_ETH_H
+#endif // DNT_IF_OAM_ETH_H

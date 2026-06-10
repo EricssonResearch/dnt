@@ -1,5 +1,5 @@
 # To access the helper functions, source this file from gdb or from .gdbinit
-# (gdb) source doc/r2dtwo_gdb_helpers.py
+# (gdb) source doc/dnt_gdb_helpers.py
 # Check user-defined helpers: (gdb) help user-defined
 
 import gdb

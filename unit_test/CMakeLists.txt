@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 
-project(R2DTWO_Testing)
+project(DNT_Testing)
 
 include_directories(../)
 

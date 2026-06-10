@@ -1,5 +1,5 @@
 
-# Specification for the config file format of R2DTWO 6.0 and above
+# Specification for the config file format of DNT 6.0 and above
 
 We use a simple INI format for the config. The INI format is not formally specified, and variations in syntax exist in the parser implementations. We expect the most basic variant: single-line `key=value` elements, any number of whitespace around the = sign, section headers with the `[name]` syntax, and we assume no ordering of the keys within a section. Comments start with '#' or ';' and last until the end of the line. Comments can appear at the end of data lines, but not after section headers. Multi-line strings or comments are not supported.
 
@@ -32,7 +32,7 @@ List of interfaces where we can send/receive packets. The keys of the items are 
     * `dstport` the UDP port to send to (default: 6635)
     * `dstip` the IP address to send to, `ipv4` and `ipv6` mean the address will be specified later (can't send until a valid destination is set, see the `senders` parameter on udp-in)
     * `prio` the IPv4 TOS or IPv6 Traffic Class for the sent packets (default: 0)
-* `internal` a virtual interface within R2DTWO that can send and receive packets, useful for stream re-classification in decapsulating scenarios, no parameters
+* `internal` a virtual interface within DNT that can send and receive packets, useful for stream re-classification in decapsulating scenarios, no parameters
 * `oam` receives OAM reply messages out-of-band, can have any number of these, the default one is the first one in alphabetic order
     * `ip` return address to listen on (required)
     * `port` return port (default: 6634)
@@ -74,7 +74,7 @@ oam0 = oam ip=10.0.0.1
 
 ### Dynamic IP configuration
 
-Dynamic IP address allocation is possible for UDP PseudoWire tunnels: when the receiving end of the UDP tunnel has dynamically allocated address (e.g. via DHCP, ICMPv6), R2DTWO can notify the sending endpoints about its address.
+Dynamic IP address allocation is possible for UDP PseudoWire tunnels: when the receiving end of the UDP tunnel has dynamically allocated address (e.g. via DHCP, ICMPv6), DNT can notify the sending endpoints about its address.
 
 This implementation reuses the OAM framework for receiving and processing the address change notifications. On the UDP tunnel sender endpoint node, where the `udp-out` interface is, there has to be an `oam` interface to receive these notifications, and it must be reachable from the node that has the `udp-in` interface.
 
@@ -84,7 +84,7 @@ The `udp-out` interfaces can be configured to an initial target address, or just
 
 ## streams
 
-This section lists the packet streams that R2DTWO can receive, and the actions that must be performed on the received packets. Each stream is defined with three lines: `packet`, `match`, `actions`. Their order in the config file is not important. The syntax for the key of the stream lines is in the form of `streamname:packet`, where `streamname` is used to find the corresponding definition lines for a stream. Missing one or two of these lines for a stream is an error.
+This section lists the packet streams that DNT can receive, and the actions that must be performed on the received packets. Each stream is defined with three lines: `packet`, `match`, `actions`. Their order in the config file is not important. The syntax for the key of the stream lines is in the form of `streamname:packet`, where `streamname` is used to find the corresponding definition lines for a stream. Missing one or two of these lines for a stream is an error.
 
 ### packet
 
@@ -176,7 +176,7 @@ If the first header in the `:packet` line has a *TTL* field, a `ttlreduce` actio
 
 When the action pipeline is finished, the memory used for the packet is automatically reclaimed, there is no need to explicitly drop it with the `drop` action. The `drop` action can be used to explicitly filter out certain types of packets.
 
-The OAM monitoring points (`mep-start`, `mep-stop`, `mip`) are only allowed in the action pipeline, where the header structure of the packet is suitable for a standard OAM operation. This is a major restriction, as otherwise R2DTWO can handle absolutely any protocol stack built from the known header types. The supported OAM protocol stacks are the following:
+The OAM monitoring points (`mep-start`, `mep-stop`, `mip`) are only allowed in the action pipeline, where the header structure of the packet is suitable for a standard OAM operation. This is a major restriction, as otherwise DNT can handle absolutely any protocol stack built from the known header types. The supported OAM protocol stacks are the following:
 
 * `mpls` `dcw` - PseudoWire OAM
 * `eth` `cvlan`  or `eth` `svlan` or `eth` `cvlan` `rtag` or `eth` `svlan` `rtag` - TSN OAM
@@ -210,7 +210,7 @@ tunnel_in:actions = readseq dcw_tunnel, seq_rcvy2, mep-stop tunnelEnd 3 seq_rcvy
 
 ### Delay offload
 
-The `delay` action supports an optional `offload` parameter, which instructs R2DTWO to use an external delay mechanism provided by the operating system instead of the internal delay queue. This setting can be given for each delay action independently, regardless of the outgoing interfaces.
+The `delay` action supports an optional `offload` parameter, which instructs DNT to use an external delay mechanism provided by the operating system instead of the internal delay queue. This setting can be given for each delay action independently, regardless of the outgoing interfaces.
 
 The external delay mechanism is the *TxTime* parameter of the `sendmsg` system call. It tells the NIC to send out the packet at the specified time. Some NICs use hardware offloading to accomplish this (e.g. Intel i210), while others use a software implementation with lower precision (note that the `veth` virtual driver does support this). This feature also needs an ETF (earliest txtime first) qdisc on the outgoing interface to work properly. See the `txtime` example scenarios in the test directory.
 

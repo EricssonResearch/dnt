@@ -94,17 +94,17 @@ def config_net(net):
     s1.cmd('ip link set eth_n3 master s1')
     s1.cmd('ip link set eth_n4 master s1')
 
-def start_r2dtwos(net, debug):
-    # start R2DTWOs
+def start_dnts(net, debug):
+    # start DNTs
     r2 = []
     for n in ['n1', 'n2', 'n3', 'n4']:
         node = net.get(n)
         if debug:
-            # For debug! Spawns 4 r2dtwo windows in gdb
-            node.popen(f"xterm -T {n} -e env -i gdb -nx --args ../r2dtwo oam_tsn/singlestage/{n}.cfg -h {n}")
+            # For debug! Spawns 4 dnt windows in gdb
+            node.popen(f"xterm -T {n} -e env -i gdb -nx --args ../dnt oam_tsn/singlestage/{n}.cfg -h {n}")
         else:
-            # node.popen(f"xterm -T {n} -e env -i gdb -nx -ex=r --args ../r2dtwo oam/singlestage/{n}.cfg -vALL:NONE")
-            r2.append(node.popen(f"../r2dtwo oam_tsn/singlestage/{n}.cfg -vALL:NONE -h {n}"))
+            # node.popen(f"xterm -T {n} -e env -i gdb -nx -ex=r --args ../dnt oam/singlestage/{n}.cfg -vALL:NONE")
+            r2.append(node.popen(f"../dnt oam_tsn/singlestage/{n}.cfg -vALL:NONE -h {n}"))
     return r2
 
 # list of (sender node, telnet command, session id, expected reply)
@@ -393,7 +393,7 @@ Stream s3 sessions:
 def auto_mip_test():
     verdict = True
     print("Test TSN OAM automatic MIP configuration", end=" ")
-    exec_bg("../r2dtwo oam_tsn/autconfig/auto.ini -v ALL:NONE")
+    exec_bg("../dnt oam_tsn/autconfig/auto.ini -v ALL:NONE")
     time.sleep(1)
     expected_list = """Available MEP Start points:
 o_Eafter_after2_L4_pre-Eaa in Eafter_after2 type MIP level 4 TSN (pipe Eafter_after2 idx 2 DMAC from Edit after MP VLAN from Edit after MP)
@@ -641,11 +641,11 @@ def run_tests(net, test):
         'n3' : "10.0.0.3",
         'n4' : "10.0.0.4",
     }
-    # Cleanup & start r2dtwos & wait for init
+    # Cleanup & start dnts & wait for init
     exec_fg("killall xterm")
-    exec_fg("killall r2dtwo")
+    exec_fg("killall dnt")
     time.sleep(0.3)
-    r2dtwos = start_r2dtwos(net, False)
+    dnts = start_dnts(net, False)
     time.sleep(1.5)
     success = 0
     for node, msg, session, expected_reply in test:
@@ -689,9 +689,9 @@ def run_tests(net, test):
                 print("✘ FAILED: OAM reply different")
                 print(f"Actual reply:\n{reply}\nExpected reply:\n{expected_reply}\n")
                 dead_count = 0
-                for rr in r2dtwos:
+                for rr in dnts:
                     if rr.poll() != None:
-                        print(f"r2dtwo '{rr.args}' has died\n")
+                        print(f"dnt '{rr.args}' has died\n")
                         dead_count += 1
                 if dead_count > 0:
                     return False
@@ -711,15 +711,15 @@ def main():
         if len(sys.argv) >= 2 and sys.argv[1] == "debug":
             debug = True
         if debug:
-            print("R2DTWO TSN OAM debug")
+            print("DNT TSN OAM debug")
         else:
-            print("R2DTWO TSN OAM test")
+            print("DNT TSN OAM test")
         net = create_net()
         config_net(net)
         if debug:
             inp = input("Do you want to start R2DWOs? (yes/no): ")
             if inp.lower() in ["yes", "y"]:
-                start_r2dtwos(net, False)
+                start_dnts(net, False)
             CLI(net)
         else:
             all_ok = run_tests(net, testcases)
@@ -727,7 +727,7 @@ def main():
         print(type(ex), ex)
     finally:
         print("Cleanup...")
-        exec_fg("killall r2dtwo")
+        exec_fg("killall dnt")
         exec_fg("killall xterm")
         #exec_fg("killall gdb")
         net.stop()

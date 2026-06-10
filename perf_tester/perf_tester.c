@@ -1,7 +1,7 @@
 
-// minimal model of the packet forwarding of R2DTWO with eth interfaces
+// minimal model of the packet forwarding of DNT with eth interfaces
 
-// cc -Wall -Wextra -Wshadow -Wstrict-prototypes -Wmissing-declarations -Wwrite-strings -Wvla -Wc++-compat -Werror r1d1.c -o r1d1
+// cc -Wall -Wextra -Wshadow -Wstrict-prototypes -Wmissing-declarations -Wwrite-strings -Wvla -Wc++-compat -Werror perf_tester.c -o perf_tester
 
 #include <stdio.h>
 #include <stdlib.h>

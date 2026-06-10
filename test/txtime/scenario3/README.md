@@ -28,10 +28,10 @@ Now the `ETF` offload is not set in `env.sh`, which means the proper delay is ca
 ### Commands to run this scenario:
 
 ```
-nxp1 r2dtwo nxp1.ini -o stdout -v INTERFACE:ALL
+nxp1 dnt nxp1.ini -o stdout -v INTERFACE:ALL
 
 Info: Logging to standard output.
-2024.03.27 12:58:05 [MAIN] [INFO] R2DTWO - Reliable & Robust Deterministic Tool for netWOrking 6.3
+2024.03.27 12:58:05 [MAIN] [INFO] DNT - Dependable Networking Toolkit 6.3
 2024.03.27 12:58:05 [MAIN] [INFO] Reading config 'nxp1.ini'
 
 2024.03.27 12:58:05 [INTERFACE] [DEBUG] SO_TXTIME enabled on 'swp0'
@@ -43,10 +43,10 @@ Info: Logging to standard output.
 ```
 
 ```
-nxp2 r2dtwo nxp2.ini -o stdout -v INTERFACE:ALL
+nxp2 dnt nxp2.ini -o stdout -v INTERFACE:ALL
 
 Info: Logging to standard output.
-2024.03.27 12:58:20 [MAIN] [INFO] R2DTWO - Reliable & Robust Deterministic Tool for netWOrking 6.3
+2024.03.27 12:58:20 [MAIN] [INFO] DNT - Dependable Networking Toolkit 6.3
 2024.03.27 12:58:20 [MAIN] [INFO] Reading config 'nxp2.ini'
 
 2024.03.27 12:58:20 [INTERFACE] [INFO] Udp-out interface nni1_out on device swp0

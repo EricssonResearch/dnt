@@ -2,8 +2,8 @@
 // All rights reserved.
 
 
-#ifndef R2_OAM_H
-#define R2_OAM_H
+#ifndef DNT_OAM_H
+#define DNT_OAM_H
 
 #include "interface.h"
 #include "object.h"
@@ -149,4 +149,4 @@ bool oam_start_background_ping(const char *name, const char *command);
 //TODO functions to set the dACH fields
 
 
-#endif // R2_OAM_H
+#endif // DNT_OAM_H

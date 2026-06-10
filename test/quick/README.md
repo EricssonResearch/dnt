@@ -1,6 +1,6 @@
 # Quicktest
 
-This is a sandbox for testing the actions and packet header manipulations during development. The R2DTWO configurations do some sane stuff to let traffic through, but they also send some insane variations of the packets for testing.
+This is a sandbox for testing the actions and packet header manipulations during development. The DNT configurations do some sane stuff to let traffic through, but they also send some insane variations of the packets for testing.
 
 The network can be started as
 

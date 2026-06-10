@@ -1,4 +1,4 @@
-# Scenario 8: R2DTWO Notification Framework
+# Scenario 8: DNT Notification Framework
 
 __Important: this scenario assumes background knowledge of some other scenarios.
 Please take a look into IP46oDetNet and OAM scenarios if you have not already.__
@@ -9,7 +9,7 @@ We will use the following topology, which consists:
 
 * a talker node called **host1** which will generate IPv4 traffic
 * a listener node called **host2** which receives the traffic coming from the **talker**
-* two R2DTWO instances, running on the **edge1** and **edge2** nodes.
+* two DNT instances, running on the **edge1** and **edge2** nodes.
 * a node called __core__ which interconnects the __edge1__ and __edge2__ nodes and forwards the traffic between them.
 
 ```
@@ -33,23 +33,23 @@ We will use the following topology, which consists:
 │     (prf)      │       │           │       └╔═══════╗┘
 └───╔═══════╗────┘       └─╔═══════╗─┘        ║ edge2 ║
     ║ edge1 ║              ║ core  ║          ╚═══════╝
-    ╚═══════╝              ╚═══════╝           R2DTWO
-     R2DTWO
+    ╚═══════╝              ╚═══════╝           DNT
+     DNT
 ```
 
 The __edge1__ node replicates the traffic arriving from the talker and the __edge2__ node does the elimination.
 (To have bi-directional traffic /e.g. ping test/, the backward direction is also configured: for the traffic from the __listener__ towards the __talker__ replication is at the node __edge2__ and elimination is at the node __edge1__ .)
 
-## R2DTWO OAM configuration
+## DNT OAM configuration
 
 The basic concepts and generic operation of the notification framework can be found in the doc folder of the repository.
 
 In this guide, we discuss only the notification-related parts of the configuration that is specific for this scenario.
 
 The notification aggregation point where the notification messages are sent to and collected is on the node __edge2__ (eno1 interface, IP address: 10.10.10.2). To collect the the notification messages a simple json receiver will be run on this node.  
-R2DTWO on node __edge1__ is configured to send its notification messages on two interfaces (ens2f0 and ans2f1) to have redundancy for the notification.
+DNT on node __edge1__ is configured to send its notification messages on two interfaces (ens2f0 and ans2f1) to have redundancy for the notification.
 There is also a continuous oam ping initiated from c_edge1_tx to any destination, this will generate oam traffic that can be monitored with the oam packet and octet counters.
-R2DTWO on node __edge2__ sends its notification messages without redundancy to the same aggregation point (the simple json receiver collects messages from both nodes).
+DNT on node __edge2__ sends its notification messages without redundancy to the same aggregation point (the simple json receiver collects messages from both nodes).
 
 The corresponding configuration of `edge1.ini` related to notification is the following:
 
@@ -77,7 +77,7 @@ notification_session = send ifNotify
 
 ## Notification framework in action
 
-This scenario runs in mininet. The `testnet.py` script creates the network topology with the nodes. It also starts the two R2DTWO instances, the notification receiver script and two telnet OAM session to each R2DTWO in separate xterms, altoghether 5 xterm is opened.
+This scenario runs in mininet. The `testnet.py` script creates the network topology with the nodes. It also starts the two DNT instances, the notification receiver script and two telnet OAM session to each DNT in separate xterms, altoghether 5 xterm is opened.
 The `testnet.py` script has an optional input parameter, *AutoMIP*. When *AutoMIP* is specified, a different configuration is used that uses AutoMIP to set up MIPs automatically for each replication/elimination object. With *AutoMIP* enabled, the MIP/MEP names are automatically generated, thus the OAM commands will be different. In this document for each OAM command, the AutoMIP command is also shown.
 
 The OAM telnet xterms' title shows the node name, and the following lines. In the following we reference these xterms as **oam-edge1** and **oam-edge2**.
@@ -88,7 +88,7 @@ Escape character is '^]'.
 OAM 'conn XY' ready
 ```
 
-Anther two xterms show the logging output of the two R2DTWO instances, and the title of the xterm denotes the node name.
+Anther two xterms show the logging output of the two DNT instances, and the title of the xterm denotes the node name.
 
 The fifth xterm (with title __edge2__) show sthe received notification messages as formatted JSON output. In the following we reference this xterm as **notif-recv**.
 
@@ -122,7 +122,7 @@ Received 162 bytes from edge1 , 192.168.1.2 : 36951 with sequence number 1
   "notif_hostname": "edge1",
   "notif_msg": {
     "push_level": "INFO",
-    "r2dtwo": {
+    "dnt": {
       "status": "startup completed"
     }
   },
@@ -151,7 +151,7 @@ Received 194 bytes from edge1 , 192.168.1.2 : 36951 with sequence number 2
 Message with sequence number  2 from  edge1  with fragment ID  None  already received, not showing the replica
 ```
 
-Since node __edge1__ sends redundant notification messages on two interfaces, the receiver detects the duplicates and does not display the replica by matching an already seen sequence number from a given R2DTWO. This is indicated by:
+Since node __edge1__ sends redundant notification messages on two interfaces, the receiver detects the duplicates and does not display the replica by matching an already seen sequence number from a given DNT. This is indicated by:
 
 ```
 Message with sequence number  X from  <host>  with fragment ID  None already received, not showing the replica
@@ -170,7 +170,7 @@ Notification pull is now enabled
 In **notif-recv** xterm the pull notification messages are shown from node __edge1__, and the replicated notification messages are not shown.
 There is a lot of data and counters received with 2 second interval about the objects, interfaces, etc.
 
-There are Maintanence Points defined in the configuration files of the R2DTWO instances. For node __edge1__, in direction talker -> listener:
+There are Maintanence Points defined in the configuration files of the DNT instances. For node __edge1__, in direction talker -> listener:
 
 - before the replication: c_edge1_tx
 - after the replication: path1_edge1_tx and path2_edge1_tx

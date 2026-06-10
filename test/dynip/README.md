@@ -1,6 +1,6 @@
 # Dynamic IP test
 
-This scenario has 5 nodes in a chain: *na* and *ne* are the endpoints, their default gateways are *nb* and *nd*, respectively. The traffic between *na* and *nd* is intercepted by R2DTWO on *nb* and *nd*, and forwarded in an IP-in-PseudoWire tunnel. The IPv4 traffic goes in an IPv4 tunnel, the IPv6 traffic goes in an IPv6 tunnel.
+This scenario has 5 nodes in a chain: *na* and *ne* are the endpoints, their default gateways are *nb* and *nd*, respectively. The traffic between *na* and *nd* is intercepted by DNT on *nb* and *nd*, and forwarded in an IP-in-PseudoWire tunnel. The IPv4 traffic goes in an IPv4 tunnel, the IPv6 traffic goes in an IPv6 tunnel.
 
 Node *nd* has no IP address on its *ethDC* interface. Node *nc* provides IP address for *nd* with a DHCP server or ICMPv6 Router Advertisement.
 
@@ -40,12 +40,12 @@ Node *nd* has no IP address on its *ethDC* interface. Node *nc* provides IP addr
                                                             └────────────────┘  └────────────────┘
 ```
 
-Run R2DTWO like this:
+Run DNT like this:
 
 ```
-nb# ../r2dtwo nb.ini
+nb# ../dnt nb.ini
 
-nd# ../r2dtwo nd.ini
+nd# ../dnt nd.ini
 ```
 
 If everything is running correctly, then *na* and *ne* can communicate with each other:

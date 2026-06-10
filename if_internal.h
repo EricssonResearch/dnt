@@ -2,11 +2,11 @@
 // All rights reserved.
 
 
-#ifndef R2_IF_INTERNAL_H
-#define R2_IF_INTERNAL_H
+#ifndef DNT_IF_INTERNAL_H
+#define DNT_IF_INTERNAL_H
 
 struct Interface;
 
 struct Interface *new_internal_interface(const char *name);
 
-#endif // R2_IF_INTERNAL_H
+#endif // DNT_IF_INTERNAL_H

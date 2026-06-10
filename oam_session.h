@@ -2,8 +2,8 @@
 // All rights reserved.
 
 
-#ifndef R2_OAM_SESSION_H
-#define R2_OAM_SESSION_H
+#ifndef DNT_OAM_SESSION_H
+#define DNT_OAM_SESSION_H
 
 #ifndef OAM_INTERNAL
 #error "this header is internal to the OAM module"
@@ -58,4 +58,4 @@ void init_session_module(void);
 
 void finish_session_module(void);
 
-#endif // R2_OAM_SESSION_H
+#endif // DNT_OAM_SESSION_H

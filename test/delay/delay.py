@@ -7,10 +7,10 @@ import sys
 stdouts = { }
 
 nics = [
-    ["to_r2br0", "r2br0_uni"],
-    ["to_r2br1", "r2br1_uni"],
-    ["r2br0_nni0", "r2br1_nni0"],
-    ["r2br0_nni1", "r2br1_nni1"],
+    ["to_dntbr0", "dntbr0_uni"],
+    ["to_dntbr1", "dntbr1_uni"],
+    ["dntbr0_nni0", "dntbr1_nni0"],
+    ["dntbr0_nni1", "dntbr1_nni1"],
 ]
 
 def create_ifaces():
@@ -30,11 +30,11 @@ def config_ifaces():
     # up loopback in case its running in namespace
     ret += exec_fg(f"ip link set dev lo up").returncode
     # accept local ARP on listener uni
-    ret += exec_fg(f"sysctl -w net.ipv4.conf.to_r2br1.accept_local=1").returncode
-    ret += exec_fg("ip addr flush dev to_r2br0").returncode
-    ret += exec_fg("ip addr flush dev to_r2br1").returncode
-    ret += exec_fg("ip addr add 10.0.0.1/24 dev to_r2br0").returncode
-    ret += exec_fg("ip addr add 10.0.0.2/24 dev to_r2br1").returncode
+    ret += exec_fg(f"sysctl -w net.ipv4.conf.to_dntbr1.accept_local=1").returncode
+    ret += exec_fg("ip addr flush dev to_dntbr0").returncode
+    ret += exec_fg("ip addr flush dev to_dntbr1").returncode
+    ret += exec_fg("ip addr add 10.0.0.1/24 dev to_dntbr0").returncode
+    ret += exec_fg("ip addr add 10.0.0.2/24 dev to_dntbr1").returncode
     if ret > 0:
         print("Error(s) during interface config. Running without sudo?")
         exit(1)
@@ -50,12 +50,12 @@ def ping_check_time(ping_output):
 def delay_burst():
     try:
         print("Delay test with back-to-back packets...", end=" ")
-        exec_bg("../r2dtwo delay/r2br0.ini")
-        exec_bg("../r2dtwo delay/r2br1.ini")
+        exec_bg("../dnt delay/dntbr0.ini")
+        exec_bg("../dnt delay/dntbr1.ini")
         time.sleep(1)
         num_pings = 10
-        exec_fg(f"ping -I to_r2br0 10.0.0.2 -c 1")  # first ping has triple delay because of ARP
-        pingcmd = exec_fg(f"ping -I to_r2br0 10.0.0.2 -i 0.05 -c {num_pings}")
+        exec_fg(f"ping -I to_dntbr0 10.0.0.2 -c 1")  # first ping has triple delay because of ARP
+        pingcmd = exec_fg(f"ping -I to_dntbr0 10.0.0.2 -i 0.05 -c {num_pings}")
         #print(pingcmd.stdout)
         if pingcmd.stdout and f", {num_pings} received," not in pingcmd.stdout:
             print(pingcmd.stdout)
@@ -71,11 +71,11 @@ def delay_burst():
 def delay_single():
     try:
         print("Delay test with single packets...", end=" ")
-        exec_bg("../r2dtwo delay/r2br0.ini")
-        exec_bg("../r2dtwo delay/r2br1.ini")
+        exec_bg("../dnt delay/dntbr0.ini")
+        exec_bg("../dnt delay/dntbr1.ini")
         time.sleep(1)
         num_pings = 5
-        pingcmd = exec_fg(f"ping -I to_r2br0 10.0.0.2 -c {num_pings}")
+        pingcmd = exec_fg(f"ping -I to_dntbr0 10.0.0.2 -c {num_pings}")
         #print(pingcmd.stdout)
         if pingcmd.stdout and f", {num_pings} received," not in pingcmd.stdout:
             print(pingcmd.stdout)
@@ -88,7 +88,7 @@ def delay_single():
     return 1
 
 def main():
-    print("R2DTWO delay tests")
+    print("DNT delay tests")
     create_ifaces()
     config_ifaces()
     if len(sys.argv) == 2 and sys.argv[1] == "--debug":
@@ -102,7 +102,7 @@ def main():
             print("✔")
         else:
             print("✘")
-        exec_fg("killall r2dtwo")
+        exec_fg("killall dnt")
     print(f'All test completed, {ret}/{len(tests)} successfully')
     # exit(0)
     cleanup_ifaces()

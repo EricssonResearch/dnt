@@ -2,8 +2,8 @@
 // All rights reserved.
 
 
-#ifndef R2_REPLICATE_H
-#define R2_REPLICATE_H
+#ifndef DNT_REPLICATE_H
+#define DNT_REPLICATE_H
 
 #include "action.h"
 #include "object.h"
@@ -25,4 +25,4 @@ void store_replication_pipelines(struct PipelineObject *obj, struct PipelineList
 struct PipelineList *replicate_get_pipes(struct PipelineObject *rep);
 
 
-#endif // R2_REPLICATE_H
+#endif // DNT_REPLICATE_H

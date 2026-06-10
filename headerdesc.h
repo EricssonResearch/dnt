@@ -2,8 +2,8 @@
 // All rights reserved.
 
 
-#ifndef R2_HEADERDESC_H
-#define R2_HEADERDESC_H
+#ifndef DNT_HEADERDESC_H
+#define DNT_HEADERDESC_H
 
 #include "header.h"
 
@@ -34,4 +34,4 @@ struct HeaderDescriptor *header_list_find_by_name(struct HeaderDescriptor *heade
 struct HeaderDescriptor *header_list_find_by_typeid(struct HeaderDescriptor *headers, enum ProtocolID id);
 
 
-#endif // R2_HEADERDESC_H
+#endif // DNT_HEADERDESC_H

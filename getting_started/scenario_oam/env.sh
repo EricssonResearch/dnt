@@ -1,4 +1,4 @@
-CNTFILE=/tmp/r2dtwo_test_env.count
+CNTFILE=/tmp/dnt_test_env.count
 SCENNAME="scenario_oam"
 function talker() { ip netns exec talker $@ ; }
 function listener() { ip netns exec listener $@ ; }
@@ -16,31 +16,31 @@ if [ $(id -u) -ne 0 ]; then
   return -1
 fi
 
-if which r2dtwo > /dev/null ; then true ; else
-  echo "r2dtwo executable not found."
-  echo "Compile and install r2dtwo first."
+if which dnt > /dev/null ; then true ; else
+  echo "dnt executable not found."
+  echo "Compile and install dnt first."
   return -2
 fi
 
 function configure_tc() {
 
-  nxp1 ip link add r2eth0 type veth peer name r2eth1
-  nxp1 ip link set dev r2eth0 up
-  nxp1 ip link set dev r2eth1 up
+  nxp1 ip link add dnteth0 type veth peer name dnteth1
+  nxp1 ip link set dev dnteth0 up
+  nxp1 ip link set dev dnteth1 up
   nxp1 tc qdisc add dev swp2 handle ffff: ingress
-  nxp1 tc filter add dev swp2 parent ffff: protocol ip flower src_ip 10.0.100.11 dst_ip 10.0.200.22 action mirred egress redirect dev r2eth0
+  nxp1 tc filter add dev swp2 parent ffff: protocol ip flower src_ip 10.0.100.11 dst_ip 10.0.200.22 action mirred egress redirect dev dnteth0
 
-  nxp2 ip link add r2eth0 type veth peer name r2eth1
-  nxp2 ip link set dev r2eth0 up
-  nxp2 ip link set dev r2eth1 up
+  nxp2 ip link add dnteth0 type veth peer name dnteth1
+  nxp2 ip link set dev dnteth0 up
+  nxp2 ip link set dev dnteth1 up
   nxp2 tc qdisc add dev swp2 handle ffff: ingress
-  nxp2 tc filter add dev swp2 parent ffff: protocol ip flower src_ip 10.0.200.22 dst_ip 10.0.100.11 action mirred egress redirect dev r2eth0
+  nxp2 tc filter add dev swp2 parent ffff: protocol ip flower src_ip 10.0.200.22 dst_ip 10.0.100.11 action mirred egress redirect dev dnteth0
 }
 
 export -f configure_tc
 
 configure_networkenv() {
-  echo "Initialize r2dtwo test environment"
+  echo "Initialize dnt test environment"
   # Create the test namespace
   ip netns add talker 2>/dev/null
   ip netns add listener 2>/dev/null
@@ -124,7 +124,7 @@ fi
 
 read scenname cntvalue < $CNTFILE
 if [ $cntvalue -eq 1 ]; then #last bash instance in the env, do cleanup
-  echo "Cleanup r2dtwo test environment"
+  echo "Cleanup dnt test environment"
   rm $CNTFILE
   #Cleanup the test namespace
   ip netns del talker 2>/dev/null

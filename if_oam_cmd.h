@@ -2,8 +2,8 @@
 // All rights reserved.
 
 
-#ifndef R2_IF_OAM_CMD_H
-#define R2_IF_OAM_CMD_H
+#ifndef DNT_IF_OAM_CMD_H
+#define DNT_IF_OAM_CMD_H
 
 
 struct Interface;
@@ -13,4 +13,4 @@ struct Interface;
 struct Interface *new_oam_cmd_interface(const char *name, const char *ifname,
         const char *oam_cmd_ip, unsigned port);
 
-#endif // R2_IF_OAM_CMD_H
+#endif // DNT_IF_OAM_CMD_H

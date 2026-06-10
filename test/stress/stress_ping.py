@@ -21,11 +21,11 @@ def ping_check_out_of_order(ping_output):
 def long_run(net, debug : bool):
     t, l, a, b = [net.get(n) for n in ["t", "l", "a", "b"]]
     switch_netns("a")
-    # rtwo1 = exec_bg(f"screen -S r1 -d -m env -i gdb -ex=r --args ../r2dtwo stress/a.ini")
-    rtwo1 = exec_bg(f"../r2dtwo -vALL:NONE stress/a.ini")
+    # rtwo1 = exec_bg(f"screen -S r1 -d -m env -i gdb -ex=r --args ../dnt stress/a.ini")
+    rtwo1 = exec_bg(f"../dnt -vALL:NONE stress/a.ini")
     switch_netns("b")
-    # rtwo2 = exec_bg(f"screen -S r2 -d -m env -i gdb -ex=r --args ../r2dtwo stress/b.ini")
-    rtwo2 = exec_bg(f"../r2dtwo -vALL:NONE stress/b.ini")
+    # rtwo2 = exec_bg(f"screen -S r2 -d -m env -i gdb -ex=r --args ../dnt stress/b.ini")
+    rtwo2 = exec_bg(f"../dnt -vALL:NONE stress/b.ini")
     time.sleep(2)
     if debug:
         print("Debug mode. Press Ctrl+D or Ctrl+C to exit...")
@@ -79,7 +79,7 @@ def create_net():
 def main():
     debug = False
     all_ok = False
-    print("R2DTWO stress test")
+    print("DNT stress test")
     if len(sys.argv) == 2 and sys.argv[1] == "--debug":
         debug = True
     try:
@@ -91,17 +91,17 @@ def main():
         else:
             print("✔")
             all_ok = True
-        exec_fg("killall r2dtwo")
+        exec_fg("killall dnt")
     except KeyboardInterrupt:
         print(" Interrupted, cleanup...")
         exec_fg("killall ping")
-        exec_fg("killall r2dtwo")
+        exec_fg("killall dnt")
         exec_fg("killall gdb")
         net.stop()
         exit(1)
     finally:
         exec_fg("killall ping")
-        exec_fg("killall r2dtwo")
+        exec_fg("killall dnt")
         exec_fg("killall gdb")
         net.stop()
         if all_ok:
