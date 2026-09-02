@@ -11,3 +11,10 @@ compile_commands.json
 
 #auto generated
 doc/protocols.md
+dnt_testbed/result_*.txt
+dnt_testbed/sweep_results.txt
+dnt_testbed/emulation_points.csv
+dnt_testbed/dnt_nxp*.log
+dnt_testbed/raw/
+# results_archive/ is intentionally NOT ignored: it preserves finished
+# measurement campaigns (commit it to keep them)

@@ -211,6 +211,57 @@ def pof_burst():
         return 0
     return 1
 
+def pof_expired_deadline_stall():
+    """
+    Regression test for the POF stall on an already-expired deadline.
+
+    Runs over a single member path (nni1 down) and briefly downs it mid-ping,
+    so a run of sequence numbers is lost and can never arrive. POF must
+    release the held head on its forward deadline (MaxDelay=16).
+
+    If an expired deadline re-arms TakeAnyTime (5sec) instead of firing at
+    once, every new arrival re-arms it again, the held packets are never
+    released and the 32-deep conditional delay buffer fills up.
+
+    The check is on DNT's own 'buffer is full' warning, not on ping loss:
+    the link-down costs a handful of packets either way, so the delivered
+    counts of a healthy and a stalled run are only a few packets apart.
+    """
+    try:
+        print("Test POF expired deadline under sustained traffic...", end=" ")
+        exec_bg("../dnt pof/dntbr0.ini")
+        # stdbuf: keep the log line-buffered so it survives the shutdown
+        pof_dnt = exec_bg("stdbuf -oL -eL ../dnt pof/dntbr1_stall.ini", OUT_PIPE)
+        time.sleep(1)
+        if pof_dnt.poll() is not None:
+            print("dntbr1 exited at startup")
+            return 0
+        num_pings = 300
+        exec_fg("ip link set dev dntbr0_nni1 down")
+        exec_fg("tc qdisc add dev dntbr0_nni0 root netem delay 30ms")
+        ping = exec_bg(f"ping -I to_dntbr0 10.0.0.2 -i {PING_INTERVAL_SEC} -c {num_pings} -W 2", OUT_PIPE)
+        time.sleep(1)
+        # punch a hole in the sequence, then keep the traffic flowing
+        exec_fg("ip link set dev dntbr0_nni0 down")
+        time.sleep(0.05)
+        exec_fg("ip link set dev dntbr0_nni0 up")
+        ping_out = str(ping.communicate()[0])
+        exec_fg("tc qdisc del dev dntbr0_nni0 root")
+        exec_fg("ip link set dev dntbr0_nni1 up")
+        pof_dnt.terminate()
+        pof_out = str(pof_dnt.communicate()[0])
+        # sanity: the run is only meaningful if traffic actually flowed
+        received = int(ping_out.split(" received")[0].split(",")[-1])
+        if received < 200:
+            print(ping_out)
+            return 0
+        if "buffer is full" in pof_out:
+            print(pof_out)
+            return 0
+    except:
+            return 0
+    return 1
+
 def main():
     print("DNT POF test")
     create_ifaces()
@@ -218,7 +269,8 @@ def main():
     if len(sys.argv) == 2 and sys.argv[1] == "--debug":
         exit(1)
     ret = 0
-    tests = [no_out_of_order, ofo_no_pof, ofo_pof, pof_reset, ofo_pof_smallbuffer, pof_burst]
+    tests = [no_out_of_order, ofo_no_pof, ofo_pof, pof_reset, ofo_pof_smallbuffer,
+             pof_burst, pof_expired_deadline_stall]
     for test in tests:
         result = test()
         ret += result
